@@ -47,10 +47,9 @@ public static class PageCatalog
         ]),
         [AppRoute.Tools] = ("工具箱", "src/views/Tools.vue",
         [
-            "好友清理与离线对局时间探测",
-            "SGP 凭据提取与命令行独立进程直接观战",
             "英雄熟练度与分路详细选择器弹窗",
             "召唤师技能与符文出装一键导入",
+            "大乱斗板凳席独立悬浮窗（阶段 8）",
         ]),
         [AppRoute.Settings] = ("设置", "src/views/Settings.vue",
         [

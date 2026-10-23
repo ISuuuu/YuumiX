@@ -22,6 +22,14 @@ public interface ISgpService
     Task<string?> GetAccessTokenAsync(bool forceRefresh = false, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 获取指定玩家在指定大区的观战凭据（gsm/v1/ledge/spectator/region/{server}/puuid/{puuid}）。
+    /// </summary>
+    Task<YuumiX.Core.Features.Tools.Models.SpectateCredentials?> GetSpectateCredentialsAsync(
+        string? server,
+        string puuid,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 通过 SGP 接口获取战绩摘要列表。
     /// </summary>
     /// <param name="server">大区标识（如 hn1, bgp2 等）。</param>

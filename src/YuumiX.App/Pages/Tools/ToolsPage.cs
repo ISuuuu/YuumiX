@@ -8,6 +8,8 @@ using Microsoft.UI.Xaml.Media.Animation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
+using YuumiX.Core.Features.Tools;
+using YuumiX.Core.Features.Tools.Models;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
 
@@ -27,15 +29,40 @@ public sealed class ToolsPage : Component
     private static readonly string[] SpoofTiers =
     [
         "CHALLENGER", "GRANDMASTER", "MASTER", "DIAMOND", "EMERALD",
-        "PLATINUM", "GOLD", "SILVER", "BRONZE", "IRON"
+        "PLATINUM", "GOLD", "SILVER", "BRONZE", "IRON", "UNRANKED"
     ];
     private static readonly string[] SpoofTierLabels =
     [
         "王者 (Challenger)", "宗师 (Grandmaster)", "大师 (Master)", "钻石 (Diamond)",
-        "翡翠 (Emerald)", "铂金 (Platinum)", "黄金 (Gold)", "白银 (Silver)", "青铜 (Bronze)", "黑铁 (Iron)"
+        "翡翠 (Emerald)", "铂金 (Platinum)", "黄金 (Gold)", "白银 (Silver)", "青铜 (Bronze)", "黑铁 (Iron)", "未定级 (Unranked)"
     ];
+    private static readonly string[] SpoofDivisions = ["I", "II", "III", "IV"];
+    private static readonly string[] SpoofDivisionLabels = ["第 1 阶 (I)", "第 2 阶 (II)", "第 3 阶 (III)", "第 4 阶 (IV)"];
     private static readonly string[] SpoofQueues = ["RANKED_SOLO_5x5", "RANKED_FLEX_SR", "RANKED_TFT"];
     private static readonly string[] SpoofQueueLabels = ["单双排排位", "灵活排位", "云顶之弈"];
+
+    private static readonly string[] SpectateMethodLabels =
+    [
+        "CMD 方式 (直接启动客户端进程，绕开限制)",
+        "LCU 方式 (客户端内置观战)"
+    ];
+
+    private static readonly int[] LobbyModes = [2400, 2450, 450, 430, 420, 440, 900, 1020, 1300, 1700, 4300];
+    private static readonly string[] LobbyModeLabels =
+    [
+        "海克斯大乱斗 (2400)", "经典海斗 (2450)", "极地大乱斗 (450)", "匹配模式 (430)",
+        "单双排位 (420)", "灵活排位 (440)", "无限火力 (900)", "克隆模式 (1020)",
+        "极限闪击 (1300)", "斗魂竞技场 (1700)", "经典模式 (4300)"
+    ];
+
+    private static int IndexOfLobbyMode(int mode)
+    {
+        for (var i = 0; i < LobbyModes.Length; i++)
+        {
+            if (LobbyModes[i] == mode) return i;
+        }
+        return 0;
+    }
 
     private static long _nextToastId;
     private int _renderTick;
@@ -49,6 +76,8 @@ public sealed class ToolsPage : Component
         var services = UseContext(AppHost.Context);
         var theme = UseContext(AppHost.ThemeContext);
         var config = services.Config;
+        var toolsService = services.Services.GetRequiredService<IToolsService>();
+        var friendCleanerService = services.Services.GetRequiredService<IFriendCleanerService>();
 
         var (_, setTick) = UseState(0, threadSafe: true);
         var (savedAt, setSavedAt) = UseState<DateTime?>(null, threadSafe: true);
@@ -66,10 +95,57 @@ public sealed class ToolsPage : Component
 
         // 动作输入草稿
         var (spectateName, setSpectateName) = UseState(string.Empty, threadSafe: true);
+        var (spectateMethodIndex, setSpectateMethodIndex) = UseState(0, threadSafe: true);
         var (signatureDraft, setSignatureDraft) = UseState(string.Empty, threadSafe: true);
         var (skinIdDraft, setSkinIdDraft) = UseState(string.Empty, threadSafe: true);
         var (spoofTierIndex, setSpoofTierIndex) = UseState(0, threadSafe: true);
         var (spoofQueueIndex, setSpoofQueueIndex) = UseState(0, threadSafe: true);
+        var (spoofDivisionIndex, setSpoofDivisionIndex) = UseState(0, threadSafe: true);
+
+        // 好友清理状态
+        var (allFriends, setAllFriends) = UseState<IReadOnlyList<FriendEntry>>(Array.Empty<FriendEntry>(), threadSafe: true);
+        var (isScanningFriends, setIsScanningFriends) = UseState(false, threadSafe: true);
+        var (isDeletingFriends, setIsDeletingFriends) = UseState(false, threadSafe: true);
+        var (friendScanCompleted, setFriendScanCompleted) = UseState(0, threadSafe: true);
+        var (friendScanTotal, setFriendScanTotal) = UseState(0, threadSafe: true);
+        var (friendSearchQuery, setFriendSearchQuery) = UseState(string.Empty, threadSafe: true);
+        var (friendFilterIndex, setFriendFilterIndex) = UseState(0, threadSafe: true);
+        var initialSelectedFriends = UseMemo(() => new HashSet<string>(), 0);
+        var (selectedFriendIds, setSelectedFriendIds) = UseState(initialSelectedFriends, threadSafe: true);
+        var (isConfirmingDeleteFriends, setIsConfirmingDeleteFriends) = UseState(false, threadSafe: true);
+
+        // 生涯背景皮肤选择器
+        var (bgChampInput, setBgChampInput) = UseState("1", threadSafe: true);
+        var (bgSkins, setBgSkins) = UseState<IReadOnlyList<ChampionSkinItem>>(Array.Empty<ChampionSkinItem>(), threadSafe: true);
+        var (bgSkinIndex, setBgSkinIndex) = UseState(0, threadSafe: true);
+        var (bgLoading, setBgLoading) = UseState(false, threadSafe: true);
+
+        // 挑战勋章与称号
+        var (challengesList, setChallengesList) = UseState<IReadOnlyList<ChallengeItem>>(Array.Empty<ChallengeItem>(), threadSafe: true);
+        var (challengesLoading, setChallengesLoading) = UseState(false, threadSafe: true);
+        var (badgeSearchQuery, setBadgeSearchQuery) = UseState(string.Empty, threadSafe: true);
+        var (badgeTierIndex, setBadgeTierIndex) = UseState(0, threadSafe: true);
+        var (badgeTitleInput, setBadgeTitleInput) = UseState(string.Empty, threadSafe: true);
+        var initialSelectedBadges = UseMemo(() => new List<long>(), 0);
+        var (selectedBadgeIds, setSelectedBadgeIds) = UseState(initialSelectedBadges, threadSafe: true);
+
+        // 游戏设置锁定状态
+        var (isSettingsLocked, setIsSettingsLocked) = UseState<bool?>(null, threadSafe: true);
+
+        var lolPaths = config.General.LolPath;
+
+        if (isSettingsLocked is null)
+        {
+            try
+            {
+                var locked = toolsService.GetGameSettingsReadonly(lolPaths);
+                setIsSettingsLocked(locked);
+            }
+            catch
+            {
+                setIsSettingsLocked(false);
+            }
+        }
 
         UseEffect(
             () =>
@@ -557,17 +633,65 @@ public sealed class ToolsPage : Component
                     }, header: null, onContent: "", offContent: "").AutomationName("标记玩家提醒"))
             ));
 
+        async void StartFriendScan()
+        {
+            setIsScanningFriends(true);
+            setFriendScanCompleted(0);
+            setFriendScanTotal(0);
+            try
+            {
+                var list = await friendCleanerService.ScanFriendsAsync((done, total) =>
+                {
+                    setFriendScanCompleted(done);
+                    setFriendScanTotal(total);
+                });
+                setAllFriends(list);
+                ShowToast($"好友扫描完成，共找到 {list.Count} 位好友");
+            }
+            catch (Exception ex)
+            {
+                ShowToast($"好友扫描失败: {ex.Message}", isError: true);
+            }
+            finally
+            {
+                setIsScanningFriends(false);
+            }
+        }
+
+        async void LoadChallenges()
+        {
+            setChallengesLoading(true);
+            try
+            {
+                var list = await toolsService.GetPlayerChallengesAsync();
+                setChallengesList(list);
+                ShowToast($"已加载 {list.Count} 个挑战勋章");
+            }
+            catch (Exception ex)
+            {
+                ShowToast($"加载挑战勋章失败: {ex.Message}", isError: true);
+            }
+            finally
+            {
+                setChallengesLoading(false);
+            }
+        }
+
         // 7. 观战卡片
         var spectateCard = ToolCard(
             "spectate",
             "\uE7B3",
             "观战",
-            "观战同大区玩家正在进行的实时游戏",
+            "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)",
             "点击展开",
             VStack(8,
                 TextBlock("输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战：")
                     .FontSize(12)
                     .Foreground(Theme.SecondaryText),
+                CardRow("观战通道:",
+                    ComboBox(SpectateMethodLabels, spectateMethodIndex, idx => setSpectateMethodIndex(idx))
+                        .Width(340)
+                        .AutomationName("观战方式选择")),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
@@ -576,40 +700,92 @@ public sealed class ToolsPage : Component
                             .Margin(new Thickness(0, 0, 8, 0))
                             .AutomationName("观战目标输入")
                             .Grid(row: 0, column: 0),
-                        Button("启动观战", () =>
+                        Button("启动观战", async () =>
                         {
                             if (string.IsNullOrWhiteSpace(spectateName))
                             {
-                                setActionFeedback("请输入有效的召唤师名称");
+                                ShowToast("请输入有效的召唤师名称", isError: true);
                                 return;
                             }
 
-                            setActionFeedback($"正在请求观战「{spectateName.Trim()}」…");
-                            logger.LogInformation("用户发起观战: {Target}", spectateName.Trim());
+                            var target = spectateName.Trim();
+                            var method = spectateMethodIndex == 0 ? SpectateMethod.Cmd : SpectateMethod.Lcu;
+                            ShowToast($"正在发起对「{target}」的观战请求...");
+                            try
+                            {
+                                var res = await toolsService.LaunchSpectateAsync(target, method);
+                                ShowToast(res.Message, isError: !res.Success);
+                            }
+                            catch (Exception ex)
+                            {
+                                ShowToast($"观战异常: {ex.Message}", isError: true);
+                            }
                         }).AutomationName("启动观战按钮").Grid(row: 0, column: 1),
                     ])
             ));
 
         // 8. 好友管理与僵尸号清理卡片
+        var friendCleanerStatus = allFriends.Count > 0 ? $"已加载 {allFriends.Count} 位好友" : "点击展开";
         var friendCleanerCard = ToolCard(
             "friendCleaner",
             "\uE716",
             "好友管理与僵尸号清理",
-            "扫描好友列表，筛选并批量清理长期未上线的离线好友",
-            "",
-            VStack(8,
-                TextBlock("结合好友在线状态与最近战绩时间，安全扫描超过指定离线天数的好友，支持预览与批量清理。")
-                    .FontSize(12)
-                    .Foreground(Theme.SecondaryText),
-                HStack(12,
-                    Button("扫描离线好友", () =>
+            "扫描好友列表，筛选并批量清理长期未上线的离线好友 (支持安全保护)",
+            friendCleanerStatus,
+            FriendCleanerView.Render(
+                allFriends,
+                isScanningFriends,
+                isDeletingFriends,
+                friendScanCompleted,
+                friendScanTotal,
+                friendSearchQuery,
+                q => setFriendSearchQuery(q),
+                friendFilterIndex,
+                idx => setFriendFilterIndex(idx),
+                selectedFriendIds,
+                id =>
+                {
+                    var next = new HashSet<string>(selectedFriendIds);
+                    if (!next.Add(id)) next.Remove(id);
+                    setSelectedFriendIds(next);
+                },
+                () =>
+                {
+                    var filtered = FriendCleanerView.FilterFriends(allFriends, friendSearchQuery, friendFilterIndex);
+                    var next = new HashSet<string>(selectedFriendIds);
+                    foreach (var f in filtered)
                     {
-                        logger.LogInformation("用户触发好友清理扫描");
-                    }).AutomationName("扫描离线好友"),
-                    TextBlock("支持按 90 / 180 / 360 天未上线条件筛选")
-                        .FontSize(12)
-                        .Foreground(Theme.SecondaryText)
-                        .VAlign(VerticalAlignment.Center))
+                        if (f.CanDelete) next.Add(f.Friend.Id);
+                    }
+                    setSelectedFriendIds(next);
+                },
+                () => setSelectedFriendIds([]),
+                isConfirmingDeleteFriends,
+                () => setIsConfirmingDeleteFriends(true),
+                () => setIsConfirmingDeleteFriends(false),
+                async () =>
+                {
+                    if (selectedFriendIds.Count == 0) return;
+                    setIsDeletingFriends(true);
+                    try
+                    {
+                        var count = await friendCleanerService.BatchDeleteFriendsAsync(selectedFriendIds.ToList());
+                        ShowToast($"成功清理 {count} 位离线好友");
+                        setSelectedFriendIds([]);
+                        setIsConfirmingDeleteFriends(false);
+                        StartFriendScan();
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowToast($"删除好友失败: {ex.Message}", isError: true);
+                    }
+                    finally
+                    {
+                        setIsDeletingFriends(false);
+                    }
+                },
+                StartFriendScan,
+                palette
             ));
 
         var benchOverlayCard = ActionCard(
@@ -640,22 +816,52 @@ public sealed class ToolsPage : Component
                         config.Functions.EnableAutoCreateLobby = v;
                         Commit(nameof(FunctionsConfig.EnableAutoCreateLobby));
                     }, header: null, onContent: "", offContent: "").AutomationName("自动创建大厅开关")),
-                CardRow("默认队列模式代码 (2400=大乱斗, 420=单双排):",
-                    NumberBox(config.Functions.DefaultGameMode, v =>
+                CardRow("默认模式选择:",
+                    ComboBox(LobbyModeLabels, IndexOfLobbyMode(config.Functions.DefaultGameMode), idx =>
                     {
-                        if (double.IsNaN(v)) return;
-                        var next = (int)v;
-                        if (next == config.Functions.DefaultGameMode) return;
-                        config.Functions.DefaultGameMode = next;
+                        var mode = LobbyModes[idx];
+                        if (mode == config.Functions.DefaultGameMode) return;
+                        config.Functions.DefaultGameMode = mode;
                         Commit(nameof(FunctionsConfig.DefaultGameMode));
-                    }).Width(120).AutomationName("默认队列代码"))
+                    }).Width(220).AutomationName("默认队列选择")),
+                HStack(8,
+                    Button("立即创建该模式大厅", async () =>
+                    {
+                        try
+                        {
+                            await toolsService.CreateLobbyAsync(config.Functions.DefaultGameMode);
+                            ShowToast($"已创建模式 [{config.Functions.DefaultGameMode}] 大厅");
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowToast($"创建大厅失败: {ex.Message}", isError: true);
+                        }
+                    }).AutomationName("立即创建大厅按钮")
+                ).Margin(new Thickness(0, 4, 0, 4))
             ));
 
+        var lockStatusText = isSettingsLocked switch
+        {
+            true => "已锁定 (只读保护中)",
+            false => "未锁定 (可写入)",
+            null => "检测中",
+        };
+
         var lockSettingsCard = ActionCard(
-            "\uE72E", "游戏设置锁定", "锁定游戏内分辨率、键位与画面配置 (game.cfg)，防止被意外篡改",
-            Button("切换锁定状态", () =>
+            "\uE72E", "游戏设置锁定", $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]",
+            Button(isSettingsLocked == true ? "解除锁定" : "立即锁定", () =>
             {
-                setActionFeedback("已同步检查并保护客户端配置文件属性");
+                var nextState = !(isSettingsLocked ?? false);
+                try
+                {
+                    toolsService.SetGameSettingsReadonly(lolPaths, nextState);
+                    setIsSettingsLocked(nextState);
+                    ShowToast(nextState ? "已锁定游戏配置文件 (只读保护生效)" : "已解除锁定 (配置恢复可写)");
+                }
+                catch (Exception ex)
+                {
+                    ShowToast($"设置锁定失败: {ex.Message}", isError: true);
+                }
             }).AutomationName("锁定游戏配置"));
 
         // ══════════════════════════════════════════════════════
@@ -663,9 +869,17 @@ public sealed class ToolsPage : Component
         // ══════════════════════════════════════════════════════
         var fixWindowCard = ActionCard(
             "\uE740", "修复客户端窗口", "修复客户端错误的窗口大小与黑边缩放（重设 LeagueClientUx 尺寸）",
-            Button("立即修复", () =>
+            Button("立即修复", async () =>
             {
-                setActionFeedback("客户端窗口重设指令已触发");
+                try
+                {
+                    var msg = await toolsService.FixClientWindowAsync();
+                    ShowToast(msg);
+                }
+                catch (Exception ex)
+                {
+                    ShowToast($"窗口修复失败: {ex.Message}", isError: true);
+                }
             }).AutomationName("修复客户端窗口"));
 
         var restartClientCard = ActionCard(
@@ -694,48 +908,102 @@ public sealed class ToolsPage : Component
                             .Margin(new Thickness(0, 0, 8, 0))
                             .AutomationName("签名内容输入")
                             .Grid(row: 0, column: 0),
-                        Button("更新签名", () =>
+                        Button("更新签名", async () =>
                         {
                             if (string.IsNullOrWhiteSpace(signatureDraft))
                             {
-                                setActionFeedback("请输入有效的签名内容");
+                                ShowToast("请输入有效的签名内容", isError: true);
                                 return;
                             }
-                            SendLcu(async t =>
+                            try
                             {
-                                var json = JsonSerializer.Serialize(new { statusMessage = signatureDraft.Trim() });
-                                await t.SendAsync(LcuRequest.Put("/lol-chat/v1/me", json));
-                            }, "个性签名已成功更新");
+                                await toolsService.SetStatusMessageAsync(signatureDraft.Trim());
+                                ShowToast("个性签名已成功更新");
+                            }
+                            catch (Exception ex)
+                            {
+                                ShowToast($"更新个性签名失败: {ex.Message}", isError: true);
+                            }
                         }).AutomationName("更新签名按钮").Grid(row: 0, column: 1),
                     ])
             ));
 
         var profileBgCard = ToolCard(
-            "profileBg", "\uEB9F", "生涯背景", "强制在个人生涯主页展示任意指定的英雄皮肤插画背景", "点击展开",
-            VStack(8,
-                TextBlock("输入目标皮肤 ID（例如：1000 代表黑暗之女原皮，1001 代表哥特萝莉）：")
+            "profileBg", "\uEB9F", "生涯背景", "在个人生涯主页展示任意指定的英雄皮肤插画背景", "点击展开",
+            VStack(10,
+                TextBlock("浏览英雄皮肤并预览应用，或直接输入皮肤 ID：")
                     .FontSize(12).Foreground(Theme.SecondaryText),
+                SkinPickerView.Render(
+                    bgChampInput,
+                    v => setBgChampInput(v),
+                    bgLoading,
+                    bgSkins,
+                    bgSkinIndex,
+                    idx => setBgSkinIndex(idx),
+                    async skinId =>
+                    {
+                        try
+                        {
+                            await toolsService.SetProfileBackgroundAsync(skinId);
+                            ShowToast($"已成功将生涯背景设置为皮肤 [{skinId}]");
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowToast($"设置背景失败: {ex.Message}", isError: true);
+                        }
+                    },
+                    async () =>
+                    {
+                        if (!int.TryParse(bgChampInput.Trim(), out var champId))
+                        {
+                            ShowToast("请输入有效的英雄数字 ID", isError: true);
+                            return;
+                        }
+                        setBgLoading(true);
+                        try
+                        {
+                            var skins = await toolsService.GetChampionSkinsAsync(champId);
+                            setBgSkins(skins);
+                            setBgSkinIndex(0);
+                            ShowToast($"获取到 {skins.Count} 款皮肤");
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowToast($"获取皮肤列表失败: {ex.Message}", isError: true);
+                        }
+                        finally
+                        {
+                            setBgLoading(false);
+                        }
+                    },
+                    palette
+                ),
+                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        TextBox(skinIdDraft, v => setSkinIdDraft(v), "输入皮肤 ID，如 1001")
+                        TextBox(skinIdDraft, v => setSkinIdDraft(v), "或直接输入皮肤 ID，如 1001")
                             .Margin(new Thickness(0, 0, 8, 0))
                             .AutomationName("皮肤ID输入")
                             .Grid(row: 0, column: 0),
-                        Button("应用背景", () =>
+                        Button("直接应用皮肤 ID", async () =>
                         {
                             if (!int.TryParse(skinIdDraft.Trim(), out var skinId))
                             {
-                                setActionFeedback("请输入有效的数字皮肤 ID");
+                                ShowToast("请输入有效的数字皮肤 ID", isError: true);
                                 return;
                             }
-                            SendLcu(async t =>
+                            try
                             {
-                                var json = JsonSerializer.Serialize(new { key = "backgroundSkinId", value = skinId });
-                                await t.SendAsync(LcuRequest.Post("/lol-summoner/v1/current-summoner/summoner-profile", json));
-                            }, $"已设置个人生涯背景为皮肤 [{skinId}]");
-                        }).AutomationName("应用背景按钮").Grid(row: 0, column: 1),
+                                await toolsService.SetProfileBackgroundAsync(skinId);
+                                ShowToast($"已设置个人生涯背景为皮肤 [{skinId}]");
+                            }
+                            catch (Exception ex)
+                            {
+                                ShowToast($"设置背景失败: {ex.Message}", isError: true);
+                            }
+                        }).AutomationName("直接应用皮肤ID").Grid(row: 0, column: 1),
                     ])
             ));
 
@@ -744,32 +1012,32 @@ public sealed class ToolsPage : Component
             VStack(10,
                 CardRow("排位队列类型:",
                     ComboBox(SpoofQueueLabels, spoofQueueIndex, index => setSpoofQueueIndex(index))
-                        .Width(160).AutomationName("伪装队列选择")),
+                        .Width(180).AutomationName("伪装队列选择")),
                 CardRow("伪装段位级别:",
                     ComboBox(SpoofTierLabels, spoofTierIndex, index => setSpoofTierIndex(index))
-                        .Width(180).AutomationName("伪装段位选择")),
+                        .Width(220).AutomationName("伪装段位选择")),
+                CardRow("伪装小段级别 (Division):",
+                    ComboBox(SpoofDivisionLabels, spoofDivisionIndex, index => setSpoofDivisionIndex(index))
+                        .Width(180).AutomationName("伪装小段选择")),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
                         TextBlock("应用后好友列表中的名片即时显示此段位").FontSize(12).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
-                        Button("应用伪装", () =>
+                        Button("应用伪装", async () =>
                         {
                             var q = SpoofQueues[spoofQueueIndex];
                             var t = SpoofTiers[spoofTierIndex];
-                            SendLcu(async transport =>
+                            var d = SpoofDivisions[spoofDivisionIndex];
+                            try
                             {
-                                var json = JsonSerializer.Serialize(new
-                                {
-                                    lol = new
-                                    {
-                                        rankedLeagueQueue = q,
-                                        rankedLeagueTier = t,
-                                        rankedLeagueDivision = "I",
-                                    }
-                                });
-                                await transport.SendAsync(LcuRequest.Put("/lol-chat/v1/me", json));
-                            }, $"段位伪装已生效: {SpoofTierLabels[spoofTierIndex]}");
+                                await toolsService.SetRankSpoofAsync(q, t, d);
+                                ShowToast($"段位伪装已生效: {SpoofTierLabels[spoofTierIndex]} {d}");
+                            }
+                            catch (Exception ex)
+                            {
+                                ShowToast($"应用段位伪装失败: {ex.Message}", isError: true);
+                            }
                         }).AutomationName("应用段位伪装").Grid(row: 0, column: 1),
                     ])
             ));
@@ -777,50 +1045,117 @@ public sealed class ToolsPage : Component
         var onlineStatusCard = ActionCard(
             "\uE701", "在线状态切换", "在好友列表中切换你的展示状态（在线 / 离开 / 隐身）",
             HStack(8,
-                Button("在线", () =>
+                Button("在线", async () =>
                 {
-                    SendLcu(async t =>
+                    try
                     {
-                        var json = JsonSerializer.Serialize(new { availability = "chat" });
-                        await t.SendAsync(LcuRequest.Put("/lol-chat/v1/me", json));
-                    }, "已切换为在线状态");
+                        await toolsService.SetOnlineStatusAsync("chat");
+                        ShowToast("已切换为在线状态");
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowToast($"切换在线状态失败: {ex.Message}", isError: true);
+                    }
                 }).AutomationName("设为在线"),
-                Button("离开", () =>
+                Button("离开", async () =>
                 {
-                    SendLcu(async t =>
+                    try
                     {
-                        var json = JsonSerializer.Serialize(new { availability = "away" });
-                        await t.SendAsync(LcuRequest.Put("/lol-chat/v1/me", json));
-                    }, "已切换为离开状态");
+                        await toolsService.SetOnlineStatusAsync("away");
+                        ShowToast("已切换为离开状态");
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowToast($"切换离开状态失败: {ex.Message}", isError: true);
+                    }
                 }).AutomationName("设为离开"),
-                Button("隐身", () =>
+                Button("隐身", async () =>
                 {
-                    SendLcu(async t =>
+                    try
                     {
-                        var json = JsonSerializer.Serialize(new { availability = "offline" });
-                        await t.SendAsync(LcuRequest.Put("/lol-chat/v1/me", json));
-                    }, "已切换为隐身离线状态");
+                        await toolsService.SetOnlineStatusAsync("offline");
+                        ShowToast("已切换为隐身离线状态");
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowToast($"切换隐身状态失败: {ex.Message}", isError: true);
+                    }
                 }).AutomationName("设为隐身")));
 
-        var badgesCard = ActionCard(
-            "\uE735", "挑战勋章与头像框", "一键卸下展示的全部挑战勋章或清空生涯头像框",
-            HStack(8,
-                Button("卸下全部勋章", () =>
-                {
-                    SendLcu(async t =>
+        var badgesCard = ToolCard(
+            "badges", "\uE735", "挑战勋章与头像框", "装配/卸下展示的挑战勋章、称号与头像框", "点击展开",
+            VStack(10,
+                HStack(8,
+                    Button("卸下全部勋章", async () =>
                     {
-                        var json = JsonSerializer.Serialize(new { challengeIds = Array.Empty<string>() });
-                        await t.SendAsync(LcuRequest.Post("/lol-challenges/v1/update-player-preferences", json));
-                    }, "已卸下展示的全部挑战勋章");
-                }).AutomationName("卸下勋章"),
-                Button("卸下头像框", () =>
-                {
-                    SendLcu(async t =>
+                        try
+                        {
+                            await toolsService.ClearChallengeBadgesAsync();
+                            ShowToast("已卸下展示的全部挑战勋章");
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowToast($"卸下勋章失败: {ex.Message}", isError: true);
+                        }
+                    }).AutomationName("卸下勋章"),
+                    Button("卸下头像框", async () =>
                     {
-                        var json = JsonSerializer.Serialize(new { borderToken = "" });
-                        await t.SendAsync(LcuRequest.Post("/lol-summoner/v1/current-summoner/profile-tokens", json));
-                    }, "已卸下生涯头像框");
-                }).AutomationName("卸下头像框")));
+                        try
+                        {
+                            await toolsService.ClearProfileTokensAsync();
+                            ShowToast("已卸下生涯头像框");
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowToast($"卸下头像框失败: {ex.Message}", isError: true);
+                        }
+                    }).AutomationName("卸下头像框")
+                ),
+                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
+                ChallengePreferencesView.Render(
+                    challengesList,
+                    challengesLoading,
+                    badgeSearchQuery,
+                    q => setBadgeSearchQuery(q),
+                    badgeTierIndex,
+                    idx => setBadgeTierIndex(idx),
+                    badgeTitleInput,
+                    v => setBadgeTitleInput(v),
+                    selectedBadgeIds,
+                    id =>
+                    {
+                        var next = new List<long>(selectedBadgeIds);
+                        if (next.Contains(id))
+                        {
+                            next.Remove(id);
+                        }
+                        else
+                        {
+                            if (next.Count >= 3)
+                            {
+                                ShowToast("最多只能同时佩戴 3 枚挑战勋章", isError: true);
+                                return;
+                            }
+                            next.Add(id);
+                        }
+                        setSelectedBadgeIds(next);
+                    },
+                    async () =>
+                    {
+                        try
+                        {
+                            await toolsService.UpdatePlayerPreferencesAsync(badgeTitleInput.Trim(), selectedBadgeIds);
+                            ShowToast("已成功更新挑战称号与勋章配置");
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowToast($"保存挑战配置失败: {ex.Message}", isError: true);
+                        }
+                    },
+                    LoadChallenges,
+                    palette
+                )
+            ));
 
         Element? feedbackBanner = null;
         if (error is not null)

@@ -177,6 +177,106 @@ public sealed class SgpService : ISgpService, IDisposable
     }
 
     /// <summary>
+    /// 获取指定玩家在指定大区的观战凭据。
+    /// </summary>
+    public async Task<YuumiX.Core.Features.Tools.Models.SpectateCredentials?> GetSpectateCredentialsAsync(
+        string? server,
+        string puuid,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(puuid);
+
+        string? effectiveServer = server;
+        if (string.IsNullOrWhiteSpace(effectiveServer) && _credentialsProvider is not null)
+        {
+            effectiveServer = _credentialsProvider()?.Server;
+        }
+
+        if (!IsSupported(effectiveServer))
+        {
+            _logger?.LogDebug("大区 {Server} 不支持 SGP，跳过观战凭据获取", effectiveServer ?? "(null)");
+            return null;
+        }
+
+        string baseUrl = BuildSgpBaseUrl(effectiveServer!);
+        string url = $"{baseUrl}/gsm/v1/ledge/spectator/region/{effectiveServer}/puuid/{Uri.EscapeDataString(puuid)}";
+
+        string? token = await GetAccessTokenAsync(forceRefresh: false, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            _logger?.LogWarning("无法获取 SGP accessToken，终止本次 SGP 观战请求");
+            return null;
+        }
+
+        HttpResponseMessage httpResponse;
+        try
+        {
+            httpResponse = await SendSgpRequestAsync(url, token, cancellationToken).ConfigureAwait(false);
+
+            if (httpResponse.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _logger?.LogWarning("SGP 请求返回 401 未授权，尝试强制刷新 accessToken 并重试一次");
+                token = await GetAccessTokenAsync(forceRefresh: true, cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    httpResponse.Dispose();
+                    httpResponse = await SendSgpRequestAsync(url, token, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "SGP 观战网络请求异常：{Url}", url);
+            return null;
+        }
+
+        using (httpResponse)
+        {
+            if (!httpResponse.IsSuccessStatusCode)
+            {
+                _logger?.LogWarning("SGP 观战响应失败（HTTP {StatusCode}）：{Url}", (int)httpResponse.StatusCode, url);
+                return null;
+            }
+
+            try
+            {
+                byte[] bodyBytes = await httpResponse.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+                using JsonDocument document = JsonDocument.Parse(bodyBytes);
+                if (!document.RootElement.TryGetProperty("playerCredentials", out JsonElement credElem)
+                    || credElem.ValueKind != JsonValueKind.Object)
+                {
+                    _logger?.LogDebug("SGP 观战响应未包含 playerCredentials（该召唤师当前可能不在游戏中）");
+                    return null;
+                }
+
+                string ip = credElem.GetProperty("observerServerIp").GetString() ?? string.Empty;
+                int port = credElem.GetProperty("observerServerPort").GetInt32();
+                string key = credElem.GetProperty("observerEncryptionKey").GetString() ?? string.Empty;
+                long gameId = credElem.GetProperty("gameId").GetInt64();
+
+                return new YuumiX.Core.Features.Tools.Models.SpectateCredentials
+                {
+                    ObserverServerIp = ip,
+                    ObserverServerPort = port,
+                    ObserverEncryptionKey = key,
+                    GameId = gameId,
+                    Server = effectiveServer!,
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "解析 SGP 观战凭据 JSON 异常");
+                return null;
+            }
+        }
+    }
+
+    /// <summary>
     /// 通过 SGP 接口获取战绩摘要列表。
     /// </summary>
     public async Task<IReadOnlyList<MatchSummary>> GetMatchHistoryAsync(
