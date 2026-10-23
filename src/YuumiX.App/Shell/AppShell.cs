@@ -7,6 +7,7 @@ using YuumiX.App.Diagnostics;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
 using YuumiX.App.Pages.Career;
+using YuumiX.App.Pages.GameInfo;
 using YuumiX.App.Pages.Home;
 using YuumiX.App.Pages.SavedPlayers;
 using YuumiX.App.Pages.Search;
@@ -61,7 +62,7 @@ public sealed class AppShell : Component
             IsSettingsVisible = false,
             IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed,
             PaneDisplayMode = NavigationViewPaneDisplayMode.Left,
-            OpenPaneLength = 200,
+            OpenPaneLength = 150,
             IsPaneToggleButtonVisible = true,
         };
 
@@ -111,6 +112,7 @@ public sealed class AppShell : Component
     {
         AppRoute.Home => Component<HomePage>(),
         AppRoute.Career => Component<CareerPage>(),
+        AppRoute.GameInfo => Component<GameInfoPage>(),
         AppRoute.SavedPlayers => Component<SavedPlayersPage>(),
         AppRoute.Search => Component<SearchPage>(),
         AppRoute.Settings => Component<SettingsPage>(),

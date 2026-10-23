@@ -175,7 +175,13 @@ public sealed class AgentSupervisor : IAsyncDisposable
                 {
                     if (_tasks.Remove(rId, out TaskEntry? rEntry))
                     {
-                        try { rEntry.Cts.Cancel(); } catch (ObjectDisposedException) { }
+                        try
+                        {
+                            rEntry.Cts.Cancel();
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                        }
                     }
                 }
             }
@@ -224,7 +230,13 @@ public sealed class AgentSupervisor : IAsyncDisposable
         {
             if (_tasks.Remove(taskId, out TaskEntry? entry))
             {
-                try { entry.Cts.Cancel(); } catch (ObjectDisposedException) { }
+                try
+                {
+                    entry.Cts.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                }
                 return true;
             }
             return false;
@@ -255,7 +267,13 @@ public sealed class AgentSupervisor : IAsyncDisposable
 
         foreach (var entry in toCancel)
         {
-            try { entry.Cts.Cancel(); } catch (ObjectDisposedException) { }
+            try
+            {
+                entry.Cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         return toCancel.Count;
@@ -275,7 +293,13 @@ public sealed class AgentSupervisor : IAsyncDisposable
 
         foreach (var entry in toCancel)
         {
-            try { entry.Cts.Cancel(); } catch (ObjectDisposedException) { }
+            try
+            {
+                entry.Cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
     }
 
