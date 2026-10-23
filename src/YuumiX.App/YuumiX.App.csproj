@@ -29,4 +29,9 @@
     <PackageReference Include="Microsoft.UI.Reactor" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- App 只依赖 Core（ADR-02），Core 不得反向依赖任何 UI 类型 -->
+    <ProjectReference Include="../YuumiX.Core/YuumiX.Core.csproj" />
+  </ItemGroup>
+
 </Project>

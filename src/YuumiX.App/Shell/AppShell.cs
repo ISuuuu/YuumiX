@@ -2,6 +2,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml.Controls;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Composition;
 using YuumiX.App.Diagnostics;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
@@ -15,11 +16,15 @@ namespace YuumiX.App.Shell;
 /// 对应原实现的 App.vue（CustomTitleBar + NavigationSidebar + 页面 v-show 切换）。
 /// 差异说明：原实现用 v-show 保留 Search/GameInfo 的挂载状态以避免重新拉取数据，
 /// Reactor 侧由 NavigationHost 的 CacheMode 承担该职责，后续接入真实页面时再配置。
+///
+/// 本组件是上下文根：它位于 <c>Provide</c> 之上，读不到自己提供的上下文，
+/// 因此服务直接取自 <see cref="AppHost.Services"/>；子组件一律走 <c>UseContext</c>。
 /// </summary>
 public sealed class AppShell : Component
 {
     public override Element Render()
     {
+        var services = AppHost.Services;
         var nav = UseNavigation(AppRoute.Home);
         var current = RouteCatalog.For(nav.CurrentRoute);
 
@@ -51,7 +56,7 @@ public sealed class AppShell : Component
 
         var titleBar = TitleBar("YuumiX") with
         {
-            Subtitle = current.Label,
+            Subtitle = $"{current.Label} · 配置 v{services.Config.Version}",
             IsBackButtonVisible = false,
             IsPaneToggleButtonVisible = true,
             OnPaneToggleRequested = () => { },
@@ -65,7 +70,9 @@ public sealed class AppShell : Component
                 titleBar.Grid(row: 0),
                 navigationView.Grid(row: 1),
             ]
-        ).Backdrop(YuumiTheme.DefaultBackdrop);
+        )
+        .Backdrop(YuumiTheme.DefaultBackdrop)
+        .Provide(AppHost.Context, services);
     }
 
     private static Element BuildPage(AppRoute route)

@@ -15,4 +15,17 @@
     <PackageVersion Include="Microsoft.UI.Reactor" Version="0.1.0-preview.16" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 领域层：DI 与日志（架构文档「五、依赖选型」） -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 测试：xUnit，对标原项目 cargo test -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
 </Project>
