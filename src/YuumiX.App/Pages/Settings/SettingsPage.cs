@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media.Animation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
@@ -35,9 +36,9 @@ public sealed class SettingsPage : Component
     private static readonly int[] LogLevelValues = [0, 1, 2];
 
     private const int CareerGamesMin = 1;
-    private const int CareerGamesMax = 200;
+    private const int CareerGamesMax = 100;
     private const int ApiConcurrencyMin = 1;
-    private const int ApiConcurrencyMax = 32;
+    private const int ApiConcurrencyMax = 10;
 
     /// <summary>
     /// 取色器的合并写盘延迟。ColorPicker 的 ColorChanged 在拖动时每帧触发，
@@ -49,6 +50,7 @@ public sealed class SettingsPage : Component
     /// 渲染序号。用于在「改了 POCO 但 Reactor 不知道」时强制重渲染。
     /// 用实例字段而非读取 <c>UseState</c> 的当前值再加一：事件回调里捕获的旧值可能是过期的。
     /// </summary>
+    private static long _nextToastId;
     private int _renderTick;
 
     /// <summary>颜色合并写盘的序号，见 <see cref="ColorCommitDelayMs"/>。</summary>
@@ -61,6 +63,8 @@ public sealed class SettingsPage : Component
     private string? _proxyDraft;
 
     private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
+    private readonly List<Timer> _toastTimers = [];
+    private readonly List<ToastItem> _activeToasts = [];
 
     private ILogger<SettingsPage>? _logger;
 
@@ -77,9 +81,17 @@ public sealed class SettingsPage : Component
         var (backupName, setBackupName) = UseState<string?>(null, threadSafe: true);
         var (error, setError) = UseState<string?>(null, threadSafe: true);
 
+        // 多 Toast 堆叠队列（对齐旧系统 Naive UI n-message-provider :max="5"）
+        var initialToasts = UseMemo(() => (IReadOnlyList<ToastItem>)Array.Empty<ToastItem>(), 0);
+        var (toasts, setToasts) = UseState(initialToasts, threadSafe: true);
+
         // 本页自身也订阅主题状态：强调色变化时要跟着重渲染，否则状态条这类
         // 消费 palette.Accent 的元素会停在旧颜色上（主题模式由 AppShell 统一施加，不在此列）。
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
+
+        // 可展开卡片记录（默认全部收起，对齐工具箱与 Fluent 规范）
+        var initialExpanded = UseMemo(() => new HashSet<string>(), 0);
+        var (expandedKeys, setExpandedKeys) = UseState(initialExpanded, threadSafe: true);
 
         // 颜色合并写盘用的序号；每次取色变化 +1，被防抖 effect 消费。
         var (colorTick, setColorTick) = UseState(0, threadSafe: true);
@@ -87,13 +99,67 @@ public sealed class SettingsPage : Component
             () =>
             {
                 var subscription = theme.Subscribe(setPalette);
-                return () => subscription.Dispose();
+                return () =>
+                {
+                    subscription.Dispose();
+                    lock (_toastTimers)
+                    {
+                        foreach (var t in _toastTimers)
+                        {
+                            t.Dispose();
+                        }
+                        _toastTimers.Clear();
+                    }
+                };
             },
             0);
 
         var logger = _logger ??= services.LoggerFactory.CreateLogger<SettingsPage>();
 
         void Rerender() => setTick(++_renderTick);
+
+        void ShowToast(string message, bool isError = false)
+        {
+            var id = Interlocked.Increment(ref _nextToastId);
+            var item = new ToastItem(id, message, isError);
+
+            lock (_activeToasts)
+            {
+                _activeToasts.Add(item);
+                if (_activeToasts.Count > 5)
+                {
+                    _activeToasts.RemoveAt(0);
+                }
+                setToasts(_activeToasts.ToList());
+            }
+
+            _dispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+            Timer? timer = null;
+            timer = new Timer(_ =>
+            {
+                _dispatcher?.TryEnqueue(() =>
+                {
+                    lock (_activeToasts)
+                    {
+                        _activeToasts.RemoveAll(t => t.Id == id);
+                        setToasts(_activeToasts.ToList());
+                    }
+                    lock (_toastTimers)
+                    {
+                        if (timer is not null)
+                        {
+                            _toastTimers.Remove(timer);
+                            timer.Dispose();
+                        }
+                    }
+                });
+            }, null, 2500, Timeout.Infinite);
+
+            lock (_toastTimers)
+            {
+                _toastTimers.Add(timer);
+            }
+        }
 
         // 取色变化：内存与界面即时生效，写盘延后合并（见 ColorCommitDelayMs）。
         void RequestColorCommit(string field)
@@ -166,6 +232,7 @@ public sealed class SettingsPage : Component
                     setBackupName(Path.GetFileName(backup));
                 }
 
+                ShowToast("设置已自动保存");
                 logger.LogInformation("设置已写回: {Field}", field);
             }
             catch (Exception ex)
@@ -173,71 +240,197 @@ public sealed class SettingsPage : Component
                 // 写失败必须让用户看见：静默吞掉会让人以为设置已保存（ConfigStore.Save 的约定）
                 setError(ex.Message);
                 setSavedAt(null);
+                ShowToast($"设置保存失败: {ex.Message}", isError: true);
                 logger.LogError(ex, "设置写回失败: {Field}", field);
             }
 
             Rerender();
         }
 
-        Element BoolRow(string label, string description, bool value, Action<bool> apply, string field, string? note = null) =>
-            SettingRow(
-                label,
-                description,
-                HStack(12,
-                    note is null ? Empty() : NoteChip(note),
-                    ToggleSwitch(value, v =>
-                    {
-                        if (v == value)
-                        {
-                            return;
-                        }
+        void ToggleExpanded(string key)
+        {
+            var next = new HashSet<string>(expandedKeys);
+            if (!next.Add(key))
+            {
+                next.Remove(key);
+            }
+            setExpandedKeys(next);
+        }
 
-                        apply(v);
-                        Commit(field);
-                    }, header: null, onContent: "", offContent: "").AutomationName(label)));
+        Element CardRow(string label, Element control) =>
+            Grid(
+                [GridSize.Star(), GridSize.Auto],
+                [GridSize.Auto],
+                [
+                    TextBlock(label)
+                        .FontSize(13)
+                        .Foreground(Theme.SecondaryText)
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 0),
+                    control.Grid(row: 0, column: 1),
+                ])
+            .Padding(new Thickness(0, 8, 0, 8));
 
-        Element EnumRow(string label, string description, string[] options, int selectedIndex, Action<int> apply, string field, string? note = null) =>
-            SettingRow(
-                label,
-                description,
-                HStack(12,
-                    note is null ? Empty() : NoteChip(note),
-                    ComboBox(options, selectedIndex, index =>
-                    {
-                        if (index == selectedIndex)
-                        {
-                            return;
-                        }
+        Element GroupHeader(string title) =>
+            TextBlock(title)
+                .FontSize(13)
+                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                .Foreground(Theme.SecondaryText)
+                .Margin(new Thickness(4, 16, 0, 6));
 
-                        apply(index);
-                        Commit(field);
-                    }).Width(160).AutomationName(label)));
+        // 单行直接操作卡片（不含展开，右侧直接展示操作按钮或状态开关）
+        Element ActionCard(string iconGlyph, string title, string description, Element control) =>
+            Border(
+                Grid(
+                    [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+                    [GridSize.Auto],
+                    [
+                        Border(
+                            TextBlock(iconGlyph)
+                                .FontFamily("Segoe Fluent Icons")
+                                .FontSize(15)
+                                .Foreground(palette.Accent)
+                                .HAlign(HorizontalAlignment.Center)
+                                .VAlign(VerticalAlignment.Center)
+                        )
+                        .Width(34)
+                        .Height(34)
+                        .CornerRadius(17)
+                        .Background(Theme.Ref("LayerFillColorDefaultBrush"))
+                        .Margin(new Thickness(0, 0, 14, 0))
+                        .Grid(row: 0, column: 0),
 
-        Element NumberRow(string label, string description, int value, int min, int max, Action<int> apply, string field, string? note = null) =>
-            SettingRow(
-                label,
-                description,
-                HStack(12,
-                    note is null ? Empty() : NoteChip(note),
-                    NumberBox(value, v =>
-                    {
-                        // 清空输入框时 NumberBox 会给出 NaN；NaN 与整数比较恒为 false，
-                        // 若不拦截，(int)NaN 会落到 0 并被写回配置。
-                        if (double.IsNaN(v))
-                        {
-                            return;
-                        }
+                        VStack(2,
+                            TextBlock(title)
+                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                                .FontSize(14),
+                            TextBlock(description)
+                                .FontSize(12)
+                                .Foreground(Theme.SecondaryText)
+                        ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
 
-                        // NumberBoxElement 没有 Minimum/Maximum 修饰符，范围只能在这里夹紧
-                        var next = (int)Math.Clamp(v, min, max);
-                        if (next == value)
-                        {
-                            return;
-                        }
+                        control.VAlign(VerticalAlignment.Center).Grid(row: 0, column: 2),
+                    ]
+                ).Padding(new Thickness(16, 12, 16, 12))
+            )
+            .CornerRadius(8)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(HorizontalAlignment.Stretch);
 
-                        apply(next);
-                        Commit(field);
-                    }).Width(140).AutomationName(label)));
+        Element SettingToggleCard(string iconGlyph, string title, string description, bool value, Action<bool> apply, string field, string? note = null) =>
+            ActionCard(
+                iconGlyph,
+                title,
+                note is null ? description : $"{description} · {note}",
+                ToggleSwitch(value, v =>
+                {
+                    if (v == value) return;
+                    apply(v);
+                    Commit(field);
+                }, header: null, onContent: "", offContent: "").AutomationName(title));
+
+        Element SettingNumberCard(string iconGlyph, string title, string description, int value, int min, int max, Action<int> apply, string field, string? note = null) =>
+            ActionCard(
+                iconGlyph,
+                title,
+                note is null ? description : $"{description} · {note}",
+                NumberBox(value, v =>
+                {
+                    if (double.IsNaN(v)) return;
+                    var next = (int)Math.Clamp(v, min, max);
+                    if (next == value) return;
+                    apply(next);
+                    Commit(field);
+                }).Width(130).AutomationName(title));
+
+        Element SettingExpandableCard(
+            string key,
+            string iconGlyph,
+            string title,
+            string description,
+            string statusText,
+            Element innerContent)
+        {
+            var isExpanded = expandedKeys.Contains(key);
+
+            var headerContent = Grid(
+                [GridSize.Auto, GridSize.Star(), GridSize.Auto, GridSize.Auto],
+                [GridSize.Auto],
+                [
+                    Border(
+                        TextBlock(iconGlyph)
+                            .FontFamily("Segoe Fluent Icons")
+                            .FontSize(15)
+                            .Foreground(palette.Accent)
+                            .HAlign(HorizontalAlignment.Center)
+                            .VAlign(VerticalAlignment.Center)
+                    )
+                    .Width(34)
+                    .Height(34)
+                    .CornerRadius(17)
+                    .Background(Theme.Ref("LayerFillColorDefaultBrush"))
+                    .Margin(new Thickness(0, 0, 14, 0))
+                    .Grid(row: 0, column: 0),
+
+                    VStack(2,
+                        TextBlock(title)
+                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                            .FontSize(14),
+                        TextBlock(description)
+                            .FontSize(12)
+                            .Foreground(Theme.SecondaryText)
+                    ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
+
+                    TextBlock(statusText)
+                        .FontSize(12)
+                        .Foreground(Theme.SecondaryText)
+                        .VAlign(VerticalAlignment.Center)
+                        .Margin(new Thickness(12, 0, 10, 0))
+                        .Grid(row: 0, column: 2),
+
+                    TextBlock(isExpanded ? "\uE70D" : "\uE76C")
+                        .FontFamily("Segoe Fluent Icons")
+                        .FontSize(12)
+                        .Foreground(Theme.SecondaryText)
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 3),
+                ]
+            ).HAlign(HorizontalAlignment.Stretch);
+
+            var headerButton = Button(headerContent, () => ToggleExpanded(key))
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
+                .BorderThickness(0)
+                .Padding(new Thickness(16, 12, 16, 12))
+                .HAlign(HorizontalAlignment.Stretch)
+                .HorizontalContentAlignment(HorizontalAlignment.Stretch)
+                .CornerRadius(8)
+                .AutomationName(title);
+
+            Element body;
+            if (isExpanded)
+            {
+                var divider = Border(Empty())
+                    .Height(1)
+                    .Background(Theme.CardStroke)
+                    .Margin(new Thickness(16, 0, 16, 4));
+
+                var paddedContent = Border(innerContent)
+                    .Padding(new Thickness(16, 4, 16, 12));
+
+                body = VStack(0, headerButton, divider, paddedContent);
+            }
+            else
+            {
+                body = headerButton;
+            }
+
+            return Border(body)
+                .CornerRadius(8)
+                .Background(Theme.CardBackground)
+                .WithBorder(Theme.CardStroke, 1)
+                .HAlign(HorizontalAlignment.Stretch);
+        }
 
         // 颜色改动统一出口：先落到内存配置与主题状态（界面即时生效），再由防抖 effect 落盘。
         void ApplyColor(string field, string value, Action<string> assign)
@@ -248,7 +441,6 @@ public sealed class SettingsPage : Component
         }
 
         // 单个颜色编辑块：色块预览 + 当前值 + 原生取色器。
-        // 取色器的值来自配置，自己不留状态；拖动时配置同步变化，因此不会出现「回头跳色」。
         Element ColorEditor(
             string label,
             string description,
@@ -275,7 +467,6 @@ public sealed class SettingsPage : Component
                     ApplyColor(field, next, assign);
                 });
 
-            // 类型特定修饰符要在 Width/AutomationName 这类泛型修饰符之前（见 architecture.md 已知坑）
             if (withAlpha)
             {
                 picker = picker.AlphaEnabled(true);
@@ -292,102 +483,104 @@ public sealed class SettingsPage : Component
         }
 
         Element ThemeColorEditor() =>
-            Expander("主题色", VStack(14,
-                ColorEditor(
-                    "主题色",
-                    "界面强调色（不透明）；改完立即生效",
-                    config.Personalization.ThemeColor,
-                    withAlpha: false,
-                    c => ColorHex.ToRgb(c.R, c.G, c.B),
-                    v => config.Personalization.ThemeColor = v,
-                    nameof(PersonalizationConfig.ThemeColor),
-                    YuumiTheme.Accent),
-                Button("恢复默认", () => ApplyColor(
-                    nameof(PersonalizationConfig.ThemeColor),
-                    YuumiTheme.Accent,
-                    v => config.Personalization.ThemeColor = v))));
+            SettingExpandableCard("themeColor", "\uE790", "主题强调色", "界面主色调（不透明）；修改后立即全局生效", ColorHex.NormalizeArgb(config.Personalization.ThemeColor, YuumiTheme.Accent),
+                VStack(14,
+                    ColorEditor(
+                        "主题色",
+                        "界面强调色（不透明）；改完立即生效",
+                        config.Personalization.ThemeColor,
+                        withAlpha: false,
+                        c => ColorHex.ToRgb(c.R, c.G, c.B),
+                        v => config.Personalization.ThemeColor = v,
+                        nameof(PersonalizationConfig.ThemeColor),
+                        YuumiTheme.Accent),
+                    Button("恢复默认", () => ApplyColor(
+                        nameof(PersonalizationConfig.ThemeColor),
+                        YuumiTheme.Accent,
+                        v => config.Personalization.ThemeColor = v))));
 
         Element CardColorEditor() =>
-            Expander("战绩卡片配色", VStack(16,
-                ColorEditor(
-                    "胜利卡片",
-                    "战绩列表里胜利一方的底色（含透明度）",
-                    config.Personalization.WinCardColor,
-                    withAlpha: true,
-                    c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
-                    v => config.Personalization.WinCardColor = v,
-                    nameof(PersonalizationConfig.WinCardColor),
-                    YuumiTheme.WinCard),
-                ColorEditor(
-                    "失败卡片",
-                    "失败一方的底色（含透明度）",
-                    config.Personalization.LoseCardColor,
-                    withAlpha: true,
-                    c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
-                    v => config.Personalization.LoseCardColor = v,
-                    nameof(PersonalizationConfig.LoseCardColor),
-                    YuumiTheme.LoseCard),
-                ColorEditor(
-                    "重赛卡片",
-                    "重赛一方的底色（含透明度）",
-                    config.Personalization.RemakeCardColor,
-                    withAlpha: true,
-                    c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
-                    v => config.Personalization.RemakeCardColor = v,
-                    nameof(PersonalizationConfig.RemakeCardColor),
-                    YuumiTheme.RemakeCard),
-                Button("恢复默认", () =>
-                {
-                    config.Personalization.WinCardColor = YuumiTheme.WinCard;
-                    config.Personalization.LoseCardColor = YuumiTheme.LoseCard;
-                    config.Personalization.RemakeCardColor = YuumiTheme.RemakeCard;
-                    theme.Apply(config.Personalization);
-                    RequestColorCommit(nameof(PersonalizationConfig.WinCardColor));
-                })));
+            SettingExpandableCard("cardColors", "\uE721", "战绩卡片配色", "胜利、失败与重开卡片的底色与透明度", "自定义配色",
+                VStack(16,
+                    ColorEditor(
+                        "胜利卡片",
+                        "战绩列表里胜利一方的底色（含透明度）",
+                        config.Personalization.WinCardColor,
+                        withAlpha: true,
+                        c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                        v => config.Personalization.WinCardColor = v,
+                        nameof(PersonalizationConfig.WinCardColor),
+                        YuumiTheme.WinCard),
+                    ColorEditor(
+                        "失败卡片",
+                        "失败一方的底色（含透明度）",
+                        config.Personalization.LoseCardColor,
+                        withAlpha: true,
+                        c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                        v => config.Personalization.LoseCardColor = v,
+                        nameof(PersonalizationConfig.LoseCardColor),
+                        YuumiTheme.LoseCard),
+                    ColorEditor(
+                        "重赛卡片",
+                        "重赛一方的底色（含透明度）",
+                        config.Personalization.RemakeCardColor,
+                        withAlpha: true,
+                        c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                        v => config.Personalization.RemakeCardColor = v,
+                        nameof(PersonalizationConfig.RemakeCardColor),
+                        YuumiTheme.RemakeCard),
+                    Button("恢复默认", () =>
+                    {
+                        config.Personalization.WinCardColor = YuumiTheme.WinCard;
+                        config.Personalization.LoseCardColor = YuumiTheme.LoseCard;
+                        config.Personalization.RemakeCardColor = YuumiTheme.RemakeCard;
+                        theme.Apply(config.Personalization);
+                        RequestColorCommit(nameof(PersonalizationConfig.WinCardColor));
+                    })));
 
         Element DeathColorEditor() =>
-            Expander("死亡数字配色", VStack(16,
-                ColorEditor(
-                    "浅色主题",
-                    "浅色主题下每局死亡数的颜色",
-                    config.Personalization.LightDeathsNumberColor,
-                    withAlpha: false,
-                    c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
-                    v => config.Personalization.LightDeathsNumberColor = v,
-                    nameof(PersonalizationConfig.LightDeathsNumberColor),
-                    YuumiTheme.LightDeath),
-                ColorEditor(
-                    "深色主题",
-                    "深色主题下每局死亡数的颜色",
-                    config.Personalization.DarkDeathsNumberColor,
-                    withAlpha: false,
-                    c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
-                    v => config.Personalization.DarkDeathsNumberColor = v,
-                    nameof(PersonalizationConfig.DarkDeathsNumberColor),
-                    YuumiTheme.DarkDeath),
-                Button("恢复默认", () =>
-                {
-                    config.Personalization.LightDeathsNumberColor = YuumiTheme.LightDeath;
-                    config.Personalization.DarkDeathsNumberColor = YuumiTheme.DarkDeath;
-                    theme.Apply(config.Personalization);
-                    RequestColorCommit(nameof(PersonalizationConfig.LightDeathsNumberColor));
-                })));
+            SettingExpandableCard("deathColors", "\uE711", "死亡数字配色", "战绩列表与详情中死亡数字的颜色", "自定义配色",
+                VStack(16,
+                    ColorEditor(
+                        "浅色主题",
+                        "浅色主题下每局死亡数的颜色",
+                        config.Personalization.LightDeathsNumberColor,
+                        withAlpha: false,
+                        c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
+                        v => config.Personalization.LightDeathsNumberColor = v,
+                        nameof(PersonalizationConfig.LightDeathsNumberColor),
+                        YuumiTheme.LightDeath),
+                    ColorEditor(
+                        "深色主题",
+                        "深色主题下每局死亡数的颜色",
+                        config.Personalization.DarkDeathsNumberColor,
+                        withAlpha: false,
+                        c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
+                        v => config.Personalization.DarkDeathsNumberColor = v,
+                        nameof(PersonalizationConfig.DarkDeathsNumberColor),
+                        YuumiTheme.DarkDeath),
+                    Button("恢复默认", () =>
+                    {
+                        config.Personalization.LightDeathsNumberColor = YuumiTheme.LightDeath;
+                        config.Personalization.DarkDeathsNumberColor = YuumiTheme.DarkDeath;
+                        theme.Apply(config.Personalization);
+                        RequestColorCommit(nameof(PersonalizationConfig.LightDeathsNumberColor));
+                    })));
 
-        // 代理地址是文本输入：草稿只存在字段里（不触发渲染），点「应用」才写回，
-        // 避免逐字符写盘，也避免受控文本框在重渲染时丢光标位置。
         Element ProxyAddressRow()
         {
             static bool LooksValid(string value) =>
                 value.Length == 0
                 || (value.Contains(':') && !value.Contains(' ') && Uri.TryCreate("http://" + value, UriKind.Absolute, out _));
 
-            return SettingRow(
-                "代理地址",
-                "形如 127.0.0.1:7897；留空表示用系统默认。改了要重启才生效",
-                HStack(12,
+            return Grid(
+                [GridSize.Star(), GridSize.Auto],
+                [GridSize.Auto],
+                [
                     TextBox(_proxyDraft ?? config.General.HttpProxyAddr, v => _proxyDraft = v)
-                        .Width(180)
-                        .AutomationName("代理地址"),
+                        .Margin(new Thickness(0, 0, 8, 0))
+                        .AutomationName("代理地址")
+                        .Grid(row: 0, column: 0),
                     Button("应用", () =>
                     {
                         var next = (_proxyDraft ?? config.General.HttpProxyAddr).Trim();
@@ -405,168 +598,262 @@ public sealed class SettingsPage : Component
 
                         config.General.HttpProxyAddr = next;
                         Commit(nameof(GeneralConfig.HttpProxyAddr));
-                    })));
+                    }).AutomationName("应用代理").Grid(row: 0, column: 1),
+                ]
+            );
         }
 
-        return ScrollView(
-            VStack(20,
+        // 状态反馈浮条
+        Element? feedbackBanner = null;
+        if (error is not null)
+        {
+            feedbackBanner = Border(
+                HStack(12,
+                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Ref("SystemFillColorCriticalBrush")),
+                    TextBlock($"保存失败: {error}").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).FontSize(12).VAlign(VerticalAlignment.Center)))
+                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
+        }
+        else if (savedAt is { } time)
+        {
+            feedbackBanner = Border(
+                HStack(12,
+                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(palette.Accent),
+                    TextBlock($"已保存 · {time:HH:mm:ss}").FontSize(12).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)))
+                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
+        }
+
+        // ══════════════════════════════════════════════════════
+        // 设置页卡片装配（完全对齐工具箱设计规范）
+        // ══════════════════════════════════════════════════════
+        var lolPathStatus = config.General.LolPath.Count == 0 ? "未配置" : $"已设置 {config.General.LolPath.Count} 个路径";
+        var lolPathCard = SettingExpandableCard("lolPath", "\uE7B8", "英雄联盟客户端路径", "设置英雄联盟客户端所在目录的路径", lolPathStatus,
+            VStack(8,
+                TextBlock(JoinPaths(config.General.LolPath)).Foreground(Theme.SecondaryText).TextWrapping(),
+                TextBlock("启动时将自动检测并提取客户端锁文件凭据；支持配置多个安装目录").FontSize(12).Foreground(Theme.SecondaryText)));
+
+        var wegamePathCard = ActionCard(
+            "\uE7F4", "WeGame 路径", "关联的 WeGame 客户端程序安装目录",
+            TextBlock(OrDash(config.General.WegamePath)).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
+
+        var clearCacheCard = ActionCard(
+            "\uE74D", "清除缓存", "删除所有游戏资源（英雄图标/装备/符文）的磁盘缓存",
+            Button("清除缓存", () =>
+            {
+                try
+                {
+                    services.AssetCache.Clear();
+                    logger.LogInformation("已清空游戏资源缓存");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "清除游戏资源缓存失败");
+                }
+            }).AutomationName("清除缓存按钮"));
+
+        var hideMenuEnabled = config.Functions.HideTft || config.Functions.HideSavedPlayers;
+        var hideMenuCard = SettingExpandableCard("hideMenu", "\uE712", "隐藏菜单", "控制侧边栏云顶之弈与路人集功能入口的显隐", hideMenuEnabled ? "已启用" : "未启用",
+            VStack(4,
+                CardRow("隐藏云顶之弈入口:",
+                    ToggleSwitch(config.Functions.HideTft, v =>
+                    {
+                        if (v == config.Functions.HideTft) return;
+                        config.Functions.HideTft = v;
+                        Commit(nameof(FunctionsConfig.HideTft));
+                    }, header: null, onContent: "", offContent: "").AutomationName("隐藏云顶之弈")),
+                CardRow("隐藏路人集入口:",
+                    ToggleSwitch(config.Functions.HideSavedPlayers, v =>
+                    {
+                        if (v == config.Functions.HideSavedPlayers) return;
+                        config.Functions.HideSavedPlayers = v;
+                        Commit(nameof(FunctionsConfig.HideSavedPlayers));
+                    }, header: null, onContent: "", offContent: "").AutomationName("隐藏路人集"))));
+
+        var screenshotCard = SettingExpandableCard("screenshot", "\uE722", "多杀自动截图", "对局中达成三杀/四杀/五杀时自动保存精彩瞬间", config.Functions.EnableScreenshotOnMultikill ? "已启用" : "未启用",
+            VStack(8,
+                CardRow("启用多杀自动截图:",
+                    ToggleSwitch(config.Functions.EnableScreenshotOnMultikill, v =>
+                    {
+                        if (v == config.Functions.EnableScreenshotOnMultikill) return;
+                        config.Functions.EnableScreenshotOnMultikill = v;
+                        Commit(nameof(FunctionsConfig.EnableScreenshotOnMultikill));
+                    }, header: null, onContent: "", offContent: "").AutomationName("多杀截图开关")),
+                CardRow("截图保存目录:",
+                    TextBlock(OrDash(config.Functions.ScreenshotSavePath)).Foreground(Theme.SecondaryText))));
+
+        var logLevelCard = ActionCard(
+            "\uE7BA", "日志等级", "写入 <exe>/log 的日志记录详细程度，修改后立即生效",
+            ComboBox(LogLevelLabels, IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
+            {
+                var level = LogLevelValues[index];
+                config.General.LogLevel = level;
+                services.ApplyLogLevel(level);
+                Commit(nameof(GeneralConfig.LogLevel));
+            }).Width(150).AutomationName("日志等级选择"));
+
+        var logDirCard = ActionCard(
+            "\uE8B7", "日志文件", $"存放于 {services.Paths.LogDirectory}",
+            Button("打开目录", () =>
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start("explorer.exe", services.Paths.LogDirectory);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "打开日志目录失败");
+                }
+            }).AutomationName("打开日志目录"));
+
+        var httpProxyCard = SettingExpandableCard("httpProxy", "\uE774", "软件 HTTP 代理", "软件更新、TFT 数据、OP.GG 服务访问走此 HTTP 代理通道", config.General.EnableHttpProxy ? "已启用" : "未启用",
+            VStack(8,
+                CardRow("启用 HTTP 代理:",
+                    ToggleSwitch(config.General.EnableHttpProxy, v =>
+                    {
+                        if (v == config.General.EnableHttpProxy) return;
+                        config.General.EnableHttpProxy = v;
+                        Commit(nameof(GeneralConfig.EnableHttpProxy));
+                    }, header: null, onContent: "", offContent: "").AutomationName("HTTP代理开关")),
+                ProxyAddressRow()));
+
+        var themeModeCard = ActionCard(
+            "\uE708", "主题模式", "浅色 / 深色 / 跟随系统主题自适应切换",
+            ComboBox(ThemeModeLabels, IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
+            {
+                config.Personalization.ThemeMode = ThemeModeValues[index];
+                theme.Apply(config.Personalization);
+                Commit(nameof(PersonalizationConfig.ThemeMode));
+            }).Width(140).AutomationName("主题模式选择"));
+
+        var aboutCard = SettingExpandableCard("about", "\uE946", "关于 YuumiX", $"当前版本 v{config.Version} · 运行环境与存储位置", $"v{config.Version}",
+            VStack(10,
+                InfoRow("配置版本", $"v{config.Version}"),
+                InfoRow("配置文件", services.ConfigStore.FilePath),
+                InfoRow("数据目录", services.Paths.DataDirectory),
+                InfoRow("便携模式", OnOff(services.Paths.IsPortable)),
+                InfoRow("日志目录", services.Paths.LogDirectory),
+                InfoRow("写回备份", $"{services.ConfigStore.ListBackups().Count} 份（保留最近 {ConfigStore.MaxBackups} 份）")));
+
+        Element RenderToasts()
+        {
+            if (toasts.Count == 0) return Empty();
+
+            return VStack(8,
+                toasts.Select(item =>
+                {
+                    var iconGlyph = item.IsError ? "\uE783" : "\uE73E";
+                    var iconColor = item.IsError
+                        ? Theme.Ref("SystemFillColorCriticalBrush")
+                        : Theme.Ref("SystemFillColorSuccessBrush");
+
+                    return Border(
+                        HStack(10,
+                            Border(
+                                TextBlock(iconGlyph)
+                                    .FontFamily("Segoe Fluent Icons")
+                                    .FontSize(11)
+                                    .Foreground(iconColor)
+                                    .HAlign(HorizontalAlignment.Center)
+                                    .VAlign(VerticalAlignment.Center)
+                            )
+                            .Width(22)
+                            .Height(22)
+                            .CornerRadius(11)
+                            .Background(Theme.Ref("LayerFillColorDefaultBrush")),
+
+                            TextBlock(item.Message)
+                                .FontSize(13)
+                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                                .VAlign(VerticalAlignment.Center)
+                        )
+                    )
+                    .Padding(new Thickness(16, 9, 20, 9))
+                    .CornerRadius(20)
+                    .Background(Theme.CardBackground)
+                    .WithBorder(Theme.CardStroke, 1)
+                    .HAlign(HorizontalAlignment.Center)
+                    .WithKey(item.Id.ToString());
+                }).ToArray()
+            )
+            .WithTransitions([
+                new AddDeleteThemeTransition(),
+                new RepositionThemeTransition()
+            ])
+            .VAlign(VerticalAlignment.Top)
+            .HAlign(HorizontalAlignment.Center)
+            .Margin(new Thickness(0, 16, 0, 0));
+        }
+
+        var mainScroll = ScrollView(
+            VStack(8,
                 VStack(4,
                     Heading("设置"),
-                    Caption("对应原实现：src/views/Settings.vue")),
+                    Caption("系统参数、OP.GG 辅助、客户端通用行为与外观个性化（对应原实现：src/views/Settings.vue）")
+                ).Margin(new Thickness(0, 0, 0, 6)),
 
-                SaveStatusBanner(savedAt, backupName, error, palette.Accent),
+                // 1. 功能
+                GroupHeader("功能"),
+                SettingNumberCard("\uE713", "LCU API 并发数", "该值越大数据加载速度越快，但越可能引起客户端闪退", config.Functions.ApiConcurrencyNumber, ApiConcurrencyMin, ApiConcurrencyMax, v => config.Functions.ApiConcurrencyNumber = v, nameof(FunctionsConfig.ApiConcurrencyNumber), "重启后生效"),
+                SettingNumberCard("\uE81E", "默认对局数量", "调整在个人生涯界面中显示的最大对局数量", config.Functions.CareerGamesNumber, CareerGamesMin, CareerGamesMax, v => config.Functions.CareerGamesNumber = v, nameof(FunctionsConfig.CareerGamesNumber)),
+                SettingToggleCard("\uE71C", "对局信息过滤", "基于你当前游戏模式（地图/队列）筛选战绩，只显示相同模式的玩家历史数据", config.Functions.GameInfoFilter, v => config.Functions.GameInfoFilter = v, nameof(FunctionsConfig.GameInfoFilter)),
+                SettingToggleCard("\uE7FC", "保留对局信息界面内容", "保留上一局的对局信息内容直到下一次对局开始", config.Functions.EnableReserveGameinfo, v => config.Functions.EnableReserveGameinfo = v, nameof(FunctionsConfig.EnableReserveGameinfo)),
+                SettingToggleCard("\uE734", "对局详情中显示段位", "在搜索界面对局详情界面中显示段位，启动该选项将影响加载界面的速度", config.Functions.ShowTierInGameInfo, v => config.Functions.ShowTierInGameInfo = v, nameof(FunctionsConfig.ShowTierInGameInfo)),
 
-                Section("常规",
-                    "客户端路径、启动行为与日志",
-                    VStack(12,
-                        ReadOnlyRow("英雄联盟路径", JoinPaths(config.General.LolPath)),
-                        ReadOnlyRow("WeGame 路径", OrDash(config.General.WegamePath)),
-                        BoolRow(
-                            "随应用启动客户端",
-                            "启动 YuumiX 时一并拉起英雄联盟客户端（含 WeGame 形态）",
-                            config.General.EnableStartLolWithApp,
-                            v => config.General.EnableStartLolWithApp = v,
-                            nameof(GeneralConfig.EnableStartLolWithApp)),
-                        TriStateRow(
-                            "关闭到托盘",
-                            "关闭窗口时最小化到托盘而不是退出；未设置时按平台默认处理",
-                            config.General.EnableCloseToTray,
-                            v =>
-                            {
-                                config.General.EnableCloseToTray = v;
-                                Commit(nameof(GeneralConfig.EnableCloseToTray));
-                            }),
-                        BoolRow(
-                            "游戏开始时最小化",
-                            "检测到对局开始后自动最小化主窗口",
-                            config.General.EnableGameStartMinimize,
-                            v => config.General.EnableGameStartMinimize = v,
-                            nameof(GeneralConfig.EnableGameStartMinimize)),
-                        BoolRow(
-                            "检查更新",
-                            "启动时检查新版本（便携版走整包覆盖）",
-                            config.General.EnableCheckUpdate,
-                            v => config.General.EnableCheckUpdate = v,
-                            nameof(GeneralConfig.EnableCheckUpdate)),
-                        EnumRow(
-                            "日志等级",
-                            "写入 <exe>/log 的详细程度，改完立即生效",
-                            LogLevelLabels,
-                            IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1),
-                            index =>
-                            {
-                                var level = LogLevelValues[index];
-                                config.General.LogLevel = level;
-                                services.ApplyLogLevel(level);
-                            },
-                            nameof(GeneralConfig.LogLevel),
-                            "即时生效"),
-                        BoolRow(
-                            "HTTP 代理",
-                            $"当前地址 {config.General.HttpProxyAddr}",
-                            config.General.EnableHttpProxy,
-                            v => config.General.EnableHttpProxy = v,
-                            nameof(GeneralConfig.EnableHttpProxy),
-                            "重启后生效"),
-                        ProxyAddressRow())),
+                // 2. OP.GG
+                GroupHeader("OP.GG"),
+                SettingToggleCard("\uE737", "自动显示 OP.GG 窗口", "在英雄选择开始时自动显示 OP.GG 窗口", config.Functions.AutoShowOpgg, v => config.Functions.AutoShowOpgg = v, nameof(FunctionsConfig.AutoShowOpgg)),
+                SettingToggleCard("\uE840", "置顶 OP.GG 窗口", "在英雄选择时将 OP.GG 窗口置顶", config.Functions.EnableOpggOnTop, v => config.Functions.EnableOpggOnTop = v, nameof(FunctionsConfig.EnableOpggOnTop)),
 
-                Section("个性化",
-                    "主题、语言与战绩卡片配色",
-                    VStack(12,
-                        BoolRow(
-                            "Mica 背景",
-                            "使用系统亚克力/云母材质作为窗口背景",
-                            config.Personalization.MicaEnabled,
-                            v =>
-                            {
-                                config.Personalization.MicaEnabled = v;
-                                theme.Apply(config.Personalization);
-                            },
-                            nameof(PersonalizationConfig.MicaEnabled),
-                            "即时生效"),
-                        EnumRow(
-                            "主题模式",
-                            "浅色 / 深色 / 跟随系统",
-                            ThemeModeLabels,
-                            IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1),
-                            index =>
-                            {
-                                config.Personalization.ThemeMode = ThemeModeValues[index];
-                                theme.Apply(config.Personalization);
-                            },
-                            nameof(PersonalizationConfig.ThemeMode),
-                            "即时生效"),
-                        ReadOnlyRow(
-                            "语言",
-                            $"{config.Personalization.Language}（本地化资源尚未接入）"),
-                        ReadOnlyRow(
-                            "缩放",
-                            $"{config.Personalization.DpiScale}（窗口级缩放随独立窗口一起做）"),
-                        ThemeColorEditor(),
-                        CardColorEditor(),
-                        DeathColorEditor())),
+                // 3. 通用设置
+                GroupHeader("通用设置"),
+                lolPathCard,
+                wegamePathCard,
+                SettingToggleCard("\uE768", "随应用启动客户端", "启动 YuumiX 时一并拉起英雄联盟客户端（含 WeGame 形态）", config.General.EnableStartLolWithApp, v => config.General.EnableStartLolWithApp = v, nameof(GeneralConfig.EnableStartLolWithApp)),
+                ActionCard("\uE711", "关闭到托盘", "关闭窗口时最小化到托盘而不是退出；未设置时按平台默认处理",
+                    ThreeStateCheckBox(config.General.EnableCloseToTray, v =>
+                    {
+                        config.General.EnableCloseToTray = v;
+                        Commit(nameof(GeneralConfig.EnableCloseToTray));
+                    }).AutomationName("关闭到托盘开关")),
+                SettingToggleCard("\uE740", "游戏开始时最小化", "检测到对局开始后自动最小化主窗口", config.General.EnableGameStartMinimize, v => config.General.EnableGameStartMinimize = v, nameof(GeneralConfig.EnableGameStartMinimize)),
+                clearCacheCard,
+                SettingToggleCard("\uE895", "检查更新", "启动时检查新版本（便携版走整包覆盖）", config.General.EnableCheckUpdate, v => config.General.EnableCheckUpdate = v, nameof(GeneralConfig.EnableCheckUpdate)),
 
-                Section("功能开关",
-                    "自动化与数据抓取的关键参数",
-                    VStack(12,
-                        NumberRow(
-                            "生涯战绩场数",
-                            $"生涯页默认拉取的场数（{CareerGamesMin}–{CareerGamesMax}）",
-                            config.Functions.CareerGamesNumber,
-                            CareerGamesMin,
-                            CareerGamesMax,
-                            v => config.Functions.CareerGamesNumber = v,
-                            nameof(FunctionsConfig.CareerGamesNumber)),
-                        NumberRow(
-                            "LCU 接口并发",
-                            $"同时发起的 LCU 请求上限（{ApiConcurrencyMin}–{ApiConcurrencyMax}）",
-                            config.Functions.ApiConcurrencyNumber,
-                            ApiConcurrencyMin,
-                            ApiConcurrencyMax,
-                            v => config.Functions.ApiConcurrencyNumber = v,
-                            nameof(FunctionsConfig.ApiConcurrencyNumber),
-                            "重启后生效"),                        BoolRow(
-                            "自动接受对局",
-                            "匹配到对局后自动确认",
-                            config.Functions.EnableAutoAcceptMatching,
-                            v => config.Functions.EnableAutoAcceptMatching = v,
-                            nameof(FunctionsConfig.EnableAutoAcceptMatching)),
-                        BoolRow(
-                            "自动重连",
-                            "掉线后自动重连回对局",
-                            config.Functions.EnableAutoReconnect,
-                            v => config.Functions.EnableAutoReconnect = v,
-                            nameof(FunctionsConfig.EnableAutoReconnect)),
-                        BoolRow(
-                            "自动选人",
-                            "按分路偏好自动选择英雄（不含锁定）",
-                            config.Functions.EnableAutoSelectChampion,
-                            v => config.Functions.EnableAutoSelectChampion = v,
-                            nameof(FunctionsConfig.EnableAutoSelectChampion)),
-                        BoolRow(
-                            "自动禁用",
-                            "按分路偏好自动禁用英雄",
-                            config.Functions.EnableAutoBanChampion,
-                            v => config.Functions.EnableAutoBanChampion = v,
-                            nameof(FunctionsConfig.EnableAutoBanChampion)),
-                        BoolRow(
-                            "大乱斗悬浮窗",
-                            "极地大乱斗板凳席悬浮窗",
-                            config.Functions.EnableBenchOverlay,
-                            v => config.Functions.EnableBenchOverlay = v,
-                            nameof(FunctionsConfig.EnableBenchOverlay)),
-                        ReadOnlyRow("截图保存目录", OrDash(config.Functions.ScreenshotSavePath)))),
+                // 4. 高级与隐藏
+                GroupHeader("高级与隐藏"),
+                hideMenuCard,
+                screenshotCard,
 
-                Section("关于",
-                    "运行环境与数据位置",
-                    VStack(12,
-                        InfoRow("配置版本", $"v{config.Version}"),
-                        InfoRow("配置文件", services.ConfigStore.FilePath),
-                        InfoRow("数据目录", services.Paths.DataDirectory),
-                        InfoRow("便携模式", OnOff(services.Paths.IsPortable)),
-                        InfoRow("日志目录", services.Paths.LogDirectory),
-                        InfoRow("写回备份", $"{services.ConfigStore.ListBackups().Count} 份（保留最近 {ConfigStore.MaxBackups} 份）")))
-            ).Padding(28).HAlign(HorizontalAlignment.Stretch)
+                // 5. 日志与网络
+                GroupHeader("日志与网络"),
+                logLevelCard,
+                logDirCard,
+                httpProxyCard,
+
+                // 6. 外观与个性化
+                GroupHeader("外观与个性化"),
+                SettingToggleCard("\uE790", "Mica 背景", "使用系统亚克力/云母材质作为窗口背景", config.Personalization.MicaEnabled, v =>
+                {
+                    config.Personalization.MicaEnabled = v;
+                    theme.Apply(config.Personalization);
+                }, nameof(PersonalizationConfig.MicaEnabled), "即时生效"),
+                themeModeCard,
+                ThemeColorEditor(),
+                CardColorEditor(),
+                DeathColorEditor(),
+
+                // 7. 关于
+                GroupHeader("关于"),
+                aboutCard
+            ).Padding(24).HAlign(HorizontalAlignment.Stretch)
+        );
+
+        return Grid(
+            [GridSize.Star()],
+            [GridSize.Star()],
+            [
+                mainScroll.Grid(row: 0, column: 0),
+                RenderToasts().Grid(row: 0, column: 0),
+            ]
         );
     }
 

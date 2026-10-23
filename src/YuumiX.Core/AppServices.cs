@@ -52,6 +52,9 @@ public sealed class AppServices : IDisposable
     /// <summary>已加载的配置。设计为进程内单一实例，所有修改最终经 <see cref="ConfigStore"/> 落盘。</summary>
     public AppConfig Config { get; }
 
+    /// <summary>资源磁盘缓存。</summary>
+    public YuumiX.Core.Assets.AssetCache AssetCache => Services.GetRequiredService<YuumiX.Core.Assets.AssetCache>();
+
     /// <summary>
     /// 进程级关闭令牌。所有后台循环（LCU 轮询、WebSocket 重连）必须监听它，
     /// 否则窗口关闭后进程退不掉——后台任务会把 CLR 拖住。

@@ -8,6 +8,7 @@ using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
 using YuumiX.App.Pages.Search;
 using YuumiX.App.Pages.Settings;
+using YuumiX.App.Pages.Tools;
 using YuumiX.App.Theming;
 
 namespace YuumiX.App.Shell;
@@ -27,7 +28,7 @@ public sealed class AppShell : Component
     public override Element Render()
     {
         var services = AppHost.Services;
-        var nav = UseNavigation(AppRoute.Home);
+        var nav = UseNavigation(AppRoute.Tools);
         var current = RouteCatalog.For(nav.CurrentRoute);
 
         // 主题状态是本页的重渲染来源之一：设置页改了主题色/模式/Mica 后，
@@ -107,6 +108,7 @@ public sealed class AppShell : Component
     {
         AppRoute.Search => Component<SearchPage>(),
         AppRoute.Settings => Component<SettingsPage>(),
+        AppRoute.Tools => Component<ToolsPage>(),
         _ => BuildPlaceholder(route),
     };
 
