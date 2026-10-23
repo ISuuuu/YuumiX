@@ -131,8 +131,8 @@ internal static class MatchDetailView
 
         Element header = Border(
                 Grid(
-                    [GridSize.Auto],
                     TableColumns,
+                    [GridSize.Auto],
                     [
                         TeamSummary(team, accent).Grid(row: 0, column: 0),
                         ColumnLabel("装备", 1),
@@ -217,8 +217,8 @@ internal static class MatchDetailView
         Element playerCell = HStack(8, portrait, spells, identity);
 
         return Grid(
-                [GridSize.Auto],
                 TableColumns,
+                [GridSize.Auto],
                 [
                     playerCell.Grid(row: 0, column: 0),
                     SearchVisuals.ItemRow(catalog, player.ItemIds, SearchVisuals.DetailItemSize)

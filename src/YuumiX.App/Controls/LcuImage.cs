@@ -29,16 +29,27 @@ public sealed class LcuImage : Component<LcuImageProps>
 {
     public override Element Render()
     {
-        var services = UseContext(AppHost.Context);
+        var services = UseContext(AppHost.Context) ?? AppHost.Services;
         var assets = services.Services.GetRequiredService<AssetService>();
 
+        var cachedPath = assets.TryGetCachedPath(Props.AssetPath);
+        var initialUri = cachedPath is not null ? new Uri(cachedPath).AbsoluteUri : null;
+
         // threadSafe: true —— 完成回调来自线程池，滚动一屏会有几十个回调同时到达（ADR-07）
-        var (uri, setUri) = UseState<string?>(null, threadSafe: true);
+        var (uri, setUri) = UseState<string?>(initialUri, threadSafe: true);
         var (failed, setFailed) = UseState(false, threadSafe: true);
 
         UseEffect(
             () =>
             {
+                var cached = assets.TryGetCachedPath(Props.AssetPath);
+                if (cached is not null)
+                {
+                    setUri(new Uri(cached).AbsoluteUri);
+                    setFailed(false);
+                    return static () => { };
+                }
+
                 setUri(null);
                 setFailed(false);
 
@@ -66,9 +77,12 @@ public sealed class LcuImage : Component<LcuImageProps>
                 .AutomationName($"图标占位：{Props.AssetPath}");
         }
 
-        return Image(uri)
+        return Border(Image(uri)
+                .Width(Props.Size)
+                .Height(Props.Size))
             .Width(Props.Size)
             .Height(Props.Size)
+            .CornerRadius(Props.CornerRadius)
             .AutomationName($"图标：{Props.AssetPath}");
     }
 

@@ -6,6 +6,7 @@ using YuumiX.Core.Features.Match;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Lcu.Sgp;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Runtime;
 
@@ -140,9 +141,15 @@ public sealed class AppServices : IDisposable
         // ── 战绩查询与召唤师（阶段 6）──────────────────────────────
         // 同样用提供器而非实例：重连会换传输层，而服务本身应当跨重连复用——
         // 已结束的对局详情不会因为重连而失效，清掉缓存反而要重新拉一遍。
+        collection.AddSingleton<ISgpService>(provider => new SgpService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<LcuConnection>().Credentials,
+            logger: provider.GetRequiredService<ILogger<SgpService>>()));
         collection.AddSingleton<IMatchService>(provider => new MatchService(
             () => provider.GetRequiredService<LcuConnection>().Transport,
-            provider.GetRequiredService<ILogger<MatchService>>()));
+            sgpService: provider.GetRequiredService<ISgpService>(),
+            credentialsProvider: () => provider.GetRequiredService<LcuConnection>().Credentials,
+            logger: provider.GetRequiredService<ILogger<MatchService>>()));
         collection.AddSingleton<ISummonerService>(provider => new SummonerService(
             () => provider.GetRequiredService<LcuConnection>().Transport,
             logger: provider.GetRequiredService<ILogger<SummonerService>>()));

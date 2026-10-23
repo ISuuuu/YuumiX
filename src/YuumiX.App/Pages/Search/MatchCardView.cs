@@ -62,7 +62,7 @@ internal static class MatchCardView
             .Background(SearchVisuals.CardBackground(palette, summary))
             .WithBorder(SearchVisuals.ResultBorder(palette, summary), 1);
 
-        return VStack(0, card, SearchVisuals.VerticalGap(CardGap));
+        return VStack(0, card, SearchVisuals.VerticalGap(CardGap)).Width(CardWidth);
     }
 
     /// <summary>
@@ -79,5 +79,5 @@ internal static class MatchCardView
                 .CornerRadius(8)
                 .Background(Theme.CardBackground)
                 .WithBorder(Theme.CardStroke, 1),
-            SearchVisuals.VerticalGap(CardGap));
+            SearchVisuals.VerticalGap(CardGap)).Width(CardWidth);
 }

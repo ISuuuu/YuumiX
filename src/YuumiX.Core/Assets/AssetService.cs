@@ -53,6 +53,12 @@ public sealed class AssetService : IDisposable
     public IReadOnlyList<string> SourceNames => [.. _sources.Select(source => source.Name)];
 
     /// <summary>
+    /// 同步尝试从磁盘缓存获取已存在的本地绝对路径；未命中返回 <c>null</c>。
+    /// 用于 UI 组件初始化时直接获取初值，避免已缓存的资源闪烁或因异步时序导致占位残留。
+    /// </summary>
+    public string? TryGetCachedPath(string assetPath) => _cache.TryGetPath(assetPath);
+
+    /// <summary>
     /// 供 UI 使用的主入口（ADR-01）：返回可供 <c>Image("file:///...")</c> 引用的本地绝对路径。
     /// 未命中时触发一次完整解析并落盘；彻底失败返回 <c>null</c>，由调用方显示占位图。
     /// </summary>

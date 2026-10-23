@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Common;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Lcu.Sgp;
 using YuumiX.Core.Parsers;
 
 namespace YuumiX.Core.Features.Match;
@@ -35,6 +36,8 @@ public sealed class MatchService : IMatchService
     internal const string DetailPathTemplate = "/lol-match-history/v1/games/{0}";
 
     private readonly Func<ILcuTransport?> _transportProvider;
+    private readonly ISgpService? _sgpService;
+    private readonly Func<LcuCredentials?>? _credentialsProvider;
     private readonly ILogger<MatchService>? _logger;
     private readonly EventStream<MatchServiceStatus> _status;
 
@@ -44,13 +47,37 @@ public sealed class MatchService : IMatchService
     /// <summary>飞行中的分页请求：同参数并发共享一次 HTTP，结束后立即移除。</summary>
     private readonly ConcurrentDictionary<string, Lazy<Task<MatchHistoryPage>>> _pages = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// 玩家战绩池缓存：按 puuid 存储已拉取并去重的战绩流。
+    /// 支撑前 2 页由 LCU 预拉 20 场、第 2 页触发 SGP 拉取第 21 场起的增量加载机制。
+    /// </summary>
+    private sealed class PlayerMatchState
+    {
+        public List<MatchSummary> Games { get; } = [];
+        public HashSet<long> SeenGameIds { get; } = [];
+        public int LoadedGameIndex { get; set; }
+        public int? TotalCount { get; set; }
+        public bool HasReachedEnd { get; set; }
+        public SemaphoreSlim Lock { get; } = new(1, 1);
+    }
+
+    private readonly ConcurrentDictionary<string, PlayerMatchState> _playerStates = new(StringComparer.OrdinalIgnoreCase);
+
     /// <param name="transportProvider">当前传输层（来自 <c>LcuConnection.Transport</c>）；未连接时返回 <c>null</c>。</param>
+    /// <param name="sgpService">可选 SGP 腾讯国服外网服务，用于超出 20 条战绩后的增量分页拉取。</param>
+    /// <param name="credentialsProvider">可选连接凭证提供器（获取当前大区标识）。</param>
     /// <param name="logger">可选日志。</param>
-    public MatchService(Func<ILcuTransport?> transportProvider, ILogger<MatchService>? logger = null)
+    public MatchService(
+        Func<ILcuTransport?> transportProvider,
+        ISgpService? sgpService = null,
+        Func<LcuCredentials?>? credentialsProvider = null,
+        ILogger<MatchService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(transportProvider);
 
         _transportProvider = transportProvider;
+        _sgpService = sgpService;
+        _credentialsProvider = credentialsProvider;
         _logger = logger;
         _status = new EventStream<MatchServiceStatus>(
             ex => _logger?.LogWarning(ex, "战绩状态观察者抛出异常，已隔离"));
@@ -118,6 +145,7 @@ public sealed class MatchService : IMatchService
         int details = _details.Count;
         _details.Clear();
         _pages.Clear();
+        _playerStates.Clear();
         _logger?.LogDebug("战绩缓存已清空（详情 {Count} 条）", details);
     }
 
@@ -142,11 +170,142 @@ public sealed class MatchService : IMatchService
         int endIndex,
         CancellationToken cancellationToken)
     {
+        PlayerMatchState state = _playerStates.GetOrAdd(puuid, _ => new PlayerMatchState());
+        await state.Lock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // 1. 若当前池子为空且未标记到达尽头：首次拉取前 20 条（LCU 0~19）
+            if (state.Games.Count == 0 && !state.HasReachedEnd)
+            {
+                int initialBeg = (beginIndex == 0) ? 0 : beginIndex;
+                int initialEnd = (beginIndex == 0) ? Math.Max(19, endIndex) : endIndex;
+
+                var (lcuGames, totalCount) = await FetchLcuGamesAsync(puuid, initialBeg, initialEnd, cancellationToken).ConfigureAwait(false);
+                if (totalCount.HasValue)
+                {
+                    state.TotalCount = totalCount;
+                }
+
+                foreach (MatchSummary summary in lcuGames)
+                {
+                    if (state.SeenGameIds.Add(summary.GameId))
+                    {
+                        state.Games.Add(summary);
+                    }
+                }
+
+                state.LoadedGameIndex = Math.Max(initialEnd + 1, state.Games.Count);
+                // 首次请求 0..19 若返回不满 20 条（例如只有 1 场），说明该账号全部战绩就只有这几场，直接标记到底
+                if (lcuGames.Count < (initialEnd - initialBeg + 1))
+                {
+                    state.HasReachedEnd = true;
+                }
+            }
+
+            // 2. 检查大区与 SGP 状态
+            string? server = _credentialsProvider?.Invoke()?.Server;
+            bool sgpAvailable = _sgpService is not null && _sgpService.IsSupported(server);
+
+            // 当用户点到第 2 页（beginIndex >= 10）时，触发从第 21 条（LoadedGameIndex = 20）开始拉取 30 条！
+            // 对应原项目 LOAD_MORE_COUNT = 30。仅在请求第 2 页或更后页时触发
+            const int loadMoreBatchSize = 30;
+            while (beginIndex >= 10 && !state.HasReachedEnd &&
+                   (state.LoadedGameIndex <= 20 || beginIndex >= state.Games.Count))
+            {
+                int fetchBeg = Math.Max(20, state.LoadedGameIndex);
+                int fetchCount = loadMoreBatchSize;
+
+                IReadOnlyList<MatchSummary> newBatch = [];
+
+                if (sgpAvailable)
+                {
+                    _status.Publish(MatchServiceStatus.Loading($"正在通过腾讯 SGP 接口查询第 {fetchBeg + 1} 场起的数据"));
+                    newBatch = await _sgpService!.GetMatchHistoryAsync(
+                        server,
+                        puuid,
+                        fetchBeg,
+                        fetchCount,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                // 若非腾讯服，或 SGP 未命中任何数据，则降级尝试 LCU
+                if (newBatch.Count == 0)
+                {
+                    var (lcuBatch, _) = await FetchLcuGamesAsync(
+                        puuid,
+                        fetchBeg,
+                        fetchBeg + fetchCount - 1,
+                        cancellationToken).ConfigureAwait(false);
+                    newBatch = lcuBatch;
+                }
+
+                int addedCount = 0;
+                foreach (MatchSummary summary in newBatch)
+                {
+                    if (state.SeenGameIds.Add(summary.GameId))
+                    {
+                        state.Games.Add(summary);
+                        addedCount++;
+                    }
+                }
+
+                state.LoadedGameIndex = fetchBeg + fetchCount;
+
+                // 若两方都拉不到任何新对局，或返回不满预期条数，说明已触达服务端尽头
+                if (addedCount == 0 || newBatch.Count < fetchCount)
+                {
+                    state.HasReachedEnd = true;
+                    break;
+                }
+            }
+
+            // 3. 切片返回
+            if (beginIndex >= state.Games.Count)
+            {
+                return new MatchHistoryPage
+                {
+                    Games = [],
+                    BeginIndex = beginIndex,
+                    EndIndex = endIndex,
+                    TotalCount = state.TotalCount,
+                    HasMore = false,
+                };
+            }
+
+            int countToTake = Math.Min(endIndex - beginIndex + 1, state.Games.Count - beginIndex);
+            var slice = state.Games.GetRange(beginIndex, countToTake);
+
+            // 核心修复：只要池子里还有后续数据，或者尚未确认到达远端尽头，就允许向后翻页！
+            bool hasMore = (state.Games.Count > endIndex + 1) || (!state.HasReachedEnd);
+
+            _status.Publish(MatchServiceStatus.Loaded($"已加载 {slice.Count} 场对局"));
+
+            return new MatchHistoryPage
+            {
+                Games = slice,
+                BeginIndex = beginIndex,
+                EndIndex = endIndex,
+                TotalCount = state.TotalCount,
+                HasMore = hasMore,
+            };
+        }
+        finally
+        {
+            state.Lock.Release();
+        }
+    }
+
+    private async Task<(IReadOnlyList<MatchSummary> Games, int? TotalCount)> FetchLcuGamesAsync(
+        string puuid,
+        int beginIndex,
+        int endIndex,
+        CancellationToken cancellationToken)
+    {
         ILcuTransport? transport = _transportProvider();
         if (transport is null)
         {
             _status.Publish(MatchServiceStatus.Failed("客户端未连接，无法读取战绩"));
-            return MatchHistoryPage.Empty;
+            return ([], null);
         }
 
         _status.Publish(MatchServiceStatus.Loading($"正在拉取第 {beginIndex}–{endIndex} 场"));
@@ -172,13 +331,13 @@ public sealed class MatchService : IMatchService
         if (response.IsNotFound)
         {
             _status.Publish(MatchServiceStatus.Failed("玩家不存在，或该账号的战绩不可见"));
-            return MatchHistoryPage.Empty;
+            return ([], null);
         }
 
         if (!response.IsSuccess)
         {
             _status.Publish(MatchServiceStatus.Failed($"读取战绩失败（HTTP {response.StatusCode}）"));
-            return MatchHistoryPage.Empty;
+            return ([], null);
         }
 
         try
@@ -199,23 +358,13 @@ public sealed class MatchService : IMatchService
                 }
             }
 
-            MatchHistoryPage page = new()
-            {
-                Games = games,
-                BeginIndex = beginIndex,
-                EndIndex = endIndex,
-                TotalCount = totalCount,
-                HasMore = HasMore(totalCount, beginIndex, endIndex, games.Count),
-            };
-
-            _status.Publish(MatchServiceStatus.Loaded($"已加载 {games.Count} 场对局"));
-            return page;
+            return (games, totalCount);
         }
         catch (JsonException ex)
         {
             _logger?.LogWarning(ex, "战绩载荷解析失败（{Bytes} 字节）", response.Body.Length);
             _status.Publish(MatchServiceStatus.Failed("战绩载荷解析失败，可能是客户端版本变更"));
-            return MatchHistoryPage.Empty;
+            return ([], null);
         }
     }
 

@@ -6,6 +6,7 @@ using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
 using YuumiX.Core;
+using YuumiX.Core.Assets;
 using YuumiX.Core.Features.Match;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.Summoner;
@@ -42,14 +43,13 @@ public sealed class SearchPage : Component
     private const double ListWidth = 190;
 
     /// <summary>
-    /// 单页条数。LCU 的 <c>matches</c> 接口在一次登录期间只缓存最近 20 局，
-    /// 取更多也不会返回（<c>gameCount</c> 恒为 20），因此按一页取满。
-    /// 要突破这个上限只能走 SGP，属后续工作。
+    /// 单页条数。每页 10 条对局。
+    /// 前两页由 LCU 预拉取 20 局，用户点到第 2 页时触发腾讯 SGP 接口增量查询第 21 局起的数据。
     /// </summary>
-    private const int PageSize = 20;
+    private const int PageSize = 10;
 
-    /// <summary>加载中骨架卡数量：与实战中列表可见高度一致，避免数据到达时整列跳动。</summary>
-    private const int SkeletonCount = 9;
+    /// <summary>加载中骨架卡数量：每页 10 张，避免数据到达时整列跳动。</summary>
+    private const int SkeletonCount = 10;
 
     /// <summary>
     /// 空列表的共享实例。<c>UseState</c> 的初值只读一次，但写成 <c>[]</c> 会在每次渲染
@@ -87,6 +87,7 @@ public sealed class SearchPage : Component
         var theme = UseContext(AppHost.ThemeContext);
         var matchService = services.Services.GetRequiredService<IMatchService>();
         var summonerService = services.Services.GetRequiredService<ISummonerService>();
+        var lcu = services.Services.GetRequiredService<LcuConnection>();
 
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
         UseEffect(
@@ -108,6 +109,25 @@ public sealed class SearchPage : Component
         var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
         var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
         var (notice, setNotice) = UseState<string?>(null, threadSafe: true);
+
+        var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = lcu.States.Subscribe(state =>
+                {
+                    setConnState(state);
+                    if (state.Status == LcuConnectionStatus.Connected)
+                    {
+                        // 客户端连接就绪时，重置召唤师解析状态，触发重新加载当前登录玩家与首屏战绩
+                        setSummoner(null);
+                        setSummonerResolved(false);
+                        setRequestVersion(requestVersion + 1);
+                    }
+                });
+                return () => subscription.Dispose();
+            },
+            0);
 
         // 资源映射表异步加载：客户端没启动时保持空表，图标退化为占位块而不是空白。
         var (catalog, setCatalog) = UseState(GameDataCatalog.Empty, threadSafe: true);
@@ -136,7 +156,7 @@ public sealed class SearchPage : Component
         // 首屏 / 搜索 / 翻页 / 刷新 共用一个入口：
         // 有 puuid 就拉这一页战绩；还没有召唤师就先解析当前登录账号，
         // setSummoner 会改变依赖键，下一轮再进来拉战绩（因此不会重复请求）。
-        string historyKey = $"{summoner?.Puuid}|{pageIndex}|{requestVersion}";
+        string historyKey = $"{summoner?.Puuid}|{pageIndex}|{requestVersion}|{connState.Status}";
         UseEffect(
             () =>
             {
@@ -158,6 +178,7 @@ public sealed class SearchPage : Component
 
                 var cancellation = new CancellationTokenSource();
                 _ = LoadHistoryAsync(
+                    services,
                     matchService,
                     summoner.Puuid,
                     pageIndex,
@@ -252,26 +273,29 @@ public sealed class SearchPage : Component
             }, ResolveCards()).Width(MatchCardView.CardWidth);
 
         // 左列：列表吃剩余高度（自身滚动），分页条固定在底部。
+        //
+        // Grid 的签名是 Grid(columns, rows, children)——**第一个数组是列**，
+        // 写反的后果不是编译错误而是静默错乱：本页曾经把行宽数组塞进列位，
+        // 详情面板被放到不存在的第 1 列，整页挤在左上角一小块里。
         Element leftColumn = Grid(
-                [GridSize.Star(), GridSize.Auto],
                 [GridSize.Star()],
+                [GridSize.Star(), GridSize.Auto],
                 [
                     list.Grid(row: 0, column: 0),
                     Pager(pageIndex, hasMore, setPageIndex).Grid(row: 1, column: 0),
-                ])
-            .Width(ListWidth);
+                ]);
 
         Element content = Grid(
-            [GridSize.Star()],
             [GridSize.Px(ListWidth), GridSize.Star()],
+            [GridSize.Star()],
             [
                 leftColumn.Grid(row: 0, column: 0),
                 MatchDetailView.Render(detail, current, catalog, palette).Grid(row: 0, column: 1),
             ]);
 
         return Grid(
-                [GridSize.Auto, GridSize.Star()],
                 [GridSize.Star()],
+                [GridSize.Auto, GridSize.Star()],
                 [
                     Toolbar(
                             _searchDraft ?? summoner?.RiotId ?? string.Empty,
@@ -320,9 +344,10 @@ public sealed class SearchPage : Component
         Action onRefresh,
         string? notice)
     {
+        // 同样是 Grid(columns, rows, children)：搜索框吃满第一列，三个按钮定宽排后面
         Element bar = Grid(
-            [GridSize.Auto],
             [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto],
+            [GridSize.Auto],
             [
                 TextBox(query, onQueryChanged, "输入召唤师名称进行搜索…")
                     .AutomationName("召唤师名称搜索")
@@ -352,22 +377,27 @@ public sealed class SearchPage : Component
     {
         if (pageIndex == 0 && !hasMore)
         {
-            return TextBlock(string.Empty).Height(0);
+            // 只有一页且无更多数据：不占用行高，也不显示一个点不动的翻页器
+            return Empty();
         }
 
-        Element previous = Button("‹", () => setPageIndex(pageIndex - 1)).Width(30)
+        Element previous = Button("‹", () => setPageIndex(pageIndex - 1)).Width(32)
             .AutomationName("上一页")
             .IsEnabled(pageIndex > 0);
 
-        Element next = Button("›", () => setPageIndex(pageIndex + 1)).Width(30)
+        Element next = Button("›", () => setPageIndex(pageIndex + 1)).Width(32)
             .AutomationName("下一页")
             .IsEnabled(hasMore);
 
-        return Border(HStack(6,
+        Element content = HStack(8,
                 previous,
                 TextBlock((pageIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    .FontSize(12),
-                next))
+                    .FontSize(12)
+                    .VAlign(VerticalAlignment.Center),
+                next)
+            .HAlign(HorizontalAlignment.Center);
+
+        return Border(content)
             .Padding(4)
             .CornerRadius(8)
             .Background(Theme.CardBackground)
@@ -609,6 +639,7 @@ public sealed class SearchPage : Component
 
     /// <summary>拉一页战绩。任何失败都只是让页面停在空列表，不抛给 UI。</summary>
     private static async Task LoadHistoryAsync(
+        AppServices services,
         IMatchService matchService,
         string puuid,
         int pageIndex,
@@ -622,6 +653,21 @@ public sealed class SearchPage : Component
             MatchHistoryPage page = await matchService
                 .GetMatchHistoryAsync(puuid, begin, begin + PageSize - 1, cancellationToken)
                 .ConfigureAwait(false);
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            // 预热本页英雄头像：在交付渲染前确保本地已有图片缓存，
+            // 使得卡片挂载首帧即可同步命中 Image(file://)，彻底杜绝空白头像。
+            if (page.Games.Count > 0)
+            {
+                var assets = services.Services.GetRequiredService<AssetService>();
+                var preloadTasks = page.Games.Select(g =>
+                    assets.GetCachedPathAsync(SearchVisuals.ChampionIcon(g.ChampionId), cancellationToken));
+                await Task.WhenAll(preloadTasks).ConfigureAwait(false);
+            }
 
             if (!cancellationToken.IsCancellationRequested)
             {

@@ -36,6 +36,7 @@ public static class LcuApiCatalog
         "/lol-champions/",
         "/riotclient/",
         "/system/",
+        "/entitlements/",
     ];
 
     /// <summary>健康检查用接口：端口开放不代表 API 已就绪，探测器以此判定。</summary>
