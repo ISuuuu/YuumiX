@@ -22,6 +22,11 @@
   <ItemGroup>
     <!-- 夹具来自原项目真实配置（已脱敏），随生成输出一起复制 -->
     <None Update="Fixtures/config.v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <!--
+      战绩夹具：原项目 src-tauri/testdata/match 原样复制（8 个真实抓包 + 4 个合成用例）。
+      目录结构（manifest.json + real/ + synthetic/）必须保留——清单里的 file 字段是相对路径。
+    -->
+    <None Update="Fixtures/match/**/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
