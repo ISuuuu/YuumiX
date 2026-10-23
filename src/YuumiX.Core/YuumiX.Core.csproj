@@ -20,4 +20,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Interop 细节保持 internal，仅对测试项目开放 -->
+    <InternalsVisibleTo Include="YuumiX.Core.Tests" />
+  </ItemGroup>
+
 </Project>
