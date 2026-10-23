@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Diagnostics;
+using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Runtime;
 
@@ -57,8 +58,12 @@ public sealed class AppServices : IDisposable
     /// <summary>
     /// 构造全部基础设施并完成首次配置加载。
     ///
-    /// 启动顺序是固定的：解析路径 → 建日志 → 读配置 → 用配置里的级别调整日志。
-    /// 这一步不能并行，因为后一步依赖前一步的产物。
+    /// 启动顺序是固定的：解析路径 → 建日志 → 读配置 → 建容器 → 用配置里的级别调整日志。
+    /// 配置读取刻意放在建容器**之前**：容器里的服务需要配置值（如 LCU 并发上限），
+    /// 而读配置只依赖日志。反过来做就得引入一个可变的配置持有者来补位。
+    ///
+    /// 本方法只做构造，**不启动任何后台循环**——<c>LcuConnection</c> 是注册而非自启动，
+    /// 由宿主（<c>AppHost.Initialize</c>）决定何时开始连接。
     /// </summary>
     /// <param name="paths">运行时路径；<c>null</c> 时自动探测。</param>
     public static AppServices Create(RuntimePaths? paths = null)
@@ -69,20 +74,29 @@ public sealed class AppServices : IDisposable
         var fileProvider = new RotatingFileLoggerProvider(paths.LogDirectory);
         var loggerFactory = LoggingSetup.CreateFactory(fileProvider);
 
+        var store = new ConfigStore(paths.ConfigFilePath, loggerFactory.CreateLogger<ConfigStore>());
+        var config = store.Load();
+
         var collection = new ServiceCollection();
         collection.AddSingleton(paths);
         collection.AddSingleton(fileProvider);
         collection.AddSingleton(loggerFactory);
         collection.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
-        collection.AddSingleton(provider =>
-            new ConfigStore(paths.ConfigFilePath, provider.GetRequiredService<ILogger<ConfigStore>>()));
+        collection.AddSingleton(store);
+        collection.AddSingleton(config);
+
+        collection.AddSingleton<ILcuProcessSource>(_ => new WindowsLcuProcessSource());
+        collection.AddSingleton(provider => new LcuProcessFinder(
+            provider.GetRequiredService<ILcuProcessSource>(),
+            logger: provider.GetRequiredService<ILogger<LcuProcessFinder>>()));
+        collection.AddSingleton(provider => new LcuConnection(
+            provider.GetRequiredService<LcuProcessFinder>(),
+            provider.GetRequiredService<AppConfig>().Functions.ApiConcurrencyNumber,
+            provider.GetRequiredService<ILoggerFactory>()));
 
         var services = collection.BuildServiceProvider();
 
-        var store = services.GetRequiredService<ConfigStore>();
-        var config = store.Load();
-
-        var logger = services.GetRequiredService<ILogger<AppServices>>();
+        var logger = loggerFactory.CreateLogger<AppServices>();
         logger.LogInformation(
             "YuumiX 启动：数据目录={DataDirectory}，便携版={Portable}，配置版本={Version}，日志级别={LogLevel}",
             paths.DataDirectory,

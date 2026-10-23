@@ -1,5 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor.Core;
 using YuumiX.Core;
+using YuumiX.Core.Lcu;
 
 namespace YuumiX.App.Composition;
 
@@ -35,8 +37,17 @@ public static class AppHost
     public static AppServices Services =>
         _services ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
 
-    /// <summary>构造 DI 容器、日志与配置。必须早于任何 UI 渲染。</summary>
-    public static void Initialize() => _services = AppServices.Create();
+    /// <summary>
+    /// 构造 DI 容器、日志与配置，并启动 LCU 连接循环。必须早于任何 UI 渲染。
+    ///
+    /// 连接在这里启动而不是在 <c>AppServices.Create</c> 里：Create 是纯构造入口，
+    /// 单测与工具会调用它，不能顺带拉起后台线程。宿主才是有权决定「什么时候开始连客户端」的一方。
+    /// </summary>
+    public static void Initialize()
+    {
+        _services = AppServices.Create();
+        _services.Services.GetRequiredService<LcuConnection>().Start(_services.ShutdownToken);
+    }
 
     /// <summary>释放服务与日志。</summary>
     public static void Shutdown()

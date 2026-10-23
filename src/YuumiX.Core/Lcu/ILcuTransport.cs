@@ -52,8 +52,12 @@ public sealed record LcuResponse(int StatusCode, string Body)
 /// <summary>
 /// LCU 传输抽象。存在的唯一目的是让上层可被单测：测试注入假实现，
 /// 生产注入 <c>LcuHttpTransport</c>。
+///
+/// 继承 <see cref="IDisposable"/>：生产实现自持 <c>HttpClient</c> 与连接池，
+/// 而「谁创建、谁释放」必须由接口表达——否则连接层只能靠类型转换猜测生命周期。
+/// 测试桩实现为无操作即可。
 /// </summary>
-public interface ILcuTransport
+public interface ILcuTransport : IDisposable
 {
     /// <summary>
     /// 发送请求。实现方负责：路径白名单校验、并发限流、传输层重试、证书忽略。

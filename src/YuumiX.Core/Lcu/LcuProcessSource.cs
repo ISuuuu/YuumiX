@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.Versioning;
 using YuumiX.Core.Interop;
 
 namespace YuumiX.Core.Lcu;
@@ -20,8 +19,13 @@ public interface ILcuProcessSource
     bool IsProcessAlive(int processId);
 }
 
-/// <summary>真实实现：枚举 LeagueClientUx 进程，读可执行路径与命令行。</summary>
-[SupportedOSPlatform("windows")]
+/// <summary>
+/// 真实实现：枚举 LeagueClientUx 进程，读可执行路径与命令行。
+///
+/// 刻意不标 <c>[SupportedOSPlatform("windows")]</c>：Core 的 TFM 是 <c>net10.0</c>，
+/// 一旦在组合根（`AppServices.Create`）里注册它，CA1416 警告会外溢到每个调用点与测试项目；
+/// 而平台判断本身只需要一处运行期守卫。与 <see cref="Interop.ProcessCommandLine"/> 的处理方式一致。
+/// </summary>
 public sealed class WindowsLcuProcessSource : ILcuProcessSource
 {
     /// <summary>进程名（<see cref="Process.GetProcessesByName"/> 不接受 .exe 后缀）。</summary>
@@ -29,6 +33,11 @@ public sealed class WindowsLcuProcessSource : ILcuProcessSource
 
     public IReadOnlyList<LcuProcessInfo> FindClientProcesses()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return [];
+        }
+
         var processes = new List<LcuProcessInfo>();
 
         foreach (var process in Process.GetProcessesByName(ClientProcessName))
@@ -47,7 +56,7 @@ public sealed class WindowsLcuProcessSource : ILcuProcessSource
 
     public bool IsProcessAlive(int processId)
     {
-        if (processId <= 0)
+        if (!OperatingSystem.IsWindows() || processId <= 0)
         {
             return false;
         }

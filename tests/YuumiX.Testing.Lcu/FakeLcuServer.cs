@@ -43,6 +43,9 @@ public sealed class FakeLcuServer : IAsyncDisposable
     private readonly CancellationTokenSource _shutdown = new();
     private readonly List<RecordedRequest> _requests = [];
     private readonly List<Task> _connections = [];
+    private readonly List<WebSocket> _webSockets = [];
+    private readonly List<WebSocket> _readyWebSockets = [];
+    private readonly List<TaskCompletionSource<WebSocket>> _webSocketWaiters = [];
     private readonly Task _acceptLoop;
 
     private FakeLcuServer(TcpListener listener, Uri baseAddress, string authorizationHeader)
@@ -74,8 +77,50 @@ public sealed class FakeLcuServer : IAsyncDisposable
     /// <summary>请求处理器；为 <c>null</c> 时一律返回 200 <c>{}</c>。</summary>
     public Func<RecordedRequest, FakeResponse>? Handler { get; set; }
 
-    /// <summary>WebSocket 连接建立后的回调（用于推送事件）。</summary>
+    /// <summary>WebSocket 连接建立后的回调（用于推送事件）。返回即关闭该连接。</summary>
     public Func<WebSocket, Task>? WebSocketHandler { get; set; }
+
+    /// <summary>已接受的 WebSocket 连接数，用于断言重连行为。</summary>
+    public int WebSocketConnectionCount
+    {
+        get
+        {
+            lock (_webSockets)
+            {
+                return _webSockets.Count;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 等待下一个 WebSocket 连接，返回服务端一侧的套接字供测试直接驱动。
+    ///
+    /// 与 <see cref="WebSocketHandler"/> 的分工：handler 适合「连上就自动推一串帧」的脚本式场景；
+    /// 本方法适合「由测试逐步控制」的场景（先断言订阅帧，再逐条推事件，最后断开）。
+    /// 两者可同时使用——套接字会先交给等待者，再交给 handler。
+    /// </summary>
+    public Task<WebSocket> NextWebSocketAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_webSockets)
+        {
+            if (_readyWebSockets.Count > 0)
+            {
+                var pending = _readyWebSockets[0];
+                _readyWebSockets.RemoveAt(0);
+                return Task.FromResult(pending);
+            }
+
+            var waiter = new TaskCompletionSource<WebSocket>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _webSocketWaiters.Add(waiter);
+
+            if (cancellationToken.CanBeCanceled)
+            {
+                cancellationToken.Register(() => waiter.TrySetCanceled(cancellationToken));
+            }
+
+            return waiter.Task;
+        }
+    }
 
     public static FakeLcuServer Start(string token = "test-token")
     {
@@ -108,6 +153,20 @@ public sealed class FakeLcuServer : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
+        }
+
+        // 先掐断 WS：读循环阻塞在 ReceiveAsync 上，不主动 Abort 的话连接任务不会结束，
+        // 下面的 WhenAll 会一直等到测试超时。
+        WebSocket[] sockets;
+        lock (_webSockets)
+        {
+            sockets = [.. _webSockets];
+            _webSockets.Clear();
+        }
+
+        foreach (var socket in sockets)
+        {
+            socket.Abort();
         }
 
         Task[] pending;
@@ -172,9 +231,13 @@ public sealed class FakeLcuServer : IAsyncDisposable
                     raw.Headers.TryGetValue("Upgrade", out var upgrade)
                     && upgrade.Equals("websocket", StringComparison.OrdinalIgnoreCase);
 
-                if (isWebSocketUpgrade && WebSocketHandler is not null)
+                if (isWebSocketUpgrade)
                 {
-                    await AcceptWebSocketAsync(stream, raw.Headers.GetValueOrDefault("Sec-WebSocket-Key"), _shutdown.Token);
+                    await AcceptWebSocketAsync(
+                        stream,
+                        raw.Headers.GetValueOrDefault("Sec-WebSocket-Key"),
+                        raw.Leftover,
+                        _shutdown.Token);
                     return;
                 }
 
@@ -188,7 +251,11 @@ public sealed class FakeLcuServer : IAsyncDisposable
         }
     }
 
-    private async Task AcceptWebSocketAsync(NetworkStream stream, string? webSocketKey, CancellationToken cancellationToken)
+    private async Task AcceptWebSocketAsync(
+        NetworkStream stream,
+        string? webSocketKey,
+        byte[] leftover,
+        CancellationToken cancellationToken)
     {
         var accept = Convert.ToBase64String(
             SHA1.HashData(Encoding.ASCII.GetBytes((webSocketKey ?? string.Empty) + WebSocketGuid)));
@@ -201,10 +268,49 @@ public sealed class FakeLcuServer : IAsyncDisposable
         await stream.WriteAsync(Encoding.ASCII.GetBytes(handshake), cancellationToken);
         await stream.FlushAsync(cancellationToken);
 
-        using var socket = WebSocket.CreateFromStream(stream, isServer: true, subProtocol: null, keepAliveInterval: TimeSpan.Zero);
-        if (WebSocketHandler is not null)
+        // 客户端若把首帧与握手写在同一个包内，握手读取会把它一并读走。不回放这些字节，
+        // 首帧（通常正是订阅消息）就会静默丢失，表现为「偶发收不到任何事件」——
+        // 这类 flaky 的排查成本远高于这一层包装。
+        var transport = leftover.Length == 0 ? (Stream)stream : new PrefixedStream(leftover, stream);
+
+        using var socket = WebSocket.CreateFromStream(transport, isServer: true, subProtocol: null, keepAliveInterval: TimeSpan.Zero);
+        PublishWebSocket(socket);
+
+        try
         {
-            await WebSocketHandler(socket);
+            if (WebSocketHandler is not null)
+            {
+                await WebSocketHandler(socket);
+            }
+            else
+            {
+                // 无 handler 时由测试直接驱动套接字：保持连接直到服务端关停。
+                // 若此处直接返回，socket 会被释放，测试还没来得及读订阅帧连接就断了。
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 服务端关停
+        }
+    }
+
+    private void PublishWebSocket(WebSocket socket)
+    {
+        lock (_webSockets)
+        {
+            _webSockets.Add(socket);
+
+            if (_webSocketWaiters.Count > 0)
+            {
+                var waiter = _webSocketWaiters[0];
+                _webSocketWaiters.RemoveAt(0);
+                waiter.TrySetResult(socket);
+            }
+            else
+            {
+                _readyWebSockets.Add(socket);
+            }
         }
     }
 
@@ -264,17 +370,28 @@ public sealed class FakeLcuServer : IAsyncDisposable
 
         var bodyText = body.Count == 0 ? null : Encoding.UTF8.GetString([.. body.Take(contentLength)]);
 
+        // 超出 Content-Length 的字节属于后续帧（WebSocket 首帧最典型），必须原样还给上层
+        var leftover = body.Count > contentLength
+            ? body.GetRange(contentLength, body.Count - contentLength).ToArray()
+            : [];
+
         var request = new RecordedRequest(
             method,
             target,
             headers.GetValueOrDefault("Authorization"),
             bodyText,
             headers.GetValueOrDefault("Content-Type"));
-        return new RawRequest(request, headers);
+        return new RawRequest(request, headers, leftover);
     }
 
-    /// <summary>一次请求的原始形态：对外快照 + 内部需要的头部（WebSocket 握手要用）。</summary>
-    private sealed record RawRequest(RecordedRequest Request, IReadOnlyDictionary<string, string> Headers);
+    /// <summary>
+    /// 一次请求的原始形态：对外快照 + 内部需要的头部（WebSocket 握手要用）+
+    /// 已被读入缓冲但属于后续帧的字节。
+    /// </summary>
+    private sealed record RawRequest(
+        RecordedRequest Request,
+        IReadOnlyDictionary<string, string> Headers,
+        byte[] Leftover);
 
     private static int FindHeaderEnd(List<byte> data)
     {
@@ -315,4 +432,100 @@ public sealed class FakeLcuServer : IAsyncDisposable
         503 => "Service Unavailable",
         _ => "Unknown",
     };
+
+    /// <summary>
+    /// 先吐出「握手时已被读入缓冲、但归属于后续帧」的字节，再转发给底层流。
+    /// <see cref="WebSocket.CreateFromStream"/> 没有注入前缀字节的入口，只能靠这层薄包装。
+    /// </summary>
+    private sealed class PrefixedStream(byte[] prefix, Stream inner) : Stream
+    {
+        private int _offset;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            if (TryReadPrefix(buffer, out var read))
+            {
+                return read;
+            }
+
+            return inner.Read(buffer);
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (TryReadPrefix(buffer.Span, out var read))
+            {
+                return new ValueTask<int>(read);
+            }
+
+            return inner.ReadAsync(buffer, cancellationToken);
+        }
+
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => inner.WriteAsync(buffer, offset, count, cancellationToken);
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+            => inner.WriteAsync(buffer, cancellationToken);
+
+        public override void Flush() => inner.Flush();
+
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await inner.DisposeAsync();
+            await base.DisposeAsync();
+        }
+
+        /// <summary>从回放缓冲取数据；返回 <c>false</c> 表示缓冲已空，应转向底层流读取。</summary>
+        private bool TryReadPrefix(Span<byte> buffer, out int read)
+        {
+            if (_offset < prefix.Length && buffer.Length > 0)
+            {
+                var take = Math.Min(buffer.Length, prefix.Length - _offset);
+                prefix.AsSpan(_offset, take).CopyTo(buffer);
+                _offset += take;
+                read = take;
+                return true;
+            }
+
+            read = 0;
+            return false;
+        }
+    }
 }
