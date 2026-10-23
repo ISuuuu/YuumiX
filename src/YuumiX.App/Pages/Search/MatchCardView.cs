@@ -38,8 +38,7 @@ internal static class MatchCardView
     public static Element Render(
         MatchSummary summary,
         GameDataCatalog catalog,
-        YuumiPalette palette,
-        bool selected)
+        YuumiPalette palette)
     {
         var items = new Element[SearchVisuals.ItemSlotCount];
         for (var slot = 0; slot < items.Length; slot++)
@@ -66,17 +65,14 @@ internal static class MatchCardView
             TextBlock(SearchVisuals.ResultText(summary)).FontSize(13).Foreground(palette.Accent),
             TextBlock(summary.DurationText).FontSize(11).Foreground(Theme.SecondaryText));
 
-        Element card = Border(HStack(12, champion, middle, right))
+        // 刻意不接收选中态：卡片随选中重建会让 ListView 反复抛 SelectionChanged，
+        // 形成渲染自激（整片闪烁）。选中视觉由 ListView 自身高亮承担。
+        return Border(HStack(12, champion, middle, right))
             .Width(CardWidth)
             .Height(CardHeight)
             .Padding(10)
             .CornerRadius(6)
-            .Background(SearchVisuals.CardBackground(palette, summary));
-
-        // 选中态与普通态分别组装：强调色是 string、卡片描边是 ThemeRef，
-        // 两者塞进同一个条件表达式会让重载解析失败（类型不同、无共同基类）。
-        return selected
-            ? card.WithBorder(palette.Accent, 2)
-            : card.WithBorder(Theme.CardStroke, 1);
+            .Background(SearchVisuals.CardBackground(palette, summary))
+            .WithBorder(Theme.CardStroke, 1);
     }
 }

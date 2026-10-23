@@ -31,6 +31,11 @@ public sealed class SearchPage : Component
     /// <summary>列表宽度（DIP）。与详情面板的 300 DIP 队伍块配合，在 1280 宽度下不挤压。</summary>
     private const double ListWidth = 540;
 
+    /// <summary>卡片元素缓存，仅在资源表或配色变化时重建（见 Render 内的 ResolveCards）。</summary>
+    private Element[]? _cards;
+    private GameDataCatalog? _cardsCatalog;
+    private YuumiPalette? _cardsPalette;
+
     public override Element Render()
     {
         var services = UseContext(AppHost.Context);
@@ -70,17 +75,48 @@ public sealed class SearchPage : Component
         // 列表项必须各自重新 Provide 上下文：ListView 的项由原生控件托管渲染，
         // 不在页面的 Provide 作用域内，否则卡片里的 LcuImage 取 UseContext 会拿到 null
         // （表现为整行渲染异常，已被 Reactor 的错误边界替换成红字堆栈）。
-        Element[] cards = matches
-            .Select((summary, position) => MatchCardView.Render(summary, catalog, palette, position == index)
-                .Provide(AppHost.Context, services))
-            .ToArray();
+        //
+        // 卡片**不能依赖选中索引**：一旦随选中重建，ListView 会收到一批全新的项元素，
+        // 进而再次抛出 SelectionChanged，形成「选中 → 重建 → 再选中」的自激循环，
+        // 表现为整片列表持续闪烁（每个卡片里的 LcuImage 都被反复重置成占位图）。
+        // 因此卡片只随（资源表、配色）变化重建，选中态交给 ListView 自身的高亮。
+        //
+        // 缓存放在字段而不是 UseMemo：UseMemo 的依赖若是每次渲染新建的元组，
+        // 比较永远不等（REACTOR_HOOKS_004），等于没缓存。
+        Element[] ResolveCards()
+        {
+            if (_cards is not null
+                && ReferenceEquals(_cardsCatalog, catalog)
+                && Equals(_cardsPalette, palette))
+            {
+                return _cards;
+            }
+
+            _cards = matches
+                .Select(summary => MatchCardView.Render(summary, catalog, palette)
+                    .Provide(AppHost.Context, services))
+                .ToArray();
+            _cardsCatalog = catalog;
+            _cardsPalette = palette;
+            return _cards;
+        }
+
+        Element[] cards = ResolveCards();
 
         Element list = matches.Count == 0
             ? Border(Caption("没有可显示的夹具数据")).Padding(20)
                 .CornerRadius(8)
                 .Background(Theme.CardBackground)
                 .WithBorder(Theme.CardStroke, 1)
-            : ListView((int?)index, setSelectedIndex, cards).Width(ListWidth);
+            : ListView((int?)index, next =>
+            {
+                // 值相同则直接丢弃：ListView 在项重建后会重复抛出同一个索引，
+                // 不比对就会把「同一次选中」当成新事件触发重渲染。
+                if (next >= 0 && next != selectedIndex)
+                {
+                    setSelectedIndex(next);
+                }
+            }, cards).Width(ListWidth);
 
         Element header = VStack(4,
             Heading("战绩查询"),
