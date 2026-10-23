@@ -66,10 +66,20 @@ public sealed class LcuImage : Component<LcuImageProps>
                 .AutomationName($"图标占位：{Props.AssetPath}");
         }
 
-        return Image(uri)
+        Element img = Image(uri)
             .Width(Props.Size)
             .Height(Props.Size)
             .AutomationName($"图标：{Props.AssetPath}");
+
+        if (Props.CornerRadius > 0)
+        {
+            return Border(img)
+                .Width(Props.Size)
+                .Height(Props.Size)
+                .CornerRadius(Props.CornerRadius);
+        }
+
+        return img;
     }
 
     private async Task ResolveAsync(

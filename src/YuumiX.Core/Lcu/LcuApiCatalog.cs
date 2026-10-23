@@ -23,6 +23,7 @@ public static class LcuApiCatalog
         "/lol-ranked/",
         "/lol-match-history/",
         "/lol-champion-mastery/",
+        "/lol-loot/",
         "/lol-challenges/",
         "/lol-honor-v2/",
         "/lol-honor/",
