@@ -18,6 +18,18 @@ public interface ISummonerService
     /// <exception cref="OperationCanceledException">令牌取消。</exception>
     Task<SummonerProfile?> GetCurrentSummonerAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// 按 Riot ID 查询任意召唤师（战绩查询页的搜索框）。
+    /// </summary>
+    /// <param name="riotId">形如 <c>名字#TAG</c>；不带 <c>#</c> 时 LCU 会按名字前缀匹配。</param>
+    /// <returns>查不到、客户端未连接或载荷不完整时返回 <c>null</c>（不抛异常，界面据此提示"未找到"）。</returns>
+    /// <remarks>
+    /// 与 <see cref="GetCurrentSummonerAsync"/> 分开而不是加参数：两者缓存语义相反——
+    /// 当前账号在一次登录期间不变、可以缓存；搜索目标每次都不同、缓存只会把上一个查询结果端出来。
+    /// </remarks>
+    /// <exception cref="OperationCanceledException">令牌取消。</exception>
+    Task<SummonerProfile?> FindByNameAsync(string riotId, CancellationToken cancellationToken = default);
+
     /// <summary>清空缓存。切换账号或被踢下线后必须调用，否则会拿到上一个账号的资料。</summary>
     void InvalidateCache();
 }

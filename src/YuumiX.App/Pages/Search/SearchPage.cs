@@ -15,28 +15,31 @@ using YuumiX.Core.Lcu;
 namespace YuumiX.App.Pages.Search;
 
 /// <summary>
-/// 战绩查询页：左侧对局列表 + 右侧详情面板，数据全部来自 LCU。
+/// 战绩查询页：顶部搜索栏 + 左侧对局列表 + 右侧详情表格，数据全部来自 LCU。
 ///
-/// 对应原 <c>Search.vue</c>（列表 + 召唤师信息）与 <c>MatchDetailPanel.vue</c>（详情）。
+/// 对应原 <c>Search.vue</c>（搜索栏 + 左侧战绩卡片流）与 <c>MatchDetailPanel.vue</c>（右侧双方表格）。
 ///
-/// <b>数据通路</b>：<c>ISummonerService</c> 取当前账号的 puuid →
+/// <b>数据通路</b>：<c>ISummonerService</c> 取当前账号的 puuid（或按名字搜索得到的 puuid）→
 /// <c>IMatchService.GetMatchHistoryAsync</c> 取一页列表 → 选中项再取
 /// <c>GetMatchDetailAsync</c>。三者都是异步且可能因为"客户端没开"直接返回空，
-/// 因此页面维护四份状态：召唤师、列表、详情、状态快照。
+/// 因此页面维护多份状态：召唤师、列表、详情、状态快照、分页与筛选。
 ///
 /// <b>为什么状态流要订阅而不是自己拼文案</b>：<c>MatchServiceStatus.Message</c> 里区分了
 /// 「正在拉取第 N–M 场」与「正在读取对局 X 的详情」，列表加载与详情加载共用同一条流。
 /// 页面若按 <c>State</c> 全量展示，选中一局后列表上方会突然冒出"正在读取对局 123 的详情"。
-/// 因此这里只把**失败**透出到列表上方（见 <see cref="StatusLine"/>），
-/// 加载中的提示由空列表占位与详情面板各自承担。
+/// 因此这里只把**失败**透出到列表区的占位里（见 <see cref="Hint"/>），
+/// 加载中的提示由骨架卡与详情面板各自承担。
 ///
 /// <b>线程</b>：服务在后台线程发布状态、异步返回结果，所有 <c>UseState</c> 都必须带
 /// <c>threadSafe: true</c>（ADR-07）。
 /// </summary>
 public sealed class SearchPage : Component
 {
-    /// <summary>列表宽度（DIP）。与详情面板的 300 DIP 队伍块配合，在 1280 宽度下不挤压。</summary>
-    private const double ListWidth = 540;
+    /// <summary>
+    /// 左列表宽度（DIP）。卡片 172 + <c>ListView</c> 项容器与滚动条的余量：
+    /// 给足 18 的差值可以避免出现横向滚动条（项容器自带内边距）。
+    /// </summary>
+    private const double ListWidth = 190;
 
     /// <summary>
     /// 单页条数。LCU 的 <c>matches</c> 接口在一次登录期间只缓存最近 20 局，
@@ -45,17 +48,38 @@ public sealed class SearchPage : Component
     /// </summary>
     private const int PageSize = 20;
 
+    /// <summary>加载中骨架卡数量：与实战中列表可见高度一致，避免数据到达时整列跳动。</summary>
+    private const int SkeletonCount = 9;
+
     /// <summary>
     /// 空列表的共享实例。<c>UseState</c> 的初值只读一次，但写成 <c>[]</c> 会在每次渲染
     /// 新建一个集合（REACTOR_HOOKS_013），因此用静态实例而不是集合表达式。
     /// </summary>
     private static readonly IReadOnlyList<MatchSummary> EmptyMatches = [];
 
+    private static readonly string[] AllQueues = ["全部"];
+
     /// <summary>卡片元素缓存，仅在列表内容 / 资源表 / 配色变化时重建（见 <c>ResolveCards</c>）。</summary>
     private Element[]? _cards;
     private IReadOnlyList<MatchSummary>? _cardsMatches;
-    private GameDataCatalog? _cardsCatalog;
     private YuumiPalette? _cardsPalette;
+
+    /// <summary>筛选下拉的选项缓存（含"全部"），仅在列表内容变化时重建。</summary>
+    private string[]? _filterLabels;
+    private IReadOnlyList<MatchSummary>? _filterSource;
+
+    /// <summary>
+    /// 筛选后的可见列表缓存。
+    ///
+    /// 必须缓存：卡片元素按"列表引用"判等，如果每帧都 <c>Where(...).ToArray()</c> 出一个新数组，
+    /// 卡片会每帧重建，<c>ListView</c> 随之反复抛 SelectionChanged —— 正是改造前踩过的渲染自激。
+    /// </summary>
+    private IReadOnlyList<MatchSummary>? _visible;
+    private IReadOnlyList<MatchSummary>? _visibleSource;
+    private int _visibleFilter = -1;
+
+    /// <summary>搜索框草稿。不做成 state：受控文本框在重渲染时会重置光标位置。</summary>
+    private string? _searchDraft;
 
     public override Element Render()
     {
@@ -74,10 +98,16 @@ public sealed class SearchPage : Component
             0);
 
         var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
+        var (summonerResolved, setSummonerResolved) = UseState(false, threadSafe: true);
         var (matches, setMatches) = UseState(EmptyMatches, threadSafe: true);
         var (status, setStatus) = UseState(MatchServiceStatus.Idle, threadSafe: true);
         var (detail, setDetail) = UseState<MatchDetail?>(null, threadSafe: true);
-        var (selectedIndex, setSelectedIndex) = UseState(0, threadSafe: true);
+        var (selectedGameId, setSelectedGameId) = UseState(0L, threadSafe: true);
+        var (pageIndex, setPageIndex) = UseState(0, threadSafe: true);
+        var (hasMore, setHasMore) = UseState(false, threadSafe: true);
+        var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
+        var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
+        var (notice, setNotice) = UseState<string?>(null, threadSafe: true);
 
         // 资源映射表异步加载：客户端没启动时保持空表，图标退化为占位块而不是空白。
         var (catalog, setCatalog) = UseState(GameDataCatalog.Empty, threadSafe: true);
@@ -103,23 +133,58 @@ public sealed class SearchPage : Component
             },
             0);
 
-        // 首屏：召唤师 → 第一页战绩。客户端未登录时两步都会静默返回 null/空页，
-        // 界面按"未连接"渲染，不弹错误对话框。
+        // 首屏 / 搜索 / 翻页 / 刷新 共用一个入口：
+        // 有 puuid 就拉这一页战绩；还没有召唤师就先解析当前登录账号，
+        // setSummoner 会改变依赖键，下一轮再进来拉战绩（因此不会重复请求）。
+        string historyKey = $"{summoner?.Puuid}|{pageIndex}|{requestVersion}";
         UseEffect(
             () =>
             {
+                if (summoner is null)
+                {
+                    var resolveCancellation = new CancellationTokenSource();
+                    _ = ResolveSummonerAsync(
+                        summonerService,
+                        setSummoner,
+                        setSummonerResolved,
+                        resolveCancellation.Token);
+
+                    return () =>
+                    {
+                        resolveCancellation.Cancel();
+                        resolveCancellation.Dispose();
+                    };
+                }
+
                 var cancellation = new CancellationTokenSource();
-                _ = LoadHistoryAsync(summonerService, matchService, setSummoner, setMatches, cancellation.Token);
+                _ = LoadHistoryAsync(
+                    matchService,
+                    summoner.Puuid,
+                    pageIndex,
+                    setMatches,
+                    setHasMore,
+                    cancellation.Token);
+
                 return () =>
                 {
                     cancellation.Cancel();
                     cancellation.Dispose();
                 };
             },
-            0);
+            historyKey);
 
-        int index = selectedIndex >= 0 && selectedIndex < matches.Count ? selectedIndex : 0;
-        MatchSummary? current = matches.Count > 0 ? matches[index] : null;
+        string[] filterLabels = ResolveFilterLabels(matches);
+        int effectiveFilter = filterIndex < filterLabels.Length ? filterIndex : 0;
+        IReadOnlyList<MatchSummary> visible = ResolveVisibleMatches(matches, filterLabels, effectiveFilter);
+
+        int index = 0;
+        if (selectedGameId != 0)
+        {
+            int found = IndexOf(visible, selectedGameId);
+            index = found >= 0 ? found : 0;
+        }
+
+        MatchSummary? current = visible.Count > 0 ? visible[index] : null;
         long currentGameId = current?.GameId ?? 0;
 
         // 详情：按当前选中的 gameId 加载。服务内部按 gameId 缓存，来回切换不会重复请求。
@@ -159,93 +224,369 @@ public sealed class SearchPage : Component
         Element[] ResolveCards()
         {
             if (_cards is not null
-                && ReferenceEquals(_cardsMatches, matches)
-                && ReferenceEquals(_cardsCatalog, catalog)
+                && ReferenceEquals(_cardsMatches, visible)
                 && Equals(_cardsPalette, palette))
             {
                 return _cards;
             }
 
-            _cards = matches
-                .Select(summary => MatchCardView.Render(summary, catalog, palette)
+            _cards = visible
+                .Select(summary => MatchCardView.Render(summary, palette)
                     .Provide(AppHost.Context, services))
                 .ToArray();
-            _cardsMatches = matches;
-            _cardsCatalog = catalog;
+            _cardsMatches = visible;
             _cardsPalette = palette;
             return _cards;
         }
 
-        Element[] cards = ResolveCards();
-
-        Element list = matches.Count == 0
-            ? EmptyHint(status)
+        Element list = visible.Count == 0
+            ? SkeletonList(status, summonerResolved, summoner is not null)
             : ListView((int?)index, next =>
             {
                 // 值相同则直接丢弃：ListView 在项重建后会重复抛出同一个索引，
                 // 不比对就会把「同一次选中」当成新事件触发重渲染。
-                if (next >= 0 && next != selectedIndex)
+                if (next >= 0 && next < visible.Count && visible[next].GameId != selectedGameId)
                 {
-                    setSelectedIndex(next);
+                    setSelectedGameId(visible[next].GameId);
                 }
-            }, cards).Width(ListWidth);
+            }, ResolveCards()).Width(MatchCardView.CardWidth);
 
-        Element header = VStack(4,
-            Heading("战绩查询"),
-            Caption(SummonerLine(summoner)),
-            StatusLine(status));
+        // 左列：列表吃剩余高度（自身滚动），分页条固定在底部。
+        Element leftColumn = Grid(
+                [GridSize.Star(), GridSize.Auto],
+                [GridSize.Star()],
+                [
+                    list.Grid(row: 0, column: 0),
+                    Pager(pageIndex, hasMore, setPageIndex).Grid(row: 1, column: 0),
+                ])
+            .Width(ListWidth);
 
-        return HStack(16,
-                VStack(12, header, list).Width(ListWidth),
-                MatchDetailView.Render(detail, current, catalog, palette))
-            .Padding(24)
+        Element content = Grid(
+            [GridSize.Star()],
+            [GridSize.Px(ListWidth), GridSize.Star()],
+            [
+                leftColumn.Grid(row: 0, column: 0),
+                MatchDetailView.Render(detail, current, catalog, palette).Grid(row: 0, column: 1),
+            ]);
+
+        return Grid(
+                [GridSize.Auto, GridSize.Star()],
+                [GridSize.Star()],
+                [
+                    Toolbar(
+                            _searchDraft ?? summoner?.RiotId ?? string.Empty,
+                            draft => _searchDraft = draft,
+                            filterLabels,
+                            effectiveFilter,
+                            value =>
+                            {
+                                if (value != filterIndex)
+                                {
+                                    setFilterIndex(value);
+                                }
+                            },
+                            () => SubmitSearch(
+                                summonerService,
+                                setSummoner,
+                                setSummonerResolved,
+                                setMatches,
+                                setSelectedGameId,
+                                setPageIndex,
+                                setNotice,
+                                () => setRequestVersion(requestVersion + 1)),
+                            () =>
+                            {
+                                setNotice(null);
+                                setSelectedGameId(0);
+                                setPageIndex(0);
+                                setRequestVersion(requestVersion + 1);
+                            },
+                            notice)
+                        .Grid(row: 0, column: 0),
+                    content.Grid(row: 1, column: 0),
+                ])
+            .Padding(12)
             .HAlign(HorizontalAlignment.Stretch);
     }
 
-    /// <summary>召唤师一行：名字 + 等级；未连接时说明原因而不是留空。</summary>
-    private static string SummonerLine(SummonerProfile? summoner) => summoner is null
-        ? "未读取到当前召唤师（客户端未登录）"
-        : $"{summoner.RiotId} · 等级 {summoner.SummonerLevel}";
-
-    /// <summary>
-    /// 列表上方的状态行：**只显示失败**。
-    ///
-    /// 状态流同时承载列表与详情两类请求，直接按 <c>State</c> 展示会让选中一局后
-    /// 顶部突然出现"正在读取对局 123 的详情"，与列表无关。加载中的提示已经由
-    /// 空列表占位与详情面板各自承担，这里只保留需要用户知道原因的失败信息。
-    /// </summary>
-    private static Element StatusLine(MatchServiceStatus status)
+    /// <summary>顶部工具栏：搜索框吃满剩余宽度，右侧三个定宽控件。</summary>
+    private static Element Toolbar(
+        string query,
+        Action<string> onQueryChanged,
+        string[] filterLabels,
+        int filterIndex,
+        Action<int> onFilterChanged,
+        Action onSearch,
+        Action onRefresh,
+        string? notice)
     {
-        if (status.State != MatchLoadState.Failed || status.Message is null)
-        {
-            return TextBlock(string.Empty).FontSize(11);
-        }
+        Element bar = Grid(
+            [GridSize.Auto],
+            [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto],
+            [
+                TextBox(query, onQueryChanged, "输入召唤师名称进行搜索…")
+                    .AutomationName("召唤师名称搜索")
+                    .Grid(row: 0, column: 0),
+                Button("查询", onSearch).Grid(row: 0, column: 1),
+                ComboBox(filterLabels, filterIndex, onFilterChanged)
+                    .AutomationName("队列筛选")
+                    .Grid(row: 0, column: 2),
+                Button("刷新", onRefresh).Grid(row: 0, column: 3),
+            ]);
 
-        return TextBlock(status.Message).FontSize(11).Foreground(Theme.SecondaryText);
-    }
+        // 提示行放在搜索框下方而不是列表上方：出错的是"搜索"，不是"列表"
+        Element body = notice is null
+            ? bar
+            : VStack(6, bar, TextBlock(notice).FontSize(11).Foreground(Theme.SecondaryText));
 
-    /// <summary>列表为空时的占位：区分"还没连上"与"这个账号确实没有对局"。</summary>
-    private static Element EmptyHint(MatchServiceStatus status)
-    {
-        string text = status.State switch
-        {
-            MatchLoadState.Loading => "正在读取战绩…",
-            MatchLoadState.Failed => status.Message ?? "读取战绩失败",
-            _ => "没有可显示的对局（客户端未连接，或该账号近期没有对局）",
-        };
-
-        return Border(Caption(text)).Padding(20)
+        return Border(body)
+            .Padding(8)
             .CornerRadius(8)
             .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1);
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(HorizontalAlignment.Stretch);
     }
 
-    /// <summary>召唤师 → 第一页战绩。任何一步失败都只是让页面停在空列表，不抛给 UI。</summary>
-    private static async Task LoadHistoryAsync(
+    /// <summary>底部翻页：只做前后各一页，页码即当前页序号（从 1 开始）。</summary>
+    private static Element Pager(int pageIndex, bool hasMore, Action<int> setPageIndex)
+    {
+        if (pageIndex == 0 && !hasMore)
+        {
+            return TextBlock(string.Empty).Height(0);
+        }
+
+        Element previous = Button("‹", () => setPageIndex(pageIndex - 1)).Width(30)
+            .AutomationName("上一页")
+            .IsEnabled(pageIndex > 0);
+
+        Element next = Button("›", () => setPageIndex(pageIndex + 1)).Width(30)
+            .AutomationName("下一页")
+            .IsEnabled(hasMore);
+
+        return Border(HStack(6,
+                previous,
+                TextBlock((pageIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    .FontSize(12),
+                next))
+            .Padding(4)
+            .CornerRadius(8)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(HorizontalAlignment.Stretch);
+    }
+
+    /// <summary>
+    /// 列表为空时的占位。三种情形要分开：
+    /// 召唤师还没解析完（骨架）→ 客户端确实没连上（一句话说明）→ 读取失败（服务给的原因）。
+    /// 全部压成骨架会让"客户端没开"看起来像永远在加载。
+    /// </summary>
+    private static Element SkeletonList(MatchServiceStatus status, bool summonerResolved, bool hasSummoner)
+    {
+        if (!summonerResolved)
+        {
+            return BuildSkeletons();
+        }
+
+        if (!hasSummoner)
+        {
+            return Hint("未读取到当前召唤师（客户端未登录）");
+        }
+
+        if (status.State == MatchLoadState.Failed)
+        {
+            return Hint(status.Message ?? "读取战绩失败");
+        }
+
+        return BuildSkeletons();
+    }
+
+    /// <summary>列表区的说明块：与卡片同宽，避免右侧面板被拉宽。</summary>
+    private static Element Hint(string text) =>
+        Border(TextBlock(text).FontSize(11).Foreground(Theme.SecondaryText).TextWrapping())
+            .Padding(12)
+            .CornerRadius(8)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(HorizontalAlignment.Stretch);
+
+    private static Element BuildSkeletons()
+    {
+        var skeletons = new Element[SkeletonCount];
+        for (var i = 0; i < skeletons.Length; i++)
+        {
+            skeletons[i] = MatchCardView.Skeleton();
+        }
+
+        // 骨架自带上下的间隙（见 MatchCardView.Skeleton），这里不再额外加间距
+        return VStack(0, skeletons);
+    }
+
+    /// <summary>
+    /// 筛选下拉的选项：第一项固定为"全部"，其余按列表中出现的队列名去重追加。
+    ///
+    /// 选项按 <paramref name="matches"/> 的引用缓存，而不是每帧重算：
+    /// ComboBox 收到新数组会整体重建项目集合，选中项被重置（表现为"筛选自己跳回全部"）。
+    /// </summary>
+    private string[] ResolveFilterLabels(IReadOnlyList<MatchSummary> matches)
+    {
+        if (_filterLabels is not null && ReferenceEquals(_filterSource, matches))
+        {
+            return _filterLabels;
+        }
+
+        var labels = new List<string>(AllQueues);
+        foreach (MatchSummary summary in matches)
+        {
+            if (!labels.Contains(summary.QueueName, StringComparer.Ordinal))
+            {
+                labels.Add(summary.QueueName);
+            }
+        }
+
+        _filterLabels = labels.ToArray();
+        _filterSource = matches;
+        return _filterLabels;
+    }
+
+    /// <summary>按队列筛选；结果按（源列表, 筛选序号）缓存，避免每帧产出新集合。</summary>
+    private IReadOnlyList<MatchSummary> ResolveVisibleMatches(
+        IReadOnlyList<MatchSummary> matches,
+        string[] labels,
+        int filterIndex)
+    {
+        if (_visible is not null
+            && ReferenceEquals(_visibleSource, matches)
+            && _visibleFilter == filterIndex)
+        {
+            return _visible;
+        }
+
+        _visible = FilterMatches(matches, labels, filterIndex);
+        _visibleSource = matches;
+        _visibleFilter = filterIndex;
+        return _visible;
+    }
+
+    private static IReadOnlyList<MatchSummary> FilterMatches(
+        IReadOnlyList<MatchSummary> matches,
+        string[] labels,
+        int filterIndex)
+    {
+        if (filterIndex <= 0 || filterIndex >= labels.Length)
+        {
+            return matches;
+        }
+
+        string queue = labels[filterIndex];
+        var filtered = new List<MatchSummary>(matches.Count);
+        foreach (MatchSummary summary in matches)
+        {
+            if (string.Equals(summary.QueueName, queue, StringComparison.Ordinal))
+            {
+                filtered.Add(summary);
+            }
+        }
+
+        return filtered;
+    }
+
+    private static int IndexOf(IReadOnlyList<MatchSummary> matches, long gameId)
+    {
+        for (var i = 0; i < matches.Count; i++)
+        {
+            if (matches[i].GameId == gameId)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// 提交搜索：解析 Riot ID → 换召唤师 → 重新拉第一页。
+    /// 名字空或查不到时只更新提示，不清空当前已显示的战绩（否则一次手滑就把列表清空）。
+    /// </summary>
+    private void SubmitSearch(
         ISummonerService summonerService,
-        IMatchService matchService,
         Action<SummonerProfile?> applySummoner,
+        Action<bool> applySummonerResolved,
         Action<IReadOnlyList<MatchSummary>> applyMatches,
+        Action<long> applySelection,
+        Action<int> applyPageIndex,
+        Action<string?> applyNotice,
+        Action applyReload)
+    {
+        string query = (_searchDraft ?? string.Empty).Trim();
+        if (query.Length == 0)
+        {
+            applyNotice("请输入召唤师名称（形如 名字#TAG）");
+            return;
+        }
+
+        applyNotice(null);
+
+        _ = SearchAsync(
+            summonerService,
+            query,
+            applySummoner,
+            applySummonerResolved,
+            applyMatches,
+            applySelection,
+            applyPageIndex,
+            applyNotice,
+            applyReload);
+    }
+
+    /// <summary>
+    /// 解析被搜索的召唤师并切换过去。**不在这里拉战绩**：
+    /// 换人会改变调用方的取数依赖键，由那一侧统一拉第一页——
+    /// 否则同一页会请求两次（本方法一次 + effect 一次）。
+    /// </summary>
+    private static async Task SearchAsync(
+        ISummonerService summonerService,
+        string query,
+        Action<SummonerProfile?> applySummoner,
+        Action<bool> applySummonerResolved,
+        Action<IReadOnlyList<MatchSummary>> applyMatches,
+        Action<long> applySelection,
+        Action<int> applyPageIndex,
+        Action<string?> applyNotice,
+        Action applyReload)
+    {
+        try
+        {
+            SummonerProfile? found = await summonerService
+                .FindByNameAsync(query)
+                .ConfigureAwait(false);
+
+            if (found is null)
+            {
+                applyNotice($"未找到召唤师：{query}");
+                return;
+            }
+
+            // 先清空列表再换人：否则新召唤师的头像旁边会短暂挂着上一个人的战绩
+            applyMatches(EmptyMatches);
+            applySelection(0);
+            applyPageIndex(0);
+            applySummoner(found);
+            applySummonerResolved(true);
+
+            // 搜到的是同一个人时依赖键不变（puuid、页号都没动），必须显式触发一次重取
+            applyReload();
+        }
+        catch (OperationCanceledException)
+        {
+            // 页面已卸载
+        }
+    }
+
+    /// <summary>解析当前登录召唤师（首屏 / 刷新）。失败保持 <c>null</c>，界面显示"未连接"。</summary>
+    private static async Task ResolveSummonerAsync(
+        ISummonerService summonerService,
+        Action<SummonerProfile?> apply,
+        Action<bool> applyResolved,
         CancellationToken cancellationToken)
     {
         try
@@ -254,30 +595,43 @@ public sealed class SearchPage : Component
                 .GetCurrentSummonerAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-
-            applySummoner(profile);
-            if (profile is null)
-            {
-                applyMatches(EmptyMatches);
-                return;
-            }
-
-            MatchHistoryPage page = await matchService
-                .GetMatchHistoryAsync(profile.Puuid, 0, PageSize - 1, cancellationToken)
-                .ConfigureAwait(false);
-
             if (!cancellationToken.IsCancellationRequested)
             {
-                applyMatches(page.Games);
+                apply(profile);
+                applyResolved(true);
             }
         }
         catch (OperationCanceledException)
         {
             // 页面已卸载
+        }
+    }
+
+    /// <summary>拉一页战绩。任何失败都只是让页面停在空列表，不抛给 UI。</summary>
+    private static async Task LoadHistoryAsync(
+        IMatchService matchService,
+        string puuid,
+        int pageIndex,
+        Action<IReadOnlyList<MatchSummary>> applyMatches,
+        Action<bool> applyHasMore,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            int begin = pageIndex * PageSize;
+            MatchHistoryPage page = await matchService
+                .GetMatchHistoryAsync(puuid, begin, begin + PageSize - 1, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                applyMatches(page.Games);
+                applyHasMore(page.HasMore);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 页面已卸载或翻页过快
         }
     }
 

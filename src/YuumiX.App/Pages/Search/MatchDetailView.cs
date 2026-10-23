@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using static Microsoft.UI.Reactor.Factories;
@@ -10,8 +11,8 @@ namespace YuumiX.App.Pages.Search;
 /// <summary>
 /// 对局详情面板，对应原 <c>MatchDetailPanel.vue</c>。
 ///
-/// 结构对齐原版：头部（模式/地图/时间/时长/结果）→ 本人的核心数据（KDA、补刀、金币、伤害、装备、海克斯）
-/// → 蓝红两方队伍块（队伍目标数 + 逐人数据）。
+/// 结构对齐原版：结果横幅（胜负 / 地图 / 队列 / 时长 / 时间 / 对局 ID）
+/// → 双方各一张表（队伍目标 + 逐人装备/ KDA / 补刀 / 金币 / 输出）。
 ///
 /// <b>数据来自 LCU 单局接口</b>（<c>/lol-match-history/v1/games/{gameId}</c>），10 名参与者齐全。
 /// 列表接口每局只带本人 1 人，因此详情必须单独取一次——这也是面板要处理 <c>detail == null</c> 的原因：
@@ -19,6 +20,20 @@ namespace YuumiX.App.Pages.Search;
 /// </summary>
 internal static class MatchDetailView
 {
+    /// <summary>表格列宽。玩家信息列吃剩余空间，其余定宽以保证多行之间末位对齐。</summary>
+    private static readonly GridSize[] TableColumns =
+    [
+        GridSize.Star(),
+        GridSize.Px(206),
+        GridSize.Px(58),
+        GridSize.Px(56),
+        GridSize.Px(76),
+        GridSize.Px(76),
+    ];
+
+    /// <summary>选手行高度（含上下内边距）：48 − 6×2 = 36，正好容纳 36 DIP 的英雄头像。</summary>
+    private const double RowHeight = 48;
+
     public static Element Render(
         MatchDetail? detail,
         MatchSummary? summary,
@@ -27,127 +42,202 @@ internal static class MatchDetailView
     {
         if (summary is null)
         {
-            return Border(Caption("左侧选择一局以查看详情")).Padding(24)
-                .CornerRadius(8)
-                .Background(Theme.CardBackground)
-                .WithBorder(Theme.CardStroke, 1);
+            return EmptyPanel();
         }
 
-        var blocks = new List<Element> { Header(summary, detail, palette), SelfStats(summary, catalog) };
+        var blocks = new List<Element> { Banner(summary, detail, palette) };
 
-        if (detail is not null)
+        if (detail is null)
         {
-            blocks.Add(HStack(12,
-                TeamBlock("蓝方", detail.Blue, catalog, palette),
-                TeamBlock("红方", detail.Red, catalog, palette)));
+            blocks.Add(PendingHint());
         }
         else
         {
-            blocks.Add(Caption("正在读取该局详情；长时间无内容通常意味着对局已被客户端清理。"));
+            // 胜方永远在上：两张表的配色与位置一致，扫一眼就能分辨哪边赢了
+            foreach (MatchDetailTeam team in new[] { detail.Blue, detail.Red }.OrderByDescending(t => t.Win))
+            {
+                blocks.Add(TeamTable(team, catalog, palette));
+            }
         }
 
-        return ScrollView(
-            VStack(14, blocks.ToArray()).Padding(20).HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch));
+        return Border(
+                ScrollView(VStack(10, blocks.ToArray()).Padding(12))
+                    .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch))
+            .CornerRadius(10)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
     }
 
-    private static Element Header(MatchSummary summary, MatchDetail? detail, YuumiPalette palette)
-    {
-        string title = detail is null ? summary.QueueName : detail.QueueName;
-        string map = detail is null ? summary.MapName : detail.MapName;
+    /// <summary>未选中任何对局时的占位：保持面板存在，避免整页在「有/无选中」之间跳动。</summary>
+    private static Element EmptyPanel() =>
+        Border(Caption("在左侧选择一局以查看详情").FontSize(12))
+            .Padding(24)
+            .CornerRadius(10)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 
-        return Border(VStack(6,
-                HStack(10,
-                    TextBlock(title).FontSize(18).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                    TextBlock(SearchVisuals.ResultText(summary)).FontSize(13).Foreground(palette.Accent)),
-                HStack(14,
-                    SearchVisuals.Field("地图", map),
-                    SearchVisuals.Field("时间", summary.TimeText),
-                    SearchVisuals.Field("时长", summary.DurationText),
-                    SearchVisuals.Field("模式 ID", summary.QueueId.ToString(System.Globalization.CultureInfo.InvariantCulture)))))
-            .Padding(16)
+    /// <summary>详情请求进行中的占位。</summary>
+    private static Element PendingHint() =>
+        Border(Caption("正在读取该局详情…").FontSize(12)).Padding(16).CornerRadius(8)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
+
+    /// <summary>
+    /// 结果横幅。日期用 <c>yyyy/MM/dd HH:mm</c>（与客户端战绩详情一致），
+    /// 而不是列表里的 <c>MM-dd</c>——详情里需要能区分跨年的对局。
+    /// </summary>
+    private static Element Banner(MatchSummary summary, MatchDetail? detail, YuumiPalette palette)
+    {
+        string accent = SearchVisuals.ResultAccent(palette, summary);
+        string map = detail?.MapName ?? summary.MapName;
+        string queue = detail?.QueueName ?? summary.QueueName;
+
+        string meta = string.Join(
+            " · ",
+            map,
+            queue,
+            summary.DurationText,
+            summary.DetailDateText,
+            $"游戏 ID: {summary.GameId.ToString(CultureInfo.InvariantCulture)}");
+
+        Element info = HStack(10,
+            Border(Empty()).Width(4).Height(34).CornerRadius(2).Background(accent),
+            VStack(3,
+                TextBlock(SearchVisuals.ResultText(summary))
+                    .FontSize(16)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                    .Foreground(accent),
+                TextBlock(meta).FontSize(11).Foreground(Theme.SecondaryText)));
+
+        return Border(info)
+            .Padding(12)
             .CornerRadius(8)
             .Background(SearchVisuals.CardBackground(palette, summary))
-            .WithBorder(palette.Accent, 1);
+            .WithBorder(SearchVisuals.ResultBorder(palette, summary), 1)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
     }
 
-    private static Element SelfStats(MatchSummary summary, GameDataCatalog catalog)
-    {
-        var items = new Element[SearchVisuals.ItemSlotCount];
-        for (var slot = 0; slot < items.Length; slot++)
-        {
-            int itemId = slot < summary.ItemIds.Count ? summary.ItemIds[slot] : 0;
-            items[slot] = SearchVisuals.ItemIcon(catalog, itemId, 26);
-        }
-
-        var augments = summary.AugmentIds
-            .Select(id => SearchVisuals.AugmentIcon(catalog, id, 22))
-            .ToArray();
-
-        Element augmentRow = augments.Length == 0
-            ? Caption("本局无海克斯强化")
-            : HStack(4, augments);
-
-        return Border(VStack(10,
-                HStack(12,
-                    SearchVisuals.Icon(SearchVisuals.ChampionIcon(summary.ChampionId), 56, 8),
-                    VStack(4,
-                        HStack(8,
-                            TextBlock($"{summary.Kills} / {summary.Deaths} / {summary.Assists}").FontSize(16),
-                            TextBlock($"KDA {summary.KdaText}").FontSize(12).Foreground(Theme.SecondaryText)),
-                        HStack(14,
-                            SearchVisuals.Field("补刀", summary.CreepScore.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                            SearchVisuals.Field("金币", summary.Gold.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                            SearchVisuals.Field("伤害", summary.DamageToChampions.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                            SearchVisuals.Field("治疗", summary.TotalHeal.ToString(System.Globalization.CultureInfo.InvariantCulture))),
-                        HStack(10,
-                            SearchVisuals.SpellIcon(catalog, summary.Spell1Id, 22),
-                            SearchVisuals.SpellIcon(catalog, summary.Spell2Id, 22),
-                            SearchVisuals.RuneIcon(catalog, summary.RuneId, 22),
-                            TextBlock(SearchVisuals.PositionText(summary.Position) ?? "无分路").FontSize(11)
-                                .Foreground(Theme.SecondaryText)))),
-                HStack(3, items),
-                augmentRow))
-            .Padding(16)
-            .CornerRadius(8)
-            .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1);
-    }
-
-    private static Element TeamBlock(
-        string label,
+    /// <summary>一支队伍的表：表头（胜负 + 目标数 + 列名）→ 逐人数据行。</summary>
+    private static Element TeamTable(
         MatchDetailTeam team,
         GameDataCatalog catalog,
         YuumiPalette palette)
     {
-        var rows = team.Players
-            .Select(player => (Element)Border(HStack(8,
-                    SearchVisuals.Icon(SearchVisuals.ChampionIcon(player.ChampionId), 24, 4),
-                    VStack(2,
-                        TextBlock(player.Name).FontSize(12),
-                        TextBlock($"{player.Kills}/{player.Deaths}/{player.Assists} · 补刀 {player.CreepScore}").FontSize(11)
-                            .Foreground(Theme.SecondaryText))))
-                .Padding(6)
-                .CornerRadius(4)
-                // 按该队胜负取色：两队同色时，详情页会看不出谁赢了
-                .Background(team.Win ? palette.WinCard : palette.LoseCard)
-                .WithBorder(Theme.CardStroke, 1))
-            .ToArray();
+        string accent = team.Win ? palette.WinAccent : palette.LoseAccent;
+        string tint = team.Win ? palette.WinCard : palette.LoseCard;
 
-        Element content = rows.Length == 0
-            ? Caption("无参与者数据")
-            : VStack(6, rows);
+        Element header = Border(
+                Grid(
+                    [GridSize.Auto],
+                    TableColumns,
+                    [
+                        TeamSummary(team, accent).Grid(row: 0, column: 0),
+                        ColumnLabel("装备", 1),
+                        ColumnLabel("KDA", 2),
+                        ColumnLabel("补刀", 3),
+                        ColumnLabel("金币", 4),
+                        ColumnLabel("输出", 5),
+                    ]))
+            .Padding(6)
+            .Background(tint)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 
-        return Border(VStack(8,
-                HStack(10,
-                    TextBlock(label).FontSize(13).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                    TextBlock($"击杀 {team.Kills}").FontSize(11).Foreground(Theme.SecondaryText),
-                    TextBlock($"塔 {team.TowerKills} · 龙 {team.DragonKills} · 男爵 {team.BaronKills}").FontSize(11)
-                        .Foreground(Theme.SecondaryText)),
-                content))
-            .Padding(14)
+        var rows = new List<Element>(team.Players.Count * 2);
+        for (var i = 0; i < team.Players.Count; i++)
+        {
+            if (i > 0)
+            {
+                rows.Add(SearchVisuals.Divider(tint));
+            }
+
+            rows.Add(PlayerRow(team.Players[i], catalog, palette));
+        }
+
+        Element body = team.Players.Count == 0
+            ? Border(Caption("无参与者数据").FontSize(12)).Padding(12)
+            : VStack(0, rows.ToArray());
+
+        return Border(VStack(0, header, body))
             .CornerRadius(8)
-            .Width(300)
             .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1);
+            .WithBorder(SearchVisuals.WithAlpha(tint, "66"), 1)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
+    }
+
+    /// <summary>表头左侧：胜方/败方 + 击杀数 + 五项团队目标。</summary>
+    private static Element TeamSummary(MatchDetailTeam team, string accent) =>
+        HStack(8,
+            TextBlock(team.Win ? "胜方" : "败方")
+                .FontSize(14)
+                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                .Foreground(accent),
+            TextBlock($"击杀 {team.Kills.ToString(CultureInfo.InvariantCulture)}")
+                .FontSize(11)
+                .Foreground(Theme.SecondaryText),
+            TextBlock(string.Join(
+                    " · ",
+                    $"塔 {team.TowerKills}",
+                    $"龙 {team.DragonKills}",
+                    $"男爵 {team.BaronKills}",
+                    $"先锋 {team.RiftHeraldKills}",
+                    $"水晶 {team.InhibitorKills}"))
+                .FontSize(11)
+                .Foreground(Theme.SecondaryText));
+
+    /// <summary>列名：右对齐到各自数据列，保证表头与数字同一条基线。</summary>
+    private static Element ColumnLabel(string text, int column) =>
+        TextBlock(text)
+            .FontSize(11)
+            .Foreground(Theme.SecondaryText)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Right)
+            .Grid(row: 0, column: column);
+
+    private static Element PlayerRow(
+        MatchDetailPlayer player,
+        GameDataCatalog catalog,
+        YuumiPalette palette)
+    {
+        Element portrait = SearchVisuals.Icon(
+            SearchVisuals.ChampionIcon(player.ChampionId), 36, 6);
+
+        // 召唤师技能竖排两格，与原版一致：横排会挤占名字的宽度
+        Element spells = VStack(1,
+            SearchVisuals.SpellIcon(catalog, player.Spell1Id, 16),
+            SearchVisuals.SpellIcon(catalog, player.Spell2Id, 16));
+
+        Element identity = HStack(6,
+            TextBlock(player.Name).FontSize(12),
+            TextBlock($"Lv{player.ChampionLevel.ToString(CultureInfo.InvariantCulture)}")
+                .FontSize(10)
+                .Foreground(Theme.SecondaryText));
+
+        Element playerCell = HStack(8, portrait, spells, identity);
+
+        return Grid(
+                [GridSize.Auto],
+                TableColumns,
+                [
+                    playerCell.Grid(row: 0, column: 0),
+                    SearchVisuals.ItemRow(catalog, player.ItemIds, SearchVisuals.DetailItemSize)
+                        .Grid(row: 0, column: 1),
+                    SearchVisuals.Kda(player.Kills, player.Deaths, player.Assists, 12, palette)
+                        .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Right)
+                        .Grid(row: 0, column: 2),
+                    SearchVisuals.NumberCell(
+                            player.CreepScore.ToString(CultureInfo.InvariantCulture), 56)
+                        .Grid(row: 0, column: 3),
+                    SearchVisuals.NumberCell(SearchVisuals.Thousands(player.Gold), 76)
+                        .Grid(row: 0, column: 4),
+                    SearchVisuals.NumberCell(
+                            SearchVisuals.Thousands(player.DamageToChampions), 76, strong: true)
+                        .Grid(row: 0, column: 5),
+                ])
+            .Height(RowHeight)
+            .Padding(6)
+            .Background(Theme.CardBackground)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
     }
 }

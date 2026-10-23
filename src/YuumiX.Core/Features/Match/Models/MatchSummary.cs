@@ -118,4 +118,20 @@ public sealed record MatchSummary
     /// <summary>开局时间短文本 <c>MM-dd HH:mm</c>（本地时区）。</summary>
     public string ShortTimeText =>
         MatchTimeText.FromUnixMilliseconds(GameCreation, "MM-dd HH:mm", "01-01 00:00");
+
+    /// <summary>
+    /// 只含日期的短文本 <c>MM-dd</c>（本地时区）。
+    /// 战绩列表卡片一行内要同时放日期与 KDA，带时分放不下，因此单独给出日期形态。
+    /// </summary>
+    public string ShortDateText =>
+        MatchTimeText.FromUnixMilliseconds(GameCreation, "MM-dd", "01-01");
+
+    /// <summary>
+    /// 详情横幅用的完整时间文本 <c>yyyy/MM/dd HH:mm</c>（本地时区）。
+    ///
+    /// 与 <see cref="TimeText"/> 的差别只有分隔符：客户端战绩详情用斜杠，
+    /// 与客户端截图逐字对齐可以减少"是不是时区错了"的误判。
+    /// </summary>
+    public string DetailDateText =>
+        MatchTimeText.FromUnixMilliseconds(GameCreation, "yyyy/MM/dd HH:mm", "1970/01/01 00:00");
 }

@@ -73,6 +73,21 @@ public sealed record YuumiPalette
     /// <summary>原始主题模式字符串：<c>Light</c> / <c>Dark</c> / 其它（按 Auto 处理）。</summary>
     public required string ThemeMode { get; init; }
 
+    /// <summary>
+    /// 胜利色的**实色**形态，用于文字与 1px 描边。
+    ///
+    /// <see cref="WinCard"/> 是带 alpha 的底色（<c>#33…</c>），直接当文字色会得到几乎透明的字。
+    /// 战绩页的「胜利 / 失败」标题、列表卡片描边、KDA 里的死亡数都需要同色系但不透明的取值，
+    /// 因此统一在这里由底色派生：只把 alpha 换成 <c>FF</c>，色相与配置保持一致。
+    /// </summary>
+    public string WinAccent => ToSolid(WinCard);
+
+    /// <summary>失败色的实色形态，语义同 <see cref="WinAccent"/>。</summary>
+    public string LoseAccent => ToSolid(LoseCard);
+
+    /// <summary>重开色的实色形态，语义同 <see cref="WinAccent"/>。</summary>
+    public string RemakeAccent => ToSolid(RemakeCard);
+
     public required bool MicaEnabled { get; init; }
 
     /// <summary>
@@ -111,4 +126,11 @@ public sealed record YuumiPalette
 
     /// <summary>Mica 开关对应的背景类型。</summary>
     public BackdropKind Backdrop => MicaEnabled ? BackdropKind.Mica : BackdropKind.None;
+
+    /// <summary>
+    /// 去掉 8 位 <c>#AARRGGBB</c> 的 alpha。形如 <c>#33D3190C</c> → <c>#FFD3190C</c>。
+    /// 输入已在 <see cref="FromConfig"/> 归一化过，这里只做长度兜底，不重复校验合法性。
+    /// </summary>
+    private static string ToSolid(string argb) =>
+        argb.Length == 9 && argb[0] == '#' ? string.Concat("#FF", argb.AsSpan(3)) : argb;
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Features.Summoner.Models;
@@ -27,6 +28,9 @@ public sealed class SummonerService : ISummonerService
 
     /// <summary>当前召唤师接口路径。</summary>
     internal const string CurrentSummonerPath = "/lol-summoner/v1/current-summoner";
+
+    /// <summary>按名字查询的接口模板（参数：已转义的 Riot ID）。</summary>
+    internal const string AliasPathTemplate = "/lol-summoner/v1/summoner-aliases?name={0}";
 
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly TimeSpan _cacheTtl;
@@ -73,6 +77,67 @@ public sealed class SummonerService : ISummonerService
         }
 
         return profile;
+    }
+
+    /// <summary>
+    /// 按 Riot ID 查询召唤师。刻意不缓存：搜索目标每次都不同，
+    /// 缓存只会把上一次的查询结果端出来（换名字后看起来像"搜错了"）。
+    /// </summary>
+    public async Task<SummonerProfile?> FindByNameAsync(
+        string riotId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(riotId);
+
+        ILcuTransport? transport = _transportProvider();
+        if (transport is null)
+        {
+            _logger?.LogDebug("LCU 未连接，跳过召唤师搜索");
+            return null;
+        }
+
+        // 名字里的 '#' 必须转义，否则会被当成 URL 片段，服务端只看到 '#' 之前的部分
+        string path = string.Format(
+            CultureInfo.InvariantCulture,
+            AliasPathTemplate,
+            Uri.EscapeDataString(riotId.Trim()));
+
+        LcuResponse response = await transport
+            .SendAsync(LcuRequest.Get(path), cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!response.IsSuccess)
+        {
+            // 404 = 名字不存在，是本接口的正常返回之一，不当成错误
+            _logger?.LogInformation("按名字查询召唤师失败: HTTP {StatusCode}", response.StatusCode);
+            return null;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(response.Body);
+
+            // 载荷与 current-summoner 同构，复用同一个解析器；
+            // 个别版本会包一层数组，这里取首个元素而不是另写一套解析。
+            JsonElement root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+            {
+                root = root[0];
+            }
+
+            SummonerProfile? profile = SummonerParser.ParseSummoner(root);
+            if (profile is null)
+            {
+                _logger?.LogWarning("召唤师搜索载荷不完整，已忽略");
+            }
+
+            return profile;
+        }
+        catch (JsonException ex)
+        {
+            _logger?.LogWarning(ex, "召唤师搜索载荷解析失败");
+            return null;
+        }
     }
 
     public void InvalidateCache()

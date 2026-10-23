@@ -115,6 +115,62 @@ public sealed class SummonerServiceTests
         Assert.Null(await service.GetCurrentSummonerAsync());
     }
 
+    /// <summary>
+    /// 按名字搜索：<c>#</c> 必须转义进查询串，否则服务端只看到 <c>#</c> 之前的部分，
+    /// 带 tagLine 的玩家永远搜不到（这是本接口最容易写错的一处）。
+    /// </summary>
+    [Fact]
+    public async Task FindByNameAsync_EscapesRiotIdIntoQuery()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok(Payload);
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        SummonerProfile? profile = await service.FindByNameAsync("测试玩家#HN1");
+
+        Assert.NotNull(profile);
+        Assert.Equal("11111111-2222-3333-4444-555555555555", profile.Puuid);
+
+        RecordedRequest request = Assert.Single(server.Requests);
+        Assert.Equal("/lol-summoner/v1/summoner-aliases", request.Path.Split('?')[0]);
+        Assert.Contains("%23", request.Path, StringComparison.Ordinal);
+    }
+
+    /// <summary>搜索不做缓存：连续查两个名字必须打两次请求，否则第二次会拿到上一个人的资料。</summary>
+    [Fact]
+    public async Task FindByNameAsync_DoesNotCache()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok(Payload);
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        await service.FindByNameAsync("甲#A");
+        await service.FindByNameAsync("乙#B");
+
+        Assert.Equal(2, server.Requests.Count);
+    }
+
+    [Fact]
+    public async Task FindByNameAsync_ReturnsNullOnNotFound()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.NotFound();
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        Assert.Null(await service.FindByNameAsync("不存在的玩家#000"));
+    }
+
+    [Fact]
+    public async Task FindByNameAsync_RejectsBlankName()
+    {
+        var service = new SummonerService(() => null);
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.FindByNameAsync("   "));
+    }
+
     private static LcuHttpTransport NewTransport(FakeLcuServer server) => new(
         server.BaseAddress,
         server.AuthorizationHeader,
