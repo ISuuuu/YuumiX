@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+
+    <!-- 产品名与根命名空间分离：exe 叫 YuumiX，代码命名空间保留 .App 分层，
+         便于后续新增 YuumiX.Core 等领域项目。 -->
+    <AssemblyName>YuumiX</AssemblyName>
+    <RootNamespace>YuumiX.App</RootNamespace>
+
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Reactor 需要显式平台；省略 -p:Platform 会触发 WindowsAppSDKSelfContained 错误 -->
+    <Platforms>x64;ARM64</Platforms>
+    <!-- SelfContained 需要 RID：通过解决方案构建时 Platform 不会自动推导 RID，这里显式映射 -->
+    <RuntimeIdentifier Condition="'$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+
+    <UseWinUI>true</UseWinUI>
+    <!-- 非打包模式：与原 Yuumi 的便携版分发形态一致，且无需 MSIX 注册即可运行 -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.UI.Reactor" />
+  </ItemGroup>
+
+</Project>

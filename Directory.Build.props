@@ -1,0 +1,13 @@
+<Project>
+
+  <!-- 跨项目统一属性。项目自身的 TFM / 打包模式仍在各自 csproj 中声明。 -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Reactor 的 DSL 分析器会给出结构性问题提示，保留为警告而非错误，避免阻塞迭代 -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,18 @@
+<Project>
+
+  <!-- 集中包版本管理（CPM）：新增项目时只需 PackageReference，无需重复写版本号。 -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Windows App SDK 必须是 2.x 版本线：
+      Microsoft.UI.Reactor 0.1.0-preview.16 依赖 Microsoft.WindowsAppSDK.WinUI >= 2.2.1，
+      而 Windows App SDK 1.8 携带的是 WinUI 1.8，会触发 NU1107 版本冲突。
+    -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageVersion Include="Microsoft.UI.Reactor" Version="0.1.0-preview.16" />
+  </ItemGroup>
+
+</Project>
