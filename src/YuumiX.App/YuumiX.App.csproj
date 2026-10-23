@@ -40,10 +40,6 @@
          重复 Include 会触发 NETSDK1022。 -->
     <None Update="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Assets\Logo.png" CopyToOutputDirectory="PreserveNewest" />
-
-    <!-- 战绩页的演示夹具：原项目 testdata/match 的 12 份样本，按目录结构复制到输出目录。
-         页面按 AppContext.BaseDirectory 读取（非打包模式没有 ms-appx 虚拟根）。 -->
-    <None Update="Pages\Search\Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

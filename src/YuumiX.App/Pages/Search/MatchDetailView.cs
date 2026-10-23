@@ -8,14 +8,14 @@ using YuumiX.Core.Lcu;
 namespace YuumiX.App.Pages.Search;
 
 /// <summary>
-/// 对局详情面板骨架，对应原 <c>MatchDetailPanel.vue</c>。
+/// 对局详情面板，对应原 <c>MatchDetailPanel.vue</c>。
 ///
 /// 结构对齐原版：头部（模式/地图/时间/时长/结果）→ 本人的核心数据（KDA、补刀、金币、伤害、装备、海克斯）
 /// → 蓝红两方队伍块（队伍目标数 + 逐人数据）。
 ///
-/// <b>当前数据是夹具，形态有限</b>：夹具来自 <c>matches</c> 列表接口，每局只有本人一名参与者，
-/// 因此对手阵营为空。面板不为此造数据，而是显式说明——把空位伪装成"对手加载中"，
-/// 接真实接口后反而分不清是没数据还是没渲染。
+/// <b>数据来自 LCU 单局接口</b>（<c>/lol-match-history/v1/games/{gameId}</c>），10 名参与者齐全。
+/// 列表接口每局只带本人 1 人，因此详情必须单独取一次——这也是面板要处理 <c>detail == null</c> 的原因：
+/// 选中后到详情返回之间存在一个真实窗口，不能把上一局的名单继续挂在新选中项下面。
 /// </summary>
 internal static class MatchDetailView
 {
@@ -40,11 +40,10 @@ internal static class MatchDetailView
             blocks.Add(HStack(12,
                 TeamBlock("蓝方", detail.Blue, catalog, palette),
                 TeamBlock("红方", detail.Red, catalog, palette)));
-            blocks.Add(Caption("夹具来自 matches 列表接口，每局仅含本人参与者，因此对手阵营为空；接真实详情接口后会补满 5v5。"));
         }
         else
         {
-            blocks.Add(Caption("未能解析该局详情（夹具缺失或载荷不完整）。"));
+            blocks.Add(Caption("正在读取该局详情；长时间无内容通常意味着对局已被客户端清理。"));
         }
 
         return ScrollView(
@@ -129,7 +128,8 @@ internal static class MatchDetailView
                             .Foreground(Theme.SecondaryText))))
                 .Padding(6)
                 .CornerRadius(4)
-                .Background(palette.WinCard)
+                // 按该队胜负取色：两队同色时，详情页会看不出谁赢了
+                .Background(team.Win ? palette.WinCard : palette.LoseCard)
                 .WithBorder(Theme.CardStroke, 1))
             .ToArray();
 

@@ -63,6 +63,34 @@ public sealed class RecentTeammateParserTests
         Assert.True(result.Remake);
     }
 
+    /// <summary>
+    /// 真实 73 秒重开局的字段组合：<c>gameEndedInEarlySurrender=true</c> 而
+    /// <c>teamEarlySurrendered=false</c>（2026-10-23 国服实测）。
+    /// 只看后者会把重开局当成"双方皆胜"计入胜负，与该场景的界面约定相反。
+    /// </summary>
+    [Fact]
+    public void ParseGame_MarksRemakeFromGameEndedInEarlySurrender()
+    {
+        using JsonDocument document = JsonDocument.Parse(TwoVersusTwo(gameEndedInEarlySurrender: true));
+
+        GameTeammates? result = RecentTeammateParser.ParseGame(document.RootElement, TargetPuuid);
+
+        Assert.NotNull(result);
+        Assert.True(result.Remake);
+    }
+
+    /// <summary>两个字段都为假时不得判成重开——否则正常对局的胜负会被一并抹掉。</summary>
+    [Fact]
+    public void ParseGame_NotRemakeWhenBothFlagsFalse()
+    {
+        using JsonDocument document = JsonDocument.Parse(TwoVersusTwo());
+
+        GameTeammates? result = RecentTeammateParser.ParseGame(document.RootElement, TargetPuuid);
+
+        Assert.NotNull(result);
+        Assert.False(result.Remake);
+    }
+
     /// <summary>目标玩家不在本局时返回 null，由调用方跳过该局（不产生"空队友"记录）。</summary>
     [Fact]
     public void ParseGame_ReturnsNullWhenTargetAbsent()
@@ -208,16 +236,21 @@ public sealed class RecentTeammateParserTests
         Assert.Empty(result.Summoners);
     }
 
-    /// <summary>2v2 载荷：目标玩家与一名队友同队，一名对手在另一队。</summary>
-    private static string TwoVersusTwo(bool targetRemake = false) =>
+    /// <summary>
+    /// 2v2 载荷：目标玩家与一名队友同队，一名对手在另一队。
+    /// <paramref name="targetRemake"/> 对应 <c>teamEarlySurrendered</c>，
+    /// <paramref name="gameEndedInEarlySurrender"/> 对应真实重开局的另一个标志位——
+    /// 两者都是 <c>false</c> 时才是正常对局。
+    /// </summary>
+    private static string TwoVersusTwo(bool targetRemake = false, bool gameEndedInEarlySurrender = false) =>
         $$"""
         {
           "gameId": 9,
           "queueId": 420,
           "gameCreation": 5000,
           "participants": [
-            { "participantId": 1, "teamId": 100, "stats": { "win": true, "teamEarlySurrendered": {{(targetRemake ? "true" : "false")}} } },
-            { "participantId": 2, "teamId": 100, "stats": { "win": true, "teamEarlySurrendered": false } },
+            { "participantId": 1, "teamId": 100, "stats": { "win": true, "teamEarlySurrendered": {{(targetRemake ? "true" : "false")}}, "gameEndedInEarlySurrender": {{(gameEndedInEarlySurrender ? "true" : "false")}} } },
+            { "participantId": 2, "teamId": 100, "stats": { "win": true, "teamEarlySurrendered": false, "gameEndedInEarlySurrender": {{(gameEndedInEarlySurrender ? "true" : "false")}} } },
             { "participantId": 3, "teamId": 200, "stats": { "win": false } }
           ],
           "participantIdentities": [

@@ -61,6 +61,9 @@ public sealed class MatchFixturesTests
         var onDisk = Directory
             .EnumerateFiles(MatchFixtures.Root, "*.json", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(MatchFixtures.Root, path).Replace('\\', '/'))
+            // sgp/ 子目录有自己的一份清单与回归用例（SgpFixtures / MatchSgpFixtureTests）：
+            // 那边的载荷形状是 games[].json + 10 人参与者，与本清单的 games.games[] 不是一回事。
+            .Where(relative => !relative.StartsWith("sgp/", StringComparison.Ordinal))
             .Where(relative => !string.Equals(relative, "manifest.json", StringComparison.Ordinal))
             .OrderBy(relative => relative, StringComparer.Ordinal)
             .ToList();

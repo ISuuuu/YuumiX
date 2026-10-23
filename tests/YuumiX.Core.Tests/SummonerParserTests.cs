@@ -53,7 +53,73 @@ public sealed class SummonerParserTests
         Assert.Equal("测试玩家#HN1", profile.RiotId);
     }
 
-    /// <summary>四个关键字段任一缺失即返回 null：伪造一个 ID 为 0 的对象会让后续按 puuid 的查询静默打空。</summary>
+    /// <summary>
+    /// 国服真实载荷：<c>displayName</c> 是空串，只有 <c>gameName</c> 有值。
+    /// 早先按"displayName 非空"判定会把这类账号判成数据不完整，整条链路拿不到 puuid
+    /// （2026-10-23 联机验证实测，已被本用例锁定）。
+    /// </summary>
+    [Fact]
+    public void ParseSummoner_AcceptsEmptyDisplayNameWhenGameNamePresent()
+    {
+        using JsonDocument document = JsonDocument.Parse(
+            """
+            {
+              "accountId": 4001472220,
+              "displayName": "",
+              "gameName": "测试玩家",
+              "internalName": "",
+              "nameChangeFlag": false,
+              "percentCompleteForNextLevel": 75,
+              "privacy": "PUBLIC",
+              "profileIconId": 5213,
+              "puuid": "11111111-1111-1111-1111-111111111111",
+              "rerollPoints": { "currentPoints": 370, "maxRolls": 2, "numberOfRolls": 1, "pointsCostToRoll": 250, "pointsToReroll": 130 },
+              "summonerId": 4001472220,
+              "summonerLevel": 83,
+              "tagLine": "76363",
+              "unnamed": false,
+              "xpSinceLastLevel": 2308,
+              "xpUntilNextLevel": 3072
+            }
+            """);
+
+        SummonerProfile? profile = SummonerParser.ParseSummoner(document.RootElement);
+
+        Assert.NotNull(profile);
+        Assert.Equal(string.Empty, profile.DisplayName);
+        Assert.Equal("测试玩家", profile.GameName);
+        Assert.Equal("测试玩家#76363", profile.RiotId);
+        Assert.Equal("11111111-1111-1111-1111-111111111111", profile.Puuid);
+        Assert.Equal(4001472220L, profile.SummonerId);
+        Assert.Equal(83, profile.SummonerLevel);
+        Assert.Equal(75, profile.PercentCompleteForNextLevel);
+        Assert.Equal(2308L, profile.XpSinceLastLevel);
+        Assert.Equal(3072L, profile.XpUntilNextLevel);
+    }
+
+    /// <summary>两个名字字段都为空：界面会显示空白名字，按"数据不完整"处理。</summary>
+    [Fact]
+    public void ParseSummoner_ReturnsNullWhenBothNamesEmpty()
+    {
+        using JsonDocument document = JsonDocument.Parse(
+            """
+            {
+              "accountId": 1,
+              "displayName": "",
+              "gameName": "",
+              "puuid": "p",
+              "summonerId": 2
+            }
+            """);
+
+        Assert.Null(SummonerParser.ParseSummoner(document.RootElement));
+    }
+
+    /// <summary>关键字段任一缺失即返回 null：伪造一个 ID 为 0 的对象会让后续按 puuid 的查询静默打空。</summary>
+    /// <remarks>
+    /// <c>displayName</c> 那一条的含义是"名字来源整体缺失"——载荷里没有 <c>gameName</c>，
+    /// 再拿掉 <c>displayName</c> 就同时为空，与 <see cref="ParseSummoner_ReturnsNullWhenBothNamesEmpty"/> 等价。
+    /// </remarks>
     [Theory]
     [InlineData("accountId")]
     [InlineData("displayName")]

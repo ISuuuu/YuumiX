@@ -11,7 +11,10 @@ namespace YuumiX.Core.Parsers;
 public sealed record TeammatePresence(string Name, string Puuid, int ProfileIconId, bool Win);
 
 /// <summary>单局中与目标玩家同队的人。</summary>
-/// <param name="Remake">该局是否重开（<c>teamEarlySurrendered</c>），重开局不计胜负。</param>
+/// <param name="Remake">
+/// 该局是否重开。<c>gameEndedInEarlySurrender</c> 与 <c>teamEarlySurrendered</c> 任一为真即算——
+/// 真实 3 分钟重开局只置前者，只看后者会把重开局的"双方皆胜"计入胜负。
+/// </param>
 /// <param name="GameCreation">开局时间，Unix 毫秒。</param>
 /// <param name="Teammates">同队玩家，不含目标玩家本人。</param>
 public sealed record GameTeammates(bool Remake, long GameCreation, IReadOnlyList<TeammatePresence> Teammates);
@@ -24,13 +27,15 @@ public sealed record GameTeammates(bool Remake, long GameCreation, IReadOnlyList
 /// 中间夹着 HTTP fan-out 与信号量限流；这里只保留纯逻辑，取数与并发留给服务层——
 /// 解析规则否则无法单测，只能靠起客户端手点。
 ///
-/// <b>与原实现的四处差异</b>：
+/// <b>与原实现的五处差异</b>：
 /// <list type="number">
 ///   <item>头像从 URL 改为 <see cref="TeammatePresence.ProfileIconId"/>（ADR-11）；</item>
 ///   <item><c>LastPlayTime</c> 取各局的**最大值**。原实现取"首次插入时的 <c>gameCreation</c>"，
 ///         实际结果取决于入参 <c>game_ids</c> 的顺序（不是按时间排序就是错的）；</item>
 ///   <item>标签由调用方查库后传入，本类型不碰持久化；</item>
-///   <item>同队次数相同时按名字升序，保证输出稳定（原实现依赖 <c>HashMap</c> 迭代顺序，每次可能不同）。</item>
+///   <item>同队次数相同时按名字升序，保证输出稳定（原实现依赖 <c>HashMap</c> 迭代顺序，每次可能不同）；</item>
+///   <item>重开判定同时认 <c>gameEndedInEarlySurrender</c>。原实现只看 <c>teamEarlySurrendered</c>，
+///         而真实 3 分钟重开局里该字段是 <c>false</c>（2026-10-23 实测，见 <see cref="ParseGame"/>）。</item>
 /// </list>
 /// </summary>
 public static class RecentTeammateParser
@@ -88,7 +93,12 @@ public static class RecentTeammateParser
                 break;
             }
 
-            remake = JsonRead.Bool(stats.Value, "teamEarlySurrendered");
+            // 重开判定：两个字段都要看。LCU 在 73 秒的 3 分钟重开局里只把
+            // gameEndedInEarlySurrender 置 true，teamEarlySurrendered 仍是 false
+            // （2026-10-23 真实载荷实测）。旧实现只看后者，于是重开局被当成"双方皆胜"
+            // 计进胜负，与界面约定的"重开只计同队次数、不计胜负"不符。
+            remake = JsonRead.Bool(stats.Value, "gameEndedInEarlySurrender")
+                || JsonRead.Bool(stats.Value, "teamEarlySurrendered");
             targetTeam = queueId == ArenaQueueId
                 ? JsonRead.NullableInt(stats.Value, "subteamPlacement")
                 : JsonRead.NullableInt(participant, "teamId");

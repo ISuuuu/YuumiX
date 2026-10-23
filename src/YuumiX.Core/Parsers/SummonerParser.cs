@@ -10,13 +10,23 @@ namespace YuumiX.Core.Parsers;
 /// <c>accountId</c> / <c>displayName</c> / <c>puuid</c> / <c>summonerId</c> 四个字段缺失的情况
 /// 变成 <c>None</c>，由调用方报"召唤师数据不完整"。这里保持一致：任一缺失即返回 <c>null</c>，
 /// 而**不是**产出一个 ID 为 0 的假对象——后者会让后续所有按 puuid 的查询静默打空。
+///
+/// <b>「名字」的必填判定与旧版不同</b>：旧版要求 <c>displayName</c> 存在（serde 的
+/// <c>Option&lt;String&gt;</c> 只判有无，不判空串），国服客户端下 <c>displayName</c> 实际返回
+/// <c>""</c>，因此旧版是"拿到了一个空名字"却继续工作；本实现早先按"非空"判定，
+/// 直接把国服账号判成数据不完整、整条链路拿不到 puuid（2026-10-23 联机验证实测）。
+/// 现在改为：<c>gameName</c> 与 <c>displayName</c> **至少有一个非空**即可，
+/// 显示名优先 <c>gameName</c>（Riot ID 体系后它才是玩家改过的名字）。
 /// </summary>
 public static class SummonerParser
 {
     /// <summary>
     /// 解析当前召唤师。
     /// </summary>
-    /// <returns>召唤师；四个关键字段任一缺失时返回 <c>null</c>。</returns>
+    /// <returns>
+    /// 召唤师；<c>accountId</c> / <c>puuid</c> / <c>summonerId</c> 任一缺失，
+    /// 或 <c>gameName</c> 与 <c>displayName</c> 同时为空时返回 <c>null</c>。
+    /// </returns>
     public static SummonerProfile? ParseSummoner(JsonElement summoner)
     {
         if (summoner.ValueKind != JsonValueKind.Object)
@@ -26,10 +36,22 @@ public static class SummonerParser
 
         long? accountId = JsonRead.AsLong(JsonRead.Property(summoner, "accountId"));
         string? displayName = JsonRead.String(summoner, "displayName");
+        string? gameName = JsonRead.String(summoner, "gameName");
         string? puuid = JsonRead.String(summoner, "puuid");
         long? summonerId = JsonRead.AsLong(JsonRead.Property(summoner, "summonerId"));
 
-        if (accountId is null || summonerId is null || string.IsNullOrEmpty(displayName) || string.IsNullOrEmpty(puuid))
+        if (accountId is null || summonerId is null || string.IsNullOrEmpty(puuid))
+        {
+            return null;
+        }
+
+        // 名字三选一：gameName（Riot ID 前半段）→ displayName（老账号）。
+        // 国服客户端的 displayName 恒为空串，只有 gameName 有值；反过来老账号只有 displayName。
+        string name = !string.IsNullOrEmpty(gameName)
+            ? gameName
+            : displayName ?? string.Empty;
+
+        if (name.Length == 0)
         {
             return null;
         }
@@ -37,12 +59,12 @@ public static class SummonerParser
         return new SummonerProfile
         {
             AccountId = accountId.Value,
-            DisplayName = displayName,
+            DisplayName = displayName ?? string.Empty,
 
             // 老账号（Riot ID 体系之前）没有 gameName，只有 displayName。
-            // 这里用 displayName 兜底，而不是留空：<see cref="SummonerProfile.RiotId"/> 只由
+            // 这里用兜底值填 GameName，而不是留空：<see cref="SummonerProfile.RiotId"/> 只由
             // GameName/TagLine 拼装，留空会让这类账号在界面上显示为空白名字。
-            GameName = JsonRead.String(summoner, "gameName") ?? displayName,
+            GameName = name,
             TagLine = JsonRead.String(summoner, "tagLine") ?? string.Empty,
             Puuid = puuid,
             SummonerId = summonerId.Value,

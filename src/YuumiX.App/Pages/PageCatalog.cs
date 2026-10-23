@@ -29,8 +29,8 @@ public static class PageCatalog
         [AppRoute.Search] = ("战绩查询", "src/views/Search.vue",
         [
             "召唤师搜索与搜索历史",
-            "对局列表接入真实 LCU 数据（当前渲染本地夹具）",
-            "对局详情补齐 10 人数据与后台段位加载",
+            "详情面板段位与近期战绩后台加载",
+            "列表翻页（LCU 本机仅缓存 20 局，需走 SGP 才能看到更早的对局）",
             "ROFL 回放下载与客户端观看",
         ]),
         [AppRoute.GameInfo] = ("对局信息", "src/views/GameInfo.vue",

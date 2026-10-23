@@ -18,7 +18,10 @@ public sealed record SummonerProfile
     /// <summary>账号 ID。</summary>
     public required long AccountId { get; init; }
 
-    /// <summary>显示名（LCU <c>displayName</c>，可能带旧版标签）。</summary>
+    /// <summary>
+    /// 显示名（LCU <c>displayName</c>，可能带旧版标签）。
+    /// <b>国服客户端恒为空串</b>，界面一律用 <see cref="RiotId"/> 显示，不要直接用本字段。
+    /// </summary>
     public required string DisplayName { get; init; }
 
     /// <summary>游戏名（Riot ID 的前半段）。</summary>
