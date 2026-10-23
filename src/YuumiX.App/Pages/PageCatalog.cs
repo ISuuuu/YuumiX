@@ -34,10 +34,6 @@ public static class PageCatalog
         ]),
         [AppRoute.GameInfo] = ("对局信息", "src/views/GameInfo.vue",
         [
-            "实时 10 人段位与近期 KDA",
-            "阵营组队分析",
-            "宿命对局深度回溯",
-            "曾友/曾敌徽标互斥展示",
         ]),
         [AppRoute.SavedPlayers] = ("路人集", "src/views/SavedPlayers.vue",
         [

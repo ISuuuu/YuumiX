@@ -4,6 +4,7 @@ using YuumiX.Core.Assets;
 using YuumiX.Core.Automation;
 using YuumiX.Core.Diagnostics;
 using YuumiX.Core.Features.Career;
+using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.Match;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.Summoner;
@@ -202,6 +203,23 @@ public sealed class AppServices : IDisposable
             provider.GetRequiredService<AgentLifecycle>(),
             provider.GetService<ILogger<AutoBanPickAgent>>()));
         collection.AddSingleton<AutomationHost>();
+
+        // ── 对局信息（GameInfo 模块）────────────────────────────────
+        collection.AddSingleton<IMasteryService>(provider => new MasteryService(
+            () => provider.GetRequiredService<LcuConnection>().Transport));
+        collection.AddSingleton<IFateService>(provider => new FateService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetService<GameDataService>()?.Current));
+        collection.AddSingleton<IGameInfoService>(provider => new GameInfoService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            provider.GetRequiredService<ISummonerService>(),
+            provider.GetRequiredService<IMatchService>(),
+            provider.GetRequiredService<ICareerService>(),
+            provider.GetRequiredService<IMasteryService>(),
+            provider.GetRequiredService<IFateService>(),
+            provider.GetRequiredService<AppConfig>(),
+            connection: provider.GetRequiredService<LcuConnection>(),
+            logger: provider.GetRequiredService<ILogger<GameInfoService>>()));
 
         var services = collection.BuildServiceProvider();
 

@@ -26,6 +26,7 @@
     <!-- 非打包模式：与原 Yuumi 的便携版分发形态一致，且无需 MSIX 注册即可运行 -->
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <NoWarn>$(NoWarn);REACTOR_THEME_001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
