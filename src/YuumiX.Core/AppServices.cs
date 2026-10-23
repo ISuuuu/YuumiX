@@ -1,11 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Assets;
+using YuumiX.Core.Automation;
 using YuumiX.Core.Diagnostics;
 using YuumiX.Core.Features.Career;
 using YuumiX.Core.Features.Match;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.Summoner;
+using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Lcu.Sgp;
 using YuumiX.Core.Persistence;
@@ -166,6 +168,40 @@ public sealed class AppServices : IDisposable
         collection.AddSingleton(provider => new SavedPlayersStore(
             provider.GetRequiredService<RuntimePaths>(),
             provider.GetService<ILogger<SavedPlayersStore>>()));
+
+        // ── 自动化与工具箱（阶段 7 / requirements-tools.md）─────────
+        collection.AddSingleton<AgentSupervisor>(provider => new AgentSupervisor(
+            logger: provider.GetService<ILogger<AgentSupervisor>>()));
+        collection.AddSingleton<AgentLifecycle>();
+
+        collection.AddSingleton<IToolsService>(provider => new ToolsService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            provider.GetRequiredService<ISgpService>(),
+            () => provider.GetRequiredService<LcuConnection>().Credentials,
+            provider.GetService<ILogger<ToolsService>>()));
+        collection.AddSingleton<IFriendCleanerService>(provider => new FriendCleanerService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            provider.GetService<ILogger<FriendCleanerService>>()));
+
+        collection.AddSingleton<AutoAcceptAgent>(provider => new AutoAcceptAgent(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetRequiredService<AgentSupervisor>(),
+            provider.GetRequiredService<AgentLifecycle>(),
+            provider.GetService<ILogger<AutoAcceptAgent>>()));
+        collection.AddSingleton<AutoReconnectAgent>(provider => new AutoReconnectAgent(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetRequiredService<AgentSupervisor>(),
+            provider.GetRequiredService<AgentLifecycle>(),
+            provider.GetService<ILogger<AutoReconnectAgent>>()));
+        collection.AddSingleton<AutoBanPickAgent>(provider => new AutoBanPickAgent(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetRequiredService<AgentSupervisor>(),
+            provider.GetRequiredService<AgentLifecycle>(),
+            provider.GetService<ILogger<AutoBanPickAgent>>()));
+        collection.AddSingleton<AutomationHost>();
 
         var services = collection.BuildServiceProvider();
 

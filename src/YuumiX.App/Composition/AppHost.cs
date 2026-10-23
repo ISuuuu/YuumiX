@@ -65,6 +65,7 @@ public static class AppHost
                 .CreateLogger<ThemeState>()
                 .LogError(ex, "主题订阅者抛异常"));
         _services.Services.GetRequiredService<LcuConnection>().Start(_services.ShutdownToken);
+        _services.Services.GetRequiredService<YuumiX.Core.Automation.AutomationHost>().Start(_services.ShutdownToken);
     }
 
     /// <summary>释放服务与日志。</summary>
