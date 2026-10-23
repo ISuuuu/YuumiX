@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml.Controls;
@@ -47,14 +48,39 @@ public sealed class AppShell : Component
             },
             0);
 
+        // 菜单可见性是另一个重渲染来源：设置页切「隐藏菜单」开关后，
+        // MenuVisibilityState 推过来，重新计算带过滤的菜单（同主题的 threadSafe 语义）。
+        var menuState = AppHost.Menu;
+        var (menuVisibility, setMenuVisibility) = UseState(menuState, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = menuState.Subscribe(setMenuVisibility);
+                return () => subscription.Dispose();
+            },
+            1);
+
         // 菜单项必须跨渲染保持同一批实例：每次渲染新建数组会让 NavigationView 重建菜单，
         // 选中项被重置为第一项并触发 OnSelectedTagChanged，表现为「界面重渲染后莫名跳回主页」。
         // 这是主题即时生效暴露出来的问题（ADR-12 决策三带来的额外重渲染）。
+        // key 为可见性签名：只在「隐藏菜单」配置实际变化时重建菜单，
+        // 平时（主题变化/普通重渲染）保持原实例数组。
+        var menuKey = (menuVisibility.HideTft ? 1 : 0) | (menuVisibility.HideSavedPlayers ? 2 : 0);
         var menuItems = UseMemo(
             () => RouteCatalog.All
+                .Where(item => item.Route switch
+                {
+                    AppRoute.Tft => !menuVisibility.HideTft,
+                    AppRoute.SavedPlayers => !menuVisibility.HideSavedPlayers,
+                    _ => true,
+                })
                 .Select(item => NavItem(item.Label, item.Glyph, item.Route.ToString()))
                 .ToArray(),
-            0);
+            menuKey);
+
+        // 导航栏开合：初值取自持久化配置（跨启动恢复上次状态）。本地 UseState 保证
+        // 主题/菜单变化引发重渲染时，用户当前的开合状态不会被重置回配置初值。
+        var (paneOpen, setPaneOpen) = UseState(services.Config.Personalization.NavigationPaneOpen);
 
         var navigationView = NavigationView(menuItems, NavigationHost(nav, BuildPage)) with
         {
@@ -63,6 +89,7 @@ public sealed class AppShell : Component
             IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed,
             PaneDisplayMode = NavigationViewPaneDisplayMode.Left,
             OpenPaneLength = 150,
+            IsPaneOpen = paneOpen,
             IsPaneToggleButtonVisible = true,
         };
 
@@ -78,6 +105,31 @@ public sealed class AppShell : Component
             },
         };
 
+        // 开合变化 → 更新本地状态并把值写回 config.json（跨启动恢复）。
+        // 回调来自 UI 线程，setPaneOpen 无需 threadSafe；写配置沿用设置页的做法
+        // （SaveWithBackup + 异常记日志，见 ADR 对应约定：Save 失败不可静默吞）。
+        navigationView = navigationView.PaneOpenChanged(open =>
+        {
+            setPaneOpen(open);
+
+            if (services.Config.Personalization.NavigationPaneOpen == open)
+            {
+                return;
+            }
+
+            services.Config.Personalization.NavigationPaneOpen = open;
+            try
+            {
+                services.ConfigStore.SaveWithBackup(services.Config);
+            }
+            catch (Exception ex)
+            {
+                services.LoggerFactory
+                    .CreateLogger<AppShell>()
+                    .LogWarning(ex, "导航栏开合状态写入 config.json 失败，本次变更不会跨启动保留");
+            }
+        });
+
         var titleBar = TitleBar("YuumiX") with
         {
             // 标题栏图标与原 CustomTitleBar.vue 的 titlebar-logo 对齐：同一个 Logo 文件。
@@ -85,8 +137,6 @@ public sealed class AppShell : Component
             Icon = ImageIcon(new Uri(AppAssets.LogoUri)),
             Subtitle = $"{current.Label} · 配置 v{services.Config.Version}",
             IsBackButtonVisible = false,
-            IsPaneToggleButtonVisible = true,
-            OnPaneToggleRequested = () => { },
             RightHeader = Button("架构验证", OpenCapabilityLab),
         };
 

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor.Core;
+using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Lcu;
@@ -39,8 +40,15 @@ public static class AppHost
     /// </summary>
     public static readonly Context<ThemeState> ThemeContext = new(null!, "ThemeState");
 
+    /// <summary>
+    /// 侧边栏菜单可见性状态上下文。与 <see cref="ThemeContext"/> 同理在根组件上 Provide 一次；
+    /// 「隐藏菜单」这类影响全局菜单的配置由它承载，而不是寄望配置自身有变更通知。
+    /// </summary>
+    public static readonly Context<MenuVisibilityState> MenuContext = new(null!, "MenuVisibilityState");
+
     private static AppServices? _services;
     private static ThemeState? _theme;
+    private static MenuVisibilityState? _menu;
 
     /// <summary>进程级服务实例。仅供根组件使用。</summary>
     public static AppServices Services =>
@@ -49,6 +57,10 @@ public static class AppHost
     /// <summary>进程级主题状态。仅供根组件使用（其余组件走 <see cref="ThemeContext"/>）。</summary>
     public static ThemeState Theme =>
         _theme ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
+
+    /// <summary>进程级菜单可见性状态。仅供根组件使用（其余组件走 <see cref="MenuContext"/>）。</summary>
+    public static MenuVisibilityState Menu =>
+        _menu ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
 
     /// <summary>
     /// 构造 DI 容器、日志与配置，并启动 LCU 连接循环。必须早于任何 UI 渲染。
@@ -64,6 +76,11 @@ public static class AppHost
             ex => _services.LoggerFactory
                 .CreateLogger<ThemeState>()
                 .LogError(ex, "主题订阅者抛异常"));
+        _menu = new MenuVisibilityState(
+            _services.Config.Functions,
+            ex => _services.LoggerFactory
+                .CreateLogger<MenuVisibilityState>()
+                .LogError(ex, "菜单可见性订阅者抛异常"));
         _services.Services.GetRequiredService<LcuConnection>().Start(_services.ShutdownToken);
         _services.Services.GetRequiredService<YuumiX.Core.Automation.AutomationHost>().Start(_services.ShutdownToken);
     }
@@ -74,5 +91,6 @@ public static class AppHost
         _services?.Dispose();
         _services = null;
         _theme = null;
+        _menu = null;
     }
 }

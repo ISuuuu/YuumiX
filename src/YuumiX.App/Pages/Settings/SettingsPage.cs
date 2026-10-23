@@ -72,6 +72,7 @@ public sealed class SettingsPage : Component
     {
         var services = UseContext(AppHost.Context);
         var theme = UseContext(AppHost.ThemeContext);
+        var menu = UseContext(AppHost.MenuContext);
         var config = services.Config;
 
         // threadSafe: true —— 保存与重渲染的调用点虽在 UI 线程，但保留统一语义，
@@ -658,6 +659,9 @@ public sealed class SettingsPage : Component
                     {
                         if (v == config.Functions.HideTft) return;
                         config.Functions.HideTft = v;
+                        // 先推给 AppShell（立即生效），再落盘；写盘失败时侧边栏也已更新，
+                        // 与颜色设置「先应用主题后防抖写盘」的语义一致。
+                        menu.Apply(config.Functions.HideTft, config.Functions.HideSavedPlayers);
                         Commit(nameof(FunctionsConfig.HideTft));
                     }, header: null, onContent: "", offContent: "").AutomationName("隐藏云顶之弈")),
                 CardRow("隐藏路人集入口:",
@@ -665,6 +669,7 @@ public sealed class SettingsPage : Component
                     {
                         if (v == config.Functions.HideSavedPlayers) return;
                         config.Functions.HideSavedPlayers = v;
+                        menu.Apply(config.Functions.HideTft, config.Functions.HideSavedPlayers);
                         Commit(nameof(FunctionsConfig.HideSavedPlayers));
                     }, header: null, onContent: "", offContent: "").AutomationName("隐藏路人集"))));
 
