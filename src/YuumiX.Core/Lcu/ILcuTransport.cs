@@ -37,6 +37,8 @@ public sealed record LcuRequest
 
     public static LcuRequest Put(string path, string jsonBody) => new(HttpMethod.Put, path, jsonBody);
 
+    public static LcuRequest Patch(string path, string jsonBody) => new(HttpMethod.Patch, path, jsonBody);
+
     public static LcuRequest Delete(string path) => new(HttpMethod.Delete, path);
 }
 

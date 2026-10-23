@@ -133,6 +133,11 @@ public sealed class MatchServicePagingSgpTests
         public Task<string?> GetAccessTokenAsync(bool forceRefresh = false, CancellationToken cancellationToken = default) =>
             Task.FromResult<string?>("mock-token");
 
+        public Task<YuumiX.Core.Features.Tools.Models.SpectateCredentials?> GetSpectateCredentialsAsync(
+            string? server,
+            string puuid,
+            CancellationToken cancellationToken = default) => Task.FromResult<YuumiX.Core.Features.Tools.Models.SpectateCredentials?>(null);
+
         public Task<IReadOnlyList<MatchSummary>> GetMatchHistoryAsync(
             string? server,
             string puuid,
