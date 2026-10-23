@@ -66,9 +66,7 @@ public static class PageCatalog
         ]),
         [AppRoute.Settings] = ("设置", "src/views/Settings.vue",
         [
-            "常规（客户端路径/代理/日志/截图目录）",
-            "个性化（主题色/语言/卡片配色）",
-            "功能开关与候选列表",
+            "设置项编辑与写回（ConfigStore.Save，写前备份）",
             "云端服务",
             "更新与关于",
         ]),
