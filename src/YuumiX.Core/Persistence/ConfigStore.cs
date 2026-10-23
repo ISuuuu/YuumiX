@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -20,7 +21,13 @@ public sealed class ConfigStore
 {
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
+    /// <summary>写回备份的保留份数（ADR-12）。</summary>
+    public const int MaxBackups = 10;
+
     private readonly ILogger<ConfigStore> _logger;
+
+    /// <summary>本次进程是否已做过「会话首写备份」。见 ADR-12 决策二。</summary>
+    private bool _backedUpThisSession;
 
     public ConfigStore(string configFilePath, ILogger<ConfigStore> logger)
     {
@@ -99,6 +106,46 @@ public sealed class ConfigStore
     }
 
     /// <summary>
+    /// 设置页专用的写回入口：本次进程首次写回前先备份原文件，再落盘（ADR-12）。
+    ///
+    /// 为什么不是「每次写都备份」：设置页的每次点击都是一次写回，用户连改六项就会留下六个
+    /// 时间戳文件，而真正需要保护的是「YuumiX 第一次改写这份与原版共用的文件」这一步。
+    ///
+    /// 备份失败**不写盘**并抛出：无法复制原文件通常意味着磁盘或权限已出问题，
+    /// 此时继续覆盖一份共用配置，风险远大于「这次没保存上」。
+    /// </summary>
+    /// <returns>本次生成的备份文件路径；本会话已备份过则为 <c>null</c>。</returns>
+    public string? SaveWithBackup(AppConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var backupPath = _backedUpThisSession ? null : CreateSessionBackup();
+        Save(config);
+        return backupPath;
+    }
+
+    /// <summary>列出写回备份，按时间戳倒序（最新在前）。供设置页「关于」与排障使用。</summary>
+    public IReadOnlyList<string> ListBackups()
+    {
+        var directory = Path.GetDirectoryName(FilePath);
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+        {
+            return [];
+        }
+
+        var pattern = Path.GetFileName(FilePath) + ".bak.*";
+        try
+        {
+            return [.. Directory.GetFiles(directory, pattern).OrderByDescending(static p => p, StringComparer.Ordinal)];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "枚举配置备份失败: {Path}", FilePath);
+            return [];
+        }
+    }
+
+    /// <summary>
     /// 读取并清除上一次加载失败留下的错误提示（供 UI 展示后即弃）。
     /// </summary>
     public string? TakeLoadError()
@@ -121,8 +168,60 @@ public sealed class ConfigStore
         }
     }
 
-    private AppConfig ParseAndMigrate(string text)
+    /// <summary>
+    /// 复制当前配置文件为 <c>config.json.bak.&lt;yyyyMMdd-HHmmss&gt;</c>。
+    /// 文件不存在时只置会话标记（用户首次启动还没有「原版内容」可保护）。
+    /// </summary>
+    private string? CreateSessionBackup()
     {
+        if (!File.Exists(FilePath))
+        {
+            _backedUpThisSession = true;
+            return null;
+        }
+
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var path = $"{FilePath}.bak.{stamp}";
+
+        // 同一秒内多次启动（自动化测试常见）时追加序号，避免覆盖上一份备份
+        var attempt = 1;
+        while (File.Exists(path))
+        {
+            path = $"{FilePath}.bak.{stamp}-{attempt++}";
+        }
+
+        try
+        {
+            File.Copy(FilePath, path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogError(ex, "写回前备份失败，已中止本次写回: {Path}", FilePath);
+            throw;
+        }
+
+        _backedUpThisSession = true;
+        _logger.LogInformation("写回前已备份配置: {BackupPath}", path);
+        PruneBackups();
+        return path;
+    }
+
+    /// <summary>只保留最近 <see cref="MaxBackups"/> 份写回备份，其余物理删除。</summary>
+    private void PruneBackups()
+    {
+        var backups = ListBackups();
+        if (backups.Count <= MaxBackups)
+        {
+            return;
+        }
+
+        foreach (var stale in backups.Skip(MaxBackups))
+        {
+            TryDelete(stale);
+        }
+    }
+
+    private AppConfig ParseAndMigrate(string text)    {
         if (JsonNode.Parse(text) is not JsonObject root)
         {
             throw new JsonException("配置文件的根节点不是 JSON 对象");

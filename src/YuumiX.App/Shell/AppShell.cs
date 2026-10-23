@@ -29,9 +29,26 @@ public sealed class AppShell : Component
         var nav = UseNavigation(AppRoute.Home);
         var current = RouteCatalog.For(nav.CurrentRoute);
 
-        var menuItems = RouteCatalog.All
-            .Select(item => NavItem(item.Label, item.Glyph, item.Route.ToString()))
-            .ToArray();
+        // 主题状态是本页的重渲染来源之一：设置页改了主题色/模式/Mica 后，
+        // ThemeState 通过 EventStream 推过来，这里 setPalette 触发整体重渲染。
+        // threadSafe: true —— 推送可能来自保存完成的回调线程（ADR-07）。
+        var (palette, setPalette) = UseState(AppHost.Theme.Current, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = AppHost.Theme.Subscribe(setPalette);
+                return () => subscription.Dispose();
+            },
+            0);
+
+        // 菜单项必须跨渲染保持同一批实例：每次渲染新建数组会让 NavigationView 重建菜单，
+        // 选中项被重置为第一项并触发 OnSelectedTagChanged，表现为「界面重渲染后莫名跳回主页」。
+        // 这是主题即时生效暴露出来的问题（ADR-12 决策三带来的额外重渲染）。
+        var menuItems = UseMemo(
+            () => RouteCatalog.All
+                .Select(item => NavItem(item.Label, item.Glyph, item.Route.ToString()))
+                .ToArray(),
+            0);
 
         var navigationView = NavigationView(menuItems, NavigationHost(nav, BuildPage)) with
         {
@@ -75,8 +92,10 @@ public sealed class AppShell : Component
                 navigationView.Grid(row: 1),
             ]
         )
-        .Backdrop(YuumiTheme.DefaultBackdrop)
-        .Provide(AppHost.Context, services);
+        .Backdrop(palette.Backdrop)
+        .RequestedTheme(palette.ElementTheme)
+        .Provide(AppHost.Context, services)
+        .Provide(AppHost.ThemeContext, AppHost.Theme);
     }
 
     /// <summary>

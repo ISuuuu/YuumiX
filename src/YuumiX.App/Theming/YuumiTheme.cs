@@ -1,5 +1,7 @@
-using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Xaml;
+using YuumiX.Core.Common;
+using YuumiX.Core.Persistence;
 
 namespace YuumiX.App.Theming;
 
@@ -18,18 +20,81 @@ namespace YuumiX.App.Theming;
 /// </summary>
 public static class YuumiTheme
 {
-    /// <summary>品牌主题色，对应 PersonalizationConfig.ThemeColor 默认值。</summary>
+    /// <summary>品牌主题色默认值，对应 PersonalizationConfig.ThemeColor 默认值。</summary>
     public const string Accent = "#FF009FAA";
 
-    /// <summary>胜利卡片底色（对应 WinCardColor 默认 #3339b01b，含 alpha）。</summary>
+    /// <summary>胜利卡片底色默认值（对应 WinCardColor 默认 #3339b01b，含 alpha）。</summary>
     public const string WinCard = "#3339B01B";
 
-    /// <summary>失败卡片底色（对应 LoseCardColor 默认 #33d3190c，含 alpha）。</summary>
+    /// <summary>失败卡片底色默认值（对应 LoseCardColor 默认 #33d3190c，含 alpha）。</summary>
     public const string LoseCard = "#33D3190C";
 
-    /// <summary>重赛卡片底色（对应 RemakeCardColor 默认 #33a2a2a2，含 alpha）。</summary>
+    /// <summary>重赛卡片底色默认值（对应 RemakeCardColor 默认 #33a2a2a2，含 alpha）。</summary>
     public const string RemakeCard = "#33A2A2A2";
 
     /// <summary>毛玻璃背景类型。原项目 PersonalizationConfig.MicaEnabled 默认为 true。</summary>
     public const BackdropKind DefaultBackdrop = BackdropKind.Mica;
+
+    /// <summary>无配置上下文时的兜底调色板（诊断页等拿不到 Provide 的场景使用）。</summary>
+    public static YuumiPalette Default { get; } = YuumiPalette.FromConfig(new PersonalizationConfig());
+}
+
+/// <summary>
+/// 运行时调色板：把配置里的个性化字段翻译成 UI 可直接消费的形态（ADR-12 决策三）。
+///
+/// 与 <see cref="YuumiTheme"/> 的常量不同，本类型是**值**——配置一变就产生新实例，
+/// 由 <see cref="ThemeState"/> 推送给订阅者。记录类型让「值相同不重渲染」成为免费行为。
+///
+/// 所有颜色在构造时归一化为 8 位 <c>#AARRGGBB</c>：配置里 6 位与 8 位形态混用，
+/// 直接透传会得到不确定的默认不透明度（见 <see cref="ColorHex"/>）。
+/// </summary>
+public sealed record YuumiPalette
+{
+    public required string Accent { get; init; }
+
+    public required string WinCard { get; init; }
+
+    public required string LoseCard { get; init; }
+
+    public required string RemakeCard { get; init; }
+
+    /// <summary>原始主题模式字符串：<c>Light</c> / <c>Dark</c> / 其它（按 Auto 处理）。</summary>
+    public required string ThemeMode { get; init; }
+
+    public required bool MicaEnabled { get; init; }
+
+    /// <summary>
+    /// 把配置翻译成运行时调色板。颜色统一归一化为 8 位 <c>#AARRGGBB</c>。
+    /// </summary>
+    /// <remarks>
+    /// 强调色刻意**不**通过覆盖 WinUI 的 <c>AccentFillColorDefaultBrush</c> 来全局生效：
+    /// 已实测（阶段 5 后半）在根元素上覆盖该资源对原生控件无效——开关、选中指示器仍用系统强调色。
+    /// 因此约定为「谁用谁取」：消费方从 <see cref="ThemeState.Current"/> 取 <see cref="Accent"/>，
+    /// 直接作为 <c>Background/Foreground</c> 的字符串传入（ADR-03）。
+    /// </remarks>
+    public static YuumiPalette FromConfig(PersonalizationConfig personalization)
+    {
+        ArgumentNullException.ThrowIfNull(personalization);
+
+        return new YuumiPalette
+        {
+            Accent = ColorHex.NormalizeArgb(personalization.ThemeColor, YuumiTheme.Accent),
+            WinCard = ColorHex.NormalizeArgb(personalization.WinCardColor, YuumiTheme.WinCard),
+            LoseCard = ColorHex.NormalizeArgb(personalization.LoseCardColor, YuumiTheme.LoseCard),
+            RemakeCard = ColorHex.NormalizeArgb(personalization.RemakeCardColor, YuumiTheme.RemakeCard),
+            ThemeMode = personalization.ThemeMode ?? "Auto",
+            MicaEnabled = personalization.MicaEnabled,
+        };
+    }
+
+    /// <summary>主题模式的 UI 呈现。<c>Auto</c> 映射到 <see cref="ElementTheme.Default"/>（跟随系统）。</summary>
+    public ElementTheme ElementTheme => ThemeMode switch
+    {
+        "Light" => ElementTheme.Light,
+        "Dark" => ElementTheme.Dark,
+        _ => ElementTheme.Default,
+    };
+
+    /// <summary>Mica 开关对应的背景类型。</summary>
+    public BackdropKind Backdrop => MicaEnabled ? BackdropKind.Mica : BackdropKind.None;
 }

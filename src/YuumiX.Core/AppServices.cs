@@ -151,6 +151,21 @@ public sealed class AppServices : IDisposable
     private static string AssetCacheDirectory(RuntimePaths paths) =>
         Path.Combine(paths.DataDirectory, "cache", "assets");
 
+    /// <summary>
+    /// 把配置中的日志等级应用到已构建的 provider（设置页改日志等级后即时生效）。
+    ///
+    /// 之所以能在运行期改：<see cref="LoggingSetup.CreateFactory"/> 把工厂级别放到 Trace，
+    /// 真正的过滤只发生在 provider 这一层，因此这里改 <see cref="RotatingFileLoggerProvider.MinLevel"/>
+    /// 就是改真实生效的阈值。若哪天把过滤挪回工厂级，本方法会静默失效——不要那样改。
+    /// </summary>
+    public void ApplyLogLevel(int logLevel)
+    {
+        if (Services.GetService<RotatingFileLoggerProvider>() is { } provider)
+        {
+            provider.MinLevel = LoggingSetup.MapLogLevel(logLevel);
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor.Core;
+using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Lcu;
 
@@ -31,11 +33,22 @@ public static class AppHost
     /// </summary>
     public static readonly Context<AppServices> Context = new(null!, "AppServices");
 
+    /// <summary>
+    /// 主题状态上下文键（ADR-12 决策三）。与 <see cref="Context"/> 一样在根组件上 Provide 一次；
+    /// 需要读取当前主题色/主题模式的组件用它，而不是去翻配置——配置没有变更通知。
+    /// </summary>
+    public static readonly Context<ThemeState> ThemeContext = new(null!, "ThemeState");
+
     private static AppServices? _services;
+    private static ThemeState? _theme;
 
     /// <summary>进程级服务实例。仅供根组件使用。</summary>
     public static AppServices Services =>
         _services ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
+
+    /// <summary>进程级主题状态。仅供根组件使用（其余组件走 <see cref="ThemeContext"/>）。</summary>
+    public static ThemeState Theme =>
+        _theme ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
 
     /// <summary>
     /// 构造 DI 容器、日志与配置，并启动 LCU 连接循环。必须早于任何 UI 渲染。
@@ -46,6 +59,11 @@ public static class AppHost
     public static void Initialize()
     {
         _services = AppServices.Create();
+        _theme = new ThemeState(
+            _services.Config.Personalization,
+            ex => _services.LoggerFactory
+                .CreateLogger<ThemeState>()
+                .LogError(ex, "主题订阅者抛异常"));
         _services.Services.GetRequiredService<LcuConnection>().Start(_services.ShutdownToken);
     }
 
@@ -54,5 +72,6 @@ public static class AppHost
     {
         _services?.Dispose();
         _services = null;
+        _theme = null;
     }
 }
