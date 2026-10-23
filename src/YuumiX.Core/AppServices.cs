@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Assets;
 using YuumiX.Core.Diagnostics;
 using YuumiX.Core.Features.Match;
+using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
@@ -142,6 +143,11 @@ public sealed class AppServices : IDisposable
         collection.AddSingleton<ISummonerService>(provider => new SummonerService(
             () => provider.GetRequiredService<LcuConnection>().Transport,
             logger: provider.GetRequiredService<ILogger<SummonerService>>()));
+
+        // ── 路人集 SQLite 存储（阶段 7）────────────────────────────
+        collection.AddSingleton(provider => new SavedPlayersStore(
+            provider.GetRequiredService<RuntimePaths>(),
+            provider.GetService<ILogger<SavedPlayersStore>>()));
 
         var services = collection.BuildServiceProvider();
 

@@ -14,7 +14,6 @@ public static class PageCatalog
     {
         [AppRoute.Home] = ("主页", "src/views/Home.vue",
         [
-            "LCU 客户端启动与连接状态",
             "快捷入口与最近搜索",
             "公告与更新提示",
         ]),
@@ -42,9 +41,6 @@ public static class PageCatalog
         ]),
         [AppRoute.SavedPlayers] = ("路人集", "src/views/SavedPlayers.vue",
         [
-            "同局玩家自动记录与频次统计",
-            "自定义标签/备注",
-            "标记置顶与筛选",
             "选人/对局聊天室自动提醒",
             "JSON 导入导出",
         ]),
