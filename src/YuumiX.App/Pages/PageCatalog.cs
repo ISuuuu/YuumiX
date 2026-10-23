@@ -28,9 +28,9 @@ public static class PageCatalog
         ]),
         [AppRoute.Search] = ("战绩查询", "src/views/Search.vue",
         [
-            "召唤师搜索与历史",
-            "对局历史列表（经典/大乱斗/海克斯强化）",
-            "对局详情面板（10 人数据）",
+            "召唤师搜索与搜索历史",
+            "对局列表接入真实 LCU 数据（当前渲染本地夹具）",
+            "对局详情补齐 10 人数据与后台段位加载",
             "ROFL 回放下载与客户端观看",
         ]),
         [AppRoute.GameInfo] = ("对局信息", "src/views/GameInfo.vue",
