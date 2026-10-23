@@ -11,7 +11,8 @@ public sealed record OpenableLootItem(
     string RecipeName,
     bool NeedKey,
     int KeyCount,
-    string? TilePath)
+    string? TilePath,
+    string? KeyLootId = null)
 {
     /// <summary>是否为钥匙碎片（钥匙碎片走 3合1 合成配方）。</summary>
     public bool IsKeyFragment =>
@@ -31,7 +32,11 @@ public sealed record LootInventoryItem(
     int Value,
     int DisenchantValue,
     string ItemStatus,
-    string? TilePath)
+    string? TilePath,
+    string LootType = "",
+    string Rarity = "DEFAULT",
+    string UpgradeRecipeName = "",
+    int UpgradeEssenceCost = 0)
 {
     /// <summary>是否已拥有。</summary>
     public bool IsOwned => string.Equals(ItemStatus, "OWNED", StringComparison.OrdinalIgnoreCase);
@@ -39,6 +44,23 @@ public sealed record LootInventoryItem(
     /// <summary>是否为英雄碎片。</summary>
     public bool IsChampion => string.Equals(DisplayCategories, "CHAMPION", StringComparison.OrdinalIgnoreCase);
 }
+
+/// <summary>战利品操作进度事件（开箱/分解/重随/升级共用）。</summary>
+public sealed record LootOperationProgress(
+    int Current,
+    int Total,
+    bool Success,
+    string ItemName,
+    string RewardDesc,
+    string? ErrorMessage);
+
+/// <summary>战利品批量操作汇总结果。</summary>
+public sealed record LootOperationResult(
+    bool Success,
+    int SucceededCount,
+    int FailedCount,
+    IReadOnlyList<string> Rewards,
+    string? ErrorMessage);
 
 /// <summary>
 /// 战利品概览数据汇总：材料列表、碎片库存、钥匙总数与精萃余额。

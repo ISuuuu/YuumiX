@@ -19,18 +19,12 @@ public static class PageCatalog
         ]),
         [AppRoute.Career] = ("生涯", "src/views/Career.vue",
         [
-            "战利品（材料开箱、碎片库存筛选与批量分解）",
-            "英雄熟练度 2.0（里程碑/成就/等级排行）",
             "挑战勋章装配",
             "资产统计",
-            "最近队友弹层（同队解析与频次聚合已有 Core 能力，缺取数编排与弹层）",
         ]),
         [AppRoute.Search] = ("战绩查询", "src/views/Search.vue",
         [
-            "搜索历史（当前只保留最近一次查询）",
-            "详情面板段位与近期战绩后台加载",
-            "列表翻页（LCU 本机仅缓存 20 局，需走 SGP 才能看到更早的对局）",
-            "ROFL 回放下载与客户端观看",
+            "战绩上传（可选云端同步）",
         ]),
         [AppRoute.GameInfo] = ("对局信息", "src/views/GameInfo.vue",
         [

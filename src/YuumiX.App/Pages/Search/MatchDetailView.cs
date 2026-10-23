@@ -2,6 +2,8 @@ using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Controls;
+using YuumiX.App.Pages.Career;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Lcu;
@@ -110,9 +112,19 @@ internal static class MatchDetailView
                     .FontSize(16)
                     .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
                     .Foreground(accent),
-                TextBlock(meta).FontSize(11).Foreground(Theme.SecondaryText)));
+                TextBlock(meta).FontSize(11).Foreground(Theme.SecondaryText)))
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
-        return Border(info)
+        Element replayBtn = Component<ReplayButton, ReplayButtonProps>(
+            new ReplayButtonProps(summary.GameId, Compact: false))
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
+
+        Element bannerContent = Grid(
+            [GridSize.Star(), GridSize.Auto],
+            [GridSize.Auto],
+            [info.Grid(row: 0, column: 0), replayBtn.Grid(row: 0, column: 1)]);
+
+        return Border(bannerContent)
             .Padding(12)
             .CornerRadius(8)
             .Background(SearchVisuals.CardBackground(palette, summary))
@@ -208,11 +220,32 @@ internal static class MatchDetailView
             SearchVisuals.SpellIcon(catalog, player.Spell1Id, 16),
             SearchVisuals.SpellIcon(catalog, player.Spell2Id, 16));
 
-        Element identity = HStack(6,
+        var identityChildren = new List<Element>
+        {
             TextBlock(player.Name).FontSize(12),
             TextBlock($"Lv{player.ChampionLevel.ToString(CultureInfo.InvariantCulture)}")
                 .FontSize(10)
-                .Foreground(Theme.SecondaryText));
+                .Foreground(Theme.SecondaryText),
+        };
+
+        if (player.IsPrivate)
+        {
+            identityChildren.Add(
+                TextBlock("🔒")
+                    .FontSize(10)
+                    .Foreground(CareerVisuals.GoldColor)
+                    .WithToolTip(TextBlock("战绩已隐藏")));
+        }
+
+        if (!string.IsNullOrEmpty(player.Tier))
+        {
+            identityChildren.Add(
+                CareerVisuals.RankedMedal(player.Tier, 16)
+                    .WithToolTip(TextBlock(player.RankText ?? player.Tier)));
+        }
+
+        Element identity = HStack(6, identityChildren.ToArray())
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         Element playerCell = HStack(8, portrait, spells, identity);
 

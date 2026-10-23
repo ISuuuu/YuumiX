@@ -3,7 +3,9 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Assets;
 using YuumiX.Core.Diagnostics;
 using YuumiX.Core.Features.Career;
+using YuumiX.Core.Features.GameLifecycle;
 using YuumiX.Core.Features.Match;
+using YuumiX.Core.Features.Replay;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Lcu;
@@ -155,17 +157,32 @@ public sealed class AppServices : IDisposable
             () => provider.GetRequiredService<LcuConnection>().Transport,
             logger: provider.GetRequiredService<ILogger<SummonerService>>()));
 
-        // ── 生涯（阶段 7 第一块：排位总览）──────────────────────────
-        // 生涯页的段位表只需要一个新接口；战利品与熟练度作为独立服务后续加入，
-        // 不并进 ICareerService，理由见接口文档（三者失效节奏不同）。
-        collection.AddSingleton<ICareerService>(provider => new CareerService(
-            () => provider.GetRequiredService<LcuConnection>().Transport,
-            logger: provider.GetRequiredService<ILogger<CareerService>>()));
-
         // ── 路人集 SQLite 存储（阶段 7）────────────────────────────
         collection.AddSingleton(provider => new SavedPlayersStore(
             provider.GetRequiredService<RuntimePaths>(),
             provider.GetService<ILogger<SavedPlayersStore>>()));
+
+        // ── 生涯（排位、战利品、熟练度与最近队友）──────────────────────────
+        collection.AddSingleton<ICareerService>(provider => new CareerService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            savedPlayersStore: provider.GetRequiredService<SavedPlayersStore>(),
+            gameDataService: provider.GetRequiredService<GameDataService>(),
+            logger: provider.GetRequiredService<ILogger<CareerService>>()));
+
+        // ── ROFL 对局回放服务 ──────────────────────────────────────
+        collection.AddSingleton<IReplayService>(provider => new ReplayService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            logger: provider.GetRequiredService<ILogger<ReplayService>>()));
+
+        // ── 搜索历史存储 ──────────────────────────────────────────
+        collection.AddSingleton(provider => new SearchHistoryStore(
+            provider.GetRequiredService<RuntimePaths>(),
+            logger: provider.GetService<ILogger<SearchHistoryStore>>()));
+
+        // ── 对局生命周期监控服务（自动刷新战绩/生涯）──────────────────
+        collection.AddSingleton(provider => new GameLifecycleService(
+            provider.GetRequiredService<LcuConnection>(),
+            logger: provider.GetService<ILogger<GameLifecycleService>>()));
 
         var services = collection.BuildServiceProvider();
 

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
+using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Lcu;
 
 namespace YuumiX.App.Pages.Career;
@@ -25,7 +26,10 @@ internal static class RecentSummaryView
         string[] queueLabels,
         int currentQueueIndex,
         Action<int> onSelectQueue,
-        Action? onRecentTeammates = null)
+        Action? onRecentTeammates = null,
+        RecentTeammatesResult? teammates = null,
+        bool loadingTeammates = false,
+        Action<RecentTeammate>? onClickTeammate = null)
     {
         const double TotalBarWidth = 920;
         const double RightSectionWidth = 220;
@@ -61,7 +65,7 @@ internal static class RecentSummaryView
         // 左侧 2：常玩位置
         if (summary.PositionGames > 0)
         {
-            leftItems.Add(HStack(6,
+            Element positionsContainer = HStack(6,
                 TextBlock("常玩位置:")
                     .FontSize(11)
                     .Foreground(Theme.SecondaryText)
@@ -70,15 +74,36 @@ internal static class RecentSummaryView
                     .Take(TopPositionCount)
                     .Select(pos => PositionChip(pos, palette)
                         .WithKey(pos.Position.ToString()))
-                    .ToArray())));
+                    .ToArray()));
+
+            leftItems.Add(positionsContainer.WithToolTip(
+                VStack(4,
+                    TextBlock("常玩位置分布")
+                        .FontSize(12)
+                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
+                    VStack(2, summary.Positions.Select(pos =>
+                        HStack(8,
+                            TextBlock(CareerVisuals.PositionText(pos.Position))
+                                .FontSize(11)
+                                .Width(40),
+                            TextBlock($"{pos.Games} 场")
+                                .FontSize(11)
+                                .Foreground(Theme.SecondaryText)
+                                .Width(40),
+                            TextBlock($"{pos.Percentage}%")
+                                .FontSize(11)
+                                .Foreground(palette.Accent)
+                                .Width(40)
+                        ).WithKey(pos.Position.ToString())).ToArray())
+                )));
         }
 
-        // 左侧 3：常用英雄（取前 4 名）
+        // 左侧 3：常用英雄（取前 6 名）
         if (summary.TopChampions.Count > 0)
         {
             leftItems.Add(HStack(4, summary.TopChampions
-                .Take(4)
-                .Select(champ => ChampionCell(champ, palette)
+                .Take(6)
+                .Select(champ => ChampionCell(champ, catalog, palette)
                     .WithKey(champ.ChampionId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                 .ToArray()));
         }
@@ -87,13 +112,20 @@ internal static class RecentSummaryView
             .Width(leftSectionWidth)
             .VAlign(VerticalAlignment.Center);
 
-        // 右侧操作：最近队友按钮 + 队列下拉
+        // 右侧操作：最近队友按钮（带弹层） + 队列下拉
+        Element teammatesButton = Button("最近队友", () => onRecentTeammates?.Invoke())
+            .Height(30)
+            .Padding(10, 0)
+            .FontSize(11)
+            .AutomationName("最近队友");
+
+        Element flyoutButton = Flyout(
+            teammatesButton,
+            TeammatesFlyout(teammates, loadingTeammates, palette, onClickTeammate))
+            .Opened(() => onRecentTeammates?.Invoke());
+
         Element rightSection = HStack(8,
-            Button("最近队友", () => onRecentTeammates?.Invoke())
-                .Height(30)
-                .Padding(10, 0)
-                .FontSize(11)
-                .AutomationName("最近队友"),
+            flyoutButton,
             ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
                 .Width(110)
                 .AutomationName("队列筛选"))
@@ -104,6 +136,102 @@ internal static class RecentSummaryView
         return CareerVisuals.Card(
             HStack(0, leftSection, rightSection),
             padding: 10);
+    }
+
+    private static Element TeammatesFlyout(
+        RecentTeammatesResult? teammates,
+        bool loadingTeammates,
+        YuumiPalette palette,
+        Action<RecentTeammate>? onClickTeammate)
+    {
+        Element inner;
+        if (loadingTeammates)
+        {
+            inner = TextBlock("正在计算最近 20 局同队队友…")
+                .FontSize(12)
+                .Foreground(Theme.SecondaryText)
+                .HAlign(HorizontalAlignment.Center);
+        }
+        else if (teammates is null || teammates.Summoners.Count == 0)
+        {
+            inner = TextBlock("暂无最近同队玩家数据（需在近期对局中存在同队玩家）。")
+                .FontSize(12)
+                .Foreground(Theme.SecondaryText);
+        }
+        else
+        {
+            inner = VStack(6,
+                teammates.Summoners.Select(tm =>
+                    TeammateCard(tm, palette, onClickTeammate)
+                        .WithKey(tm.Puuid))
+                    .ToArray());
+        }
+
+        return Border(
+            VStack(10,
+                HStack(8,
+                    TextBlock("最近同队玩家")
+                        .FontSize(13)
+                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
+                    TextBlock("点击可查看战绩")
+                        .FontSize(11)
+                        .Foreground(Theme.SecondaryText)
+                        .VAlign(VerticalAlignment.Center)),
+                inner))
+            .Width(380)
+            .Padding(12);
+    }
+
+    private static Element TeammateCard(
+        RecentTeammate tm,
+        YuumiPalette palette,
+        Action<RecentTeammate>? onClickTeammate)
+    {
+        string playTimeText = tm.LastPlayTime > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(tm.LastPlayTime).ToLocalTime().ToString("MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)
+            : "--";
+
+        Element leftAvatar = Search.SearchVisuals.Icon(
+            CareerVisuals.ProfileIcon(tm.ProfileIconId),
+            36, 18).Grid(row: 0, column: 0);
+
+        Element centerInfo = VStack(2,
+            HStack(6,
+                TextBlock(tm.Name)
+                    .FontSize(12)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    .Foreground(Theme.PrimaryText),
+                tm.Tag is not null
+                    ? Border(TextBlock(tm.Tag).FontSize(10).Foreground(palette.Accent))
+                        .Padding(4, 1)
+                        .CornerRadius(3)
+                        .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1E))
+                    : Empty()
+            ),
+            TextBlock($"最近相遇: {playTimeText}")
+                .FontSize(10)
+                .Foreground(Theme.SecondaryText)
+        ).Margin(8, 0, 0, 0).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1);
+
+        Element rightStats = HStack(6,
+            CareerVisuals.Stat("总:", tm.Total.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            CareerVisuals.Stat("胜:", tm.Wins.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.WinText),
+            CareerVisuals.Stat("负:", tm.Losses.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.LoseText)
+        ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 2);
+
+        return Border(
+            Button(
+                Grid(
+                    [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+                    [GridSize.Auto],
+                    [leftAvatar, centerInfo, rightStats])
+                    .HAlign(HorizontalAlignment.Stretch),
+                () => onClickTeammate?.Invoke(tm))
+                .HAlign(HorizontalAlignment.Stretch)
+                .Background(Theme.CardBackground)
+                .AutomationName($"查看 {tm.Name} 战绩"))
+            .CornerRadius(6)
+            .WithBorder(Theme.CardStroke, 1);
     }
 
     private static Element KdaStat(RecentFormSummary summary)
@@ -132,7 +260,7 @@ internal static class RecentSummaryView
             .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
             .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
 
-    private static Element ChampionCell(RecentChampionStat champion, YuumiPalette palette)
+    private static Element ChampionCell(RecentChampionStat champion, GameDataCatalog catalog, YuumiPalette palette)
     {
         double wr = champion.Games > 0 ? (champion.Wins * 100.0 / champion.Games) : 0;
         string badgeBg = wr >= 60
@@ -147,7 +275,12 @@ internal static class RecentSummaryView
                 ? CareerVisuals.LoseText
                 : palette.Accent);
 
-        return Grid(
+        string champName = catalog.Champions.TryGetValue(champion.ChampionId, out string? name) && !string.IsNullOrWhiteSpace(name)
+            ? name
+            : $"英雄 {champion.ChampionId}";
+        string posText = champion.PrimaryPosition is { } p ? CareerVisuals.PositionText(p) : "--";
+
+        Element cell = Grid(
             [GridSize.Auto],
             [GridSize.Auto],
             [
@@ -168,5 +301,24 @@ internal static class RecentSummaryView
             ])
             .Width(ChampionSize)
             .Height(ChampionSize);
+
+        return cell.WithToolTip(
+            VStack(4,
+                TextBlock(champName)
+                    .FontSize(12)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
+                TextBlock($"出场 {champion.Games} 次 · 主位置 {posText}")
+                    .FontSize(11)
+                    .Foreground(Theme.SecondaryText),
+                HStack(6,
+                    TextBlock($"胜率: {champion.WinRateText}")
+                        .FontSize(11)
+                        .Foreground(wr >= 60 ? CareerVisuals.WinText : (wr < 45 ? CareerVisuals.LoseText : palette.Accent)),
+                    TextBlock($"({champion.Wins}胜 {champion.Losses}负)")
+                        .FontSize(11)
+                        .Foreground(Theme.SecondaryText)),
+                TextBlock($"KDA: {champion.KdaText} ({champion.Kills}/{champion.Deaths}/{champion.Assists})")
+                    .FontSize(11)
+                    .Foreground(palette.Accent)));
     }
 }

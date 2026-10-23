@@ -1,17 +1,24 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Assets;
+using YuumiX.Core.Features.Career;
+using YuumiX.Core.Features.GameLifecycle;
 using YuumiX.Core.Features.Match;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Parsers;
+using YuumiX.Core.Persistence;
 
 namespace YuumiX.App.Pages.Search;
 
@@ -57,6 +64,8 @@ public sealed class SearchPage : Component
     /// </summary>
     private static readonly IReadOnlyList<MatchSummary> EmptyMatches = [];
 
+    private static readonly IReadOnlyList<string> EmptyHistory = [];
+
     private static readonly string[] AllQueues = ["全部"];
 
     /// <summary>卡片元素缓存，仅在列表内容 / 资源表 / 配色变化时重建（见 <c>ResolveCards</c>）。</summary>
@@ -87,7 +96,10 @@ public sealed class SearchPage : Component
         var theme = UseContext(AppHost.ThemeContext);
         var matchService = services.Services.GetRequiredService<IMatchService>();
         var summonerService = services.Services.GetRequiredService<ISummonerService>();
+        var historyStore = services.Services.GetRequiredService<SearchHistoryStore>();
+        var lifecycle = services.Services.GetService<GameLifecycleService>();
         var lcu = services.Services.GetRequiredService<LcuConnection>();
+        var nav = UseNavigation<AppRoute>();
 
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
         UseEffect(
@@ -109,6 +121,38 @@ public sealed class SearchPage : Component
         var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
         var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
         var (notice, setNotice) = UseState<string?>(null, threadSafe: true);
+        var (historyList, setHistoryList) = UseState(EmptyHistory, threadSafe: true);
+
+        // 加载历史搜索
+        UseEffect(
+            () =>
+            {
+                _ = Task.Run(async () =>
+                {
+                    var list = await historyStore.GetHistoryAsync();
+                    setHistoryList(list);
+                });
+                return static () => { };
+            },
+            0);
+
+        // 对局结束自动静默刷新战绩
+        UseEffect(
+            () =>
+            {
+                if (lifecycle is null) return static () => { };
+                var sub = lifecycle.GameEnded.Subscribe(time =>
+                {
+                    Task.Run(async () =>
+                    {
+                        setRequestVersion(requestVersion + 1);
+                        await Task.Delay(2000);
+                        setRequestVersion(requestVersion + 2);
+                    });
+                });
+                return () => sub.Dispose();
+            },
+            0);
 
         var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
         UseEffect(
@@ -150,6 +194,30 @@ public sealed class SearchPage : Component
             {
                 var subscription = matchService.Status.Subscribe(setStatus);
                 return () => subscription.Dispose();
+            },
+            0);
+
+        // 外部跳转（如生涯页点击最近队友、生涯资料卡点击战绩查询）传入的待查询目标
+        UseEffect(
+            () =>
+            {
+                var (pendingQuery, _, _) = SearchNavigationPayload.Instance.Consume();
+                if (!string.IsNullOrWhiteSpace(pendingQuery))
+                {
+                    _searchDraft = pendingQuery;
+                    SubmitSearch(
+                        summonerService,
+                        historyStore,
+                        setHistoryList,
+                        setSummoner,
+                        setSummonerResolved,
+                        setMatches,
+                        setSelectedGameId,
+                        setPageIndex,
+                        setNotice,
+                        () => setRequestVersion(requestVersion + 1));
+                }
+                return static () => { };
             },
             0);
 
@@ -222,7 +290,7 @@ public sealed class SearchPage : Component
                 setDetail(null);
 
                 var cancellation = new CancellationTokenSource();
-                _ = LoadDetailAsync(matchService, currentGameId, summoner?.Puuid, setDetail, cancellation.Token);
+                _ = LoadDetailAsync(services, matchService, currentGameId, summoner?.Puuid, setDetail, cancellation.Token);
                 return () =>
                 {
                     cancellation.Cancel();
@@ -293,6 +361,49 @@ public sealed class SearchPage : Component
                 MatchDetailView.Render(detail, current, catalog, palette).Grid(row: 0, column: 1),
             ]);
 
+        void OnSelectHistory(string item)
+        {
+            _searchDraft = item;
+            SubmitSearch(
+                summonerService,
+                historyStore,
+                setHistoryList,
+                setSummoner,
+                setSummonerResolved,
+                setMatches,
+                setSelectedGameId,
+                setPageIndex,
+                setNotice,
+                () => setRequestVersion(requestVersion + 1));
+        }
+
+        void OnRemoveHistory(string item)
+        {
+            _ = Task.Run(async () =>
+            {
+                await historyStore.RemoveAsync(item);
+                var list = await historyStore.GetHistoryAsync();
+                setHistoryList(list);
+            });
+        }
+
+        void OnClearHistory()
+        {
+            _ = Task.Run(async () =>
+            {
+                await historyStore.ClearAsync();
+                setHistoryList(EmptyHistory);
+            });
+        }
+
+        void OnCareer()
+        {
+            if (summoner is not null)
+            {
+                nav.Replace(AppRoute.Career);
+            }
+        }
+
         return Grid(
                 [GridSize.Star()],
                 [GridSize.Auto, GridSize.Star()],
@@ -300,6 +411,12 @@ public sealed class SearchPage : Component
                     Toolbar(
                             _searchDraft ?? summoner?.RiotId ?? string.Empty,
                             draft => _searchDraft = draft,
+                            historyList,
+                            OnSelectHistory,
+                            OnRemoveHistory,
+                            OnClearHistory,
+                            OnCareer,
+                            summoner is not null,
                             filterLabels,
                             effectiveFilter,
                             value =>
@@ -311,6 +428,8 @@ public sealed class SearchPage : Component
                             },
                             () => SubmitSearch(
                                 summonerService,
+                                historyStore,
+                                setHistoryList,
                                 setSummoner,
                                 setSummonerResolved,
                                 setMatches,
@@ -333,10 +452,16 @@ public sealed class SearchPage : Component
             .HAlign(HorizontalAlignment.Stretch);
     }
 
-    /// <summary>顶部工具栏：搜索框吃满剩余宽度，右侧三个定宽控件。</summary>
+    /// <summary>顶部工具栏：搜索框+历史下拉吃满剩余宽度，右侧为定宽功能按钮与筛选下拉。</summary>
     private static Element Toolbar(
         string query,
         Action<string> onQueryChanged,
+        IReadOnlyList<string> historyList,
+        Action<string> onSelectHistory,
+        Action<string> onRemoveHistory,
+        Action onClearHistory,
+        Action onCareer,
+        bool hasSummoner,
         string[] filterLabels,
         int filterIndex,
         Action<int> onFilterChanged,
@@ -344,19 +469,34 @@ public sealed class SearchPage : Component
         Action onRefresh,
         string? notice)
     {
-        // 同样是 Grid(columns, rows, children)：搜索框吃满第一列，三个按钮定宽排后面
-        Element bar = Grid(
-            [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto],
+        Element searchBoxWithHistory = Grid(
+            [GridSize.Star(), GridSize.Auto],
             [GridSize.Auto],
             [
                 TextBox(query, onQueryChanged, "输入召唤师名称进行搜索…")
                     .AutomationName("召唤师名称搜索")
                     .Grid(row: 0, column: 0),
+                Flyout(
+                    Button("历史", () => { })
+                        .Height(30)
+                        .Padding(8, 0)
+                        .FontSize(11)
+                        .AutomationName("搜索历史"),
+                    HistoryFlyout(historyList, onSelectHistory, onRemoveHistory, onClearHistory))
+                    .Grid(row: 0, column: 1),
+            ]);
+
+        Element bar = Grid(
+            [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto, GridSize.Auto],
+            [GridSize.Auto],
+            [
+                searchBoxWithHistory.Grid(row: 0, column: 0),
                 Button("查询", onSearch).Grid(row: 0, column: 1),
+                Button("生涯", onCareer).IsEnabled(hasSummoner).AutomationName("跳转生涯").Grid(row: 0, column: 2),
                 ComboBox(filterLabels, filterIndex, onFilterChanged)
                     .AutomationName("队列筛选")
-                    .Grid(row: 0, column: 2),
-                Button("刷新", onRefresh).Grid(row: 0, column: 3),
+                    .Grid(row: 0, column: 3),
+                Button("刷新", onRefresh).Grid(row: 0, column: 4),
             ]);
 
         // 提示行放在搜索框下方而不是列表上方：出错的是"搜索"，不是"列表"
@@ -370,6 +510,56 @@ public sealed class SearchPage : Component
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
+    }
+
+    private static Element HistoryFlyout(
+        IReadOnlyList<string> historyList,
+        Action<string> onSelectHistory,
+        Action<string> onRemoveHistory,
+        Action onClearHistory)
+    {
+        Element header = HStack(0,
+            TextBlock("搜索历史")
+                .FontSize(12)
+                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                .VAlign(VerticalAlignment.Center),
+            Button("清空", onClearHistory)
+                .FontSize(10)
+                .Height(24)
+                .Padding(6, 0)
+                .HAlign(HorizontalAlignment.Right)
+                .AutomationName("清空搜索历史"));
+
+        Element content = historyList.Count == 0
+            ? TextBlock("暂无历史记录").FontSize(11).Foreground(Theme.SecondaryText)
+            : VStack(4, historyList.Select(item =>
+                Grid(
+                    [GridSize.Star(), GridSize.Auto],
+                    [GridSize.Auto],
+                    [
+                        Button(TextBlock(item).FontSize(11).HAlign(HorizontalAlignment.Left), () => onSelectHistory(item))
+                            .HAlign(HorizontalAlignment.Stretch)
+                            .Background(Theme.CardBackground)
+                            .AutomationName($"搜索 {item}")
+                            .Grid(row: 0, column: 0),
+                        Button("✕", () => onRemoveHistory(item))
+                            .Width(24)
+                            .Height(24)
+                            .Padding(0)
+                            .FontSize(10)
+                            .Foreground(Theme.SecondaryText)
+                            .AutomationName($"删除历史 {item}")
+                            .Grid(row: 0, column: 1),
+                    ]
+                ).WithKey(item)
+            ).ToArray());
+
+        return Border(VStack(8, header, ScrollView(content).MaxHeight(260)))
+            .Width(260)
+            .Padding(10)
+            .CornerRadius(8)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1);
     }
 
     /// <summary>底部翻页：只做前后各一页，页码即当前页序号（从 1 开始）。</summary>
@@ -539,6 +729,8 @@ public sealed class SearchPage : Component
     /// </summary>
     private void SubmitSearch(
         ISummonerService summonerService,
+        SearchHistoryStore historyStore,
+        Action<IReadOnlyList<string>> applyHistory,
         Action<SummonerProfile?> applySummoner,
         Action<bool> applySummonerResolved,
         Action<IReadOnlyList<MatchSummary>> applyMatches,
@@ -558,6 +750,8 @@ public sealed class SearchPage : Component
 
         _ = SearchAsync(
             summonerService,
+            historyStore,
+            applyHistory,
             query,
             applySummoner,
             applySummonerResolved,
@@ -575,6 +769,8 @@ public sealed class SearchPage : Component
     /// </summary>
     private static async Task SearchAsync(
         ISummonerService summonerService,
+        SearchHistoryStore historyStore,
+        Action<IReadOnlyList<string>> applyHistory,
         string query,
         Action<SummonerProfile?> applySummoner,
         Action<bool> applySummonerResolved,
@@ -595,6 +791,14 @@ public sealed class SearchPage : Component
                 applyNotice($"未找到召唤师：{query}");
                 return;
             }
+
+            // 保存到搜索历史
+            string historyName = !string.IsNullOrEmpty(found.TagLine)
+                ? $"{found.GameName}#{found.TagLine}"
+                : found.DisplayName;
+            await historyStore.AddAsync(historyName).ConfigureAwait(false);
+            var updated = await historyStore.GetHistoryAsync().ConfigureAwait(false);
+            applyHistory(updated);
 
             // 先清空列表再换人：否则新召唤师的头像旁边会短暂挂着上一个人的战绩
             applyMatches(EmptyMatches);
@@ -683,6 +887,7 @@ public sealed class SearchPage : Component
 
     /// <summary>加载单局详情；失败保持 <c>null</c>，面板会显示"读取中/未取到"。</summary>
     private static async Task LoadDetailAsync(
+        AppServices services,
         IMatchService matchService,
         long gameId,
         string? puuid,
@@ -698,12 +903,97 @@ public sealed class SearchPage : Component
             if (!cancellationToken.IsCancellationRequested)
             {
                 apply(loaded);
+                if (loaded is not null)
+                {
+                    _ = LoadParticipantRanksAndPrivacyAsync(services, loaded, apply, cancellationToken);
+                }
             }
         }
         catch (OperationCanceledException)
         {
             // 选中项已切换
         }
+    }
+
+    /// <summary>后台渐进加载对局 10 人名单的段位与战绩隐私状态。</summary>
+    private static async Task LoadParticipantRanksAndPrivacyAsync(
+        AppServices services,
+        MatchDetail detail,
+        Action<MatchDetail?> apply,
+        CancellationToken cancellationToken)
+    {
+        var careerService = services.Services.GetService<ICareerService>();
+        var lcu = services.Services.GetService<LcuConnection>();
+        if (careerService is null || lcu is null) return;
+
+        var allPlayers = detail.Blue.Players.Concat(detail.Red.Players).Where(p => !string.IsNullOrEmpty(p.Puuid)).ToList();
+        if (allPlayers.Count == 0) return;
+
+        using var semaphore = new SemaphoreSlim(3, 3);
+        var rankMap = new ConcurrentDictionary<string, (string? Tier, string? RankText)>(StringComparer.Ordinal);
+        var privacyMap = new ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
+
+        var tasks = allPlayers.Select(async p =>
+        {
+            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                // 1. 段位
+                var stats = await careerService.GetRankedStatsAsync(p.Puuid, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var solo = stats.SoloDuo;
+                if (solo is not null && !string.IsNullOrEmpty(solo.Tier) && solo.Tier != "NONE" && solo.Tier != "UNRANKED")
+                {
+                    rankMap[p.Puuid] = (solo.Tier, solo.TierText);
+                }
+
+                // 2. 隐私状态
+                var transport = lcu.Transport;
+                if (transport is not null)
+                {
+                    var resp = await transport.SendAsync(
+                        LcuRequest.Get($"/lol-summoner/v2/summoners/puuid/{p.Puuid}"),
+                        cancellationToken).ConfigureAwait(false);
+                    if (resp.IsSuccess && !string.IsNullOrWhiteSpace(resp.Body))
+                    {
+                        using var doc = JsonDocument.Parse(resp.Body);
+                        string? privacy = doc.RootElement.TryGetProperty("privacy", out JsonElement pEl) && pEl.ValueKind == JsonValueKind.String
+                            ? pEl.GetString()
+                            : null;
+                        if (string.Equals(privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase))
+                        {
+                            privacyMap[p.Puuid] = true;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        if (cancellationToken.IsCancellationRequested) return;
+
+        MatchDetailPlayer MapPlayer(MatchDetailPlayer player)
+        {
+            var rank = rankMap.GetValueOrDefault(player.Puuid);
+            bool isPrivate = privacyMap.GetValueOrDefault(player.Puuid, false);
+            return player with
+            {
+                Tier = rank.Tier ?? player.Tier,
+                RankText = rank.RankText ?? player.RankText,
+                IsPrivate = isPrivate,
+            };
+        }
+
+        var updatedBlue = detail.Blue with { Players = detail.Blue.Players.Select(MapPlayer).ToList() };
+        var updatedRed = detail.Red with { Players = detail.Red.Players.Select(MapPlayer).ToList() };
+        apply(detail with { Blue = updatedBlue, Red = updatedRed });
     }
 
     /// <summary>

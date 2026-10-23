@@ -155,4 +155,7 @@ public sealed record MatchDetailPlayer
 
     /// <summary>段位显示文本（如 <c>黄金 II</c>）。与 <see cref="Tier"/> 同生命周期。</summary>
     public string? RankText { get; init; }
+
+    /// <summary>战绩是否私密隐藏。后台渐进加载，未加载完成或未隐藏为 false。</summary>
+    public bool IsPrivate { get; init; }
 }

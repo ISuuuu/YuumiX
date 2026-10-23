@@ -1,4 +1,5 @@
 using YuumiX.Core.Features.Career.Models;
+using YuumiX.Core.Features.SavedPlayers.Models;
 
 namespace YuumiX.Core.Features.Career;
 
@@ -34,11 +35,59 @@ public interface ICareerService
         bool forceRefresh = false,
         CancellationToken cancellationToken = default);
 
+    /// <summary>开启指定战利品配方。</summary>
+    Task<LootOperationResult> OpenLootAsync(
+        string recipeName,
+        IReadOnlyList<string> ingredients,
+        int repeatCount = 1,
+        IProgress<LootOperationProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>智能一键开启全部箱子/法球。</summary>
+    Task<LootOperationResult> SmartOpenAllLootsAsync(
+        IProgress<LootOperationProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>批量分解选中的碎片。</summary>
+    Task<LootOperationResult> DisenchantLootsAsync(
+        IReadOnlyList<(string LootId, int Count)> items,
+        IProgress<LootOperationProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>三合一重铸选中的碎片（物品总数需为 3 的倍数）。</summary>
+    Task<LootOperationResult> RerollLootsAsync(
+        IReadOnlyList<string> lootIds,
+        IProgress<LootOperationProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>批量升级/解锁选中的碎片为永久物品。</summary>
+    Task<LootOperationResult> UpgradeLootsAsync(
+        IReadOnlyList<(string LootId, int Count)> items,
+        IProgress<LootOperationProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>锻造钥匙（3 碎片 -> 1 钥匙）。</summary>
+    Task<LootOperationResult> ForgeKeyAsync(
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// 获取当前登录账号的全英雄熟练度与里程碑概览。
     /// </summary>
     Task<MasteryOverview> GetMasteryOverviewAsync(
         bool forceRefresh = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取指定召唤师近期对局中的同队队友聚合统计。
+    /// </summary>
+    /// <param name="puuid">目标玩家 puuid。</param>
+    /// <param name="gameIds">候选对局 ID 列表。</param>
+    /// <param name="selfPuuid">当前登录账号 puuid（用于查询路人集标记）；若为 null 则使用目标 puuid。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    Task<RecentTeammatesResult> GetRecentTeammatesAsync(
+        string puuid,
+        IReadOnlyList<long> gameIds,
+        string? selfPuuid = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>清空全部缓存。切换账号或被踢下线后必须调用，否则会看到上一个账号的段位。</summary>

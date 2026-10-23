@@ -265,6 +265,41 @@ public sealed class SavedPlayersStore : IDisposable
     }
 
     /// <summary>
+    /// 查询已标记的玩家列表（puuid -> tag），用于最近队友和战局提醒优先级展示。
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string>> GetTaggedPlayersAsync(
+        string selfPuuid,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        if (string.IsNullOrWhiteSpace(selfPuuid))
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT puuid, tag
+            FROM saved_players
+            WHERE self_puuid = @selfPuuid AND tag IS NOT NULL AND tag != ''";
+        cmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var puuid = reader.GetString(0);
+            var tag = reader.GetString(1);
+            map[puuid] = tag;
+        }
+
+        return map;
+    }
+
+    /// <summary>
     /// 保存或修改玩家标记。
     /// </summary>
     public async Task SaveTagAsync(string puuid, string selfPuuid, string? tag, CancellationToken cancellationToken = default)

@@ -2,6 +2,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Lcu;
@@ -143,6 +144,15 @@ internal static class CareerMatchRow
                     .FontSize(11)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Right))
+            .Width(130)
+            .HAlign(HorizontalAlignment.Right)
+            .VAlign(VerticalAlignment.Center);
+
+        Element replayBtn = Component<ReplayButton, ReplayButtonProps>(
+            new ReplayButtonProps(summary.GameId, Compact: true))
+            .VAlign(VerticalAlignment.Center);
+
+        Element rightGroup = HStack(8, info, replayBtn)
             .Width(170)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
@@ -163,7 +173,7 @@ internal static class CareerMatchRow
 
         Element cardContent = HStack(0,
             leftGroup.Width(leftGroupWidth),
-            info);
+            rightGroup);
 
         return Border(cardContent)
             .Height(RowHeight)

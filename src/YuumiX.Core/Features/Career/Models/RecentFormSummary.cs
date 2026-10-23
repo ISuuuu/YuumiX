@@ -12,6 +12,21 @@ public sealed record RecentChampionStat
 
     public required int Wins { get; init; }
 
+    public int Losses => Games - Wins;
+
+    public int Kills { get; init; }
+
+    public int Deaths { get; init; }
+
+    public int Assists { get; init; }
+
+    public MatchPosition? PrimaryPosition { get; init; }
+
+    /// <summary>KDA 文本，零死亡为 Perfect，其余保留一位小数。</summary>
+    public string KdaText => Deaths == 0
+        ? "Perfect"
+        : ((Kills + Assists) / (double)Deaths).ToString("F1", CultureInfo.InvariantCulture);
+
     /// <summary>胜率文本（整数百分比，与队列胜率同一口径）。</summary>
     public string WinRateText => Games == 0
         ? "--"
@@ -115,7 +130,7 @@ public sealed record RecentFormSummary
         int deaths = 0;
         int assists = 0;
 
-        var champions = new Dictionary<int, (int Games, int Wins)>();
+        var champions = new Dictionary<int, (int Games, int Wins, int Kills, int Deaths, int Assists, Dictionary<MatchPosition, int> Positions)>();
         var positions = new Dictionary<MatchPosition, int>();
 
         foreach (MatchSummary match in played)
@@ -133,13 +148,24 @@ public sealed record RecentFormSummary
             deaths += match.Deaths;
             assists += match.Assists;
 
-            (int Games, int Wins) champion = champions.GetValueOrDefault(match.ChampionId);
-            champions[match.ChampionId] = (champion.Games + 1, champion.Wins + (match.Win ? 1 : 0));
+            if (!champions.TryGetValue(match.ChampionId, out var champData))
+            {
+                champData = (0, 0, 0, 0, 0, new Dictionary<MatchPosition, int>());
+            }
+
+            champData.Games++;
+            if (match.Win) champData.Wins++;
+            champData.Kills += match.Kills;
+            champData.Deaths += match.Deaths;
+            champData.Assists += match.Assists;
 
             if (match.Position is { } position)
             {
                 positions[position] = positions.GetValueOrDefault(position) + 1;
+                champData.Positions[position] = champData.Positions.GetValueOrDefault(position) + 1;
             }
+
+            champions[match.ChampionId] = champData;
         }
 
         // 场次降序；同场次按英雄 ID 升序，保证输出稳定（否则字典迭代顺序会让界面图标乱跳）
@@ -147,11 +173,22 @@ public sealed record RecentFormSummary
             .OrderByDescending(pair => pair.Value.Games)
             .ThenBy(pair => pair.Key)
             .Take(Math.Max(0, topChampionCount))
-            .Select(pair => new RecentChampionStat
+            .Select(pair =>
             {
-                ChampionId = pair.Key,
-                Games = pair.Value.Games,
-                Wins = pair.Value.Wins,
+                MatchPosition? primaryPos = pair.Value.Positions.Count > 0
+                    ? pair.Value.Positions.OrderByDescending(p => p.Value).First().Key
+                    : null;
+
+                return new RecentChampionStat
+                {
+                    ChampionId = pair.Key,
+                    Games = pair.Value.Games,
+                    Wins = pair.Value.Wins,
+                    Kills = pair.Value.Kills,
+                    Deaths = pair.Value.Deaths,
+                    Assists = pair.Value.Assists,
+                    PrimaryPosition = primaryPos,
+                };
             })
             .ToArray();
 

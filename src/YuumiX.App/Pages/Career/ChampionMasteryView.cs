@@ -35,21 +35,46 @@ internal static class ChampionMasteryView
         MasteryOverview overview,
         GameDataCatalog catalog,
         YuumiPalette palette,
-        Action onRefresh)
+        Action onRefresh,
+        string searchQuery = "",
+        Action<string>? onSearchChanged = null,
+        int chestFilterIndex = 0,
+        Action<int>? onChestFilterChanged = null,
+        int levelFilterIndex = 0,
+        Action<int>? onLevelFilterChanged = null,
+        int sortIndex = 0,
+        Action<int>? onSortChanged = null)
     {
-        IReadOnlyList<ChampionMasteryItem> champions = overview.Champions.Count > 0
+        IReadOnlyList<ChampionMasteryItem> rawChampions = overview.Champions.Count > 0
             ? overview.Champions
             : MasteryOverview.Sample.Champions;
 
+        IReadOnlyList<ChampionMasteryItem> champions = FilterAndSort(
+            rawChampions,
+            searchQuery,
+            chestFilterIndex,
+            levelFilterIndex,
+            sortIndex,
+            catalog);
+
         int totalCount = overview.TotalChampions > 0 ? overview.TotalChampions : 105;
         long totalPoints = overview.TotalPoints > 0 ? overview.TotalPoints : 677046;
-        ChampionMasteryItem? maxLevel = overview.MaxLevelHero ?? champions.FirstOrDefault();
+        ChampionMasteryItem? maxLevel = overview.MaxLevelHero ?? rawChampions.FirstOrDefault();
         int eligibleChests = overview.EligibleChestCount > 0 ? overview.EligibleChestCount : 105;
         int grantedChests = overview.GrantedChestCount;
 
         return VStack(14,
             RenderSummaryCards(totalCount, totalPoints, maxLevel, eligibleChests, grantedChests, catalog, palette),
-            RenderToolbar(onRefresh),
+            RenderToolbar(
+                onRefresh,
+                searchQuery,
+                onSearchChanged,
+                chestFilterIndex,
+                onChestFilterChanged,
+                levelFilterIndex,
+                onLevelFilterChanged,
+                sortIndex,
+                onSortChanged),
             RenderChampionGrid(champions, catalog, palette));
     }
 
@@ -121,17 +146,35 @@ internal static class ChampionMasteryView
     }
 
     /// <summary>搜索与筛选工具栏。</summary>
-    private static Element RenderToolbar(Action onRefresh)
+    private static Element RenderToolbar(
+        Action onRefresh,
+        string searchQuery,
+        Action<string>? onSearchChanged,
+        int chestFilterIndex,
+        Action<int>? onChestFilterChanged,
+        int levelFilterIndex,
+        Action<int>? onLevelFilterChanged,
+        int sortIndex,
+        Action<int>? onSortChanged)
     {
         Element leftToolbar = HStack(10,
-            TextBox().PlaceholderText("搜索英雄名称...").Width(170).Height(30).AutomationName("搜索英雄名称"),
-            ComboBox(ChestOptions, 0, _ => { }).Width(130).AutomationName("宝箱状态"),
-            ComboBox(LevelOptions, 0, _ => { }).Width(110).AutomationName("英雄等级"))
+            TextBox(searchQuery, text => onSearchChanged?.Invoke(text), "搜索英雄名称...")
+                .Width(170)
+                .Height(30)
+                .AutomationName("搜索英雄名称"),
+            ComboBox(ChestOptions, chestFilterIndex, idx => onChestFilterChanged?.Invoke(idx))
+                .Width(130)
+                .AutomationName("宝箱状态"),
+            ComboBox(LevelOptions, levelFilterIndex, idx => onLevelFilterChanged?.Invoke(idx))
+                .Width(110)
+                .AutomationName("英雄等级"))
             .VAlign(VerticalAlignment.Center);
 
         Element rightToolbar = HStack(8,
             TextBlock("排序:").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-            ComboBox(SortOptions, 0, _ => { }).Width(125).AutomationName("排序方式"),
+            ComboBox(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx))
+                .Width(125)
+                .AutomationName("排序方式"),
             Button("刷新", onRefresh).Height(30).Padding(14, 0).FontSize(11).AutomationName("刷新熟练度"))
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
@@ -145,6 +188,70 @@ internal static class ChampionMasteryView
                 leftToolbar.Width(leftToolbarWidth),
                 rightToolbar.Width(RightToolbarWidth)),
             padding: 10);
+    }
+
+    public static IReadOnlyList<ChampionMasteryItem> FilterAndSort(
+        IReadOnlyList<ChampionMasteryItem> items,
+        string searchQuery,
+        int chestFilterIndex,
+        int levelFilterIndex,
+        int sortIndex,
+        GameDataCatalog catalog)
+    {
+        IEnumerable<ChampionMasteryItem> result = items;
+
+        // 英雄名称搜索
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            string q = searchQuery.Trim();
+            result = result.Where(i =>
+            {
+                string name = catalog.Champions.TryGetValue(i.ChampionId, out string? realName) && !string.IsNullOrWhiteSpace(realName)
+                    ? realName
+                    : i.ChampionName;
+                return name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                       i.ChampionId.ToString(System.Globalization.CultureInfo.InvariantCulture).Contains(q);
+            });
+        }
+
+        // 宝箱状态: 0:全部, 1:可获取 (chestGranted == false), 2:已获取 (chestGranted == true)
+        if (chestFilterIndex == 1)
+        {
+            result = result.Where(i => !i.ChestGranted);
+        }
+        else if (chestFilterIndex == 2)
+        {
+            result = result.Where(i => i.ChestGranted);
+        }
+
+        // 等级区间: 0:全部, 1:>=10, 2:7-9, 3:4-6, 4:1-3
+        if (levelFilterIndex == 1)
+        {
+            result = result.Where(i => i.ChampionLevel >= 10);
+        }
+        else if (levelFilterIndex == 2)
+        {
+            result = result.Where(i => i.ChampionLevel >= 7 && i.ChampionLevel <= 9);
+        }
+        else if (levelFilterIndex == 3)
+        {
+            result = result.Where(i => i.ChampionLevel >= 4 && i.ChampionLevel <= 6);
+        }
+        else if (levelFilterIndex == 4)
+        {
+            result = result.Where(i => i.ChampionLevel >= 1 && i.ChampionLevel <= 3);
+        }
+
+        // 排序方式: 0:熟练度分数, 1:熟练度等级, 2:赛段里程碑, 3:最近对局时间
+        result = sortIndex switch
+        {
+            1 => result.OrderByDescending(i => i.ChampionLevel).ThenByDescending(i => i.ChampionPoints),
+            2 => result.OrderByDescending(i => i.ChampionSeasonMilestone).ThenByDescending(i => i.ChampionPoints),
+            3 => result.OrderByDescending(i => i.LastPlayTime).ThenByDescending(i => i.ChampionPoints),
+            _ => result.OrderByDescending(i => i.ChampionPoints),
+        };
+
+        return result.ToList();
     }
 
     /// <summary>全英雄熟练度网格。</summary>

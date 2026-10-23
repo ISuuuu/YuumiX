@@ -236,6 +236,128 @@ public sealed class CareerServiceTests
         Assert.NotNull(mastery.MaxLevelHero);
     }
 
+    [Fact]
+    public async Task GetRecentTeammatesAsync_AggregatesTeammates()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request =>
+        {
+            if (request.Path == "/lol-match-history/v1/games/100")
+            {
+                return FakeResponse.Ok("""
+                {
+                  "gameId": 100, "queueId": 420, "gameCreation": 1000,
+                  "participants": [
+                    { "participantId": 1, "teamId": 100, "stats": { "win": true } },
+                    { "participantId": 2, "teamId": 100, "stats": { "win": true } },
+                    { "participantId": 3, "teamId": 200, "stats": { "win": false } }
+                  ],
+                  "participantIdentities": [
+                    { "participantId": 1, "player": { "puuid": "my-puuid", "gameName": "Me" } },
+                    { "participantId": 2, "player": { "puuid": "mate-puuid", "gameName": "Mate", "profileIcon": 50 } },
+                    { "participantId": 3, "player": { "puuid": "enemy-puuid", "gameName": "Enemy", "profileIcon": 10 } }
+                  ]
+                }
+                """);
+            }
+            return FakeResponse.NotFound();
+        };
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        var result = await service.GetRecentTeammatesAsync("my-puuid", [100]);
+
+        Assert.Equal("my-puuid", result.Puuid);
+        var mate = Assert.Single(result.Summoners);
+        Assert.Equal("mate-puuid", mate.Puuid);
+        Assert.Equal("Mate", mate.Name);
+        Assert.Equal(50, mate.ProfileIconId);
+        Assert.Equal(1, mate.Total);
+        Assert.Equal(1, mate.Wins);
+    }
+
+    [Fact]
+    public async Task OpenLootAsync_SendsCraftRequestAndParsesRewards()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request =>
+        {
+            if (request.Path == "/lol-loot/v1/recipes/CHEST_hextech_OPEN/craft")
+            {
+                return FakeResponse.Ok("""
+                {
+                  "added": [
+                    { "playerLoot": { "itemDesc": "至臻 灵魂莲华 提莫" } }
+                  ]
+                }
+                """);
+            }
+            return FakeResponse.NotFound();
+        };
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        var result = await service.OpenLootAsync("CHEST_hextech_OPEN", ["CHEST_hextech", "MATERIAL_key"], 1);
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.SucceededCount);
+        Assert.Equal("至臻 灵魂莲华 提莫", Assert.Single(result.Rewards));
+    }
+
+    [Fact]
+    public async Task ForgeKeyAsync_SendsCraftRequest()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request =>
+        {
+            if (request.Path == "/lol-loot/v1/recipes/MATERIAL_key_fragment_FORGE/craft")
+            {
+                return FakeResponse.Ok("{}");
+            }
+            return FakeResponse.NotFound();
+        };
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        var result = await service.ForgeKeyAsync();
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.SucceededCount);
+    }
+
+    [Fact]
+    public async Task DisenchantLootsAsync_FindsRecipeAndCrafts()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request =>
+        {
+            if (request.Path == "/lol-loot/v1/recipes/initial-item/CHAMPION_RENTAL_1")
+            {
+                return FakeResponse.Ok("""
+                [
+                  { "recipeName": "CHAMPION_RENTAL_disenchant" }
+                ]
+                """);
+            }
+            if (request.Path.StartsWith("/lol-loot/v1/recipes/CHAMPION_RENTAL_disenchant/craft", StringComparison.Ordinal))
+            {
+                return FakeResponse.Ok("{}");
+            }
+            return FakeResponse.NotFound();
+        };
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        var result = await service.DisenchantLootsAsync([("CHAMPION_RENTAL_1", 2)]);
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.SucceededCount);
+    }
+
     private static LcuHttpTransport NewTransport(FakeLcuServer server) => new(
         server.BaseAddress,
         server.AuthorizationHeader,
