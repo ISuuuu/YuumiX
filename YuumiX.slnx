@@ -2,27 +2,25 @@
   <Configurations>
     <BuildType Name="Debug" />
     <BuildType Name="Release" />
+    <!-- 仅 x64：英雄联盟客户端只有 x64 Windows 版本，本应用无需 ARM64 构建。
+         注意：不要再加第二个平台——slnx 缺省按字母序选平台（ARM64 会排在 x64 前），
+         届时不带 -p:Platform 的构建会静默产出 win-arm64，在 x64 机器上测试主机直接无法启动。 -->
     <Platform Name="x64" />
-    <Platform Name="ARM64" />
   </Configurations>
   <Folder Name="/src/">
     <Project Path="src/YuumiX.App/YuumiX.App.csproj">
       <Platform Solution="*|x64" Project="x64" />
-      <Platform Solution="*|ARM64" Project="ARM64" />
     </Project>
     <Project Path="src/YuumiX.Core/YuumiX.Core.csproj">
       <Platform Solution="*|x64" Project="x64" />
-      <Platform Solution="*|ARM64" Project="ARM64" />
     </Project>
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/YuumiX.Core.Tests/YuumiX.Core.Tests.csproj">
       <Platform Solution="*|x64" Project="x64" />
-      <Platform Solution="*|ARM64" Project="ARM64" />
     </Project>
     <Project Path="tests/YuumiX.Testing.Lcu/YuumiX.Testing.Lcu.csproj">
       <Platform Solution="*|x64" Project="x64" />
-      <Platform Solution="*|ARM64" Project="ARM64" />
     </Project>
   </Folder>
 </Solution>

@@ -1,10 +1,10 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml.Controls;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
-using YuumiX.App.Diagnostics;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
 using YuumiX.App.Pages.Career;
@@ -15,6 +15,8 @@ using YuumiX.App.Pages.Search;
 using YuumiX.App.Pages.Settings;
 using YuumiX.App.Pages.Tools;
 using YuumiX.App.Theming;
+using YuumiX.Core.Automation;
+using YuumiX.Core.Lcu;
 
 namespace YuumiX.App.Shell;
 
@@ -34,7 +36,28 @@ public sealed class AppShell : Component
     {
         var services = AppHost.Services;
         var nav = UseNavigation(AppRoute.Home);
-        var current = RouteCatalog.For(nav.CurrentRoute);
+
+        // 标题栏游戏状态：LCU 连接态 + 游戏阶段是本页的重渲染来源。
+        // threadSafe: true —— 推送来自 LCU 后台线程（ADR-07），由 UseState 封送回 UI 线程。
+        var lcu = services.Services.GetRequiredService<LcuConnection>();
+        var automationHost = services.Services.GetRequiredService<AutomationHost>();
+        var (gamePhase, setGamePhase) = UseState(GamePhase.None, threadSafe: true);
+        var (isClientConnected, setIsClientConnected) = UseState(
+            lcu.CurrentState.Status == LcuConnectionStatus.Connected,
+            threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var phaseSubscription = automationHost.Phases.Subscribe(setGamePhase);
+                var stateSubscription = lcu.States.Subscribe(state =>
+                    setIsClientConnected(state.Status == LcuConnectionStatus.Connected));
+                return () =>
+                {
+                    phaseSubscription.Dispose();
+                    stateSubscription.Dispose();
+                };
+            },
+            0);
 
         // 主题状态是本页的重渲染来源之一：设置页改了主题色/模式/Mica 后，
         // ThemeState 通过 EventStream 推过来，这里 setPalette 触发整体重渲染。
@@ -135,9 +158,9 @@ public sealed class AppShell : Component
             // 标题栏图标与原 CustomTitleBar.vue 的 titlebar-logo 对齐：同一个 Logo 文件。
             // 用 ImageIcon 而非 BitmapIcon —— 后者默认单色化，会把彩色 Logo 染成主题色。
             Icon = ImageIcon(new Uri(AppAssets.LogoUri)),
-            Subtitle = $"{current.Label} · 配置 v{services.Config.Version}",
+            // 对应原 CustomTitleBar.vue 的 titlebar-phase：已连接且非空闲时展示阶段中文名。
+            Subtitle = GetTitleBarPhaseSubtitle(isClientConnected, gamePhase),
             IsBackButtonVisible = false,
-            RightHeader = Button("架构验证", OpenCapabilityLab),
         };
 
         return Grid(
@@ -152,6 +175,34 @@ public sealed class AppShell : Component
         .RequestedTheme(palette.ElementTheme)
         .Provide(AppHost.Context, services)
         .Provide(AppHost.ThemeContext, AppHost.Theme);
+    }
+
+    /// <summary>
+    /// 计算标题栏副标题（游戏状态）。已连接且非空闲（None）阶段时返回阶段中文名，
+    /// 否则返回空串隐藏（对齐原 CustomTitleBar.vue 的 <c>isConnected &amp;&amp; gamePhase !== 'None'</c> 规则）。
+    /// </summary>
+    private static string GetTitleBarPhaseSubtitle(bool isClientConnected, GamePhase gamePhase)
+    {
+        if (!isClientConnected || gamePhase is GamePhase.None or GamePhase.Unknown)
+        {
+            return string.Empty;
+        }
+
+        return gamePhase switch
+        {
+            GamePhase.Lobby => "房间组队中",
+            GamePhase.Matchmaking => "匹配中",
+            GamePhase.ReadyCheck => "确认对局",
+            GamePhase.ChampSelect => "选择英雄",
+            GamePhase.GameStart => "游戏加载",
+            GamePhase.InProgress => "游戏中",
+            GamePhase.Reconnect => "重新连接",
+            GamePhase.WaitingForStats => "等待数据",
+            GamePhase.PreEndOfGame => "结算中",
+            GamePhase.EndOfGame => "对局结束",
+            GamePhase.WatchInProgress => "观战中",
+            _ => gamePhase.ToString(),
+        };
     }
 
     /// <summary>
@@ -179,22 +230,5 @@ public sealed class AppShell : Component
 
         return Component<PlaceholderPage, PlaceholderProps>(
             new PlaceholderProps(title, sourceView, pending, brandLogoUri));
-    }
-
-    /// <summary>打开架构能力验证窗口（独立窗口，顺带验证多窗口能力）。</summary>
-    private static void OpenCapabilityLab()
-    {
-        ReactorApp.OpenWindow(
-            new WindowSpec
-            {
-                Title = "YuumiX 架构能力验证",
-                Width = 760,
-                Height = 700,
-                Backdrop = BackdropChoice.Of(BackdropKind.Mica),
-                StartPosition = WindowStartPosition.CenterOnCurrent,
-                // 独立窗口不会继承主窗口图标，需各自指定，否则任务栏会出现默认图标。
-                Icon = WindowIcon.FromPath(AppAssets.AppIconPath),
-            },
-            () => new CapabilityLab());
     }
 }

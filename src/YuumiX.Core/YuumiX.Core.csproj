@@ -10,8 +10,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>YuumiX.Core</RootNamespace>
 
-    <!-- 解决方案平台只有 x64/ARM64（Reactor 强制），库项目需显式声明才能被映射 -->
-    <Platforms>x64;ARM64</Platforms>
+    <!-- 解决方案平台只有 x64，库项目需显式声明才能被方案平台映射 -->
+    <Platforms>x64</Platforms>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

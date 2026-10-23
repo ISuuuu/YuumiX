@@ -1,4 +1,5 @@
 using Xunit;
+using System.Text.Json;
 using YuumiX.Core.Automation;
 using YuumiX.Core.Automation.Models;
 using YuumiX.Core.Lcu;
@@ -372,5 +373,178 @@ public sealed class AutomationTests
         Assert.NotNull(patchReq);
         Assert.Contains("238", patchReq.JsonBody); // 选了 238
         Assert.DoesNotContain("157", patchReq.JsonBody);
+    }
+
+    [Fact]
+    public async Task AutoCreateLobbyAgent_CreatesLobby_On_None_Phase()
+    {
+        var transport = new MockTransport();
+        transport.Handler = req =>
+        {
+            if (req.Path == "/lol-lobby/v2/lobby" && req.Method == HttpMethod.Get)
+            {
+                // 首次查询无大厅（404），创建后的校验查询返回有效大厅
+                return transport.RecordedRequests.Any(r => r.Method == HttpMethod.Post)
+                    ? new LcuResponse(200, """{"gameId":123}""")
+                    : new LcuResponse(404, "");
+            }
+            return new LcuResponse(200, "{}");
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+        config.Functions.DefaultGameMode = 450;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        agent.OnPhaseChanged(GamePhase.None);
+        await Task.Delay(300);
+
+        var createReq = transport.RecordedRequests
+            .FirstOrDefault(r => r.Path == "/lol-lobby/v2/lobby" && r.Method == HttpMethod.Post);
+        Assert.NotNull(createReq);
+        Assert.Contains("450", createReq.JsonBody);
+    }
+
+    [Fact]
+    public async Task AutoCreateLobbyAgent_Skips_When_Lobby_Already_Exists()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => new LcuResponse(200, """{"gameId":123}""")
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        agent.OnPhaseChanged(GamePhase.None);
+        await Task.Delay(300);
+
+        Assert.DoesNotContain(transport.RecordedRequests,
+            r => r.Path == "/lol-lobby/v2/lobby" && r.Method == HttpMethod.Post);
+    }
+
+    [Fact]
+    public async Task AutoCreateLobbyAgent_GivesUp_When_Phase_Leaves_Idle()
+    {
+        var transport = new MockTransport();
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+        lifecycle.UpdatePhase("Lobby"); // 生命周期已离开空闲阶段
+
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        agent.OnPhaseChanged(GamePhase.None);
+        await Task.Delay(200);
+
+        Assert.Empty(transport.RecordedRequests);
+    }
+
+    [Fact]
+    public async Task AramTeamSideAgent_Posts_Visible_Chat_Message()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req =>
+            {
+                if (req.Path == "/lol-champ-select/v1/session")
+                {
+                    return new LcuResponse(200, """
+                    {
+                      "localPlayerCellId": 0,
+                      "chatDetails": { "chatRoomName": "cs-room-hint" }
+                    }
+                    """);
+                }
+                if (req.Path == "/lol-champ-select/v1/pin-drop-notification")
+                {
+                    return new LcuResponse(200, """{"mapSide":"red"}""");
+                }
+                return new LcuResponse(200,
+                    """[{"id":"cs-room-hint-conversation-1","type":"champ-select"}]""");
+            }
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoAramTeamSide = true;
+        config.Functions.AramTeamSideVisibleToTeam = true;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+        lifecycle.UpdatePhase("ChampSelect");
+
+        await using var agent = new AramTeamSideAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        lifecycle.UpdatePhase("ChampSelect");
+        agent.OnPhaseChanged(GamePhase.ChampSelect);
+
+        // 等待报边流程完成（包含 2 秒聊天室缓冲）
+        await Task.Delay(3000);
+
+        var sendReq = transport.RecordedRequests
+            .FirstOrDefault(r => r.Path.StartsWith("/lol-chat/v1/conversations/") && r.Path.EndsWith("/messages"));
+        Assert.NotNull(sendReq);
+        using var sentDoc = JsonDocument.Parse(sendReq.JsonBody!);
+        Assert.Contains("红色方", sentDoc.RootElement.GetProperty("body").GetString());
+        Assert.Equal("chat", sentDoc.RootElement.GetProperty("type").GetString()); // 队友可见
+    }
+
+    [Fact]
+    public async Task AramTeamSideAgent_FallsBack_To_CellId_And_Sends_Celebration()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req =>
+            {
+                if (req.Path == "/lol-champ-select/v1/session")
+                {
+                    return new LcuResponse(200, """{"localPlayerCellId": 0, "chatDetails": {}}""");
+                }
+                if (req.Path == "/lol-champ-select/v1/pin-drop-notification")
+                {
+                    return new LcuResponse(404, ""); // 无 pin 通知，回退按格子位判定
+                }
+                return new LcuResponse(200, """[{"id":"unifiedchatselect-arena-1","type":"champ-select"}]""");
+            }
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoAramTeamSide = true;
+        config.Functions.AramTeamSideVisibleToTeam = false;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+        lifecycle.UpdatePhase("ChampSelect");
+
+        await using var agent = new AramTeamSideAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        lifecycle.UpdatePhase("ChampSelect");
+        agent.OnPhaseChanged(GamePhase.ChampSelect);
+
+        await Task.Delay(3000);
+
+        var sendReq = transport.RecordedRequests
+            .FirstOrDefault(r => r.Path.StartsWith("/lol-chat/v1/conversations/") && r.Path.EndsWith("/messages"));
+        Assert.NotNull(sendReq);
+        using var sentDoc = JsonDocument.Parse(sendReq.JsonBody!);
+        Assert.Contains("蓝色方", sentDoc.RootElement.GetProperty("body").GetString()); // cellId=0 < 5 → 蓝色方
+        Assert.Equal("celebration", sentDoc.RootElement.GetProperty("type").GetString()); // 队友不可见
     }
 }

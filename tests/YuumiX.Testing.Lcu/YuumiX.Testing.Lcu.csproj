@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>YuumiX.Testing.Lcu</RootNamespace>
-    <Platforms>x64;ARM64</Platforms>
+    <Platforms>x64</Platforms>
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
   </PropertyGroup>

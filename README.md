@@ -39,7 +39,7 @@
 - **同局路人集与标记**：自动记录并统计同局玩家偶遇频次，支持自定义标签、快捷置顶与对局聊天室自动提醒。
 - **独立多窗口与轻量悬浮**：主导航窗口与大乱斗独立悬浮窗、OP.GG 窗口解耦，各自承载独立状态树，互不干扰。
 - **无缝配置兼容**：安装版（`%APPDATA%/Yuumi`）与便携版（`data/config.json`）自适应识别，采用安全原子写入与损坏自动备份降级。
-- **原生双架构支持**：提供面向 `x64` 和 `ARM64` 的高性能自包含编译（Self-Contained），无须预装额外运行时，即开即用。
+- **x64 原生自包含编译**：面向 `x64` 的高性能自包含编译（Self-Contained），无须预装额外运行时，即开即用。英雄联盟客户端目前只有 x64 Windows 版本，因此本项目不提供 ARM64 构建。
 
 ## YuumiX.Core
 
@@ -61,7 +61,7 @@ YuumiX 采用分层解耦架构，所有业务逻辑与领域模型均沉淀于 
 | 运行时 | .NET 10（`net10.0-windows10.0.22621.0`） | 统一由 `global.json` 锁定 SDK 版本 |
 | 领域层 | `YuumiX.Core`（`net10.0`） | 纯 C# 类库，零 UI 依赖，跨平台核心 |
 | 打包部署 | 非打包（`WindowsPackageType=None`） | Windows App SDK 自包含便携分发 |
-| 目标平台 | x64 / ARM64 | 原生支持主流 PC 与 Windows on Arm 设备 |
+| 目标平台 | x64 | 英雄联盟客户端仅有 x64 Windows 版本，无需 ARM64 构建 |
 
 ## 环境要求
 
@@ -75,7 +75,8 @@ YuumiX 采用分层解耦架构，所有业务逻辑与领域模型均沉淀于 
 
 正式 Windows 客户端使用 .NET 10、Windows App SDK 和 Microsoft.UI.Reactor 构建。
 
-> ⚠️ **构建时必须显式指定平台**。由于启用了 `WindowsAppSDKSelfContained`，省略 `-p:Platform` 会报平台不匹配错误。
+> ⚠️ **构建时必须显式指定平台**。直接构建单个 `csproj`（而非 `YuumiX.slnx`）且启用了 `WindowsAppSDKSelfContained` 时，省略 `-p:Platform` 会报平台不匹配错误。
+> 通过 `YuumiX.slnx` 构建可不带 `-p:Platform`（解决方案现在只声明 x64 一个平台），仍建议统一带上以免踩历史坑。
 
 ```powershell
 # 还原依赖
@@ -89,9 +90,6 @@ dotnet run --project src/YuumiX.App -p:Platform=x64
 
 # 执行单元测试套件（Core 层）
 dotnet test YuumiX.slnx -p:Platform=x64
-
-# 构建 ARM64 版本
-dotnet build YuumiX.slnx -p:Platform=ARM64
 ```
 
 首次构建成功后，可执行文件输出于：

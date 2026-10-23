@@ -34,18 +34,29 @@ public sealed class ConfigRoundTripTests
         var after = JsonNode.Parse(File.ReadAllText(path))!;
         var diffs = JsonDiff.Compare(before, after);
 
+        // YuumiX 自加的 UI 扩展字段（原 fixture 无此键）属于预期新增，放行；
+        // 其余任何差异仍然视为丢字段/篡改。
+        var unexpected = diffs
+            .Where(diff => !AllowedAddedKeyPaths.Any(
+                keyPath => diff.StartsWith(keyPath + ":", StringComparison.Ordinal)))
+            .ToArray();
+
         Assert.True(
-            diffs.Count == 0,
-            "配置写回后字段发生变化：" + Environment.NewLine + JsonDiff.Format(diffs));
+            unexpected.Length == 0,
+            "配置写回后字段发生变化：" + Environment.NewLine + JsonDiff.Format(unexpected));
     }
+
+    /// <summary>YuumiX 在模型中新增、且原版 config.json 不存在的键（写回后属预期新增）。</summary>
+    private static readonly string[] AllowedAddedKeyPaths = ["$.Personalization.NavigationPaneOpen"];
 
     /// <summary>
     /// 模型必须覆盖原文件的全部字段。用反射锁定各节属性数量：
-    /// 少一个说明漏建模（往返测试会丢字段），多一个说明凭空造了 Rust 侧没有的字段。
+    /// 少一个说明漏建模（往返测试会丢字段），多一个说明凭空造了 Rust 侧没有的字段；
+    /// 唯一例外是 YuumiX 自加的 UI 扩展字段（见 <see cref="AllowedAddedKeyPaths"/>）。
     /// </summary>
     [Theory]
     [InlineData(typeof(GeneralConfig), 13)]
-    [InlineData(typeof(PersonalizationConfig), 10)]
+    [InlineData(typeof(PersonalizationConfig), 11)]
     [InlineData(typeof(FunctionsConfig), 58)]
     [InlineData(typeof(OtherConfig), 2)]
     public void Model_CoversAllFieldsOfOriginalSchema(Type sectionType, int expectedCount)

@@ -165,6 +165,11 @@ public sealed class PersonalizationConfig
     /// <summary>主题色，ARGB 字符串（见 ADR-03），可直接透传给 Reactor 的 <c>Background(string)</c>。</summary>
     public string ThemeColor { get; set; } = "#009faa";
 
+    /// <summary>
+    /// 侧边导航展开状态。YuumiX 自加字段，原版 Rust 侧没有（跨启动记住导航栏开合）。
+    /// </summary>
+    public bool NavigationPaneOpen { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtraFields { get; set; }
 }

@@ -15,6 +15,8 @@ public enum TaskKindType
     AutoHonor,
     AutoSpell,
     AramBenchSwap,
+    AutoCreateLobby,
+    AramTeamSide,
     Other,
 }
 
@@ -46,6 +48,8 @@ public readonly record struct TaskKind(TaskKindType Type, string? CustomName = n
     public static readonly TaskKind AutoHonor = new(TaskKindType.AutoHonor);
     public static readonly TaskKind AutoSpell = new(TaskKindType.AutoSpell);
     public static readonly TaskKind AramBenchSwap = new(TaskKindType.AramBenchSwap);
+    public static readonly TaskKind AutoCreateLobby = new(TaskKindType.AutoCreateLobby);
+    public static readonly TaskKind AramTeamSide = new(TaskKindType.AramTeamSide);
 
     public static TaskKind Other(string name) => new(TaskKindType.Other, name);
 
@@ -62,7 +66,9 @@ public readonly record struct TaskKind(TaskKindType Type, string? CustomName = n
         TaskKindType.AutoBanLock
             or TaskKindType.AutoAccept
             or TaskKindType.AutoPlayAgain
-            or TaskKindType.AutoReconnect => DuplicateStrategy.RejectNew,
+            or TaskKindType.AutoReconnect
+            or TaskKindType.AutoCreateLobby
+            or TaskKindType.AramTeamSide => DuplicateStrategy.RejectNew,
 
         TaskKindType.AutoHonor
             or TaskKindType.AramBenchSwap
