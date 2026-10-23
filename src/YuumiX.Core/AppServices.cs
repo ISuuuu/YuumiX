@@ -108,6 +108,15 @@ public sealed class AppServices : IDisposable
             provider.GetRequiredService<ILoggerFactory>(),
             cacheStamp: provider.GetRequiredService<AssetCacheStamp>()));
 
+        // ── 游戏资源映射表（阶段 4b）────────────────────────────
+        // 用提供器而非实例：重连会换传输层，映射表却应当跨重连复用
+        collection.AddSingleton(provider => new GameDataLoader(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            provider.GetRequiredService<ILogger<GameDataLoader>>()));
+        collection.AddSingleton(provider => new GameDataService(
+            provider.GetRequiredService<GameDataLoader>(),
+            provider.GetRequiredService<ILogger<GameDataService>>()));
+
         collection.AddSingleton(provider => new LcuAssetSource(
             () => provider.GetRequiredService<LcuConnection>().Credentials,
             logger: provider.GetRequiredService<ILogger<LcuAssetSource>>()));
