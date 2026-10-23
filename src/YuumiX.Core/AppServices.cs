@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Assets;
 using YuumiX.Core.Diagnostics;
+using YuumiX.Core.Features.Match;
+using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Runtime;
@@ -130,6 +132,16 @@ public sealed class AppServices : IDisposable
             ],
             AssetService.DefaultConcurrency,
             provider.GetRequiredService<ILogger<AssetService>>()));
+
+        // ── 战绩查询与召唤师（阶段 6）──────────────────────────────
+        // 同样用提供器而非实例：重连会换传输层，而服务本身应当跨重连复用——
+        // 已结束的对局详情不会因为重连而失效，清掉缓存反而要重新拉一遍。
+        collection.AddSingleton<IMatchService>(provider => new MatchService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            provider.GetRequiredService<ILogger<MatchService>>()));
+        collection.AddSingleton<ISummonerService>(provider => new SummonerService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            logger: provider.GetRequiredService<ILogger<SummonerService>>()));
 
         var services = collection.BuildServiceProvider();
 
