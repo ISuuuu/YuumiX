@@ -6,6 +6,7 @@ using YuumiX.App.Composition;
 using YuumiX.App.Diagnostics;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
+using YuumiX.App.Pages.Settings;
 using YuumiX.App.Theming;
 
 namespace YuumiX.App.Shell;
@@ -75,7 +76,17 @@ public sealed class AppShell : Component
         .Provide(AppHost.Context, services);
     }
 
-    private static Element BuildPage(AppRoute route)
+    /// <summary>
+    /// 路由 → 页面组件。已迁移的模块在这里替换占位组件；其余仍走 <see cref="PlaceholderPage"/>，
+    /// 待迁移清单以 <see cref="PageCatalog"/> 为准。
+    /// </summary>
+    private static Element BuildPage(AppRoute route) => route switch
+    {
+        AppRoute.Settings => Component<SettingsPage>(),
+        _ => BuildPlaceholder(route),
+    };
+
+    private static Element BuildPlaceholder(AppRoute route)
     {
         var (title, sourceView, pending) = PageCatalog.For(route);
         return Component<PlaceholderPage, PlaceholderProps>(
