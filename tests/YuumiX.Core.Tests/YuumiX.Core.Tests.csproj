@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/YuumiX.Core/YuumiX.Core.csproj" />
+    <ProjectReference Include="../YuumiX.Testing.Lcu/YuumiX.Testing.Lcu.csproj" />
   </ItemGroup>
 
   <ItemGroup>
