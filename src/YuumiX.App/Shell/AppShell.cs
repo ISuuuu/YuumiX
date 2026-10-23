@@ -30,7 +30,7 @@ public sealed class AppShell : Component
     public override Element Render()
     {
         var services = AppHost.Services;
-        var nav = UseNavigation(AppRoute.Tools);
+        var nav = UseNavigation(AppRoute.Home);
         var current = RouteCatalog.For(nav.CurrentRoute);
 
         // 主题状态是本页的重渲染来源之一：设置页改了主题色/模式/Mica 后，
