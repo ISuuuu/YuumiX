@@ -68,7 +68,6 @@ public static class PageCatalog
         [
             "云端服务",
             "更新与关于",
-            "主题色与卡片配色（颜色选择器）",
         ]),
     };
 

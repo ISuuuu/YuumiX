@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
+using YuumiX.Core.Common;
 using YuumiX.Core.Persistence;
 
 namespace YuumiX.App.Pages.Settings;
@@ -39,10 +40,27 @@ public sealed class SettingsPage : Component
     private const int ApiConcurrencyMax = 32;
 
     /// <summary>
+    /// 取色器的合并写盘延迟。ColorPicker 的 ColorChanged 在拖动时每帧触发，
+    /// 逐次同步写盘既打断拖动又没有信息增量；停手 400 ms 后写一次就够了。
+    /// </summary>
+    private const int ColorCommitDelayMs = 400;
+
+    /// <summary>
     /// 渲染序号。用于在「改了 POCO 但 Reactor 不知道」时强制重渲染。
     /// 用实例字段而非读取 <c>UseState</c> 的当前值再加一：事件回调里捕获的旧值可能是过期的。
     /// </summary>
     private int _renderTick;
+
+    /// <summary>颜色合并写盘的序号，见 <see cref="ColorCommitDelayMs"/>。</summary>
+    private int _colorTick;
+
+    /// <summary>待写回的颜色字段名（连续取色只写最后一次）。</summary>
+    private string? _pendingColorField;
+
+    /// <summary>代理地址草稿：只在点「应用」时读它，不参与渲染，避免受控文本框的光标跳动。</summary>
+    private string? _proxyDraft;
+
+    private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
 
     private ILogger<SettingsPage>? _logger;
 
@@ -62,6 +80,9 @@ public sealed class SettingsPage : Component
         // 本页自身也订阅主题状态：强调色变化时要跟着重渲染，否则状态条这类
         // 消费 palette.Accent 的元素会停在旧颜色上（主题模式由 AppShell 统一施加，不在此列）。
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
+
+        // 颜色合并写盘用的序号；每次取色变化 +1，被防抖 effect 消费。
+        var (colorTick, setColorTick) = UseState(0, threadSafe: true);
         UseEffect(
             () =>
             {
@@ -73,6 +94,64 @@ public sealed class SettingsPage : Component
         var logger = _logger ??= services.LoggerFactory.CreateLogger<SettingsPage>();
 
         void Rerender() => setTick(++_renderTick);
+
+        // 取色变化：内存与界面即时生效，写盘延后合并（见 ColorCommitDelayMs）。
+        void RequestColorCommit(string field)
+        {
+            _pendingColorField = field;
+            setColorTick(++_colorTick);
+        }
+
+        // 防抖：colorTick 每变一次就重置定时器，只有最后一次会真正落盘。
+        // 定时器回调在线程池，写盘与改状态一律 TryEnqueue 回 UI 线程（ADR-12 决策一）。
+        UseEffect(
+            () =>
+            {
+                if (colorTick == 0)
+                {
+                    return static () => { };
+                }
+
+                _dispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+                var timer = new Timer(
+                    _ => _dispatcher?.TryEnqueue(() =>
+                    {
+                        var field = _pendingColorField;
+                        if (field is null)
+                        {
+                            return;
+                        }
+
+                        _pendingColorField = null;
+                        Commit(field);
+                    }),
+                    null,
+                    ColorCommitDelayMs,
+                    Timeout.Infinite);
+                return () => timer.Dispose();
+            },
+            colorTick);
+
+        // 卸载兜底：防抖窗口内切走页面时，直接把待写颜色落盘（不碰 UI 状态，避免卸载后 setState）。
+        UseEffect(
+            () => () =>
+            {
+                if (_pendingColorField is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    services.ConfigStore.SaveWithBackup(config);
+                    _pendingColorField = null;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "离开设置页时补写颜色失败");
+                }
+            },
+            0);
 
         // 单次写回：先落盘（必要时备份），成功与失败都只改状态，不抛给渲染流程。
         void Commit(string field)
@@ -160,6 +239,175 @@ public sealed class SettingsPage : Component
                         Commit(field);
                     }).Width(140).AutomationName(label)));
 
+        // 颜色改动统一出口：先落到内存配置与主题状态（界面即时生效），再由防抖 effect 落盘。
+        void ApplyColor(string field, string value, Action<string> assign)
+        {
+            assign(value);
+            theme.Apply(config.Personalization);
+            RequestColorCommit(field);
+        }
+
+        // 单个颜色编辑块：色块预览 + 当前值 + 原生取色器。
+        // 取色器的值来自配置，自己不留状态；拖动时配置同步变化，因此不会出现「回头跳色」。
+        Element ColorEditor(
+            string label,
+            string description,
+            string current,
+            bool withAlpha,
+            Func<Windows.UI.Color, string> toStorage,
+            Action<string> assign,
+            string field,
+            string resetValue)
+        {
+            var normalized = ColorHex.NormalizeArgb(current, resetValue);
+            ColorHex.TryParseArgb(current, out var a, out var r, out var g, out var b);
+
+            var picker = ColorPicker(
+                Windows.UI.Color.FromArgb(a, r, g, b),
+                color =>
+                {
+                    var next = toStorage(color);
+                    if (ColorHex.NormalizeArgb(next, resetValue) == normalized)
+                    {
+                        return;
+                    }
+
+                    ApplyColor(field, next, assign);
+                });
+
+            // 类型特定修饰符要在 Width/AutomationName 这类泛型修饰符之前（见 architecture.md 已知坑）
+            if (withAlpha)
+            {
+                picker = picker.AlphaEnabled(true);
+            }
+
+            return VStack(8,
+                HStack(12,
+                    ColorSwatch(normalized),
+                    VStack(2,
+                        TextBlock(label),
+                        Caption(description)),
+                    TextBlock(normalized).Foreground(Theme.SecondaryText)),
+                picker.Width(320).AutomationName(label));
+        }
+
+        Element ThemeColorEditor() =>
+            Expander("主题色", VStack(14,
+                ColorEditor(
+                    "主题色",
+                    "界面强调色（不透明）；改完立即生效",
+                    config.Personalization.ThemeColor,
+                    withAlpha: false,
+                    c => ColorHex.ToRgb(c.R, c.G, c.B),
+                    v => config.Personalization.ThemeColor = v,
+                    nameof(PersonalizationConfig.ThemeColor),
+                    YuumiTheme.Accent),
+                Button("恢复默认", () => ApplyColor(
+                    nameof(PersonalizationConfig.ThemeColor),
+                    YuumiTheme.Accent,
+                    v => config.Personalization.ThemeColor = v))));
+
+        Element CardColorEditor() =>
+            Expander("战绩卡片配色", VStack(16,
+                ColorEditor(
+                    "胜利卡片",
+                    "战绩列表里胜利一方的底色（含透明度）",
+                    config.Personalization.WinCardColor,
+                    withAlpha: true,
+                    c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                    v => config.Personalization.WinCardColor = v,
+                    nameof(PersonalizationConfig.WinCardColor),
+                    YuumiTheme.WinCard),
+                ColorEditor(
+                    "失败卡片",
+                    "失败一方的底色（含透明度）",
+                    config.Personalization.LoseCardColor,
+                    withAlpha: true,
+                    c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                    v => config.Personalization.LoseCardColor = v,
+                    nameof(PersonalizationConfig.LoseCardColor),
+                    YuumiTheme.LoseCard),
+                ColorEditor(
+                    "重赛卡片",
+                    "重赛一方的底色（含透明度）",
+                    config.Personalization.RemakeCardColor,
+                    withAlpha: true,
+                    c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                    v => config.Personalization.RemakeCardColor = v,
+                    nameof(PersonalizationConfig.RemakeCardColor),
+                    YuumiTheme.RemakeCard),
+                Button("恢复默认", () =>
+                {
+                    config.Personalization.WinCardColor = YuumiTheme.WinCard;
+                    config.Personalization.LoseCardColor = YuumiTheme.LoseCard;
+                    config.Personalization.RemakeCardColor = YuumiTheme.RemakeCard;
+                    theme.Apply(config.Personalization);
+                    RequestColorCommit(nameof(PersonalizationConfig.WinCardColor));
+                })));
+
+        Element DeathColorEditor() =>
+            Expander("死亡数字配色", VStack(16,
+                ColorEditor(
+                    "浅色主题",
+                    "浅色主题下每局死亡数的颜色",
+                    config.Personalization.LightDeathsNumberColor,
+                    withAlpha: false,
+                    c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
+                    v => config.Personalization.LightDeathsNumberColor = v,
+                    nameof(PersonalizationConfig.LightDeathsNumberColor),
+                    YuumiTheme.LightDeath),
+                ColorEditor(
+                    "深色主题",
+                    "深色主题下每局死亡数的颜色",
+                    config.Personalization.DarkDeathsNumberColor,
+                    withAlpha: false,
+                    c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
+                    v => config.Personalization.DarkDeathsNumberColor = v,
+                    nameof(PersonalizationConfig.DarkDeathsNumberColor),
+                    YuumiTheme.DarkDeath),
+                Button("恢复默认", () =>
+                {
+                    config.Personalization.LightDeathsNumberColor = YuumiTheme.LightDeath;
+                    config.Personalization.DarkDeathsNumberColor = YuumiTheme.DarkDeath;
+                    theme.Apply(config.Personalization);
+                    RequestColorCommit(nameof(PersonalizationConfig.LightDeathsNumberColor));
+                })));
+
+        // 代理地址是文本输入：草稿只存在字段里（不触发渲染），点「应用」才写回，
+        // 避免逐字符写盘，也避免受控文本框在重渲染时丢光标位置。
+        Element ProxyAddressRow()
+        {
+            static bool LooksValid(string value) =>
+                value.Length == 0
+                || (value.Contains(':') && !value.Contains(' ') && Uri.TryCreate("http://" + value, UriKind.Absolute, out _));
+
+            return SettingRow(
+                "代理地址",
+                "形如 127.0.0.1:7897；留空表示用系统默认。改了要重启才生效",
+                HStack(12,
+                    TextBox(_proxyDraft ?? config.General.HttpProxyAddr, v => _proxyDraft = v)
+                        .Width(180)
+                        .AutomationName("代理地址"),
+                    Button("应用", () =>
+                    {
+                        var next = (_proxyDraft ?? config.General.HttpProxyAddr).Trim();
+                        if (!LooksValid(next))
+                        {
+                            setError("代理地址格式不对，应形如 127.0.0.1:7897");
+                            Rerender();
+                            return;
+                        }
+
+                        if (next == config.General.HttpProxyAddr)
+                        {
+                            return;
+                        }
+
+                        config.General.HttpProxyAddr = next;
+                        Commit(nameof(GeneralConfig.HttpProxyAddr));
+                    })));
+        }
+
         return ScrollView(
             VStack(20,
                 VStack(4,
@@ -219,7 +467,8 @@ public sealed class SettingsPage : Component
                             config.General.EnableHttpProxy,
                             v => config.General.EnableHttpProxy = v,
                             nameof(GeneralConfig.EnableHttpProxy),
-                            "重启后生效"))),
+                            "重启后生效"),
+                        ProxyAddressRow())),
 
                 Section("个性化",
                     "主题、语言与战绩卡片配色",
@@ -248,18 +497,14 @@ public sealed class SettingsPage : Component
                             nameof(PersonalizationConfig.ThemeMode),
                             "即时生效"),
                         ReadOnlyRow(
-                            "主题色",
-                            $"{config.Personalization.ThemeColor}（颜色选择器在下一轮接入）",
-                            ColorSwatch(config.Personalization.ThemeColor)),
-                        ReadOnlyRow(
                             "语言",
                             $"{config.Personalization.Language}（本地化资源尚未接入）"),
                         ReadOnlyRow(
                             "缩放",
                             $"{config.Personalization.DpiScale}（窗口级缩放随独立窗口一起做）"),
-                        ColorRow("胜利卡片", config.Personalization.WinCardColor),
-                        ColorRow("失败卡片", config.Personalization.LoseCardColor),
-                        ColorRow("重赛卡片", config.Personalization.RemakeCardColor))),
+                        ThemeColorEditor(),
+                        CardColorEditor(),
+                        DeathColorEditor())),
 
                 Section("功能开关",
                     "自动化与数据抓取的关键参数",
@@ -280,8 +525,7 @@ public sealed class SettingsPage : Component
                             ApiConcurrencyMax,
                             v => config.Functions.ApiConcurrencyNumber = v,
                             nameof(FunctionsConfig.ApiConcurrencyNumber),
-                            "重启后生效"),
-                        BoolRow(
+                            "重启后生效"),                        BoolRow(
                             "自动接受对局",
                             "匹配到对局后自动确认",
                             config.Functions.EnableAutoAcceptMatching,
@@ -408,15 +652,6 @@ public sealed class SettingsPage : Component
         HStack(16,
             TextBlock(label).Width(320),
             TextBlock(value).Foreground(Theme.SecondaryText).TextWrapping());
-
-    private static Element ColorRow(string label, string color) =>
-        HStack(16,
-            VStack(4,
-                TextBlock(label),
-                Caption("颜色选择器在下一轮接入")).Width(320),
-            HStack(12,
-                ColorSwatch(color),
-                TextBlock(color).Foreground(Theme.SecondaryText)));
 
     private static Element ColorSwatch(string color) =>
         Border(Empty())

@@ -1,4 +1,5 @@
 namespace YuumiX.Core.Common;
+
 /// <summary>
 /// 配置里的颜色字符串归一化（ADR-12）。
 ///
@@ -67,8 +68,51 @@ public static class ColorHex
         }
     }
 
-    private static bool IsHex(ReadOnlySpan<char> text)
+    /// <summary>
+    /// 解析为 ARGB 四分量。供颜色选择器等需要数值形态的控件使用（UI 侧再转成
+    /// <c>Windows.UI.Color</c>，Core 不引入任何平台类型）。
+    /// </summary>
+    public static bool TryParseArgb(string? value, out byte a, out byte r, out byte g, out byte b)
     {
+        a = 255;
+        r = 0;
+        g = 0;
+        b = 0;
+
+        if (!TryNormalize(value, out var normalized))
+        {
+            return false;
+        }
+
+        // TryNormalize 的产物恒为 #AARRGGBB
+        a = ParseByte(normalized, 1);
+        r = ParseByte(normalized, 3);
+        g = ParseByte(normalized, 5);
+        b = ParseByte(normalized, 7);
+        return true;
+
+        static byte ParseByte(string text, int offset) =>
+            byte.Parse(text.AsSpan(offset, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>由 ARGB 四分量拼回 <c>#AARRGGBB</c>（大写），与配置文件里的写法一致。</summary>
+    public static string ToArgb(byte a, byte r, byte g, byte b) =>
+        $"#{a:X2}{r:X2}{g:X2}{b:X2}";
+
+    /// <summary>由 RGB 三分量拼成 <c>#RRGGBB</c>（大写）。</summary>
+    public static string ToRgb(byte r, byte g, byte b) => $"#{r:X2}{g:X2}{b:X2}";
+
+    /// <summary>
+    /// 丢掉 alpha，拼成 <c>#RRGGBB</c>。主题色、死亡数字色在配置里保存为 8 位，
+    /// 但原实现的取色控件按 6 位呈现（不透明），两者互转时用本方法。
+    /// </summary>
+    public static string ToRgb(string? value, string fallback)
+    {
+        var normalized = NormalizeArgb(value, fallback);
+        return "#" + normalized[3..];
+    }
+
+    private static bool IsHex(ReadOnlySpan<char> text)    {
         if (text.IsEmpty)
         {
             return false;

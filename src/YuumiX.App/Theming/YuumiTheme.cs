@@ -32,6 +32,12 @@ public static class YuumiTheme
     /// <summary>重赛卡片底色默认值（对应 RemakeCardColor 默认 #33a2a2a2，含 alpha）。</summary>
     public const string RemakeCard = "#33A2A2A2";
 
+    /// <summary>浅色主题下的死亡数字颜色默认值（对应 LightDeathsNumberColor 默认 #ffb60000）。</summary>
+    public const string LightDeath = "#FFB60000";
+
+    /// <summary>深色主题下的死亡数字颜色默认值（对应 DarkDeathsNumberColor 默认 #ffff8d8d）。</summary>
+    public const string DarkDeath = "#FFFF8D8D";
+
     /// <summary>毛玻璃背景类型。原项目 PersonalizationConfig.MicaEnabled 默认为 true。</summary>
     public const BackdropKind DefaultBackdrop = BackdropKind.Mica;
 
@@ -58,6 +64,12 @@ public sealed record YuumiPalette
 
     public required string RemakeCard { get; init; }
 
+    /// <summary>浅色主题下的死亡数字颜色（战绩详情里每个玩家的死亡数）。</summary>
+    public required string LightDeath { get; init; }
+
+    /// <summary>深色主题下的死亡数字颜色。</summary>
+    public required string DarkDeath { get; init; }
+
     /// <summary>原始主题模式字符串：<c>Light</c> / <c>Dark</c> / 其它（按 Auto 处理）。</summary>
     public required string ThemeMode { get; init; }
 
@@ -82,6 +94,8 @@ public sealed record YuumiPalette
             WinCard = ColorHex.NormalizeArgb(personalization.WinCardColor, YuumiTheme.WinCard),
             LoseCard = ColorHex.NormalizeArgb(personalization.LoseCardColor, YuumiTheme.LoseCard),
             RemakeCard = ColorHex.NormalizeArgb(personalization.RemakeCardColor, YuumiTheme.RemakeCard),
+            LightDeath = ColorHex.NormalizeArgb(personalization.LightDeathsNumberColor, YuumiTheme.LightDeath),
+            DarkDeath = ColorHex.NormalizeArgb(personalization.DarkDeathsNumberColor, YuumiTheme.DarkDeath),
             ThemeMode = personalization.ThemeMode ?? "Auto",
             MicaEnabled = personalization.MicaEnabled,
         };

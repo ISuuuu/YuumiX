@@ -229,6 +229,10 @@ public sealed class LcuConnectionTests
         Assert.True(connection.States.IsCompleted);
         Assert.True(connection.Events.IsCompleted);
 
+        // 先给「Dispose 时刚好在途的握手」一个收敛窗口，再取基线。
+        // 直接取基线会偶发假失败：取消发生在 ConnectAsync 内部时，那次握手仍会记一次连接数，
+        // 于是下面「不再重连」的断言看到的差值来自这一次，而不是循环还在跑（本用例曾因此间歇失败）。
+        await Task.Delay(300, cts.Token);
         var connectionsAtDispose = server.WebSocketConnectionCount;
         await Task.Delay(200, cts.Token);
 
