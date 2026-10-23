@@ -2,6 +2,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 
 namespace YuumiX.App.Diagnostics;
@@ -24,6 +25,11 @@ internal sealed class CapabilityLab : Component
     /// </summary>
     private const string ChampionIconUrl =
         "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/266.png";
+
+    /// <summary>网格的说明文字：把「首次下载 / 二次命中缓存」的预期写清楚，便于判断是否真的生效。</summary>
+    private const string ChampionIconNote =
+        "10 列 × 20 行。首次加载会触发约 200 次资源解析（LCU 未连接时全部走 CDragon）；" +
+        "再次打开该页面应明显更快，即全部命中磁盘缓存。个别 ID 无对应英雄时显示占位符。";
 
     public override Element Render()
     {
@@ -71,9 +77,45 @@ internal sealed class CapabilityLab : Component
                     HStack(10,
                         Button("打开一个子窗口", OpenChildWindow)
                             .AutomationName("打开子窗口"),
-                        Caption("验证 WindowSpec 独立窗口的生命周期")))
+                        Caption("验证 WindowSpec 独立窗口的生命周期"))),
+
+                Section("5 · 本地资源链路（ADR-11）",
+                    "图标经「磁盘缓存 → LCU → CDragon」解析后以 file:// 引用；此处用 200 项做滚动压力验证",
+                    VStack(10,
+                        Caption(ChampionIconNote),
+                        BuildChampionIconGrid()))
             ).Padding(28).HAlign(HorizontalAlignment.Stretch)
         );
+    }
+
+    /// <summary>
+    /// 200 个英雄头像的网格：10 列 × 20 行。
+    ///
+    /// 用它承担阶段 4 的验收：真实列表滚动时同一屏会同时请求数十张图，
+    /// 只有这种密度才能暴露「并发上限、缓存落盘、解码卡顿」一类问题。
+    /// 个别 ID 没有对应英雄，会显示占位符——这本身也是失败路径的实测。
+    /// </summary>
+    private static Element BuildChampionIconGrid()
+    {
+        const int perRow = 10;
+        const int total = 200;
+
+        var rows = new List<Element>();
+
+        for (var start = 0; start < total; start += perRow)
+        {
+            var items = new List<Element>();
+
+            for (var id = start; id < Math.Min(start + perRow, total); id++)
+            {
+                items.Add(Component<LcuImage, LcuImageProps>(
+                    new LcuImageProps($"/lol-game-data/assets/v1/champion-icons/{id}.png", 52)));
+            }
+
+            rows.Add(HStack(6, [.. items]));
+        }
+
+        return VStack(6, [.. rows]);
     }
 
     private static void OpenChildWindow()
