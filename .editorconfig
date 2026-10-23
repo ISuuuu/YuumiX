@@ -1,0 +1,44 @@
+root = true
+
+# YuumiX 的统一格式约定。
+# 只约束排版，不在此处提升任何分析器严重级别——DoD 要求零警告，
+# 把 IDE 规则升成警告会让无关改动阻塞构建。
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,jsonc,yml,yaml,xml,csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# using 排序：System 优先，其余按字母序
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# 花括号风格：全下花括号（与现有代码一致）
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+# 表达式体与模式匹配的写法偏好
+csharp_prefer_braces = true:silent
+csharp_style_var_for_built_in_types = false:silent
+csharp_style_var_when_type_is_apparent = false:silent
+csharp_style_namespace_declarations = file_scoped:silent
+
+# 命名约定（仅提示，不参与构建）
+dotnet_naming_rule.private_fields_underscore.severity = silent
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+dotnet_naming_style.underscore_camel.required_prefix = _

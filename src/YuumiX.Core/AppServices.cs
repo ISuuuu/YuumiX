@@ -16,6 +16,9 @@ namespace YuumiX.Core;
 /// </summary>
 public sealed class AppServices : IDisposable
 {
+    private readonly CancellationTokenSource _shutdown = new();
+    private bool _disposed;
+
     private AppServices(
         RuntimePaths paths,
         ILoggerFactory loggerFactory,
@@ -44,6 +47,12 @@ public sealed class AppServices : IDisposable
 
     /// <summary>已加载的配置。设计为进程内单一实例，所有修改最终经 <see cref="ConfigStore"/> 落盘。</summary>
     public AppConfig Config { get; }
+
+    /// <summary>
+    /// 进程级关闭令牌。所有后台循环（LCU 轮询、WebSocket 重连）必须监听它，
+    /// 否则窗口关闭后进程退不掉——后台任务会把 CLR 拖住。
+    /// </summary>
+    public CancellationToken ShutdownToken => _shutdown.Token;
 
     /// <summary>
     /// 构造全部基础设施并完成首次配置加载。
@@ -89,8 +98,19 @@ public sealed class AppServices : IDisposable
 
     public void Dispose()
     {
-        // 先关容器（触发各服务的 Dispose），再关日志工厂，保证释放过程中的日志仍可写入。
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        // 顺序要紧：先发关闭信号，让后台循环尽快退出并写完最后一条日志；
+        // 再关容器（触发各服务 Dispose）；最后关日志工厂。
+        _shutdown.Cancel();
+
         (Services as IDisposable)?.Dispose();
         LoggerFactory.Dispose();
+        _shutdown.Dispose();
     }
 }
