@@ -111,11 +111,11 @@ public sealed record MatchSummary
     /// <summary>时长文本 <c>mm:ss</c>（见 <see cref="MatchTimeText.FromSeconds"/>）。</summary>
     public string DurationText => MatchTimeText.FromSeconds(DurationSeconds);
 
-    /// <summary>开局时间文本 <c>yyyy-MM-dd HH:mm</c>。</summary>
+    /// <summary>开局时间文本 <c>yyyy-MM-dd HH:mm</c>（本地时区）。</summary>
     public string TimeText =>
         MatchTimeText.FromUnixMilliseconds(GameCreation, "yyyy-MM-dd HH:mm", "1970-01-01 00:00");
 
-    /// <summary>开局时间短文本 <c>MM-dd HH:mm</c>。</summary>
+    /// <summary>开局时间短文本 <c>MM-dd HH:mm</c>（本地时区）。</summary>
     public string ShortTimeText =>
         MatchTimeText.FromUnixMilliseconds(GameCreation, "MM-dd HH:mm", "01-01 00:00");
 }

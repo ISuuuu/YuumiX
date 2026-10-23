@@ -48,7 +48,7 @@ public sealed record MatchDetail
     /// </summary>
     public bool? QueriedPlayerWin { get; init; }
 
-    /// <summary>开局时间文本 <c>yyyy-MM-dd HH:mm</c>（UTC，见 <see cref="MatchTimeText"/>）。</summary>
+    /// <summary>开局时间文本 <c>yyyy-MM-dd HH:mm</c>（本地时区，见 <see cref="MatchTimeText"/>）。</summary>
     public string DateText =>
         MatchTimeText.FromUnixMilliseconds(GameCreation, "yyyy-MM-dd HH:mm", "1970-01-01 00:00");
 
