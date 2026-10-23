@@ -57,6 +57,9 @@ public sealed class AppShell : Component
 
         var titleBar = TitleBar("YuumiX") with
         {
+            // 标题栏图标与原 CustomTitleBar.vue 的 titlebar-logo 对齐：同一个 Logo 文件。
+            // 用 ImageIcon 而非 BitmapIcon —— 后者默认单色化，会把彩色 Logo 染成主题色。
+            Icon = ImageIcon(new Uri(AppAssets.LogoUri)),
             Subtitle = $"{current.Label} · 配置 v{services.Config.Version}",
             IsBackButtonVisible = false,
             IsPaneToggleButtonVisible = true,
@@ -89,8 +92,12 @@ public sealed class AppShell : Component
     private static Element BuildPlaceholder(AppRoute route)
     {
         var (title, sourceView, pending) = PageCatalog.For(route);
+
+        // 主页展示品牌 Logo（对应原 Home.vue 顶部 96px 的 Logo）；其余占位页不显示图片。
+        var brandLogoUri = route == AppRoute.Home ? AppAssets.LogoUri : null;
+
         return Component<PlaceholderPage, PlaceholderProps>(
-            new PlaceholderProps(title, sourceView, pending));
+            new PlaceholderProps(title, sourceView, pending, brandLogoUri));
     }
 
     /// <summary>打开架构能力验证窗口（独立窗口，顺带验证多窗口能力）。</summary>
@@ -104,6 +111,8 @@ public sealed class AppShell : Component
                 Height = 700,
                 Backdrop = BackdropChoice.Of(BackdropKind.Mica),
                 StartPosition = WindowStartPosition.CenterOnCurrent,
+                // 独立窗口不会继承主窗口图标，需各自指定，否则任务栏会出现默认图标。
+                Icon = WindowIcon.FromPath(AppAssets.AppIconPath),
             },
             () => new CapabilityLab());
     }

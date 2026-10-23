@@ -12,6 +12,10 @@
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
+    <!-- exe 内嵌图标：资源管理器 / 快捷方式 / 任务栏在窗口尚未 SetIcon 时都读这一份。
+         多尺寸只写在 .ico 里，不要在此处指定 PNG（PE 资源仅接受 .ico）。 -->
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+
     <!-- Reactor 需要显式平台；省略 -p:Platform 会触发 WindowsAppSDKSelfContained 错误 -->
     <Platforms>x64;ARM64</Platforms>
     <!-- SelfContained 需要 RID：通过解决方案构建时 Platform 不会自动推导 RID，这里显式映射 -->
@@ -27,6 +31,15 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="Microsoft.UI.Reactor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 静态资源随 exe 分发到输出目录的 Assets/ 下，由 Theming/AppAssets.cs 按
+         AppContext.BaseDirectory 解析（非打包模式没有 ms-appx:/// 虚拟根）。
+         用 None + Update 而非 Content Include：.png/.ico 已被 SDK 默认 None 项包含，
+         重复 Include 会触发 NETSDK1022。 -->
+    <None Update="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\Logo.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

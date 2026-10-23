@@ -1,6 +1,7 @@
 using Microsoft.UI.Reactor;
 using YuumiX.App.Composition;
 using YuumiX.App.Shell;
+using YuumiX.App.Theming;
 
 // 应用入口。Reactor 的约定：没有 Program.cs / App.xaml，直接在顶层语句启动。
 // width/height 为 DIP（100% 缩放下与物理像素一致）。
@@ -9,7 +10,13 @@ using YuumiX.App.Shell;
 AppHost.Initialize();
 try
 {
-    ReactorApp.Run<AppShell>("YuumiX", width: 1280, height: 800);
+    // icon：非打包应用不会自动继承 MSIX 清单里的图标，必须显式交给 AppWindow.SetIcon；
+    // 交付的 .ico 含 16–256 多尺寸帧，任务栏与 Alt+Tab 才不会缩放发虚。
+    ReactorApp.Run<AppShell>(
+        "YuumiX",
+        width: 1280,
+        height: 800,
+        icon: WindowIcon.FromPath(AppAssets.AppIconPath));
 }
 finally
 {

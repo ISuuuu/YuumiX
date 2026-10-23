@@ -61,6 +61,7 @@ dotnet build YuumiX.slnx -p:Platform=ARM64
 YuumiX/
 ├── src/YuumiX.App/                 # 应用主工程（命名空间 YuumiX.App.*）
 │   ├── App.cs                      # 入口（Reactor 无 Program.cs / App.xaml）
+│   ├── Assets/                     # 静态资源（多尺寸 AppIcon.ico、品牌图 Logo.png，随 exe 复制到输出）
 │   ├── Composition/AppHost.cs      # 服务上下文（DI 容器 + 日志 + 配置）
 │   ├── Shell/AppShell.cs           # 外壳：自定义标题栏 + 侧边导航 + 内容宿主
 │   ├── Navigation/AppRoute.cs      # 路由枚举与侧边栏元数据
