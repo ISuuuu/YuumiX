@@ -98,6 +98,17 @@ internal static class SearchVisuals
     public static string CardBackground(YuumiPalette palette, MatchSummary summary) =>
         summary.Remake ? palette.RemakeCard : summary.Win ? palette.WinCard : palette.LoseCard;
 
+    /// <summary>分路标签（上单/打野/中单/下路/辅助）。</summary>
+    public static string? PositionText(MatchPosition? position) => position switch
+    {
+        MatchPosition.Top => "上单",
+        MatchPosition.Jungle => "打野",
+        MatchPosition.Middle => "中单",
+        MatchPosition.Bottom => "下路",
+        MatchPosition.Utility => "辅助",
+        _ => null,
+    };
+
     /// <summary>卡片描边与结果文字用的实色（不含 alpha，见 <see cref="YuumiPalette.WinAccent"/>）。</summary>
     public static string ResultAccent(YuumiPalette palette, MatchSummary summary) =>
         summary.Remake ? palette.RemakeAccent : summary.Win ? palette.WinAccent : palette.LoseAccent;

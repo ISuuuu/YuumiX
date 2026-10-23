@@ -6,6 +6,7 @@ using YuumiX.App.Composition;
 using YuumiX.App.Diagnostics;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
+using YuumiX.App.Pages.Career;
 using YuumiX.App.Pages.Home;
 using YuumiX.App.Pages.SavedPlayers;
 using YuumiX.App.Pages.Search;
@@ -109,6 +110,7 @@ public sealed class AppShell : Component
     private static Element BuildPage(AppRoute route) => route switch
     {
         AppRoute.Home => Component<HomePage>(),
+        AppRoute.Career => Component<CareerPage>(),
         AppRoute.SavedPlayers => Component<SavedPlayersPage>(),
         AppRoute.Search => Component<SearchPage>(),
         AppRoute.Settings => Component<SettingsPage>(),

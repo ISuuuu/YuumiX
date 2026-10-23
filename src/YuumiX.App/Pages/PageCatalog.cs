@@ -19,11 +19,11 @@ public static class PageCatalog
         ]),
         [AppRoute.Career] = ("生涯", "src/views/Career.vue",
         [
-            "召唤师近期战绩概览",
-            "资产统计",
+            "战利品（材料开箱、碎片库存筛选与批量分解）",
             "英雄熟练度 2.0（里程碑/成就/等级排行）",
             "挑战勋章装配",
-            "战利品入口",
+            "资产统计",
+            "最近队友弹层（同队解析与频次聚合已有 Core 能力，缺取数编排与弹层）",
         ]),
         [AppRoute.Search] = ("战绩查询", "src/views/Search.vue",
         [

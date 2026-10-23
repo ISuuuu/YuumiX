@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Assets;
 using YuumiX.Core.Diagnostics;
+using YuumiX.Core.Features.Career;
 using YuumiX.Core.Features.Match;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.Summoner;
@@ -153,6 +154,13 @@ public sealed class AppServices : IDisposable
         collection.AddSingleton<ISummonerService>(provider => new SummonerService(
             () => provider.GetRequiredService<LcuConnection>().Transport,
             logger: provider.GetRequiredService<ILogger<SummonerService>>()));
+
+        // ── 生涯（阶段 7 第一块：排位总览）──────────────────────────
+        // 生涯页的段位表只需要一个新接口；战利品与熟练度作为独立服务后续加入，
+        // 不并进 ICareerService，理由见接口文档（三者失效节奏不同）。
+        collection.AddSingleton<ICareerService>(provider => new CareerService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            logger: provider.GetRequiredService<ILogger<CareerService>>()));
 
         // ── 路人集 SQLite 存储（阶段 7）────────────────────────────
         collection.AddSingleton(provider => new SavedPlayersStore(

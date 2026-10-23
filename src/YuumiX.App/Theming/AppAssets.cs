@@ -27,4 +27,38 @@ public static class AppAssets
 
     /// <summary><see cref="LogoPath"/> 的 <c>file:///</c> 形式，供 Reactor 图片元素使用。</summary>
     public static string LogoUri { get; } = new Uri(LogoPath).AbsoluteUri;
+
+    /// <summary>
+    /// 段位奖章图标（<c>Assets/RankedIcons/&lt;tier&gt;.png</c>）。
+    ///
+    /// 这些是**品牌静态资源**而不是 LCU 运行期资源：原项目直接从
+    /// <c>src/assets/ranked-icons</c> 打包，不经过 CDragon，因此不能走
+    /// <c>AssetService</c>（那条链要客户端在线才有图，而段位表在离线时也应该能显示）。
+    ///
+    /// 在类型初始化时一次性算出 URI 并缓存：排位表每行都要取一次，
+    /// 若每次 <c>File.Exists</c> + <c>new Uri</c>，一次渲染就是十几次文件系统探测。
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> RankedIconUris { get; } = BuildRankedIconUris();
+
+    private static Dictionary<string, string> BuildRankedIconUris()
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "Assets", "RankedIcons");
+        string[] tiers =
+        [
+            "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM",
+            "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER",
+        ];
+
+        var result = new Dictionary<string, string>(tiers.Length, StringComparer.Ordinal);
+        foreach (string tier in tiers)
+        {
+            string path = Path.Combine(directory, tier.ToLowerInvariant() + ".png");
+            if (File.Exists(path))
+            {
+                result[tier] = new Uri(path).AbsoluteUri;
+            }
+        }
+
+        return result;
+    }
 }
