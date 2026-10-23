@@ -191,6 +191,13 @@ public sealed class LcuEventStream : IAsyncDisposable
             Process(pending.GetBuffer().AsMemory(0, (int)pending.Length), dedup);
             pending.SetLength(0);
         }
+
+        // 循环条件本身会挡住「令牌已取消」的入口，此时正常返回等于把取消伪装成
+        // 「对端正常关闭」。而本方法的契约（见 XML 注释）是令牌取消抛
+        // OperationCanceledException，调用方 LcuConnection 也按此区分「客户端退出」与
+        // 「连接断开需重连」。取消发生在「一次事件处理完毕、尚未回到 ReceiveAsync」的
+        // 窗口内就会走到这里，必须显式抛出，否则该次取消被静默吞掉。
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     public ValueTask DisposeAsync()
