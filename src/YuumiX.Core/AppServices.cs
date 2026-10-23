@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Assets;
 using YuumiX.Core.Diagnostics;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
@@ -89,10 +90,37 @@ public sealed class AppServices : IDisposable
         collection.AddSingleton(provider => new LcuProcessFinder(
             provider.GetRequiredService<ILcuProcessSource>(),
             logger: provider.GetRequiredService<ILogger<LcuProcessFinder>>()));
+
+        // ── 资源层（ADR-11）────────────────────────────────────
+        // 缓存目录与 Rust 实现一致（<数据目录>/cache/assets），并共用同一套 FNV 哈希命名，
+        // 使迁移期两个版本的缓存可互相复用。
+        collection.AddSingleton(provider => new AssetCache(
+            AssetCacheDirectory(provider.GetRequiredService<RuntimePaths>()),
+            TimeProvider.System,
+            provider.GetRequiredService<ILogger<AssetCache>>()));
+        collection.AddSingleton(provider => new AssetCacheStamp(
+            AssetCacheDirectory(provider.GetRequiredService<RuntimePaths>()),
+            provider.GetRequiredService<ILogger<AssetCacheStamp>>()));
+
         collection.AddSingleton(provider => new LcuConnection(
             provider.GetRequiredService<LcuProcessFinder>(),
             provider.GetRequiredService<AppConfig>().Functions.ApiConcurrencyNumber,
-            provider.GetRequiredService<ILoggerFactory>()));
+            provider.GetRequiredService<ILoggerFactory>(),
+            cacheStamp: provider.GetRequiredService<AssetCacheStamp>()));
+
+        collection.AddSingleton(provider => new LcuAssetSource(
+            () => provider.GetRequiredService<LcuConnection>().Credentials,
+            logger: provider.GetRequiredService<ILogger<LcuAssetSource>>()));
+        collection.AddSingleton(provider => new CdnAssetSource(
+            logger: provider.GetRequiredService<ILogger<CdnAssetSource>>()));
+        collection.AddSingleton(provider => new AssetService(
+            provider.GetRequiredService<AssetCache>(),
+            [
+                provider.GetRequiredService<LcuAssetSource>(),
+                provider.GetRequiredService<CdnAssetSource>(),
+            ],
+            AssetService.DefaultConcurrency,
+            provider.GetRequiredService<ILogger<AssetService>>()));
 
         var services = collection.BuildServiceProvider();
 
@@ -109,6 +137,10 @@ public sealed class AppServices : IDisposable
 
         return new AppServices(paths, loggerFactory, services, store, config);
     }
+
+    /// <summary>资源缓存目录：<c>&lt;数据目录&gt;/cache/assets</c>，与原实现同构。</summary>
+    private static string AssetCacheDirectory(RuntimePaths paths) =>
+        Path.Combine(paths.DataDirectory, "cache", "assets");
 
     public void Dispose()
     {

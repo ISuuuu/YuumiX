@@ -86,7 +86,7 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
         _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
         _permitTimeout = DefaultPermitTimeout;
         _permits = new SemaphoreSlim(maxConcurrency, maxConcurrency);
-        _http = new HttpClient(handler ?? CreateProductionHandler(), disposeHandler: true)
+        _http = new HttpClient(handler ?? LcuHttpHandlerFactory.Create(), disposeHandler: true)
         {
             Timeout = Timeout.InfiniteTimeSpan, // 超时由每次请求的 CancellationToken 控制，避免双重超时
         };
@@ -201,24 +201,8 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
         exception is HttpRequestException or IOException or TaskCanceledException or OperationCanceledException;
 
     /// <summary>
-    /// 生产处理器。两处非默认配置都有明确理由：
-    /// <list type="bullet">
-    ///   <item><b>忽略证书</b>：LCU 用自签证书，等价于原实现的 <c>danger_accept_invalid_certs</c>；</item>
-    ///   <item><b>UseProxy = false</b>：用户可能配置了系统代理（本机就是 <c>127.0.0.1:7897</c>），
-    ///         回环地址走代理必然连不上。原实现的 <c>.no_proxy()</c> 是同一条约束。</item>
-    /// </list>
+    /// 生产处理器。证书忽略与绕代理的说明见 <see cref="LcuHttpHandlerFactory"/>——
+    /// 资源下载走的是同一套配置，收敛在那里避免两处分叉。
     /// </summary>
-    private static HttpMessageHandler CreateProductionHandler()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            UseProxy = false,
-            AllowAutoRedirect = false,
-            ConnectTimeout = TimeSpan.FromSeconds(5),
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-        };
-
-        handler.SslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
-        return handler;
-    }
+    private static HttpMessageHandler CreateProductionHandler() => LcuHttpHandlerFactory.Create();
 }

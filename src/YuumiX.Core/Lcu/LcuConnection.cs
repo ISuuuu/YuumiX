@@ -1,5 +1,7 @@
+using YuumiX.Core.Assets;
 using YuumiX.Core.Common;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace YuumiX.Core.Lcu;
 
@@ -61,6 +63,7 @@ public sealed class LcuConnection : IDisposable
     private readonly ILogger<LcuConnection>? _logger;
     private readonly Func<LcuCredentials, ILcuTransport> _transportFactory;
     private readonly Func<LcuCredentials, LcuEventStream> _eventStreamFactory;
+    private readonly AssetCacheStamp? _cacheStamp;
     private readonly EventStream<LcuConnectionState> _states;
     private readonly EventStream<LcuEvent> _events;
     private readonly CancellationTokenSource _stop = new();
@@ -78,13 +81,18 @@ public sealed class LcuConnection : IDisposable
     /// <param name="transportFactory">传输构造（测试注入用）；为 <c>null</c> 时走 <see cref="LcuHttpTransport"/></param>
     /// <param name="eventStreamFactory">事件流构造（测试注入用）；为 <c>null</c> 时走 <see cref="LcuEventStream"/></param>
     /// <param name="retryDelay">重试间隔（测试注入用，避免用例等待秒级）。</param>
+    /// <param name="cacheStamp">
+    /// 资源缓存版本哨兵（ADR-11）。探活成功时把客户端版本交给它，版本变化即清空图标缓存。
+    /// 为 <c>null</c> 时不做缓存维护——单测不需要这项副作用。
+    /// </param>
     public LcuConnection(
         LcuProcessFinder finder,
         int maxConcurrency = DefaultMaxConcurrency,
         ILoggerFactory? loggerFactory = null,
         Func<LcuCredentials, ILcuTransport>? transportFactory = null,
         Func<LcuCredentials, LcuEventStream>? eventStreamFactory = null,
-        TimeSpan? retryDelay = null)
+        TimeSpan? retryDelay = null,
+        AssetCacheStamp? cacheStamp = null)
     {
         ArgumentNullException.ThrowIfNull(finder);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxConcurrency, 1);
@@ -92,6 +100,7 @@ public sealed class LcuConnection : IDisposable
 
         _finder = finder;
         _retryDelay = retryDelay ?? DefaultRetryDelay;
+        _cacheStamp = cacheStamp;
         _logger = loggerFactory?.CreateLogger<LcuConnection>();
 
         _transportFactory = transportFactory ?? (credentials => LcuHttpTransport.ForCredentials(
@@ -210,7 +219,8 @@ public sealed class LcuConnection : IDisposable
             Publish(LcuConnectionState.Connecting(credentials));
 
             var transport = EnsureTransport(credentials);
-            if (!await ProbeAsync(transport, token).ConfigureAwait(false))
+            var probe = await ProbeAsync(transport, token).ConfigureAwait(false);
+            if (!probe.Ready)
             {
                 if (token.IsCancellationRequested)
                 {
@@ -225,6 +235,9 @@ public sealed class LcuConnection : IDisposable
 
                 continue;
             }
+
+            // 版本变化意味着图标语义可能已变，先清缓存再让资源层开始工作
+            _cacheStamp?.Apply(probe.BuildVersion);
 
             await RunSessionAsync(credentials, token).ConfigureAwait(false);
 
@@ -295,8 +308,9 @@ public sealed class LcuConnection : IDisposable
     /// <summary>
     /// 探活：只有 2xx 才算就绪。端口开放不代表 LCU 可用——客户端启动过程中端口先开、
     /// 接口后通，直接建 WS 会拿到 404/401，随后又被误判成「token 失效」。
+    /// 同时顺带取出客户端版本号（供资源缓存失效判断），解析失败不影响就绪判定。
     /// </summary>
-    private async Task<bool> ProbeAsync(ILcuTransport transport, CancellationToken token)
+    private async Task<ProbeResult> ProbeAsync(ILcuTransport transport, CancellationToken token)
     {
         try
         {
@@ -306,22 +320,75 @@ public sealed class LcuConnection : IDisposable
 
             if (response.IsSuccess)
             {
-                return true;
+                return new ProbeResult(true, TryReadBuildVersion(response.Body));
             }
 
             _logger?.LogDebug("LCU 探活未就绪: HTTP {StatusCode}", response.StatusCode);
-            return false;
+            return new ProbeResult(false, null);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            return false;
+            return new ProbeResult(false, null);
         }
         catch (Exception ex)
         {
             // 连接被拒绝、超时、以及传输层重试耗尽都归为「未就绪」，属于启动期的正常现象
             _logger?.LogDebug(ex, "LCU 探活失败");
+            return new ProbeResult(false, null);
+        }
+    }
+
+    /// <summary>
+    /// 从 <c>/system/v1/builds</c> 的响应里取客户端版本。
+    /// 该接口返回数组（多安装形态时不止一条），取第一条含 <c>version</c> 的记录；
+    /// 也兼容直接返回对象的形态。取不到就返回 <c>null</c>，缓存只是不失效，不影响连接。
+    /// </summary>
+    private static string? TryReadBuildVersion(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entry in root.EnumerateArray())
+                {
+                    if (TryExtractVersion(entry, out var version))
+                    {
+                        return version;
+                    }
+                }
+
+                return null;
+            }
+
+            return TryExtractVersion(root, out var single) ? single : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static bool TryExtractVersion(JsonElement element, out string? version)
+    {
+        version = null;
+
+        if (element.ValueKind != JsonValueKind.Object
+            || !element.TryGetProperty("version", out var value)
+            || value.ValueKind != JsonValueKind.String)
+        {
             return false;
         }
+
+        version = value.GetString();
+        return !string.IsNullOrWhiteSpace(version);
     }
 
     private LcuCredentials? TryFindCredentials()
@@ -411,4 +478,7 @@ public sealed class LcuConnection : IDisposable
             _credentials = null;
         }
     }
+
+    /// <summary>探活结果：是否就绪 + 客户端版本（版本用于资源缓存失效，可空）。</summary>
+    private readonly record struct ProbeResult(bool Ready, string? BuildVersion);
 }

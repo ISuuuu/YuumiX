@@ -1,6 +1,9 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using YuumiX.Core;
+using YuumiX.Core.Assets;
+using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Runtime;
 
@@ -12,6 +15,27 @@ namespace YuumiX.Core.Tests;
 /// </summary>
 public sealed class AppServicesLifecycleTests
 {
+    [Fact]
+    public void Create_RegistersAssetPipelineInOrder()
+    {
+        using var exeDir = new TempDirectory();
+        using var appData = new TempDirectory();
+        var services = AppServices.Create(RuntimePaths.Detect(exeDir.Path, appData.Path));
+
+        try
+        {
+            var assets = services.Services.GetRequiredService<AssetService>();
+
+            // 顺序即优先级：LCU 先，CDragon 兜底
+            Assert.Equal(["LCU", "CDragon"], assets.SourceNames);
+            Assert.NotNull(services.Services.GetRequiredService<LcuConnection>());
+        }
+        finally
+        {
+            services.Dispose();
+        }
+    }
+
     [Fact]
     public void Create_ProvidesUncancelledShutdownToken()
     {

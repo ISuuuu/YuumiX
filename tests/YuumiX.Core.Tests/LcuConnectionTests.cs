@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using Xunit;
+using YuumiX.Core.Assets;
 using YuumiX.Core.Common;
 using YuumiX.Core.Lcu;
 using YuumiX.Testing.Lcu;
@@ -244,6 +245,67 @@ public sealed class LcuConnectionTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => new LcuConnection(finder, maxConcurrency: 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new LcuConnection(finder, maxConcurrency: 33));
+    }
+
+    /// <summary>
+    /// 探活顺带取客户端版本，版本变化时清空图标缓存（ADR-11）。
+    /// 版本号藏在 /system/v1/builds 的数组里，解析失败不能让连接卡住。
+    /// </summary>
+    [Fact]
+    public async Task Run_WhenClientVersionChanges_ClearsAssetCache()
+    {
+        await using var server = FakeLcuServer.Start();
+        var finder = NewFinder(new FakeProcessSource());
+
+        using var cacheDirectory = new TempDirectory();
+        var staleFile = cacheDirectory.File("stale.png");
+        File.WriteAllText(staleFile, "old-icon");
+
+        using var connection = new LcuConnection(
+            finder,
+            retryDelay: TimeSpan.FromMilliseconds(20),
+            transportFactory: _ => new StubTransport(_ => new LcuResponse(
+                200,
+                """[{"patchline":"live","version":"16.1.1","branch":"release"}]""")),
+            eventStreamFactory: _ => new LcuEventStream(server.BaseAddress, server.AuthorizationHeader),
+            cacheStamp: new AssetCacheStamp(cacheDirectory.Path));
+
+        using var cts = new CancellationTokenSource(Timeout);
+        var run = connection.RunAsync(cts.Token);
+
+        await WaitForStateAsync(connection, s => s.Status == LcuConnectionStatus.Connected, cts.Token);
+
+        Assert.False(File.Exists(staleFile), "版本首次出现时应清空缓存");
+
+        await StopAsync(cts, run);
+    }
+
+    /// <summary>版本字段解析不出来时必须照常连接，且不动缓存（宁可留旧图也不能清空）。</summary>
+    [Fact]
+    public async Task Run_WhenBuildVersionUnparsable_StillConnectsAndKeepsCache()
+    {
+        await using var server = FakeLcuServer.Start();
+        var finder = NewFinder(new FakeProcessSource());
+
+        using var cacheDirectory = new TempDirectory();
+        var cachedFile = cacheDirectory.File("cached.png");
+        File.WriteAllText(cachedFile, "icon");
+
+        using var connection = new LcuConnection(
+            finder,
+            retryDelay: TimeSpan.FromMilliseconds(20),
+            transportFactory: _ => new StubTransport(_ => new LcuResponse(200, "not-a-json")),
+            eventStreamFactory: _ => new LcuEventStream(server.BaseAddress, server.AuthorizationHeader),
+            cacheStamp: new AssetCacheStamp(cacheDirectory.Path));
+
+        using var cts = new CancellationTokenSource(Timeout);
+        var run = connection.RunAsync(cts.Token);
+
+        await WaitForStateAsync(connection, s => s.Status == LcuConnectionStatus.Connected, cts.Token);
+
+        Assert.True(File.Exists(cachedFile));
+
+        await StopAsync(cts, run);
     }
 
     // ── 夹具 ────────────────────────────────────────────────────────────────
