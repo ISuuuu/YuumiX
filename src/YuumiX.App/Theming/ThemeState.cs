@@ -25,7 +25,6 @@ public sealed class ThemeState
         ArgumentNullException.ThrowIfNull(initial);
         _changes = new EventStream<YuumiPalette>(onObserverError);
         Current = YuumiPalette.FromConfig(initial);
-        YuumiPalette.SyncWinUiAccentResources(Current.Accent);
     }
 
     /// <summary>当前调色板。UI 首帧直接取它，避免先渲染一帧默认色再被覆盖。</summary>
@@ -47,7 +46,10 @@ public sealed class ThemeState
         }
 
         Current = next;
-        YuumiPalette.SyncWinUiAccentResources(next.Accent);
+
+        // 不在这里碰 Application.Resources：它是带 Source 的字典（themeresources.xaml），
+        // 写本地值必抛 COMException 0x800F1000，点任何外观开关都会让进程崩掉（0xc000027b）。
+        // 强调色本来就跟随系统（AGENTS.md §2），不需要应用侧同步。
         _changes.Publish(next);
     }
 }

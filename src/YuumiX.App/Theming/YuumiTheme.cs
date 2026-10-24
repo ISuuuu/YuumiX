@@ -242,39 +242,4 @@ public sealed record YuumiPalette
         var newAlpha = (byte)Math.Clamp((int)Math.Round(a * factor), 0, 255);
         return ColorHex.ToArgb(newAlpha, r, g, b);
     }
-
-    /// <summary>
-    /// 同步 WinUI 原生资源字典强调色，使 ToggleSwitch、Checkbox 等原生控件跟随主题色。
-    /// </summary>
-    public static void SyncWinUiAccentResources(string accentArgb)
-    {
-        if (Application.Current?.Resources is not { } res) return;
-        if (!ColorHex.TryParseArgb(accentArgb, out _, out byte r, out byte g, out byte b)) return;
-
-        var color = Windows.UI.Color.FromArgb(0xFF, r, g, b);
-        var hoverColor = Windows.UI.Color.FromArgb(0xD9, r, g, b);
-        var pressedColor = Windows.UI.Color.FromArgb(0xA6, r, g, b);
-
-        res["SystemAccentColor"] = color;
-        res["SystemAccentColorLight1"] = color;
-        res["SystemAccentColorLight2"] = color;
-        res["SystemAccentColorDark1"] = color;
-
-        SetBrushColor(res, "AccentFillColorDefaultBrush", color);
-        SetBrushColor(res, "AccentFillColorSecondaryBrush", hoverColor);
-        SetBrushColor(res, "AccentFillColorTertiaryBrush", pressedColor);
-        SetBrushColor(res, "AccentTextFillColorPrimaryBrush", color);
-    }
-
-    private static void SetBrushColor(ResourceDictionary res, string key, Windows.UI.Color color)
-    {
-        if (res.TryGetValue(key, out var obj) && obj is Microsoft.UI.Xaml.Media.SolidColorBrush brush)
-        {
-            brush.Color = color;
-        }
-        else
-        {
-            res[key] = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
-        }
-    }
 }
