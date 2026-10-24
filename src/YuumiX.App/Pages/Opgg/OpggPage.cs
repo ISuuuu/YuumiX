@@ -1,0 +1,475 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Reactor;
+using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Xaml;
+using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Composition;
+using YuumiX.App.Theming;
+using YuumiX.Core.Features.Opgg;
+using YuumiX.Core.Features.Opgg.Models;
+using YuumiX.Core.Lcu;
+
+namespace YuumiX.App.Pages.Opgg;
+
+public sealed record OpggPageProps(int? InitialChampionId = null);
+
+/// <summary>
+/// OP.GG 独立窗口主页面组件（头部 Tab 切换、四维筛选栏、梯队/出装视图联动、Toast 反馈）。
+/// </summary>
+public sealed class OpggPage : Component<OpggPageProps>
+{
+    public override Element Render()
+    {
+        var services = UseContext(AppHost.Context) ?? AppHost.Services;
+        var opggService = services.Services.GetRequiredService<IOpggService>();
+        var gameDataService = services.Services.GetRequiredService<GameDataService>();
+        var theme = UseContext(AppHost.ThemeContext) ?? AppHost.Theme;
+        bool isDark = string.Equals(theme.Current.ThemeMode, "Dark", StringComparison.OrdinalIgnoreCase);
+
+        var (currentView, setCurrentView) = UseState("tier"); // "tier" | "build"
+        var (region, setRegion) = UseState(OpggRegion.Kr);
+        var (mode, setMode) = UseState(OpggMode.Ranked);
+        var (tier, setTier) = UseState(OpggTier.EmeraldPlus);
+        var (position, setPosition) = UseState(OpggPosition.Mid);
+
+        var (selectedChampId, setSelectedChampId) = UseState<int?>(Props.InitialChampionId);
+        var (tierItems, setTierItems) = UseState<IReadOnlyList<TierListItem>>(Array.Empty<TierListItem>());
+        var (buildData, setBuildData) = UseState<OpggBuildData?>(null);
+        var (metaVersion, setMetaVersion) = UseState<string?>(null);
+
+        var (loading, setLoading) = UseState(false);
+        var (errorMessage, setErrorMessage) = UseState<string?>(null);
+        var (isApplyingItemSet, setIsApplyingItemSet) = UseState(false);
+        var (toasts, setToasts) = UseState<IReadOnlyList<ToastItem>>(Array.Empty<ToastItem>());
+
+        void ShowToast(string message, bool isError = false)
+        {
+            var item = new ToastItem(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), message, isError);
+            setToasts([.. toasts, item]);
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(3000).ConfigureAwait(false);
+                setToasts([.. toasts.Where(t => t.Id != item.Id)]);
+            });
+        }
+
+        async Task FetchTierList()
+        {
+            setLoading(true);
+            setErrorMessage(null);
+            try
+            {
+                var list = await opggService.GetTierListAsync(region, mode, tier, position).ConfigureAwait(false);
+                setTierItems(list);
+            }
+            catch (Exception ex)
+            {
+                setErrorMessage($"加载梯队排行榜失败: {ex.Message}");
+            }
+            finally
+            {
+                setLoading(false);
+            }
+        }
+
+        async Task FetchBuild(int champId)
+        {
+            setLoading(true);
+            setErrorMessage(null);
+            try
+            {
+                var payload = await opggService.GetBuildAsync(region, mode, tier, champId, position).ConfigureAwait(false);
+                if (payload is not null)
+                {
+                    setBuildData(payload.Data);
+                    if (!string.IsNullOrWhiteSpace(payload.Meta?.Version))
+                    {
+                        setMetaVersion(payload.Meta.Version);
+                    }
+                }
+                else
+                {
+                    setErrorMessage("未获取到该英雄的出装数据");
+                }
+            }
+            catch (Exception ex)
+            {
+                setErrorMessage($"加载英雄出装失败: {ex.Message}");
+            }
+            finally
+            {
+                setLoading(false);
+            }
+        }
+
+        // 选人联动事件订阅与初始英雄出装自动定位
+        UseEffect(() =>
+        {
+            var sub = opggService.ChampSelectBuildEvents.Subscribe(new AnonymousObserver<OpggBuildEvent>(e =>
+            {
+                setSelectedChampId(e.ChampionId);
+                if (!string.IsNullOrWhiteSpace(e.Mode))
+                {
+                    setMode(e.Mode);
+                }
+                if (!string.IsNullOrWhiteSpace(e.Position))
+                {
+                    setPosition(e.Position);
+                }
+                setCurrentView("build");
+                _ = FetchBuild(e.ChampionId);
+            }));
+
+            // 首次挂载初始化
+            if (Props.InitialChampionId.HasValue && Props.InitialChampionId.Value > 0)
+            {
+                setSelectedChampId(Props.InitialChampionId.Value);
+                setCurrentView("build");
+                _ = FetchBuild(Props.InitialChampionId.Value);
+            }
+            else
+            {
+                var cfg = services.Config.Functions;
+                if (cfg.EnableAutoSelectChampion)
+                {
+                    // 顺序取第一个 > 0 的英雄 ID
+                    var candidate = cfg.AutoSelectChampion
+                        .Concat(cfg.AutoSelectChampionMid)
+                        .Concat(cfg.AutoSelectChampionTop)
+                        .Concat(cfg.AutoSelectChampionSup)
+                        .Concat(cfg.AutoSelectChampionJug)
+                        .Concat(cfg.AutoSelectChampionBot)
+                        .FirstOrDefault(id => id > 0);
+
+                    if (candidate > 0)
+                    {
+                        setSelectedChampId(candidate);
+                        setCurrentView("build");
+                        _ = FetchBuild(candidate);
+                        return () => sub.Dispose();
+                    }
+                }
+
+                _ = FetchTierList();
+            }
+
+            return () => sub.Dispose();
+        }, []);
+
+        var catalog = gameDataService.Current ?? GameDataCatalog.Empty;
+
+        return Grid(
+            [GridSize.Star()],
+            [GridSize.Auto, GridSize.Auto, GridSize.Star()],
+            [
+                // 1. 顶部 Header Tab 栏
+                RenderHeader(currentView, selectedChampId, metaVersion, view =>
+                {
+                    setCurrentView(view);
+                    if (view == "tier")
+                    {
+                        _ = FetchTierList();
+                    }
+                    else if (view == "build" && selectedChampId.HasValue)
+                    {
+                        _ = FetchBuild(selectedChampId.Value);
+                    }
+                }).Grid(0, 0),
+
+                // 2. 四维筛选栏
+                Component<OpggFilterBarView, OpggFilterBarProps>(new OpggFilterBarProps
+                {
+                    Region = region,
+                    Mode = mode,
+                    Tier = tier,
+                    Position = position,
+                    OnRegionChanged = r =>
+                    {
+                        setRegion(r);
+                        if (currentView == "tier") _ = FetchTierList();
+                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
+                    },
+                    OnModeChanged = m =>
+                    {
+                        setMode(m);
+                        if (currentView == "tier") _ = FetchTierList();
+                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
+                    },
+                    OnTierChanged = t =>
+                    {
+                        setTier(t);
+                        if (currentView == "tier") _ = FetchTierList();
+                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
+                    },
+                    OnPositionChanged = p =>
+                    {
+                        setPosition(p);
+                        if (currentView == "tier") _ = FetchTierList();
+                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
+                    }
+                }).Grid(1, 0),
+
+                // 3. 视图主体区域
+                RenderBody(
+                    currentView,
+                    loading,
+                    errorMessage,
+                    tierItems,
+                    buildData,
+                    selectedChampId,
+                    position,
+                    catalog,
+                    isDark,
+                    isApplyingItemSet,
+                    onSelectChamp: champId =>
+                    {
+                        setSelectedChampId(champId);
+                        setCurrentView("build");
+                        _ = FetchBuild(champId);
+                    },
+                    onRetry: () =>
+                    {
+                        if (currentView == "tier") _ = FetchTierList();
+                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
+                    },
+                    onApplyRune: async rune =>
+                    {
+                        try
+                        {
+                            var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
+                            await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
+                                [.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
+                            ShowToast("符文页已应用至客户端");
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowToast($"应用符文页失败: {ex.Message}", isError: true);
+                        }
+                    },
+                    onApplyItemSet: async () =>
+                    {
+                        if (buildData is null || !selectedChampId.HasValue) return;
+                        setIsApplyingItemSet(true);
+                        try
+                        {
+                            var champName = catalog.Champions.TryGetValue(selectedChampId.Value, out var cn) ? cn : "Champion";
+                            var res = await opggService.ApplyItemSetAsync(selectedChampId.Value, champName, position, buildData).ConfigureAwait(false);
+                            ShowToast(res);
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowToast($"应用出装失败: {ex.Message}", isError: true);
+                        }
+                        finally
+                        {
+                            setIsApplyingItemSet(false);
+                        }
+                    }
+                ).Grid(2, 0),
+
+                // 浮动 Toast 反馈层
+                RenderToasts(toasts).Grid(2, 0)
+            ]
+        );
+    }
+
+    private static Element RenderHeader(string currentView, int? selectedChampId, string? metaVersion, Action<string> onSelectView)
+    {
+        return Border(
+            Grid(
+                [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+                [GridSize.Auto],
+                [
+                    // 左侧：OP.GG Logo + 品牌文字 + Tab 切换
+                    HStack(10,
+                        // OP.GG Logo
+                        Image(AppAssets.OpggLogoUri)
+                            .AutomationName("OPGG品牌Logo")
+                            .Width(24)
+                            .Height(24)
+                            .VAlign(VerticalAlignment.Center),
+
+                        TextBlock("OP.GG")
+                            .FontSize(15)
+                            .FontWeight(Microsoft.UI.Text.FontWeights.Black)
+                            .Foreground(OpggVisuals.OpggBrandColor)
+                            .VAlign(VerticalAlignment.Center),
+
+                        Border(Empty()).Width(8),
+
+                        // 「梯队」Tab
+                        Button(
+                            currentView == "tier"
+                                ? TextBlock("梯队").Foreground("#FFFFFF").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).FontSize(13)
+                                : TextBlock("梯队").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).FontSize(13),
+                            () => onSelectView("tier"))
+                            .Background(currentView == "tier" ? OpggVisuals.ActiveTabGreen : "transparent")
+                            .Height(30)
+                            .Padding(new Thickness(16, 0, 16, 0))
+                            .AutomationName("OPGG梯队Tab"),
+
+                        // 「出装」Tab
+                        Button(
+                            currentView == "build"
+                                ? TextBlock("出装").Foreground("#FFFFFF").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).FontSize(13)
+                                : TextBlock("出装").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).FontSize(13),
+                            () =>
+                            {
+                                if (selectedChampId.HasValue) onSelectView("build");
+                            })
+                            .IsEnabled(selectedChampId.HasValue)
+                            .Opacity(selectedChampId.HasValue ? 1.0 : 0.4)
+                            .Background(currentView == "build" ? OpggVisuals.ActiveTabGreen : "transparent")
+                            .Height(30)
+                            .Padding(new Thickness(16, 0, 16, 0))
+                            .AutomationName("OPGG出装Tab")
+                    )
+                    .VAlign(VerticalAlignment.Center)
+                    .Grid(0, 0),
+
+                    // 右侧：游戏版本号
+                    string.IsNullOrWhiteSpace(metaVersion)
+                        ? Empty().Grid(0, 2)
+                        : TextBlock($"游戏版本: {metaVersion}")
+                            .FontSize(11.5)
+                            .Foreground(Theme.SecondaryText)
+                            .VAlign(VerticalAlignment.Center)
+                            .Grid(0, 2)
+                ]
+            )
+        )
+        .Padding(new Thickness(16, 10, 16, 10))
+        .BorderThickness(new Thickness(0, 0, 0, 1))
+        .WithBorder(Theme.CardStroke, 1);
+    }
+
+    private static Element RenderBody(
+        string currentView,
+        bool loading,
+        string? errorMessage,
+        IReadOnlyList<TierListItem> tierItems,
+        OpggBuildData? buildData,
+        int? selectedChampId,
+        string? position,
+        GameDataCatalog catalog,
+        bool isDark,
+        bool isApplyingItemSet,
+        Action<int> onSelectChamp,
+        Action onRetry,
+        Action<OpggRunePreset> onApplyRune,
+        Action onApplyItemSet)
+    {
+        if (loading)
+        {
+            return VStack(12,
+                ProgressRing().Width(36).Height(36),
+                TextBlock("正在拉取 OP.GG 数据...")
+                    .FontSize(13)
+                    .Foreground(Theme.SecondaryText)
+            )
+            .HAlign(HorizontalAlignment.Center)
+            .VAlign(VerticalAlignment.Center);
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return VStack(12,
+                TextBlock("\uE783")
+                    .FontFamily("Segoe Fluent Icons")
+                    .FontSize(32)
+                    .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
+                    .HAlign(HorizontalAlignment.Center),
+                TextBlock(errorMessage)
+                    .FontSize(13)
+                    .Foreground(Theme.SecondaryText)
+                    .HAlign(HorizontalAlignment.Center),
+                Button("重试", onRetry)
+                    .Width(100)
+                    .HAlign(HorizontalAlignment.Center)
+            )
+            .HAlign(HorizontalAlignment.Center)
+            .VAlign(VerticalAlignment.Center);
+        }
+
+        if (currentView == "build" && buildData is not null && selectedChampId.HasValue)
+        {
+            return Component<BuildDetailPanelView, BuildDetailPanelProps>(new BuildDetailPanelProps
+            {
+                Build = buildData,
+                ChampionId = selectedChampId.Value,
+                Position = position,
+                ChampionsMap = catalog.Champions,
+                ItemsMap = catalog.Items,
+                SpellsMap = catalog.Spells,
+                RunesMap = catalog.Runes,
+                PerkStyles = catalog.PerkStyles,
+                PerkDetails = catalog.PerkDetails,
+                IsDark = isDark,
+                OnApplyRune = onApplyRune,
+                OnApplyItemSet = onApplyItemSet,
+                IsApplyingItemSet = isApplyingItemSet
+            });
+        }
+
+        return Component<TierListPanelView, TierListPanelProps>(new TierListPanelProps
+        {
+            Items = tierItems,
+            ChampionsMap = catalog.Champions,
+            IsDark = isDark,
+            OnSelectChampion = onSelectChamp
+        });
+    }
+
+    private static Element RenderToasts(IReadOnlyList<ToastItem> toasts)
+    {
+        if (toasts.Count == 0) return Empty();
+
+        return VStack(8,
+            toasts.Select(item =>
+            {
+                var iconGlyph = item.IsError ? "\uE783" : "\uE73E";
+                var iconColor = item.IsError
+                    ? Theme.Ref("SystemFillColorCriticalBrush")
+                    : Theme.Ref("SystemFillColorSuccessBrush");
+
+                return Border(
+                    HStack(10,
+                        Border(
+                            TextBlock(iconGlyph)
+                                .FontFamily("Segoe Fluent Icons")
+                                .FontSize(11)
+                                .Foreground(iconColor)
+                                .HAlign(HorizontalAlignment.Center)
+                                .VAlign(VerticalAlignment.Center)
+                        )
+                        .Width(22)
+                        .Height(22)
+                        .CornerRadius(11)
+                        .Background(Theme.Ref("LayerFillColorDefaultBrush")),
+
+                        TextBlock(item.Message)
+                            .FontSize(13)
+                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                            .VAlign(VerticalAlignment.Center)
+                    )
+                )
+                .Padding(new Thickness(16, 9, 20, 9))
+                .CornerRadius(20)
+                .Background(Theme.CardBackground)
+                .WithBorder(Theme.CardStroke, 1)
+                .HAlign(HorizontalAlignment.Center)
+                .WithKey(item.Id.ToString());
+            }).ToArray()
+        )
+        .VAlign(VerticalAlignment.Top)
+        .HAlign(HorizontalAlignment.Center)
+        .Margin(new Thickness(0, 16, 0, 0));
+    }
+}
+
+file sealed class AnonymousObserver<T>(Action<T> onNext) : IObserver<T>
+{
+    public void OnCompleted() { }
+    public void OnError(Exception error) { }
+    public void OnNext(T value) => onNext(value);
+}

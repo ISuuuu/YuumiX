@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media.Animation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
+using YuumiX.App.Windowing;
 using YuumiX.Core.Common;
 using YuumiX.Core.Persistence;
 
@@ -637,13 +638,15 @@ public sealed class SettingsPage : Component
             TextBlock(OrDash(config.General.WegamePath)).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
 
         var clearCacheCard = ActionCard(
-            "\uE74D", "清除缓存", "删除所有游戏资源（英雄图标/装备/符文）的磁盘缓存",
+            "\uE74D", "清除缓存", "删除所有游戏资源（英雄图标/装备/符文）与 OP.GG 数据的磁盘缓存",
             Button("清除缓存", () =>
             {
                 try
                 {
                     services.AssetCache.Clear();
-                    logger.LogInformation("已清空游戏资源缓存");
+                    services.OpggHttpClient.ClearMemoryCache();
+                    services.OpggHttpClient.ClearDiskCache();
+                    logger.LogInformation("已清空游戏资源与 OP.GG 缓存");
                 }
                 catch (Exception ex)
                 {
@@ -806,7 +809,11 @@ public sealed class SettingsPage : Component
                 // 2. OP.GG
                 GroupHeader("OP.GG"),
                 SettingToggleCard("\uE737", "自动显示 OP.GG 窗口", "在英雄选择开始时自动显示 OP.GG 窗口", config.Functions.AutoShowOpgg, v => config.Functions.AutoShowOpgg = v, nameof(FunctionsConfig.AutoShowOpgg)),
-                SettingToggleCard("\uE840", "置顶 OP.GG 窗口", "在英雄选择时将 OP.GG 窗口置顶", config.Functions.EnableOpggOnTop, v => config.Functions.EnableOpggOnTop = v, nameof(FunctionsConfig.EnableOpggOnTop)),
+                SettingToggleCard("\uE840", "置顶 OP.GG 窗口", "在英雄选择时将 OP.GG 窗口置顶", config.Functions.EnableOpggOnTop, v =>
+                {
+                    config.Functions.EnableOpggOnTop = v;
+                    OpggWindowHost.UpdateAlwaysOnTop(v);
+                }, nameof(FunctionsConfig.EnableOpggOnTop)),
 
                 // 3. 通用设置
                 GroupHeader("通用设置"),
