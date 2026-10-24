@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Runtime;
@@ -129,7 +130,7 @@ public sealed class SavedPlayersStore : IDisposable
         var hasSearch = !string.IsNullOrEmpty(searchKw);
         if (hasSearch)
         {
-            whereParts.Add("(saved_players.summoner_name LIKE @kw OR saved_players.tag_line LIKE @kw OR saved_players.tag LIKE @kw)");
+            whereParts.Add("(saved_players.summoner_name LIKE @kw OR saved_players.tag_line LIKE @kw OR saved_players.tag LIKE @kw OR (saved_players.summoner_name || '#' || COALESCE(saved_players.tag_line, '')) LIKE @kw)");
         }
 
         var whereClause = string.Join(" AND ", whereParts);
@@ -324,32 +325,358 @@ public sealed class SavedPlayersStore : IDisposable
     /// <summary>
     /// 删除某位保存的玩家记录及其相遇历史。
     /// </summary>
-    public async Task DeletePlayerAsync(string puuid, string selfPuuid, CancellationToken cancellationToken = default)
+    public async Task DeletePlayerAsync(string puuid, string? selfPuuid = null, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+        var hasSelf = !string.IsNullOrWhiteSpace(selfPuuid);
+
         await using var tx = conn.BeginTransaction();
         await using (var cmd = conn.CreateCommand())
         {
             cmd.Transaction = tx;
-            cmd.CommandText = "DELETE FROM saved_players WHERE puuid = @puuid AND self_puuid = @selfPuuid";
+            cmd.CommandText = hasSelf
+                ? "DELETE FROM saved_players WHERE puuid = @puuid AND self_puuid = @selfPuuid"
+                : "DELETE FROM saved_players WHERE puuid = @puuid";
             cmd.Parameters.AddWithValue("@puuid", puuid);
-            cmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+            if (hasSelf) cmd.Parameters.AddWithValue("@selfPuuid", selfPuuid!);
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         await using (var cmd = conn.CreateCommand())
         {
             cmd.Transaction = tx;
-            cmd.CommandText = "DELETE FROM encountered_games WHERE puuid = @puuid AND self_puuid = @selfPuuid";
+            cmd.CommandText = hasSelf
+                ? "DELETE FROM encountered_games WHERE puuid = @puuid AND self_puuid = @selfPuuid"
+                : "DELETE FROM encountered_games WHERE puuid = @puuid";
             cmd.Parameters.AddWithValue("@puuid", puuid);
-            cmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+            if (hasSelf) cmd.Parameters.AddWithValue("@selfPuuid", selfPuuid!);
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 对局结束批量记录相遇玩家（对应原系统 record_encounters）。
+    /// </summary>
+    public async Task<int> RecordEncountersAsync(
+        IReadOnlyList<EncounterPlayerEntry> players,
+        string selfPuuid,
+        long gameId,
+        string queueType,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        if (string.IsNullOrWhiteSpace(selfPuuid) || players.Count == 0)
+        {
+            return 0;
+        }
+
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var tx = conn.BeginTransaction();
+
+        int recorded = 0;
+        foreach (var player in players)
+        {
+            if (string.IsNullOrWhiteSpace(player.Puuid) || string.Equals(player.Puuid, selfPuuid, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // 查询复用已存在的 region 与 rso_platform_id，避免同一玩家因 region 不一致产生重复行
+            string region = string.Empty;
+            string rsoPlatformId = string.Empty;
+            await using (var selCmd = conn.CreateCommand())
+            {
+                selCmd.Transaction = tx;
+                selCmd.CommandText = "SELECT region, rso_platform_id FROM saved_players WHERE puuid = @puuid AND self_puuid = @selfPuuid LIMIT 1";
+                selCmd.Parameters.AddWithValue("@puuid", player.Puuid);
+                selCmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+                await using var reader = await selCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    region = reader.GetString(0);
+                    rsoPlatformId = reader.GetString(1);
+                }
+            }
+
+            // Upsert saved_players
+            await using (var upsertCmd = conn.CreateCommand())
+            {
+                upsertCmd.Transaction = tx;
+                upsertCmd.CommandText = @"
+                    INSERT INTO saved_players (
+                        puuid, self_puuid, region, rso_platform_id, tag, summoner_name,
+                        profile_icon_id, tag_line, champion_id, update_at, last_met_at
+                    )
+                    VALUES (@puuid, @selfPuuid, @region, @rsoPlatformId, NULL, @name, @icon, @tagLine, @champId, @now, @now)
+                    ON CONFLICT(puuid, self_puuid, region, rso_platform_id) DO UPDATE SET
+                        summoner_name = CASE WHEN excluded.summoner_name = '' THEN saved_players.summoner_name ELSE excluded.summoner_name END,
+                        profile_icon_id = CASE WHEN excluded.profile_icon_id = 0 THEN saved_players.profile_icon_id ELSE excluded.profile_icon_id END,
+                        tag_line = CASE WHEN excluded.tag_line IS NULL OR excluded.tag_line = '' THEN saved_players.tag_line ELSE excluded.tag_line END,
+                        champion_id = CASE WHEN excluded.champion_id = 0 THEN saved_players.champion_id ELSE excluded.champion_id END,
+                        update_at = excluded.update_at,
+                        last_met_at = excluded.last_met_at";
+
+                upsertCmd.Parameters.AddWithValue("@puuid", player.Puuid);
+                upsertCmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+                upsertCmd.Parameters.AddWithValue("@region", region);
+                upsertCmd.Parameters.AddWithValue("@rsoPlatformId", rsoPlatformId);
+                upsertCmd.Parameters.AddWithValue("@name", player.SummonerName ?? string.Empty);
+                upsertCmd.Parameters.AddWithValue("@icon", player.ProfileIconId);
+                upsertCmd.Parameters.AddWithValue("@tagLine", (object?)player.TagLine ?? DBNull.Value);
+                upsertCmd.Parameters.AddWithValue("@champId", player.ChampionId);
+                upsertCmd.Parameters.AddWithValue("@now", now);
+
+                await upsertCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // Insert encountered_games
+            await using (var encCmd = conn.CreateCommand())
+            {
+                encCmd.Transaction = tx;
+                encCmd.CommandText = @"
+                    INSERT INTO encountered_games (game_id, puuid, self_puuid, region, rso_platform_id, queue_type, update_at)
+                    VALUES (@gameId, @puuid, @selfPuuid, @region, @rsoPlatformId, @queueType, @now)";
+
+                encCmd.Parameters.AddWithValue("@gameId", gameId);
+                encCmd.Parameters.AddWithValue("@puuid", player.Puuid);
+                encCmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+                encCmd.Parameters.AddWithValue("@region", region);
+                encCmd.Parameters.AddWithValue("@rsoPlatformId", rsoPlatformId);
+                encCmd.Parameters.AddWithValue("@queueType", queueType ?? string.Empty);
+                encCmd.Parameters.AddWithValue("@now", now);
+
+                await encCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            recorded++;
+        }
+
+        await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return recorded;
+    }
+
+    /// <summary>
+    /// 导出已标记的玩家记录为 JSON 字符串（对应原系统 export_tagged_players_to_json_file）。
+    /// </summary>
+    public async Task<string> ExportTaggedPlayersJsonAsync(
+        string? selfPuuid = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var sql = @"
+            SELECT puuid, self_puuid, region, rso_platform_id, tag, summoner_name,
+                   profile_icon_id, tag_line, champion_id, update_at, last_met_at
+            FROM saved_players
+            WHERE tag IS NOT NULL AND tag != ''";
+
+        if (!string.IsNullOrWhiteSpace(selfPuuid))
+        {
+            sql += " AND self_puuid = @selfPuuid";
+        }
+
+        sql += " ORDER BY last_met_at DESC, update_at DESC";
+
+        var list = new List<SavedPlayerRecord>();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        if (!string.IsNullOrWhiteSpace(selfPuuid))
+        {
+            cmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+        }
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            list.Add(new SavedPlayerRecord
+            {
+                Puuid = reader.GetString(0),
+                SelfPuuid = reader.GetString(1),
+                Region = reader.GetString(2),
+                RsoPlatformId = reader.GetString(3),
+                Tag = reader.IsDBNull(4) ? null : reader.GetString(4),
+                SummonerName = reader.GetString(5),
+                ProfileIconId = reader.GetInt32(6),
+                TagLine = reader.IsDBNull(7) ? null : reader.GetString(7),
+                ChampionId = reader.GetInt32(8),
+                UpdateAt = reader.GetInt64(9),
+                LastMetAt = reader.IsDBNull(10) ? null : reader.GetInt64(10),
+            });
+        }
+
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+        return JsonSerializer.Serialize(list, options);
+    }
+
+    /// <summary>
+    /// 从 JSON 字符串批量导入标记玩家（对应原系统 import_tagged_players_from_json_file）。
+    /// </summary>
+    public async Task<int> ImportTaggedPlayersJsonAsync(
+        string json,
+        string? defaultSelfPuuid = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return 0;
+        }
+
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+        };
+
+        List<SavedPlayerRecord>? records;
+        try
+        {
+            records = JsonSerializer.Deserialize<List<SavedPlayerRecord>>(json, options);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "解析标记玩家 JSON 失败");
+            return 0;
+        }
+
+        if (records is null || records.Count == 0)
+        {
+            return 0;
+        }
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var tx = conn.BeginTransaction();
+
+        int imported = 0;
+        foreach (var r in records)
+        {
+            if (string.IsNullOrWhiteSpace(r.Puuid))
+            {
+                continue;
+            }
+
+            var selfId = !string.IsNullOrWhiteSpace(r.SelfPuuid) ? r.SelfPuuid : (defaultSelfPuuid ?? string.Empty);
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            long updateAt = r.UpdateAt > 0 ? r.UpdateAt : now;
+            long? lastMetAt = r.LastMetAt;
+
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = @"
+                INSERT INTO saved_players (
+                    puuid, self_puuid, region, rso_platform_id, tag, summoner_name,
+                    profile_icon_id, tag_line, champion_id, update_at, last_met_at
+                )
+                VALUES (@puuid, @selfPuuid, @region, @rsoPlatformId, @tag, @name, @icon, @tagLine, @champId, @updateAt, @lastMetAt)
+                ON CONFLICT(puuid, self_puuid, region, rso_platform_id) DO UPDATE SET
+                    tag = excluded.tag,
+                    summoner_name = CASE WHEN excluded.summoner_name = '' THEN saved_players.summoner_name ELSE excluded.summoner_name END,
+                    profile_icon_id = CASE WHEN excluded.profile_icon_id = 0 THEN saved_players.profile_icon_id ELSE excluded.profile_icon_id END,
+                    tag_line = CASE WHEN excluded.tag_line IS NULL OR excluded.tag_line = '' THEN saved_players.tag_line ELSE excluded.tag_line END,
+                    champion_id = CASE WHEN excluded.champion_id = 0 THEN saved_players.champion_id ELSE excluded.champion_id END,
+                    update_at = excluded.update_at,
+                    last_met_at = COALESCE(excluded.last_met_at, saved_players.last_met_at)";
+
+            cmd.Parameters.AddWithValue("@puuid", r.Puuid);
+            cmd.Parameters.AddWithValue("@selfPuuid", selfId);
+            cmd.Parameters.AddWithValue("@region", r.Region ?? string.Empty);
+            cmd.Parameters.AddWithValue("@rsoPlatformId", r.RsoPlatformId ?? string.Empty);
+            cmd.Parameters.AddWithValue("@tag", (object?)r.Tag ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@name", r.SummonerName ?? string.Empty);
+            cmd.Parameters.AddWithValue("@icon", r.ProfileIconId);
+            cmd.Parameters.AddWithValue("@tagLine", (object?)r.TagLine ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@champId", r.ChampionId);
+            cmd.Parameters.AddWithValue("@updateAt", updateAt);
+            cmd.Parameters.AddWithValue("@lastMetAt", (object?)lastMetAt ?? DBNull.Value);
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            imported++;
+        }
+
+        await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return imported;
+    }
+
+    /// <summary>
+    /// 获取需要回填身份信息的玩家（缺少 tag_line、召唤师名称为空或头像为 0）。
+    /// </summary>
+    public async Task<IReadOnlyList<(string Puuid, string SelfPuuid)>> GetPendingBackfillPlayersAsync(
+        int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var list = new List<(string Puuid, string SelfPuuid)>();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT puuid, self_puuid
+            FROM saved_players
+            WHERE tag_line IS NULL OR tag_line = '' OR summoner_name IS NULL OR summoner_name = '' OR profile_icon_id = 0
+            LIMIT @limit";
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            list.Add((reader.GetString(0), reader.GetString(1)));
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// 批量保存回填的身份信息。
+    /// </summary>
+    public async Task<int> SaveBackfilledIdentitiesAsync(
+        IEnumerable<(string Puuid, string SelfPuuid, string TagLine, string SummonerName, int ProfileIconId)> records,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var tx = conn.BeginTransaction();
+
+        int count = 0;
+        foreach (var (puuid, selfPuuid, tagLine, summonerName, profileIconId) in records)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = @"
+                UPDATE saved_players
+                SET tag_line = CASE WHEN tag_line IS NULL OR tag_line = '' THEN @tagLine ELSE tag_line END,
+                    summoner_name = CASE WHEN summoner_name IS NULL OR summoner_name = '' THEN @name ELSE summoner_name END,
+                    profile_icon_id = CASE WHEN profile_icon_id = 0 THEN @icon ELSE profile_icon_id END
+                WHERE puuid = @puuid AND self_puuid = @selfPuuid";
+
+            cmd.Parameters.AddWithValue("@tagLine", (object?)tagLine ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@name", (object?)summonerName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@icon", profileIconId);
+            cmd.Parameters.AddWithValue("@puuid", puuid);
+            cmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            count++;
+        }
+
+        await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return count;
     }
 
     public void Dispose()

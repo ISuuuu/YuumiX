@@ -231,6 +231,19 @@ public sealed class AppServices : IDisposable
             provider.GetRequiredService<AgentSupervisor>(),
             provider.GetRequiredService<AgentLifecycle>(),
             provider.GetService<ILogger<AramTeamSideAgent>>()));
+        collection.AddSingleton<AutoEncounterRecorderAgent>(provider => new AutoEncounterRecorderAgent(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            provider.GetRequiredService<SavedPlayersStore>(),
+            provider.GetRequiredService<AgentSupervisor>(),
+            provider.GetRequiredService<AgentLifecycle>(),
+            provider.GetService<ILogger<AutoEncounterRecorderAgent>>()));
+        collection.AddSingleton<AutoTagReminderAgent>(provider => new AutoTagReminderAgent(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetRequiredService<SavedPlayersStore>(),
+            provider.GetRequiredService<AgentSupervisor>(),
+            provider.GetRequiredService<AgentLifecycle>(),
+            provider.GetService<ILogger<AutoTagReminderAgent>>()));
         collection.AddSingleton<AutomationHost>();
 
         // ── 对局信息（GameInfo 模块）────────────────────────────────

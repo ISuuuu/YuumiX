@@ -36,6 +36,18 @@ public sealed record EncounteredGameRecord
 }
 
 /// <summary>
+/// 对局结束时传入的单个玩家相遇信息。
+/// </summary>
+public sealed record EncounterPlayerEntry
+{
+    public required string Puuid { get; init; }
+    public required string SummonerName { get; init; }
+    public int ProfileIconId { get; init; }
+    public string? TagLine { get; init; }
+    public int ChampionId { get; init; }
+}
+
+/// <summary>
 /// 分页结果包装。
 /// </summary>
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, long TotalCount);
