@@ -36,18 +36,24 @@ public static class SidebarTags
 
     /// <summary>修复无限加载：手动重连客户端。新项目暂无手动入口，先预留位置。</summary>
     public const string Reconnect = "Reconnect";
+
+    /// <summary>公告：显示右下角公告弹窗（对应旧版 navigate('notice') → noticeVisible = true）。</summary>
+    public const string Notice = "Notice";
 }
 
 /// <summary>
 /// 侧边栏菜单的元数据源。结构对齐原 Yuumi 的 <c>NavigationSidebar.vue</c>：
 /// <list type="bullet">
 ///   <item><description>主功能区 <see cref="Primary"/>：主页 / 生涯 / 战绩查询 / 对局信息 / 云顶之弈 / 路人集 / 工具箱；</description></item>
-///   <item><description>底部附加操作区：OP.GG / 修复无限加载（动作项，见 <see cref="FooterActions"/>）+
-///         公告 / 设置（路由项，见 <see cref="Footer"/>）。</description></item>
+///   <item><description>底部附加操作区：OP.GG / 修复无限加载 / 公告（动作项，见 <see cref="FooterActions"/>）+
+///         设置（路由项，见 <see cref="Footer"/>）。</description></item>
 /// </list>
 ///
 /// 底部区的最终顺序 = <see cref="FooterActions"/> 全部 + <see cref="Footer"/> 全部，
 /// 与旧版 sidebar-bottom 的排列一致（OP.GG → 修复无限加载 → 公告 → 设置）。
+///
+/// 注意：公告在旧版里点击后**不切换页面**，只是弹出 NoticePopup——因此它是动作项
+/// 而不是路由项（<see cref="AppRoute.Notice"/> 仅为迁移清单保留，不再参与导航）。
 ///
 /// 图标沿用本项目既有的 Segoe Fluent Icons 字形——用户已确认符合要求，不要改动。
 /// </summary>
@@ -68,21 +74,22 @@ public static class RouteCatalog
     ];
 
     /// <summary>
-    /// 底部附加操作区里的**路由**项：公告、设置。
+    /// 底部附加操作区里的**路由**项：设置。
     /// </summary>
     public static readonly IReadOnlyList<RouteDescriptor> Footer =
     [
-        new(AppRoute.Notice,   "公告", "\uE7E7"),
         new(AppRoute.Settings, "设置", "\uE713"),
     ];
 
     /// <summary>
     /// 底部附加操作区里的**动作**项：不改变主导航路由，点击后执行一次性行为。
+    /// 公告对应旧版行为：显示右下角 NoticePopup 弹窗，页面本身不切换。
     /// </summary>
     public static readonly IReadOnlyList<SidebarAction> FooterActions =
     [
         new(SidebarTags.Opgg,      "OP.GG",       "\uE737"),
         new(SidebarTags.Reconnect, "修复无限加载", "\uE72C"),
+        new(SidebarTags.Notice,    "公告",         "\uE7E7"),
     ];
 
     /// <summary>全部路由项（主功能区 + 底部附加操作区）。</summary>

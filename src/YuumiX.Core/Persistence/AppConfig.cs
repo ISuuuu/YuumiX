@@ -167,6 +167,8 @@ public sealed class PersonalizationConfig
 
     /// <summary>
     /// 侧边导航展开状态。YuumiX 自加字段，原版 Rust 侧没有（跨启动记住导航栏开合）。
+    /// <c>false</c> = 收起（64px 图标栏，对齐旧版 <c>.sidebar.collapsed</c>，也是默认值）；
+    /// <c>true</c> = 展开（210px，含文字标签）。
     /// </summary>
     public bool NavigationPaneOpen { get; set; }
 

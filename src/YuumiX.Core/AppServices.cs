@@ -70,6 +70,10 @@ public sealed class AppServices : IDisposable
     /// <summary>OP.GG 业务服务。</summary>
     public IOpggService OpggService => Services.GetRequiredService<IOpggService>();
 
+    /// <summary>公告服务（GitHub NOTICE.md 拉取 + 本地缓存兜底）。</summary>
+    public Features.Notice.NoticeService NoticeService =>
+        Services.GetRequiredService<Features.Notice.NoticeService>();
+
     /// <summary>
     /// 进程级关闭令牌。所有后台循环（LCU 轮询、WebSocket 重连）必须监听它，
     /// 否则窗口关闭后进程退不掉——后台任务会把 CLR 拖住。
@@ -211,6 +215,13 @@ public sealed class AppServices : IDisposable
             provider.GetRequiredService<RuntimePaths>(),
             () => provider.GetRequiredService<AppConfig>(),
             provider.GetService<ILogger<Updates.UpdateService>>()));
+
+        // ── 公告（对应旧 NoticePopup.vue 的 fetch_github_text 链路）──
+        // GitHub 白名单 + 代理复用见 GitHubClient；本地缓存兜底见 NoticeService。
+        collection.AddSingleton<Features.Notice.NoticeService>(provider => new Features.Notice.NoticeService(
+            provider.GetRequiredService<RuntimePaths>(),
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetService<ILogger<Features.Notice.NoticeService>>()));
 
         // ── 自动化与工具箱（阶段 7 / requirements-tools.md）─────────
         collection.AddSingleton<AgentSupervisor>(provider => new AgentSupervisor(

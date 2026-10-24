@@ -50,10 +50,8 @@ public static class PageCatalog
         [AppRoute.Settings] = ("设置", "src/views/Settings.vue",
         [
         ]),
-        [AppRoute.Notice] = ("公告", "src/components/layout/NoticePopup.vue",
+        [AppRoute.Notice] = ("公告", "src/components/NoticePopup.vue",
         [
-            "从 GitHub 拉取 NOTICE.md 并弹窗展示",
-            "公告内容缓存与版本比对",
         ]),
     };
 

@@ -48,6 +48,9 @@
     <None Update="Assets\MatchDetail\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Assets\Tier\*.svg" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Assets\opgg.svg" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 侧边栏 OP.GG 菜单项专用 18px 品牌图标（由 opgg.svg 光栅化；Reactor 的
+         ImageIcon 走 BitmapImage，不支持 SVG，故必须用 PNG）。 -->
+    <None Update="Assets\opgg-nav.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

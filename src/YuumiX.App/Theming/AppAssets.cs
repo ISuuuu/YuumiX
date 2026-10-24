@@ -34,6 +34,21 @@ public static class AppAssets
     /// <summary><see cref="OpggLogoPath"/> 的 <c>file:///</c> 形式。</summary>
     public static string OpggLogoUri { get; } = File.Exists(OpggLogoPath) ? new Uri(OpggLogoPath).AbsoluteUri : "";
 
+    /// <summary>
+    /// 侧边栏专用 OP.GG 图标（18px PNG，对应旧版 NavigationSidebar.vue 的
+    /// <c>width: 18px; border-radius: 3px</c>）。由 <c>opgg.svg</c> 光栅化而来。
+    ///
+    /// 为什么用 PNG 而不是直接用 SVG：Reactor 的 <c>IconResolver</c> 把
+    /// <see cref="Microsoft.UI.Reactor.Core.ImageIconData"/> 解析成
+    /// <c>ImageIcon + BitmapImage</c>，而 BitmapImage 不支持 SVG（需要 SvgImageSource），
+    /// SVG 源会静默加载失败、图标整个消失。
+    /// </summary>
+    public static string OpggNavIconPath { get; } = Path.Combine(AppContext.BaseDirectory, "Assets", "opgg-nav.png");
+
+    /// <summary><see cref="OpggNavIconPath"/> 的 <c>file:///</c> 形式。</summary>
+    public static string OpggNavIconUri { get; } =
+        File.Exists(OpggNavIconPath) ? new Uri(OpggNavIconPath).AbsoluteUri : "";
+
     /// <summary>OP.GG 梯度 T1~T4 盾牌图标 URI 字典。</summary>
     public static IReadOnlyDictionary<string, string> TierIconUris { get; } = BuildTierIconUris();
 
