@@ -40,6 +40,22 @@ public static class AppAssets
     /// </summary>
     public static IReadOnlyDictionary<string, string> RankedIconUris { get; } = BuildRankedIconUris();
 
+    /// <summary>
+    /// 对局详情双方资源统计图标（<c>Assets/MatchDetail/*.png</c>）。
+    /// </summary>
+    public static string? GetMatchDetailIconUri(string name)
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Assets", "MatchDetail", name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? name : name + ".png");
+        return File.Exists(path) ? new Uri(path).AbsoluteUri : null;
+    }
+
+    /// <summary>击杀图标 URI。</summary>
+    public static string? KillsIconUri { get; } = GetMatchDetailIconUri("kills.png");
+
+    /// <summary>根据资源类型与队伍ID（100/200）获取对应的资源统计图标 URI。</summary>
+    public static string? GetTeamResourceIconUri(string resource, int teamId) =>
+        GetMatchDetailIconUri($"{resource}-{teamId}.png");
+
     private static Dictionary<string, string> BuildRankedIconUris()
     {
         string directory = Path.Combine(AppContext.BaseDirectory, "Assets", "RankedIcons");

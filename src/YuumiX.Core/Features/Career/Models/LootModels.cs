@@ -36,13 +36,17 @@ public sealed record LootInventoryItem(
     string LootType = "",
     string Rarity = "DEFAULT",
     string UpgradeRecipeName = "",
-    int UpgradeEssenceCost = 0)
+    int UpgradeEssenceCost = 0,
+    string ParentItemStatus = "")
 {
     /// <summary>是否已拥有。</summary>
     public bool IsOwned => string.Equals(ItemStatus, "OWNED", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>是否为英雄碎片。</summary>
     public bool IsChampion => string.Equals(DisplayCategories, "CHAMPION", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>是否为永恒星碑（对应旧版筛选里 lootType 含 STATSTONE 的条目）。</summary>
+    public bool IsStatstone => LootType.Contains("STATSTONE", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>战利品操作进度事件（开箱/分解/重随/升级共用）。</summary>

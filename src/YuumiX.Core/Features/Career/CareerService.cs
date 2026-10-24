@@ -101,14 +101,19 @@ public sealed class CareerService : ICareerService
         }
     }
 
-    public async Task<PlayerLootOverview> GetLootOverviewAsync(
+    /// <summary>
+    /// 拉取战利品概览。未连接或读取失败返回 <c>null</c>（界面给失败提示）；
+    /// 成功但账号确实没有任何战利品时返回全空的概览（界面给普通空态）——
+    /// 两者混为一谈会让"刚注册的空账号"看起来像坏了。
+    /// </summary>
+    public async Task<PlayerLootOverview?> GetLootOverviewAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
         ILcuTransport? transport = _transportProvider();
         if (transport is null)
         {
-            return PlayerLootOverview.Sample;
+            return null;
         }
 
         try
@@ -119,18 +124,21 @@ public sealed class CareerService : ICareerService
 
             if (!response.IsSuccess || string.IsNullOrWhiteSpace(response.Body))
             {
-                return PlayerLootOverview.Sample;
+                return null;
             }
 
             using JsonDocument document = JsonDocument.Parse(response.Body);
             if (document.RootElement.ValueKind != JsonValueKind.Array)
             {
-                return PlayerLootOverview.Sample;
+                return null;
             }
 
-            var openables = new List<OpenableLootItem>();
+            // 两趟扫描：先数出普通钥匙与杰作钥匙各自的库存，
+            // 再装配可开启列表——否则钥匙排在箱子后面时，箱子拿不到正确的钥匙数。
+            var openableCandidates = new List<(string LootId, string Name, int Count, bool NeedKey, string? TilePath)>();
             var inventory = new List<LootInventoryItem>();
-            int totalKeys = 0;
+            int regularKeys = 0;
+            int premiumKeys = 0;
             int blueEssence = 0;
             int orangeEssence = 0;
 
@@ -145,11 +153,16 @@ public sealed class CareerService : ICareerService
                 string lootName = JsonRead.String(item, "lootName") ?? string.Empty;
                 string itemDesc = JsonRead.String(item, "itemDesc") ?? lootName;
                 string displayCategories = JsonRead.String(item, "displayCategories") ?? string.Empty;
+                string lootType = JsonRead.String(item, "lootType") ?? string.Empty;
+                string rarity = JsonRead.String(item, "rarity") ?? "DEFAULT";
                 int count = JsonRead.Int(item, "count", 1);
                 int value = JsonRead.Int(item, "value", 0);
                 int disenchantValue = JsonRead.Int(item, "disenchantValue", 0);
                 string itemStatus = JsonRead.String(item, "itemStatus") ?? "NONE";
-                string? tilePath = JsonRead.String(item, "tilePath");
+                string parentItemStatus = JsonRead.String(item, "parentItemStatus") ?? string.Empty;
+                string upgradeRecipeName = JsonRead.String(item, "upgradeRecipeName") ?? string.Empty;
+                int upgradeEssenceCost = JsonRead.Int(item, "upgradeEssenceValue", 0);
+                string? tilePath = JsonRead.String(item, "tilePath") ?? JsonRead.String(item, "imagePath");
 
                 if (lootId.Contains("CURRENCY_champion", StringComparison.OrdinalIgnoreCase))
                 {
@@ -161,7 +174,14 @@ public sealed class CareerService : ICareerService
                 }
                 else if (lootId.Contains("MATERIAL_key", StringComparison.OrdinalIgnoreCase) && !lootId.Contains("fragment", StringComparison.OrdinalIgnoreCase))
                 {
-                    totalKeys += count;
+                    if (lootId.Contains("premium", StringComparison.OrdinalIgnoreCase))
+                    {
+                        premiumKeys += count;
+                    }
+                    else
+                    {
+                        regularKeys += count;
+                    }
                 }
 
                 // 判断是否为箱子/法球/胶囊/材料
@@ -174,14 +194,7 @@ public sealed class CareerService : ICareerService
                 {
                     bool needKey = lootId.Contains("CHEST", StringComparison.OrdinalIgnoreCase) &&
                                    !lootId.Contains("champion", StringComparison.OrdinalIgnoreCase);
-                    openables.Add(new OpenableLootItem(
-                        lootId,
-                        itemDesc,
-                        count,
-                        lootId + "_OPEN",
-                        needKey,
-                        totalKeys,
-                        tilePath));
+                    openableCandidates.Add((lootId, itemDesc, count, needKey, tilePath));
                 }
                 else if (!string.IsNullOrEmpty(itemDesc))
                 {
@@ -193,36 +206,64 @@ public sealed class CareerService : ICareerService
                         value,
                         disenchantValue,
                         itemStatus,
-                        tilePath));
+                        tilePath,
+                        lootType,
+                        rarity,
+                        upgradeRecipeName,
+                        upgradeEssenceCost,
+                        parentItemStatus));
                 }
             }
 
-            if (openables.Count == 0 && inventory.Count == 0)
+            if (openableCandidates.Count == 0 && inventory.Count == 0)
             {
-                return PlayerLootOverview.Sample;
+                return PlayerLootOverview.Empty;
+            }
+
+            // 钥匙配对规则与 SmartOpenAllLootsAsync 一致：杰作宝箱（premium）配杰作钥匙，
+            // 其余需要钥匙的箱子配普通海克斯钥匙；KeyCount 是对应钥匙的拥有数（单件开箱弹窗用）。
+            var openables = new List<OpenableLootItem>(openableCandidates.Count);
+            foreach (var (lootId, name, count, needKey, tilePath) in openableCandidates)
+            {
+                bool premium = lootId.Contains("premium", StringComparison.OrdinalIgnoreCase);
+                string keyLootId = premium ? "MATERIAL_key_premium" : "MATERIAL_key";
+                int keyCount = premium ? premiumKeys : regularKeys;
+                openables.Add(new OpenableLootItem(
+                    lootId,
+                    name,
+                    count,
+                    lootId + "_OPEN",
+                    needKey,
+                    needKey ? keyCount : 0,
+                    tilePath,
+                    needKey ? keyLootId : null));
             }
 
             return new PlayerLootOverview(
                 openables,
                 inventory,
-                totalKeys > 0 ? totalKeys : 13,
-                blueEssence > 0 ? blueEssence : 12128,
-                orangeEssence > 0 ? orangeEssence : 5624);
+                regularKeys + premiumKeys,
+                blueEssence,
+                orangeEssence);
         }
         catch (Exception)
         {
-            return PlayerLootOverview.Sample;
+            return null;
         }
     }
 
-    public async Task<MasteryOverview> GetMasteryOverviewAsync(
+    /// <summary>
+    /// 拉取全英雄熟练度概览。未连接或读取失败返回 <c>null</c>（界面给失败提示）；
+    /// 成功但账号没有任何熟练度记录时返回全空的概览。
+    /// </summary>
+    public async Task<MasteryOverview?> GetMasteryOverviewAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
         ILcuTransport? transport = _transportProvider();
         if (transport is null)
         {
-            return MasteryOverview.Sample;
+            return null;
         }
 
         try
@@ -233,13 +274,13 @@ public sealed class CareerService : ICareerService
 
             if (!response.IsSuccess || string.IsNullOrWhiteSpace(response.Body))
             {
-                return MasteryOverview.Sample;
+                return null;
             }
 
             using JsonDocument document = JsonDocument.Parse(response.Body);
             if (document.RootElement.ValueKind != JsonValueKind.Array)
             {
-                return MasteryOverview.Sample;
+                return null;
             }
 
             var list = new List<ChampionMasteryItem>();
@@ -303,7 +344,7 @@ public sealed class CareerService : ICareerService
 
             if (list.Count == 0)
             {
-                return MasteryOverview.Sample;
+                return MasteryOverview.Empty;
             }
 
             ChampionMasteryItem maxLevel = list.OrderByDescending(x => x.ChampionLevel).ThenByDescending(x => x.ChampionPoints).First();
@@ -318,7 +359,7 @@ public sealed class CareerService : ICareerService
         }
         catch (Exception)
         {
-            return MasteryOverview.Sample;
+            return null;
         }
     }
 
@@ -473,7 +514,13 @@ public sealed class CareerService : ICareerService
             return new LootOperationResult(false, 0, 0, [], "LCU未连接");
         }
 
-        PlayerLootOverview overview = await GetLootOverviewAsync(forceRefresh: true, cancellationToken).ConfigureAwait(false);
+        PlayerLootOverview? overview = await GetLootOverviewAsync(forceRefresh: true, cancellationToken).ConfigureAwait(false);
+        if (overview is null)
+        {
+            // 概览读取失败时无从得知钥匙与箱子数量，宁可不执行也不能凭猜测开箱
+            return new LootOperationResult(false, 0, 0, [], "读取战利品失败，无法智能开启");
+        }
+
         int availableKeys = overview.TotalKeys;
 
         var sorted = overview.OpenableItems
@@ -628,14 +675,32 @@ public sealed class CareerService : ICareerService
         return new LootOperationResult(succeeded > 0, succeeded, failed, rewards, lastError);
     }
 
+    /// <summary>
+    /// 三合一重铸选中的碎片。
+    ///
+    /// 对齐旧版 <c>useLoot.ts</c> 的余数语义：按 lootId（同类碎片）分组，
+    /// 每组取 ⌊count/3⌋×3 个凑整组、余数保留不动；一个整组都凑不齐时返回失败结果，
+    /// 由界面提示"无法重随"，而不是像旧签名那样把总数不是 3 的倍数的选择整体拒绝。
+    /// </summary>
     public async Task<LootOperationResult> RerollLootsAsync(
-        IReadOnlyList<string> lootIds,
+        IReadOnlyList<(string LootId, int Count)> items,
         IProgress<LootOperationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        if (lootIds.Count == 0 || lootIds.Count % 3 != 0)
+        // 按 lootId 分组，每组凑出 3 的倍数；余数留在本地不发送
+        var groups = new List<string[]>();
+        foreach (var groupOf in items.GroupBy(item => item.LootId, StringComparer.Ordinal))
         {
-            return new LootOperationResult(false, 0, 0, [], "重铸必须提供 3 的倍数个物品");
+            int usable = groupOf.Sum(item => item.Count) / 3 * 3;
+            for (int i = 0; i < usable; i += 3)
+            {
+                groups.Add([groupOf.Key, groupOf.Key, groupOf.Key]);
+            }
+        }
+
+        if (groups.Count == 0)
+        {
+            return new LootOperationResult(false, 0, 0, [], "所选战利品凑不齐一组重随（每类至少 3 个）");
         }
 
         ILcuTransport? transport = _transportProvider();
@@ -644,7 +709,7 @@ public sealed class CareerService : ICareerService
             return new LootOperationResult(false, 0, 0, [], "LCU未连接");
         }
 
-        int totalGroups = lootIds.Count / 3;
+        int totalGroups = groups.Count;
         int succeeded = 0;
         int failed = 0;
         var rewards = new List<string>();
@@ -655,8 +720,7 @@ public sealed class CareerService : ICareerService
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(200, cancellationToken).ConfigureAwait(false);
 
-            int idx = g * 3;
-            var group = new[] { lootIds[idx], lootIds[idx + 1], lootIds[idx + 2] };
+            string[] group = groups[g];
             string keyword = group[0].Contains("EMOTE", StringComparison.OrdinalIgnoreCase) ? "forge" : "reroll";
 
             try
@@ -797,35 +861,6 @@ public sealed class CareerService : ICareerService
         }
 
         return new LootOperationResult(succeeded > 0, succeeded, failed, rewards, lastError);
-    }
-
-    public async Task<LootOperationResult> ForgeKeyAsync(CancellationToken cancellationToken = default)
-    {
-        ILcuTransport? transport = _transportProvider();
-        if (transport is null)
-        {
-            return new LootOperationResult(false, 0, 0, [], "LCU未连接");
-        }
-
-        string craftUrl = "/lol-loot/v1/recipes/MATERIAL_key_fragment_FORGE/craft";
-        string json = JsonSerializer.Serialize(new[] { "MATERIAL_key_fragment" });
-
-        try
-        {
-            LcuResponse resp = await transport.SendAsync(
-                LcuRequest.Post(craftUrl, json),
-                cancellationToken).ConfigureAwait(false);
-
-            if (resp.IsSuccess)
-            {
-                return new LootOperationResult(true, 1, 0, ["海克斯科技钥匙"], null);
-            }
-            return new LootOperationResult(false, 0, 1, [], $"HTTP {resp.StatusCode}");
-        }
-        catch (Exception ex)
-        {
-            return new LootOperationResult(false, 0, 1, [], ex.Message);
-        }
     }
 
     private static async Task<string?> FindRecipeNameAsync(

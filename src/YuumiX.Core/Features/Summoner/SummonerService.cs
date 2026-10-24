@@ -30,7 +30,7 @@ public sealed class SummonerService : ISummonerService
     internal const string CurrentSummonerPath = "/lol-summoner/v1/current-summoner";
 
     /// <summary>按名字查询的接口模板（参数：已转义的 Riot ID）。</summary>
-    internal const string AliasPathTemplate = "/lol-summoner/v1/summoner-aliases?name={0}";
+    internal const string NamePathTemplate = "/lol-summoner/v1/summoners?name={0}";
 
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly TimeSpan _cacheTtl;
@@ -99,7 +99,7 @@ public sealed class SummonerService : ISummonerService
         // 名字里的 '#' 必须转义，否则会被当成 URL 片段，服务端只看到 '#' 之前的部分
         string path = string.Format(
             CultureInfo.InvariantCulture,
-            AliasPathTemplate,
+            NamePathTemplate,
             Uri.EscapeDataString(riotId.Trim()));
 
         LcuResponse response = await transport
@@ -136,6 +136,116 @@ public sealed class SummonerService : ISummonerService
         catch (JsonException ex)
         {
             _logger?.LogWarning(ex, "召唤师搜索载荷解析失败");
+            return null;
+        }
+    }
+
+    /// <summary>按 puuid 查询的接口模板（与战绩详情的私密检测同接口）。</summary>
+    internal const string PuuidPathTemplate = "/lol-summoner/v2/summoners/puuid/{0}";
+
+    /// <summary>按 summonerId 查询的接口模板。</summary>
+    internal const string SummonerIdPathTemplate = "/lol-summoner/v1/summoners/{0}";
+
+    /// <summary>
+    /// 按 puuid 查询召唤师。刻意不缓存（与 <see cref="FindByNameAsync"/> 同一理由：查看目标每次都不同）。
+    /// 载荷与 current-summoner 同构，复用 <see cref="SummonerParser"/>。
+    /// </summary>
+    public async Task<SummonerProfile?> FindByPuuidAsync(
+        string puuid,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(puuid);
+
+        ILcuTransport? transport = _transportProvider();
+        if (transport is null)
+        {
+            _logger?.LogDebug("LCU 未连接，跳过召唤师查询");
+            return null;
+        }
+
+        string path = string.Format(
+            CultureInfo.InvariantCulture,
+            PuuidPathTemplate,
+            Uri.EscapeDataString(puuid.Trim()));
+
+        LcuResponse response = await transport
+            .SendAsync(LcuRequest.Get(path), cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!response.IsSuccess)
+        {
+            // 404 = puuid 不存在（私密账号在部分版本也会 404），是本接口的正常返回之一
+            _logger?.LogInformation("按 puuid 查询召唤师失败: HTTP {StatusCode}", response.StatusCode);
+            return null;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(response.Body);
+            SummonerProfile? profile = SummonerParser.ParseSummoner(document.RootElement);
+            if (profile is null)
+            {
+                _logger?.LogWarning("按 puuid 查询召唤师载荷不完整，已忽略");
+            }
+
+            return profile;
+        }
+        catch (JsonException ex)
+        {
+            _logger?.LogWarning(ex, "按 puuid 查询召唤师载荷解析失败");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 按 summonerId 查询召唤师。刻意不缓存。
+    /// 载荷与 current-summoner 同构，复用 <see cref="SummonerParser"/>。
+    /// </summary>
+    public async Task<SummonerProfile?> FindBySummonerIdAsync(
+        long summonerId,
+        CancellationToken cancellationToken = default)
+    {
+        if (summonerId <= 0)
+        {
+            return null;
+        }
+
+        ILcuTransport? transport = _transportProvider();
+        if (transport is null)
+        {
+            _logger?.LogDebug("LCU 未连接，跳过召唤师查询");
+            return null;
+        }
+
+        string path = string.Format(
+            CultureInfo.InvariantCulture,
+            SummonerIdPathTemplate,
+            summonerId);
+
+        LcuResponse response = await transport
+            .SendAsync(LcuRequest.Get(path), cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!response.IsSuccess)
+        {
+            _logger?.LogInformation("按 summonerId 查询召唤师失败: HTTP {StatusCode}", response.StatusCode);
+            return null;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(response.Body);
+            SummonerProfile? profile = SummonerParser.ParseSummoner(document.RootElement);
+            if (profile is null)
+            {
+                _logger?.LogWarning("按 summonerId 查询召唤师载荷不完整，已忽略");
+            }
+
+            return profile;
+        }
+        catch (JsonException ex)
+        {
+            _logger?.LogWarning(ex, "按 summonerId 查询召唤师载荷解析失败");
             return null;
         }
     }

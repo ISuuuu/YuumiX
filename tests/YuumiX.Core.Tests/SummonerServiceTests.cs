@@ -133,7 +133,7 @@ public sealed class SummonerServiceTests
         Assert.Equal("11111111-2222-3333-4444-555555555555", profile.Puuid);
 
         RecordedRequest request = Assert.Single(server.Requests);
-        Assert.Equal("/lol-summoner/v1/summoner-aliases", request.Path.Split('?')[0]);
+        Assert.Equal("/lol-summoner/v1/summoners", request.Path.Split('?')[0]);
         Assert.Contains("%23", request.Path, StringComparison.Ordinal);
     }
 
@@ -169,6 +169,128 @@ public sealed class SummonerServiceTests
         var service = new SummonerService(() => null);
 
         await Assert.ThrowsAnyAsync<ArgumentException>(() => service.FindByNameAsync("   "));
+    }
+
+    /// <summary>
+    /// 按 puuid 查询：命中 <c>/lol-summoner/v2/summoners/puuid/{puuid}</c>（与私密检测同接口），
+    /// 载荷复用 SummonerParser 解析。
+    /// </summary>
+    [Fact]
+    public async Task FindByPuuidAsync_ParsesPayloadAndHitsExpectedPath()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok(Payload);
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        SummonerProfile? profile = await service.FindByPuuidAsync("11111111-2222-3333-4444-555555555555");
+
+        Assert.NotNull(profile);
+        Assert.Equal("测试玩家#HN1", profile.RiotId);
+        Assert.Equal(512, profile.SummonerLevel);
+
+        RecordedRequest request = Assert.Single(server.Requests);
+        Assert.Equal("/lol-summoner/v2/summoners/puuid/11111111-2222-3333-4444-555555555555", request.Path);
+    }
+
+    /// <summary>查不到（404）返回 <c>null</c> 而不抛异常，调用方用占位对象兜底。</summary>
+    [Fact]
+    public async Task FindByPuuidAsync_ReturnsNullOnNotFound()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.NotFound();
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        Assert.Null(await service.FindByPuuidAsync("no-such-puuid"));
+    }
+
+    [Fact]
+    public async Task FindByPuuidAsync_ReturnsNullWithoutConnection()
+    {
+        var service = new SummonerService(() => null);
+
+        Assert.Null(await service.FindByPuuidAsync("any-puuid"));
+    }
+
+    /// <summary>载荷损坏时不得抛异常。</summary>
+    [Fact]
+    public async Task FindByPuuidAsync_ReturnsNullOnBrokenJson()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("{ \"puuid\": \"");
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        Assert.Null(await service.FindByPuuidAsync("any-puuid"));
+    }
+
+    [Fact]
+    public async Task FindByPuuidAsync_RejectsBlankPuuid()
+    {
+        var service = new SummonerService(() => null);
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.FindByPuuidAsync("  "));
+    }
+
+    /// <summary>
+    /// 按 summonerId 查询：命中 <c>/lol-summoner/v1/summoners/{id}</c>，载荷复用 SummonerParser 解析。
+    /// </summary>
+    [Fact]
+    public async Task FindBySummonerIdAsync_ParsesPayloadAndHitsExpectedPath()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok(Payload);
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        SummonerProfile? profile = await service.FindBySummonerIdAsync(123456789L);
+
+        Assert.NotNull(profile);
+        Assert.Equal("测试玩家#HN1", profile.RiotId);
+        Assert.Equal(512, profile.SummonerLevel);
+
+        RecordedRequest request = Assert.Single(server.Requests);
+        Assert.Equal("/lol-summoner/v1/summoners/123456789", request.Path);
+    }
+
+    [Fact]
+    public async Task FindBySummonerIdAsync_ReturnsNullOnNotFound()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.NotFound();
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        Assert.Null(await service.FindBySummonerIdAsync(999999999L));
+    }
+
+    [Fact]
+    public async Task FindBySummonerIdAsync_ReturnsNullWithoutConnection()
+    {
+        var service = new SummonerService(() => null);
+
+        Assert.Null(await service.FindBySummonerIdAsync(123L));
+    }
+
+    [Fact]
+    public async Task FindBySummonerIdAsync_ReturnsNullOnInvalidId()
+    {
+        var service = new SummonerService(() => null);
+
+        Assert.Null(await service.FindBySummonerIdAsync(0));
+        Assert.Null(await service.FindBySummonerIdAsync(-1));
+    }
+
+    [Fact]
+    public async Task FindBySummonerIdAsync_ReturnsNullOnBrokenJson()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("{ \"summonerId\": ");
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        Assert.Null(await service.FindBySummonerIdAsync(123L));
     }
 
     private static LcuHttpTransport NewTransport(FakeLcuServer server) => new(
