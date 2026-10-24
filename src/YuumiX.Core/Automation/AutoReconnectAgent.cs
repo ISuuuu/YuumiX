@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
@@ -11,8 +12,16 @@ namespace YuumiX.Core.Automation;
 public sealed class AutoReconnectAgent : IAutomationAgent
 {
     private const int MaxAttempts = 5;
+
+    /// <summary>
+    /// 游戏进程两次采样的间隔。Alt+F4 之后 Windows 回收进程可能滞后数百毫秒，
+    /// 单次采样有机会读到残留进程，把「主动退出」误判成「仍在对局中」。
+    /// </summary>
+    private static readonly TimeSpan GameProcessProbeInterval = TimeSpan.FromMilliseconds(300);
+
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly Func<AppConfig> _configProvider;
+    private readonly Func<bool> _gameProcessAliveProbe;
     private readonly AgentSupervisor _supervisor;
     private readonly AgentLifecycle _lifecycle;
     private readonly ILogger<AutoReconnectAgent>? _logger;
@@ -29,7 +38,8 @@ public sealed class AutoReconnectAgent : IAutomationAgent
         Func<AppConfig> configProvider,
         AgentSupervisor supervisor,
         AgentLifecycle lifecycle,
-        ILogger<AutoReconnectAgent>? logger = null)
+        ILogger<AutoReconnectAgent>? logger = null,
+        Func<bool>? gameProcessAliveProbe = null)
     {
         ArgumentNullException.ThrowIfNull(transportProvider);
         ArgumentNullException.ThrowIfNull(configProvider);
@@ -41,6 +51,7 @@ public sealed class AutoReconnectAgent : IAutomationAgent
         _supervisor = supervisor;
         _lifecycle = lifecycle;
         _logger = logger;
+        _gameProcessAliveProbe = gameProcessAliveProbe ?? GameProcessProbe.IsRunning;
     }
 
     public Task StartAsync(CancellationToken cancellationToken = default)
@@ -131,14 +142,9 @@ public sealed class AutoReconnectAgent : IAutomationAgent
                     return;
                 }
 
-                // 发起请求前向 LCU 主动二次校验当前阶段
-                var phaseResp = await transport.SendAsync(
-                    LcuRequest.Get("/lol-gameflow/v1/gameflow-phase"),
-                    ct).ConfigureAwait(false);
-
-                if (!phaseResp.IsSuccess || !string.Equals(phaseResp.Body.Trim('"', ' '), "Reconnect", StringComparison.OrdinalIgnoreCase))
+                // 发起请求前做权威校验：游戏进程存活 + LCU 阶段仍为 Reconnect
+                if (!await IsReconnectStillValidAsync(transport, ct).ConfigureAwait(false))
                 {
-                    _logger?.LogInformation("LCU 二次校验显示已脱离断线状态，取消自动重连");
                     return;
                 }
 
@@ -164,6 +170,95 @@ public sealed class AutoReconnectAgent : IAutomationAgent
 
             _logger?.LogWarning("自动重连 {MaxAttempts} 次尝试均失败", MaxAttempts);
         });
+    }
+
+    /// <summary>
+    /// 发起重连前的权威校验：游戏进程仍存活，且 LCU 权威阶段仍是 <c>Reconnect</c>。
+    /// </summary>
+    /// <remarks>
+    /// 「真实掉线」与「对局结束后 Alt+F4 退出」在 gameflow 上**都表现为 Reconnect**，
+    /// 唯一可靠的区分点是游戏进程：真实掉线时进程仍在运行（只是与游戏服务器失联），
+    /// 而主动退出后进程已消失，LCU 却会停留在 Reconnect 等待服务端结算写入（实测 2~4 秒）。
+    /// 缺了进程校验，就会把已经结束的对局重新拉起并卡在加载页。
+    /// </remarks>
+    private async Task<bool> IsReconnectStillValidAsync(ILcuTransport transport, CancellationToken ct)
+    {
+        if (!await IsGameProcessAliveAsync(ct).ConfigureAwait(false))
+        {
+            _logger?.LogInformation("游戏进程已退出，判定对局已结束或用户主动退出，取消自动重连");
+            return false;
+        }
+
+        // 阶段二次校验：WS 事件可能延迟，或对局结束瞬间闪现 Reconnect
+        var phaseResp = await transport.SendAsync(
+            LcuRequest.Get("/lol-gameflow/v1/gameflow-phase"),
+            ct).ConfigureAwait(false);
+
+        if (!phaseResp.IsSuccess || !IsReconnectBody(phaseResp.Body))
+        {
+            _logger?.LogInformation("LCU 二次校验显示已脱离断线状态，取消自动重连");
+            return false;
+        }
+
+        // session.phase 是客户端的权威阶段，比 gameflow-phase 更贴近真实会话状态
+        var sessionResp = await transport.SendAsync(
+            LcuRequest.Get("/lol-gameflow/v1/session"),
+            ct).ConfigureAwait(false);
+
+        if (sessionResp.IsSuccess && TryReadSessionPhase(sessionResp.Body) is { } sessionPhase
+            && sessionPhase != GamePhase.Reconnect)
+        {
+            _logger?.LogInformation("Gameflow session 权威阶段为 {Phase}，非重连状态，取消自动重连", sessionPhase);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 两次采样确认游戏进程存活（间隔 <see cref="GameProcessProbeInterval"/>）。
+    /// </summary>
+    private async Task<bool> IsGameProcessAliveAsync(CancellationToken ct)
+    {
+        if (!_gameProcessAliveProbe())
+        {
+            return false;
+        }
+
+        await Task.Delay(GameProcessProbeInterval, ct).ConfigureAwait(false);
+        return _gameProcessAliveProbe();
+    }
+
+    private static bool IsReconnectBody(string body) =>
+        string.Equals(body.Trim('"', ' '), "Reconnect", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 读取 gameflow session 的 <c>phase</c> 字段。读不到（字段缺失或响应非 JSON）时返回
+    /// <c>null</c>，由调用方放行——不能让格式变化把真实掉线的自动重连一并禁掉。
+    /// </summary>
+    private static GamePhase? TryReadSessionPhase(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("phase", out var phaseElement)
+                && phaseElement.ValueKind == JsonValueKind.String)
+            {
+                return GamePhaseExtensions.ParseGamePhase(phaseElement.GetString());
+            }
+        }
+        catch (JsonException)
+        {
+            // 会话体非预期格式：交给后续阶段校验与 LCU 的 403 兜底
+        }
+
+        return null;
     }
 
     public ValueTask DisposeAsync()

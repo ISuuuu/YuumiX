@@ -278,13 +278,11 @@ public sealed class AutomationTests
     {
         var transport = new MockTransport
         {
-            Handler = req =>
+            Handler = req => req.Path switch
             {
-                if (req.Path == "/lol-gameflow/v1/gameflow-phase")
-                {
-                    return new LcuResponse(200, "\"Reconnect\"");
-                }
-                return new LcuResponse(200, "{}");
+                "/lol-gameflow/v1/gameflow-phase" => new LcuResponse(200, "\"Reconnect\""),
+                "/lol-gameflow/v1/session" => new LcuResponse(200, """{"phase":"Reconnect"}"""),
+                _ => new LcuResponse(200, "{}"),
             }
         };
 
@@ -295,7 +293,8 @@ public sealed class AutomationTests
         var lifecycle = new AgentLifecycle();
         lifecycle.UpdatePhase("InProgress");
 
-        await using var agent = new AutoReconnectAgent(() => transport, () => config, supervisor, lifecycle);
+        await using var agent = new AutoReconnectAgent(
+            () => transport, () => config, supervisor, lifecycle, gameProcessAliveProbe: () => true);
         await agent.StartAsync();
 
         agent.OnPhaseChanged(GamePhase.InProgress);
@@ -303,9 +302,100 @@ public sealed class AutomationTests
         lifecycle.UpdatePhase("Reconnect");
         agent.OnPhaseChanged(GamePhase.Reconnect);
 
-        await Task.Delay(100);
+        Assert.True(await WaitUntilAsync(() =>
+            transport.RecordedRequests.Any(r => r.Path == "/lol-gameflow/v1/reconnect" && r.Method == HttpMethod.Post)));
+    }
 
-        Assert.Contains(transport.RecordedRequests, r => r.Path == "/lol-gameflow/v1/reconnect" && r.Method == HttpMethod.Post);
+    /// <summary>
+    /// 对局结束后 Alt+F4：游戏进程已消失，LCU 仍残留 Reconnect 阶段，此时绝不能再拉起游戏。
+    /// </summary>
+    [Fact]
+    public async Task AutoReconnectAgent_Skips_When_Game_Process_Is_Gone()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => req.Path switch
+            {
+                "/lol-gameflow/v1/gameflow-phase" => new LcuResponse(200, "\"Reconnect\""),
+                "/lol-gameflow/v1/session" => new LcuResponse(200, """{"phase":"Reconnect"}"""),
+                _ => new LcuResponse(200, "{}"),
+            }
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoReconnect = true;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+        lifecycle.UpdatePhase("InProgress");
+
+        await using var agent = new AutoReconnectAgent(
+            () => transport, () => config, supervisor, lifecycle, gameProcessAliveProbe: () => false);
+        await agent.StartAsync();
+
+        agent.OnPhaseChanged(GamePhase.InProgress);
+
+        lifecycle.UpdatePhase("Reconnect");
+        agent.OnPhaseChanged(GamePhase.Reconnect);
+
+        // 给后台任务足够的执行窗口后仍不得发出任何重连请求
+        await Task.Delay(600);
+
+        Assert.DoesNotContain(transport.RecordedRequests, r => r.Path == "/lol-gameflow/v1/reconnect");
+    }
+
+    /// <summary>
+    /// 游戏进程仍在、但 gameflow session 的权威阶段已经不是 Reconnect（结算已写入）时不重连。
+    /// </summary>
+    [Fact]
+    public async Task AutoReconnectAgent_Skips_When_Session_Phase_Left_Reconnect()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => req.Path switch
+            {
+                "/lol-gameflow/v1/gameflow-phase" => new LcuResponse(200, "\"Reconnect\""),
+                "/lol-gameflow/v1/session" => new LcuResponse(200, """{"phase":"WaitingForStats"}"""),
+                _ => new LcuResponse(200, "{}"),
+            }
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoReconnect = true;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+        lifecycle.UpdatePhase("InProgress");
+
+        await using var agent = new AutoReconnectAgent(
+            () => transport, () => config, supervisor, lifecycle, gameProcessAliveProbe: () => true);
+        await agent.StartAsync();
+
+        agent.OnPhaseChanged(GamePhase.InProgress);
+
+        lifecycle.UpdatePhase("Reconnect");
+        agent.OnPhaseChanged(GamePhase.Reconnect);
+
+        await Task.Delay(600);
+
+        Assert.DoesNotContain(transport.RecordedRequests, r => r.Path == "/lol-gameflow/v1/reconnect");
+    }
+
+    /// <summary>轮询等待后台任务产生可观察结果，避免依赖固定 sleep 时长。</summary>
+    private static async Task<bool> WaitUntilAsync(Func<bool> condition, int timeoutMs = 3000)
+    {
+        long deadline = Environment.TickCount64 + timeoutMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            await Task.Delay(20);
+        }
+
+        return condition();
     }
 
     [Fact]
