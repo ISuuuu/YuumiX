@@ -83,7 +83,7 @@ internal static class SkinPickerView
                     VStack(4,
                         TextBlock(activeSkin.Name)
                             .FontSize(14)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
+                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
                         TextBlock($"皮肤 ID: {activeSkin.Id} {(activeSkin.IsBase ? "（默认原皮）" : "")}")
                             .FontSize(11)
                             .Foreground(Theme.SecondaryText)

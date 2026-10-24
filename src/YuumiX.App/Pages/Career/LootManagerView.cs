@@ -3,6 +3,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
 
@@ -192,16 +193,18 @@ internal static class LootManagerView
         YuumiPalette palette,
         Action<OpenableLootItem>? onOpenItem)
     {
-        Element thumb = Border(
-            TextBlock(item.IsKeyFragment ? "🔑" : "📦")
-                .FontSize(24)
-                .HAlign(HorizontalAlignment.Center)
-                .VAlign(VerticalAlignment.Center))
-            .Width(50)
-            .Height(50)
-            .CornerRadius(8)
-            .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
-            .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
+        Element thumb = !string.IsNullOrWhiteSpace(item.TilePath)
+            ? Component<LcuImage, LcuImageProps>(new LcuImageProps(item.TilePath, 50, 8))
+            : Border(
+                TextBlock(item.IsKeyFragment ? "🔑" : "📦")
+                    .FontSize(24)
+                    .HAlign(HorizontalAlignment.Center)
+                    .VAlign(VerticalAlignment.Center))
+                .Width(50)
+                .Height(50)
+                .CornerRadius(8)
+                .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
+                .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
 
         Element badge = item.IsKeyFragment
             ? Border(TextBlock("3合1合成").FontSize(10).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.WinText))
@@ -506,16 +509,18 @@ internal static class LootManagerView
         YuumiPalette palette,
         Action<string>? onToggleSelect)
     {
-        Element thumb = Border(
-            TextBlock(item.IsChampion ? "🛡️" : "🎨")
-                .FontSize(20)
-                .HAlign(HorizontalAlignment.Center)
-                .VAlign(VerticalAlignment.Center))
-            .Width(44)
-            .Height(44)
-            .CornerRadius(6)
-            .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
-            .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
+        Element thumb = !string.IsNullOrWhiteSpace(item.TilePath)
+            ? Component<LcuImage, LcuImageProps>(new LcuImageProps(item.TilePath, 44, 6))
+            : Border(
+                TextBlock(item.IsChampion ? "🛡️" : "🎨")
+                    .FontSize(20)
+                    .HAlign(HorizontalAlignment.Center)
+                    .VAlign(VerticalAlignment.Center))
+                .Width(44)
+                .Height(44)
+                .CornerRadius(6)
+                .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
+                .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
 
         string valueColor = item.IsChampion
             ? CareerVisuals.BlueEssenceColor

@@ -88,11 +88,6 @@ public sealed class SearchPage : Component
     private static readonly TimeSpan RankCacheTtl = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan PrivacyCacheTtl = TimeSpan.FromMinutes(10);
 
-    /// <summary>卡片元素缓存，仅在列表内容 / 资源表 / 配色变化时重建（见 <c>ResolveCards</c>）。</summary>
-    private Element[]? _cards;
-    private IReadOnlyList<MatchSummary>? _cardsMatches;
-    private YuumiPalette? _cardsPalette;
-
     /// <summary>筛选下拉的选项缓存（含"全部"），仅在列表内容变化时重建。</summary>
     private string[]? _filterLabels;
     private IReadOnlyList<MatchSummary>? _filterSource;
@@ -343,46 +338,28 @@ public sealed class SearchPage : Component
             },
             currentGameId);
 
-        // 列表项必须各自重新 Provide 上下文：ListView 的项由原生控件托管渲染，
-        // 不在页面的 Provide 作用域内，否则卡片里的 LcuImage 取 UseContext 会拿到 null
-        // （表现为整行渲染异常，已被 Reactor 的错误边界替换成红字堆栈）。
-        //
-        // 卡片**不能依赖选中索引**：一旦随选中重建，ListView 会收到一批全新的项元素，
-        // 进而再次抛出 SelectionChanged，形成「选中 → 重建 → 再选中」的自激循环，
-        // 表现为整片列表持续闪烁（每个卡片里的 LcuImage 都被反复重置成占位图）。
-        // 因此卡片只随（列表内容、资源表、配色）变化重建，选中态交给 ListView 自身的高亮。
-        //
-        // 缓存放在字段而不是 UseMemo：UseMemo 的依赖若是每次渲染新建的元组，
-        // 比较永远不等（REACTOR_HOOKS_004），等于没缓存。
-        Element[] ResolveCards()
-        {
-            if (_cards is not null
-                && ReferenceEquals(_cardsMatches, visible)
-                && Equals(_cardsPalette, palette))
-            {
-                return _cards;
-            }
-
-            _cards = visible
-                .Select(summary => MatchCardView.Render(summary, palette)
-                    .Provide(AppHost.Context, services))
-                .ToArray();
-            _cardsMatches = visible;
-            _cardsPalette = palette;
-            return _cards;
-        }
-
+        // 列表卡片：使用 ScrollView 自适应滚动并支持完全自定义的选中边框与胜负色，
+        // 彻底消除 ListView 原生控件的蓝色选中矩形和焦点边框干扰。
+        // 每项各自重新 Provide 上下文，保证卡片内的 LcuImage 正确获取服务容器。
         Element list = visible.Count == 0
-            ? SkeletonList(status, summonerResolved, summoner is not null)
-            : ListView((int?)index, next =>
-            {
-                // 值相同则直接丢弃：ListView 在项重建后会重复抛出同一个索引，
-                // 不比对就会把「同一次选中」当成新事件触发重渲染。
-                if (next >= 0 && next < visible.Count && visible[next].GameId != selectedGameId)
-                {
-                    setSelectedGameId(visible[next].GameId);
-                }
-            }, ResolveCards()).Width(MatchCardView.CardWidth);
+            ? SkeletonList(status, summonerResolved, summoner is not null, palette)
+            : ScrollView(VStack(0, visible.Select(summary =>
+              {
+                  bool isSelected = summary.GameId == currentGameId;
+                  return MatchCardView.Render(
+                      summary,
+                      palette,
+                      isSelected: isSelected,
+                      onSelect: () =>
+                      {
+                          if (summary.GameId != selectedGameId)
+                          {
+                              setSelectedGameId(summary.GameId);
+                          }
+                      })
+                      .Provide(AppHost.Context, services);
+              }).ToArray()).Width(MatchCardView.CardWidth))
+              .HAlign(HorizontalAlignment.Left);
 
         // 左列：列表吃剩余高度（自身滚动），分页条固定在底部。
         //
@@ -394,7 +371,7 @@ public sealed class SearchPage : Component
                 [GridSize.Star(), GridSize.Auto],
                 [
                     list.Grid(row: 0, column: 0),
-                    Pager(pageIndex, hasMore, setPageIndex).Grid(row: 1, column: 0),
+                    Pager(pageIndex, hasMore, setPageIndex, palette).Grid(row: 1, column: 0),
                 ]);
 
         void OnCopyGameId(long gameId)
@@ -532,7 +509,8 @@ public sealed class SearchPage : Component
                             },
                             notice,
                             searching,
-                            summoner)
+                            summoner,
+                            palette)
                         .Grid(row: 0, column: 0),
                     content.Grid(row: 1, column: 0),
                 ])
@@ -555,7 +533,8 @@ public sealed class SearchPage : Component
         Action onRefresh,
         string? notice,
         bool searching,
-        SummonerProfile? currentSummoner)
+        SummonerProfile? currentSummoner,
+        YuumiPalette palette)
     {
         // 如果输入框内容为空、或与当前已展示的召唤师姓名一致（代表未输入新内容，仅仅是点击聚焦），则展示全部历史记录（对齐旧版 Search.vue）
         bool isDefaultQuery = string.IsNullOrWhiteSpace(query)
@@ -644,18 +623,18 @@ public sealed class SearchPage : Component
         // 提示行放在搜索框下方而不是列表上方：出错的是"搜索"，不是"列表"
         Element body = notice is null
             ? bar
-            : VStack(6, bar, TextBlock(notice).FontSize(11).Foreground(Theme.SecondaryText));
+            : VStack(6, bar, TextBlock(notice).FontSize(11).Foreground(palette.TextSecondary));
 
         return Border(body)
             .Padding(8)
             .CornerRadius(8)
-            .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1)
+            .Background(palette.CardBg)
+            .WithBorder(palette.BorderSubtle, 1)
             .HAlign(HorizontalAlignment.Stretch);
     }
 
     /// <summary>底部翻页：只做前后各一页，页码即当前页序号（从 1 开始）。</summary>
-    private static Element Pager(int pageIndex, bool hasMore, Action<int> setPageIndex)
+    private static Element Pager(int pageIndex, bool hasMore, Action<int> setPageIndex, YuumiPalette palette)
     {
         if (pageIndex == 0 && !hasMore)
         {
@@ -682,55 +661,54 @@ public sealed class SearchPage : Component
         return Border(content)
             .Padding(4)
             .CornerRadius(8)
-            .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1)
+            .Background(palette.CardBg)
+            .WithBorder(palette.BorderSubtle, 1)
             .HAlign(HorizontalAlignment.Stretch);
     }
 
     /// <summary>
     /// 列表为空时的占位。三种情形要分开：
-    /// 召唤师还没解析完（骨架）→ 客户端确实没连上（一句话说明）→ 读取失败（服务给的原因）。
-    /// 全部压成骨架会让"客户端没开"看起来像永远在加载。
+    /// 召唤师还没解析完（骨架）→ 客户端确实没连上（骨架）→ 读取失败（服务给的原因）。
+    /// 全部渲染浅色圆角占位卡（对齐 pic/战绩查询1.png）。
     /// </summary>
-    private static Element SkeletonList(MatchServiceStatus status, bool summonerResolved, bool hasSummoner)
+    private static Element SkeletonList(
+        MatchServiceStatus status,
+        bool summonerResolved,
+        bool hasSummoner,
+        YuumiPalette palette)
     {
-        if (!summonerResolved)
+        if (!summonerResolved || !hasSummoner)
         {
-            return BuildSkeletons();
-        }
-
-        if (!hasSummoner)
-        {
-            return Hint("未读取到当前召唤师（客户端未登录）");
+            return BuildSkeletons(palette);
         }
 
         if (status.State == MatchLoadState.Failed)
         {
-            return Hint(status.Message ?? "读取战绩失败");
+            return Hint(status.Message ?? "读取战绩失败", palette);
         }
 
-        return BuildSkeletons();
+        return BuildSkeletons(palette);
     }
 
     /// <summary>列表区的说明块：与卡片同宽，避免右侧面板被拉宽。</summary>
-    private static Element Hint(string text) =>
-        Border(TextBlock(text).FontSize(11).Foreground(Theme.SecondaryText).TextWrapping())
+    private static Element Hint(string text, YuumiPalette palette) =>
+        Border(TextBlock(text).FontSize(11).Foreground(palette.TextSecondary).TextWrapping())
             .Padding(12)
             .CornerRadius(8)
-            .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1)
+            .Background(palette.CardBg)
+            .WithBorder(palette.BorderSubtle, 1)
             .HAlign(HorizontalAlignment.Stretch);
 
-    private static Element BuildSkeletons()
+    private static Element BuildSkeletons(YuumiPalette palette)
     {
         var skeletons = new Element[SkeletonCount];
         for (var i = 0; i < skeletons.Length; i++)
         {
-            skeletons[i] = MatchCardView.Skeleton();
+            skeletons[i] = MatchCardView.Skeleton(palette);
         }
 
         // 骨架自带上下的间隙（见 MatchCardView.Skeleton），这里不再额外加间距
-        return VStack(0, skeletons);
+        return VStack(0, skeletons).Width(MatchCardView.CardWidth);
     }
 
     /// <summary>

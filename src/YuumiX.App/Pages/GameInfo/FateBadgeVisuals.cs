@@ -110,17 +110,21 @@ internal static class FateBadgeVisuals
     /// 路人集徽标元素（贴近旧版 saved-badge 样式）：有 tag 主色小圆角胶囊；
     /// 无 tag 灰「历史」。超宽 ellipsis 截断（旧版 max-width 50px）。
     /// </summary>
-    public static Element BuildSavedBadge(SavedPlayerMarker marker, double fontSize)
+    public static Element BuildSavedBadge(SavedPlayerMarker marker, double fontSize, Theming.YuumiPalette? palette = null)
     {
         bool hasTag = !string.IsNullOrEmpty(marker.Tag);
+        string fg = hasTag ? (palette?.Accent ?? "#FF3B82F6") : (palette?.TextSecondary ?? "#FFAAAAAA");
+        string bg = hasTag ? (palette?.AccentAlpha15 ?? "#263B82F6") : (palette?.HoverBg ?? "#1AFFFFFF");
+        string border = hasTag ? (palette?.AccentAlpha40 ?? "#663B82F6") : "#00000000";
+
         return Border(
                 TextBlock(SavedBadgeText(marker))
                     .FontSize(fontSize)
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                    .Foreground(hasTag ? "#FF3B82F6" : "#FFAAAAAA")
+                    .Foreground(fg)
                     .TextTrimming(TextTrimming.CharacterEllipsis))
-            .Background(hasTag ? "#263B82F6" : "#1AFFFFFF")
-            .WithBorder(hasTag ? "#663B82F6" : "#00000000", hasTag ? 1 : 0)
+            .Background(bg)
+            .WithBorder(border, hasTag ? 1 : 0)
             .CornerRadius(6)
             .Padding(4, 0.5)
             .MaxWidth(50)
