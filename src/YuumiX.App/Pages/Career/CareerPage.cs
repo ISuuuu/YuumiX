@@ -891,7 +891,14 @@ public sealed class CareerPage : Component
         YuumiPalette palette)
     {
         bool isSelected = target == current;
-        Element button = Button(label, () =>
+        var text = TextBlock(label)
+            .FontSize(13.5)
+            .FontWeight(isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
+            .Foreground(isSelected ? palette.Accent : palette.TextSecondary)
+            .HAlign(HorizontalAlignment.Center)
+            .VAlign(VerticalAlignment.Center);
+
+        Element button = Button(text, () =>
         {
             if (target == current)
             {
@@ -899,18 +906,19 @@ public sealed class CareerPage : Component
             }
 
             setTab(target);
-        }).Height(34).Padding(16, 0).FontSize(13).AutomationName(label);
+        })
+        .Height(34)
+        .Padding(16, 0)
+        .CornerRadius(8)
+        .AutomationName(label);
 
         return isSelected
             ? button
                 .Background(palette.AccentAlpha10)
-                .Foreground(palette.Accent)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
                 .WithBorder(palette.AccentAlpha20, 1)
             : button
                 .Background("#00000000")
-                .Foreground(palette.TextSecondary)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold);
+                .BorderThickness(0);
     }
 
     /// <summary>

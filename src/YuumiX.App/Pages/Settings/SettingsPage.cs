@@ -506,8 +506,8 @@ public sealed class SettingsPage : Component
 
         Element GroupHeader(string title) =>
             TextBlock(title)
-                .FontSize(13)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                .FontSize(12.5)
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(Theme.SecondaryText)
                 .Margin(new Thickness(4, 16, 0, 6));
 
@@ -520,7 +520,7 @@ public sealed class SettingsPage : Component
                     [
                         VStack(2,
                             TextBlock(title)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                                 .FontSize(13.5)
                                 .Foreground(palette.TextPrimary),
                             TextBlock(description)
@@ -579,7 +579,7 @@ public sealed class SettingsPage : Component
 
             var isEnabled = isStatusEnabled ?? (statusText != "未启用" && statusText != "未配置" && statusText != "未连接");
             var statusColor = isEnabled ? palette.Accent : palette.TextMuted;
-            var statusWeight = isEnabled ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+            var statusWeight = isEnabled ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
 
             var headerContent = Grid(
                 [GridSize.Star(), GridSize.Auto, GridSize.Auto],
@@ -587,7 +587,7 @@ public sealed class SettingsPage : Component
                 [
                     VStack(2,
                         TextBlock(title)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .FontSize(13.5)
                             .Foreground(palette.TextPrimary),
                         TextBlock(description)
@@ -1438,7 +1438,7 @@ public sealed class SettingsPage : Component
             VStack(8,
                 TextBlock("设置")
                     .FontSize(20)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.ExtraBold)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(palette.TextPrimary)
                     .Margin(new Thickness(0, 0, 0, 10)),
 

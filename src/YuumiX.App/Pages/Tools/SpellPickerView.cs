@@ -35,7 +35,7 @@ internal static class SpellPickerView
 
         Element dSlot = Button(
             HStack(8,
-                TextBlock("D 键:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.Bold).VAlign(VerticalAlignment.Center),
+                TextBlock("D 键:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).VAlign(VerticalAlignment.Center),
                 Component<LcuImage, LcuImageProps>(new LcuImageProps(dIcon, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                 TextBlock(dName).FontSize(12).VAlign(VerticalAlignment.Center)
             ),
@@ -51,7 +51,7 @@ internal static class SpellPickerView
 
         Element fSlot = Button(
             HStack(8,
-                TextBlock("F 键:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.Bold).VAlign(VerticalAlignment.Center),
+                TextBlock("F 键:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).VAlign(VerticalAlignment.Center),
                 Component<LcuImage, LcuImageProps>(new LcuImageProps(fIcon, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                 TextBlock(fName).FontSize(12).VAlign(VerticalAlignment.Center)
             ),

@@ -344,7 +344,7 @@ public sealed class ToolsPage : Component
                     [
                         VStack(2,
                             TextBlock(title)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                                 .FontSize(13.5)
                                 .Foreground(palette.TextPrimary),
                             TextBlock(description)
@@ -374,7 +374,7 @@ public sealed class ToolsPage : Component
 
             var isEnabled = isStatusEnabled ?? (statusText != "未启用" && statusText != "未锁定 (可写入)" && statusText != "点击展开");
             var statusColor = isEnabled ? palette.Accent : palette.TextMuted;
-            var statusWeight = isEnabled ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+            var statusWeight = isEnabled ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
 
             var headerContent = Grid(
                 [GridSize.Star(), GridSize.Auto, GridSize.Auto],
@@ -383,7 +383,7 @@ public sealed class ToolsPage : Component
                     // 标题与说明
                     VStack(2,
                         TextBlock(title)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .FontSize(13.5)
                             .Foreground(palette.TextPrimary),
                         TextBlock(description)
@@ -581,8 +581,8 @@ public sealed class ToolsPage : Component
 
         Element GroupHeader(string title) =>
             TextBlock(title)
-                .FontSize(12)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                .FontSize(12.5)
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(Theme.SecondaryText)
                 .Margin(new Thickness(4, 12, 0, 4));
 
@@ -1513,7 +1513,7 @@ public sealed class ToolsPage : Component
             VStack(8,
                 TextBlock("其他功能")
                     .FontSize(20)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.ExtraBold)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(palette.TextPrimary)
                     .Margin(new Thickness(0, 0, 0, 10)),
 
