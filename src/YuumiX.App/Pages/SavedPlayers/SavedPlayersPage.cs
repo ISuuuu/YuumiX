@@ -823,14 +823,29 @@ public sealed class SavedPlayersPage : Component
         )
         .VerticalAlignment(VerticalAlignment.Center);
 
+        // 可点击主体行（头像 + 名字 + 徽章，点击整块直接展开/折叠对局历史）
+        var clickableBody = Button(
+            HStack(
+                avatarRow,
+                infoStack
+            )
+            .VerticalAlignment(VerticalAlignment.Center),
+            onToggle
+        )
+        .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
+        .BorderThickness(0)
+        .Padding(4, 2)
+        .HorizontalAlignment(HorizontalAlignment.Stretch)
+        .HorizontalContentAlignment(HorizontalAlignment.Left)
+        .AutomationName($"查看 {player.SummonerName} 的相遇对局历史");
+
         // 卡片主行
         var mainRow = Grid(
-            [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+            [GridSize.Star(), GridSize.Auto],
             [GridSize.Auto],
             [
-                avatarRow.Grid(column: 0),
-                infoStack.Grid(column: 1),
-                rightStack.Grid(column: 2),
+                clickableBody.Grid(column: 0),
+                rightStack.Grid(column: 1),
             ]
         );
 
