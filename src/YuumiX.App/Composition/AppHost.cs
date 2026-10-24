@@ -83,6 +83,84 @@ public static class AppHost
                 .LogError(ex, "菜单可见性订阅者抛异常"));
         _services.Services.GetRequiredService<LcuConnection>().Start(_services.ShutdownToken);
         _services.Services.GetRequiredService<YuumiX.Core.Automation.AutomationHost>().Start(_services.ShutdownToken);
+
+        // 「随应用启动客户端」：消费 General.EnableStartLolWithApp（旧版 launch_lol_client 语义）。
+        // 放后台线程：进程扫描与注册表探测都是阻塞调用，不能挡住 UI 首帧；
+        // 客户端启动失败只记日志——主页「启动客户端」按钮承担人工兜底。
+        if (_services.Config.General.EnableStartLolWithApp)
+        {
+            var config = _services.Config;
+            var launcher = _services.Services.GetRequiredService<YuumiX.Core.Features.Tools.LolClientLauncher>();
+            var logger = _services.LoggerFactory.CreateLogger<YuumiX.Core.Features.Tools.LolClientLauncher>();
+            _ = Task.Run(() =>
+            {
+                string? error = launcher.Launch(config.General.LolPath, config.General.WegamePath);
+                if (error is not null)
+                {
+                    logger.LogWarning("随应用启动客户端失败: {Error}", error);
+                }
+            });
+        }
+
+        // 「检查更新」开关的消费点：启动时后台静默检查（旧 startup_check_update 语义）。
+        // 发现新版仅记日志——侧边栏红点属于托盘/阶段 8 体系，本版不引入。
+        if (_services.Config.General.EnableCheckUpdate)
+        {
+            var updateService = _services.Services.GetRequiredService<YuumiX.Core.Updates.UpdateService>();
+            var updateLogger = _services.LoggerFactory.CreateLogger<YuumiX.Core.Updates.UpdateService>();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var info = await updateService.CheckForUpdateAsync(_services.Paths.IsPortable).ConfigureAwait(false);
+                    if (info is not null)
+                    {
+                        updateLogger.LogInformation("启动检查发现新版本 v{Version}（当前 v{Current}）", info.Version, info.CurrentVersion);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    updateLogger.LogWarning(ex, "启动更新检查失败（离线或网络受限属常态）");
+                }
+            });
+        }
+
+        // 对局结束后的云端上传（旧 upload.rs：EndOfGame → 拉最新对局 → POST 上传 API）。
+        // UploadEnabled 开关由 UploadService 内部消费（旧版该开关在战绩查询页，本版不新增 UI）。
+        var lifecycle = _services.Services.GetRequiredService<YuumiX.Core.Features.GameLifecycle.GameLifecycleService>();
+        var uploadService = _services.Services.GetRequiredService<YuumiX.Core.Upload.UploadService>();
+        var summonerService = _services.Services.GetRequiredService<YuumiX.Core.Features.Summoner.ISummonerService>();
+        var matchService = _services.Services.GetRequiredService<YuumiX.Core.Features.Match.IMatchService>();
+        var uploadLogger = _services.LoggerFactory.CreateLogger<YuumiX.Core.Upload.UploadService>();
+        _ = lifecycle.GameEnded.Subscribe(_timestamp =>
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var profile = await summonerService.GetCurrentSummonerAsync().ConfigureAwait(false);
+                    if (profile is null)
+                    {
+                        return;
+                    }
+
+                    var page = await matchService.GetMatchHistoryAsync(profile.Puuid, 0, 0).ConfigureAwait(false);
+                    if (page.Games.Count == 0)
+                    {
+                        return;
+                    }
+
+                    var (outcome, message) = await uploadService
+                        .UploadMatchAsync(page.Games[0].GameId, profile.Puuid)
+                        .ConfigureAwait(false);
+                    uploadLogger.LogInformation("对局 {GameId} 上传结束: {Outcome} {Message}", page.Games[0].GameId, outcome, message);
+                }
+                catch (Exception ex)
+                {
+                    uploadLogger.LogWarning(ex, "对局结束后的自动上传失败");
+                }
+            });
+        });
     }
 
     /// <summary>释放服务与日志。</summary>

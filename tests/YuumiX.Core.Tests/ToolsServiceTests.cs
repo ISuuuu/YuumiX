@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using Xunit;
@@ -47,6 +48,133 @@ public sealed class ToolsServiceTests
     }
 
     [Fact]
+    public async Task LaunchSpectateAsync_Cmd_LaunchesGameProcess()
+    {
+        // 临时目录里放一个假的 Game/League of Legends.exe，验证进程启动参数拼接
+        var tempDir = Path.Combine(Path.GetTempPath(), "YuumiX_Test_" + Guid.NewGuid().ToString("N"));
+        var gameDir = Path.Combine(tempDir, "Game");
+        Directory.CreateDirectory(gameDir);
+        var exePath = Path.Combine(gameDir, "League of Legends.exe");
+        File.WriteAllText(exePath, "fake");
+
+        try
+        {
+            ProcessStartInfo? captured = null;
+            var transport = new MockTransport
+            {
+                Handler = req =>
+                {
+                    if (req.Path.StartsWith("/lol-summoner/v1/summoners"))
+                    {
+                        return new LcuResponse(200, """{"puuid":"in-game-puuid","displayName":"Faker"}""");
+                    }
+                    return new LcuResponse(200, "{}");
+                }
+            };
+
+            var creds = new LcuCredentials(1234, "token", 12345, "hn1");
+            var config = new YuumiX.Core.Persistence.AppConfig();
+            config.General.LolPath.Add(tempDir);
+            var service = new ToolsService(
+                () => transport,
+                new MockSgpService(),
+                () => creds,
+                () => config,
+                processStartOverride: info => captured = info);
+
+            var result = await service.LaunchSpectateAsync("Faker", SpectateMethod.Cmd);
+
+            Assert.True(result.Success);
+            Assert.Contains("观战启动成功", result.Message);
+            Assert.NotNull(result.Credentials);
+            Assert.NotNull(captured);
+            Assert.Equal(exePath, captured!.FileName);
+            // 参数顺序对齐旧 spectate_directly: spectator {ip}:{port} {key} {gameId} {server}
+            Assert.Equal("spectator 127.0.0.1:8088 secret-key 987654321 hn1", captured.Arguments);
+            Assert.Equal(gameDir, captured.WorkingDirectory);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchSpectateAsync_Cmd_FailsWithTriedPathsWhenExeMissing()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "YuumiX_Test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var transport = new MockTransport
+            {
+                Handler = req =>
+                {
+                    if (req.Path.StartsWith("/lol-summoner/v1/summoners"))
+                    {
+                        return new LcuResponse(200, """{"puuid":"in-game-puuid","displayName":"Faker"}""");
+                    }
+                    return new LcuResponse(200, "{}");
+                }
+            };
+
+            var creds = new LcuCredentials(1234, "token", 12345, "hn1");
+            var config = new YuumiX.Core.Persistence.AppConfig();
+            config.General.LolPath.Add(tempDir);
+            var service = new ToolsService(() => transport, new MockSgpService(), () => creds, () => config);
+
+            var result = await service.LaunchSpectateAsync("Faker", SpectateMethod.Cmd);
+
+            Assert.False(result.Success);
+            Assert.Contains("未找到游戏可执行文件", result.Message);
+            Assert.Contains(Path.Combine(tempDir, "Game", "League of Legends.exe"), result.Message);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void TryResolveGameExecutable_FallsBackToParentGameDirectory()
+    {
+        // LolPath 指向 LeagueClient 子目录（无 Game），回退到父目录下的 Game
+        var tempDir = Path.Combine(Path.GetTempPath(), "YuumiX_Test_" + Guid.NewGuid().ToString("N"));
+        var clientDir = Path.Combine(tempDir, "LeagueClient");
+        var gameDir = Path.Combine(tempDir, "Game");
+        Directory.CreateDirectory(clientDir);
+        Directory.CreateDirectory(gameDir);
+        var exePath = Path.Combine(gameDir, "League of Legends.exe");
+        File.WriteAllText(exePath, "fake");
+
+        try
+        {
+            string? resolved = YuumiX.Core.Features.Tools.ToolsService.TryResolveGameExecutable(
+                [clientDir], out var attempted);
+
+            Assert.Equal(exePath, resolved);
+            // 主路径（clientDir/Game）未命中会记入尝试列表，回退路径命中
+            Assert.Contains(Path.Combine(clientDir, "Game", "League of Legends.exe"), attempted);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void TryResolveGameExecutable_SkipsWeGameMarkerEntries()
+    {
+        string? resolved = YuumiX.Core.Features.Tools.ToolsService.TryResolveGameExecutable(
+            ["WeGame"], out var attempted);
+
+        Assert.Null(resolved);
+        // 只有 WeGame 标记时没有真实路径可尝试
+        Assert.Empty(attempted);
+    }
+
+    [Fact]
     public async Task LaunchSpectateAsync_Cmd_ReturnsCredentialsWhenInGame()
     {
         var transport = new MockTransport
@@ -64,9 +192,11 @@ public sealed class ToolsServiceTests
         var creds = new LcuCredentials(1234, "token", 12345, "hn1");
         var service = new ToolsService(() => transport, new MockSgpService(), () => creds);
 
+        // 未配置客户端路径时：凭据已拉到，但无法定位游戏进程启动，提示先去设置配置
         var result = await service.LaunchSpectateAsync("Faker", SpectateMethod.Cmd);
 
-        Assert.True(result.Success);
+        Assert.False(result.Success);
+        Assert.Contains("未配置英雄联盟客户端路径", result.Message);
         Assert.NotNull(result.Credentials);
         Assert.Equal(987654321, result.Credentials.GameId);
         Assert.Equal("127.0.0.1", result.Credentials.ObserverServerIp);

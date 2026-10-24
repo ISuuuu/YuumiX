@@ -55,9 +55,29 @@ internal static class SkinPickerView
 
         var activeSkin = skins[Math.Clamp(activeSkinIndex, 0, skins.Count - 1)];
 
+        int prevIdx = activeSkinIndex > 0 ? activeSkinIndex - 1 : skins.Count - 1;
+        int nextIdx = activeSkinIndex < skins.Count - 1 ? activeSkinIndex + 1 : 0;
+
+        Element carouselControls = HStack(8,
+            Button("\uE76B", () => onSelectSkinIndex(prevIdx))
+                .FontSize(11)
+                .Padding(8, 4)
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
+                .AutomationName("上一款皮肤"),
+            TextBlock($"{activeSkinIndex + 1} / {skins.Count}")
+                .FontSize(12)
+                .Foreground(Theme.SecondaryText)
+                .VAlign(VerticalAlignment.Center),
+            Button("\uE76C", () => onSelectSkinIndex(nextIdx))
+                .FontSize(11)
+                .Padding(8, 4)
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
+                .AutomationName("下一款皮肤")
+        ).VAlign(VerticalAlignment.Center);
+
         Element previewSection = Border(
             Grid(
-                [GridSize.Star(), GridSize.Auto],
+                [GridSize.Star(), GridSize.Auto, GridSize.Auto],
                 [GridSize.Auto],
                 [
                     VStack(4,
@@ -69,12 +89,14 @@ internal static class SkinPickerView
                             .Foreground(Theme.SecondaryText)
                     ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
+                    carouselControls.Margin(new Thickness(12, 0, 12, 0)).Grid(row: 0, column: 1),
+
                     Button("应用此背景", () => onApplySkin(activeSkin.Id))
                         .Background(palette.Accent)
                         .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                         .AutomationName("应用当前皮肤背景")
                         .VAlign(VerticalAlignment.Center)
-                        .Grid(row: 0, column: 1),
+                        .Grid(row: 0, column: 2),
                 ]
             ).Padding(12, 8)
         )

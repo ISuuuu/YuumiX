@@ -118,18 +118,27 @@ public sealed class AssetCache
         }
     }
 
-    /// <summary>清空缓存（保留目录本身）。版本哨兵变更时调用。</summary>
-    public void Clear()
+    /// <summary>
+    /// 清空缓存（保留目录本身），返回删除的文件数（设置页的清除反馈用）。
+    /// 版本哨兵变更时同样调用，返回值被忽略。
+    /// </summary>
+    public int Clear()
     {
         if (!System.IO.Directory.Exists(Directory))
         {
-            return;
+            return 0;
         }
 
+        var removed = 0;
         foreach (var file in System.IO.Directory.EnumerateFiles(Directory))
         {
-            TryDelete(file);
+            if (TryDelete(file))
+            {
+                removed++;
+            }
         }
+
+        return removed;
     }
 
     /// <summary>
@@ -154,15 +163,18 @@ public sealed class AssetCache
         return hash.ToString("x16", CultureInfo.InvariantCulture);
     }
 
-    private void TryDelete(string path)
+    /// <returns>是否删除成功（文件不存在视为已删除）。</returns>
+    private bool TryDelete(string path)
     {
         try
         {
             File.Delete(path);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger?.LogDebug(ex, "删除缓存文件失败: {Path}", path);
+            return false;
         }
     }
 }

@@ -15,16 +15,28 @@ namespace YuumiX.Core.Features.Tools;
 public sealed class ToolsService : IToolsService
 {
     private const string WegameMarker = "wegame";
+
+    /// <summary>游戏可执行文件名（CMD 观战直接启动的进程）。</summary>
+    internal const string GameExecutableName = "League of Legends.exe";
+
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly Func<LcuCredentials?>? _credentialsProvider;
+    private readonly Func<Persistence.AppConfig?>? _configProvider;
     private readonly ISgpService _sgpService;
+    private readonly Action<ProcessStartInfo>? _processStartOverride;
     private readonly ILogger<ToolsService>? _logger;
+
+    private IReadOnlyList<ChampionSummaryItem>? _championSummaryCache;
+    private IReadOnlyList<SummonerSpellItem>? _summonerSpellsCache;
+    private readonly SemaphoreSlim _catalogLock = new(1, 1);
 
     public ToolsService(
         Func<ILcuTransport?> transportProvider,
         ISgpService sgpService,
         Func<LcuCredentials?>? credentialsProvider = null,
-        ILogger<ToolsService>? logger = null)
+        Func<Persistence.AppConfig?>? configProvider = null,
+        ILogger<ToolsService>? logger = null,
+        Action<ProcessStartInfo>? processStartOverride = null)
     {
         ArgumentNullException.ThrowIfNull(transportProvider);
         ArgumentNullException.ThrowIfNull(sgpService);
@@ -32,7 +44,10 @@ public sealed class ToolsService : IToolsService
         _transportProvider = transportProvider;
         _sgpService = sgpService;
         _credentialsProvider = credentialsProvider;
+        _configProvider = configProvider;
         _logger = logger;
+        // 测试注入点：单元测试不能真的拉起游戏进程，用钩子捕获启动参数做断言
+        _processStartOverride = processStartOverride;
     }
 
     private ILcuTransport GetRequiredTransport()
@@ -113,7 +128,108 @@ public sealed class ToolsService : IToolsService
             return new SpectateResult(false, "该召唤师当前不在游戏中或无法获取观战凭据", SpectateMethod.Cmd);
         }
 
-        return new SpectateResult(true, $"获取观战凭据成功（GameId: {credentials.GameId}）", SpectateMethod.Cmd, credentials);
+        // ── 定位 Game 目录并启动 League of Legends.exe（对齐旧 spectate_directly 步骤 7-8）──
+        var lolPaths = _configProvider?.Invoke()?.General.LolPath ?? [];
+        string? gameExePath = TryResolveGameExecutable(lolPaths, out var attemptedPaths);
+        if (gameExePath is null)
+        {
+            // 未配置路径与配置了但找不到，给出不同的可行动提示
+            string message = lolPaths.Count == 0
+                ? "未配置英雄联盟客户端路径，请在设置中配置"
+                : $"未找到游戏可执行文件。\n尝试过:\n  {string.Join("\n  ", attemptedPaths)}\n请在设置中确认客户端安装路径";
+            _logger?.LogWarning("CMD 观战未能定位游戏可执行文件: {Attempted}", string.Join("; ", attemptedPaths));
+            return new SpectateResult(false, message, SpectateMethod.Cmd, credentials);
+        }
+
+        var gameDirectory = Path.GetDirectoryName(gameExePath)!;
+        try
+        {
+            var startInfo = CreateSpectateStartInfo(gameExePath, gameDirectory, credentials, server);
+            if (_processStartOverride is not null)
+            {
+                _processStartOverride(startInfo);
+            }
+            else
+            {
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+            }
+
+            _logger?.LogInformation(
+                "CMD 观战: 已启动 {Exe} spectator {Ip}:{Port} {Key} {GameId} {Server} (cwd={Cwd})",
+                gameExePath, credentials.ObserverServerIp, credentials.ObserverServerPort,
+                credentials.ObserverEncryptionKey, credentials.GameId, server, gameDirectory);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "CMD 观战启动游戏进程失败: {Exe}", gameExePath);
+            return new SpectateResult(false, $"启动游戏客户端失败: {ex.Message}", SpectateMethod.Cmd, credentials);
+        }
+
+        return new SpectateResult(true, $"观战启动成功（CMD 方式），目标: {name}", SpectateMethod.Cmd, credentials);
+    }
+
+    /// <summary>
+    /// 从配置的 LolPath 列表中定位 <see cref="GameExecutableName"/>。
+    /// 优先 <c>&lt;首个非 WeGame 条目&gt;/Game</c>，回退 <c>&lt;该条目父目录&gt;/Game</c>
+    /// （兼容 LolPath 指向 LeagueClient 子目录的情况，对齐旧 spectate_directly 步骤 7）。
+    /// </summary>
+    /// <param name="lolPaths">配置的客户端路径列表（可能含 WeGame 标记条目）。</param>
+    /// <param name="attemptedExePaths">尝试过但未命中的完整 exe 路径，用于报错展示。</param>
+    /// <returns>命中的游戏可执行文件完整路径；未命中返回 null。</returns>
+    internal static string? TryResolveGameExecutable(IReadOnlyList<string> lolPaths, out IReadOnlyList<string> attemptedExePaths)
+    {
+        var attempted = new List<string>();
+
+        string? basePath = lolPaths.FirstOrDefault(p =>
+            !string.IsNullOrWhiteSpace(p) && !string.Equals(p.Trim(), WegameMarker, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            attemptedExePaths = attempted;
+            return null;
+        }
+
+        // LolPath 也可能配置成 LeagueClient.exe 这类文件路径，先归一化为目录
+        string rootDirectory = File.Exists(basePath) ? Path.GetDirectoryName(basePath) ?? basePath : basePath;
+
+        string primary = Path.Combine(rootDirectory, "Game");
+        string fallback = Path.GetDirectoryName(rootDirectory) is { } parent ? Path.Combine(parent, "Game") : primary;
+
+        foreach (var candidate in new[] { primary, fallback }.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            string exe = Path.Combine(candidate, GameExecutableName);
+            if (File.Exists(exe))
+            {
+                attemptedExePaths = attempted;
+                return exe;
+            }
+
+            attempted.Add(exe);
+        }
+
+        attemptedExePaths = attempted;
+        return null;
+    }
+
+    /// <summary>
+    /// 构造 CMD 观战进程启动信息（对齐旧 spectate_directly 步骤 8）：
+    /// <c>League of Legends.exe spectator {ip}:{port} {key} {gameId} {server}</c>，工作目录为 Game 目录。
+    /// </summary>
+    internal static ProcessStartInfo CreateSpectateStartInfo(
+        string gameExePath,
+        string gameDirectory,
+        SpectateCredentials credentials,
+        string server)
+    {
+        string arguments = $"spectator {credentials.ObserverServerIp}:{credentials.ObserverServerPort} "
+            + $"{credentials.ObserverEncryptionKey} {credentials.GameId} {server}";
+        return new ProcessStartInfo
+        {
+            FileName = gameExePath,
+            Arguments = arguments,
+            WorkingDirectory = gameDirectory,
+            UseShellExecute = false,
+        };
     }
 
     private async Task<SpectateResult> TryLaunchLcuSpectateAsync(
@@ -586,4 +702,128 @@ public sealed class ToolsService : IToolsService
 
     [DllImport("user32.dll")]
     private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    public async Task<IReadOnlyList<ChampionSummaryItem>> GetChampionSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        if (_championSummaryCache is not null)
+        {
+            return _championSummaryCache;
+        }
+
+        await _catalogLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_championSummaryCache is not null)
+            {
+                return _championSummaryCache;
+            }
+
+            var transport = GetRequiredTransport();
+            var resp = await transport.SendAsync(LcuRequest.Get("/lol-game-data/assets/v1/champion-summary.json"), cancellationToken).ConfigureAwait(false);
+            if (resp.StatusCode is not (>= 200 and < 300))
+            {
+                _logger?.LogWarning("获取英雄列表失败: HTTP {Status}", resp.StatusCode);
+                return [];
+            }
+
+            using var doc = JsonDocument.Parse(resp.Body);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var list = new List<ChampionSummaryItem>();
+            foreach (var elem in doc.RootElement.EnumerateArray())
+            {
+                if (elem.ValueKind != JsonValueKind.Object) continue;
+                int id = elem.TryGetProperty("id", out var pId) && pId.TryGetInt32(out var idVal) ? idVal : 0;
+                if (id <= 0) continue;
+
+                string name = elem.TryGetProperty("name", out var pName) ? pName.GetString() ?? "" : "";
+                string alias = elem.TryGetProperty("alias", out var pAlias) ? pAlias.GetString() ?? "" : "";
+                string title = elem.TryGetProperty("title", out var pTitle) ? pTitle.GetString() ?? "" : "";
+                string icon = elem.TryGetProperty("squarePortraitPath", out var pIcon) ? pIcon.GetString() ?? "" : "";
+                if (string.IsNullOrWhiteSpace(icon))
+                {
+                    icon = $"/lol-game-data/assets/v1/champion-icons/{id}.png";
+                }
+
+                list.Add(new ChampionSummaryItem(id, name, alias, title, icon));
+            }
+
+            var sorted = list.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            _championSummaryCache = sorted;
+            return sorted;
+        }
+        finally
+        {
+            _catalogLock.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<SummonerSpellItem>> GetSummonerSpellsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_summonerSpellsCache is not null)
+        {
+            return _summonerSpellsCache;
+        }
+
+        await _catalogLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_summonerSpellsCache is not null)
+            {
+                return _summonerSpellsCache;
+            }
+
+            var transport = GetRequiredTransport();
+            var resp = await transport.SendAsync(LcuRequest.Get("/lol-game-data/assets/v1/summoner-spells.json"), cancellationToken).ConfigureAwait(false);
+            if (resp.StatusCode is not (>= 200 and < 300))
+            {
+                _logger?.LogWarning("获取召唤师技能失败: HTTP {Status}", resp.StatusCode);
+                return [];
+            }
+
+            using var doc = JsonDocument.Parse(resp.Body);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var rawList = new List<SummonerSpellItem>();
+            foreach (var elem in doc.RootElement.EnumerateArray())
+            {
+                if (elem.ValueKind != JsonValueKind.Object) continue;
+                int id = elem.TryGetProperty("id", out var pId) && pId.TryGetInt32(out var idVal) ? idVal : 0;
+                if (id <= 0) continue;
+
+                string name = elem.TryGetProperty("name", out var pName) ? pName.GetString() ?? "" : "";
+                string desc = elem.TryGetProperty("description", out var pDesc) ? pDesc.GetString() ?? "" : "";
+                string icon = elem.TryGetProperty("iconPath", out var pIcon) ? pIcon.GetString() ?? "" : "";
+                if (string.IsNullOrWhiteSpace(icon))
+                {
+                    icon = $"/lol-game-data/assets/v1/summoner-spells/{id}.png";
+                }
+
+                rawList.Add(new SummonerSpellItem(id, name, desc, icon));
+            }
+
+            var unique = new List<SummonerSpellItem>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var spell in rawList.OrderBy(s => s.Id))
+            {
+                if (string.IsNullOrWhiteSpace(spell.Name) || seen.Add(spell.Name))
+                {
+                    unique.Add(spell);
+                }
+            }
+
+            _summonerSpellsCache = unique;
+            return unique;
+        }
+        finally
+        {
+            _catalogLock.Release();
+        }
+    }
 }

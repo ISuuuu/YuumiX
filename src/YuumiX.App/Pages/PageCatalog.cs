@@ -51,9 +51,6 @@ public static class PageCatalog
         ]),
         [AppRoute.Settings] = ("设置", "src/views/Settings.vue",
         [
-            "云端服务（SignalR Hub 远程推送与对局上传）",
-            "在线更新（增量/便携包下载与安装）",
-            "客户端路径多目录管理弹窗",
         ]),
     };
 

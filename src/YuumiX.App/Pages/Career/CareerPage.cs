@@ -44,12 +44,6 @@ public sealed record CareerViewTarget(string Puuid, SummonerProfile? Preloaded);
 /// </summary>
 public sealed class CareerPage : Component
 {
-    /// <summary>
-    /// 一页对局数。LCU 的 <c>matches</c> 接口一次登录只缓存最近 20 局，
-    /// 与原生涯页 <c>careerGamesNumber = 20</c> 一致。
-    /// </summary>
-    private const int PageSize = 20;
-
     /// <summary>空列表共享实例（<c>UseState</c> 初值只读一次，集合表达式会每次新建，REACTOR_HOOKS_013）。</summary>
     private static readonly IReadOnlyList<MatchSummary> EmptyMatches = [];
 
@@ -258,6 +252,7 @@ public sealed class CareerPage : Component
                 int seq = ++_requestSeq;
                 Func<bool> isStale = () => seq != _requestSeq;
                 var cancellation = new CancellationTokenSource();
+                var gamesNumber = Math.Clamp(services.Config.Functions.CareerGamesNumber, 1, 100);
                 _ = viewTarget is { } target
                     ? LoadOtherCareerAsync(
                         summonerService,
@@ -275,6 +270,7 @@ public sealed class CareerPage : Component
                         summonerService,
                         careerService,
                         matchService,
+                        gamesNumber,
                         refreshToken > 0,
                         isStale,
                         setSummoner,
@@ -947,13 +943,14 @@ public sealed class CareerPage : Component
     }
 
     /// <summary>
-    /// 自己的生涯：当前召唤师 → 排位总览 + 最近 20 局 + 战利品 + 英雄熟练度。
+    /// 自己的生涯：当前召唤师 → 排位总览 + 最近对局（数量由「默认对局数量」设置决定）+ 战利品 + 英雄熟练度。
     /// 四路并行，失败只显示空态或提示，不弹框打扰。
     /// </summary>
     private static async Task LoadSelfAsync(
         ISummonerService summonerService,
         ICareerService careerService,
         IMatchService matchService,
+        int gamesNumber,
         bool forceRefresh,
         Func<bool> isStale,
         Action<SummonerProfile?> applySummoner,
@@ -992,7 +989,7 @@ public sealed class CareerPage : Component
                 profile.Puuid, forceRefresh, cancellationToken);
 
             Task<MatchHistoryPage> historyTask = matchService.GetMatchHistoryAsync(
-                profile.Puuid, 0, PageSize - 1, cancellationToken);
+                profile.Puuid, 0, gamesNumber - 1, cancellationToken);
 
             Task<PlayerLootOverview?> lootTask = careerService.GetLootOverviewAsync(
                 forceRefresh, cancellationToken);

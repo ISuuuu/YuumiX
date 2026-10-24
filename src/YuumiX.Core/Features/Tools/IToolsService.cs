@@ -52,4 +52,10 @@ public interface IToolsService
 
     /// <summary>修复 LCU 客户端窗口缩放与黑屏 (Win32 API)。</summary>
     Task<string> FixClientWindowAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>获取所有英雄摘要列表（缓存复用）。</summary>
+    Task<IReadOnlyList<ChampionSummaryItem>> GetChampionSummaryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>获取所有常规召唤师技能列表（按名称去重，经典技能优先）。</summary>
+    Task<IReadOnlyList<SummonerSpellItem>> GetSummonerSpellsAsync(CancellationToken cancellationToken = default);
 }

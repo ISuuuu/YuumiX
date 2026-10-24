@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Text;
@@ -7,6 +8,7 @@ using System.Diagnostics;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
+using YuumiX.Core;
 using YuumiX.Core.Lcu;
 
 namespace YuumiX.App.Pages.Home;
@@ -58,7 +60,7 @@ public sealed class HomePage : Component
             [
                 isConnected
                     ? RenderConnectedView(connState, palette)
-                    : RenderDisconnectedView(services.Config.General.LolPath, palette),
+                    : RenderDisconnectedView(services, palette),
             ]
         )
         .Padding(32);
@@ -147,7 +149,7 @@ public sealed class HomePage : Component
     /// <summary>
     /// 未连接态视图：对齐原 Home.vue
     /// </summary>
-    private static Element RenderDisconnectedView(IReadOnlyList<string> lolPaths, YuumiPalette palette)
+    private static Element RenderDisconnectedView(AppServices services, YuumiPalette palette)
     {
         return VStack(
             16,
@@ -173,7 +175,7 @@ public sealed class HomePage : Component
                 .Margin(0, 0, 0, 8),
 
             // 启动客户端按钮
-            Button("启动客户端", () => LaunchClient(lolPaths))
+            Button("启动客户端", () => LaunchClient(services))
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .Padding(24, 8)
                 .Margin(0, 0, 0, 10),
@@ -195,20 +197,24 @@ public sealed class HomePage : Component
         .VerticalAlignment(VerticalAlignment.Center);
     }
 
-    private static void LaunchClient(IReadOnlyList<string> lolPaths)
+    /// <summary>
+    /// 启动客户端：走 Core 的 <see cref="LolClientLauncher"/>（旧 launch_lol_client 语义），
+    /// 含 WeGame 条目分支、TCLS/Riot 启动形态与 740/5 错误的 UAC 提权兜底。
+    /// 进程扫描是阻塞调用，放后台执行；失败不弹窗——旧版 Home.vue 亦只 console.warn，
+    /// 界面上的「等待客户端启动中」指示环承担反馈职责。
+    /// </summary>
+    private static void LaunchClient(AppServices services)
     {
-        if (lolPaths.Count == 0) return;
-        var path = lolPaths[0];
-        try
+        var launcher = services.Services.GetRequiredService<YuumiX.Core.Features.Tools.LolClientLauncher>();
+        var logger = services.LoggerFactory.CreateLogger<YuumiX.Core.Features.Tools.LolClientLauncher>();
+        var config = services.Config;
+        _ = Task.Run(() =>
         {
-            if (File.Exists(path))
+            string? error = launcher.Launch(config.General.LolPath, config.General.WegamePath);
+            if (error is not null)
             {
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+                logger.LogWarning("手动启动客户端失败: {Error}", error);
             }
-        }
-        catch
-        {
-            // 忽略启动失败
-        }
+        });
     }
 }

@@ -72,6 +72,8 @@ public sealed class LcuEventStream : IAsyncDisposable
         "/lol-champ-select/v1/session",
         "/lol-champ-select/v1/current-champion",
         "/lol-matchmaking/v1/ready-check",
+        "/lol-lobby/v2/received-invitations",
+        "/lol-honor-v2/v1/ballot",
     ];
 
     private readonly Uri _endpoint;

@@ -90,8 +90,41 @@ public sealed class GameInfoPage : Component
 
         // 6. 正常对局渲染
         return state.ViewColumns == 10
-            ? RenderTenColumnView(state, gameInfoService, palette)
-            : RenderFiveColumnView(state, gameInfoService, palette);
+            ? RenderTenColumnView(state, gameInfoService, palette, services)
+            : RenderFiveColumnView(state, gameInfoService, palette, services);
+    }
+
+    private static Element? RenderDodgeButton(AppServices services)
+    {
+        if (!services.Config.Functions.EnableDodgeInGameInfo)
+        {
+            return null;
+        }
+
+        var toolsService = services.Services.GetService<YuumiX.Core.Features.Tools.IToolsService>();
+        if (toolsService is null)
+        {
+            return null;
+        }
+
+        return Button("秒退", async () =>
+        {
+            try
+            {
+                await toolsService.DodgeChampSelectAsync();
+            }
+            catch
+            {
+                // 静默隔离
+            }
+        })
+        .Background("#FFE53935")
+        .Foreground("#FFFFFFFF")
+        .FontSize(11)
+        .Padding(12, 4)
+        .CornerRadius(6)
+        .Margin(new Thickness(0, 0, 8, 0))
+        .AutomationName("秒退对局");
     }
 
     private static Element RenderPlaceholder(string title, string subtitle, Action? onDemoClick = null)
@@ -129,7 +162,8 @@ public sealed class GameInfoPage : Component
     private Element RenderFiveColumnView(
         GameInfoState state,
         IGameInfoService service,
-        YuumiPalette palette)
+        YuumiPalette palette,
+        AppServices services)
     {
         bool isMyTab = state.ActiveTab == "my";
         var currentTeam = isMyTab ? state.MyTeam : state.TheirTeam;
@@ -245,6 +279,7 @@ public sealed class GameInfoPage : Component
         var vsBadge = RenderVsBadge();
 
         var segmentedControl = RenderSegmentedControl(5, cols => service.SetViewColumns(cols));
+        var dodgeBtn = RenderDodgeButton(services);
 
         var toolbarLeft = HStack(8,
             allyPill,
@@ -255,13 +290,18 @@ public sealed class GameInfoPage : Component
         )
         .VAlign(VerticalAlignment.Center);
 
+        var toolbarRight = HStack(0,
+            dodgeBtn ?? Empty(),
+            segmentedControl
+        ).VAlign(VerticalAlignment.Center);
+
         var toolbar = Border(
             Grid(
                 [GridSize.Star(), GridSize.Auto],
                 [GridSize.Auto],
                 [
                     toolbarLeft.Grid(row: 0, column: 0),
-                    segmentedControl.Grid(row: 0, column: 1).VAlign(VerticalAlignment.Center),
+                    toolbarRight.Grid(row: 0, column: 1),
                 ]
             )
         )
@@ -325,7 +365,8 @@ public sealed class GameInfoPage : Component
     private Element RenderTenColumnView(
         GameInfoState state,
         IGameInfoService service,
-        YuumiPalette palette)
+        YuumiPalette palette,
+        AppServices services)
     {
         var myGroups = PremadeAnalyzer.BuildPremadeGroups(state.MyTeam, state.PremadeColorsMy, state.PlayerData);
         var theirGroups = PremadeAnalyzer.BuildPremadeGroups(state.TheirTeam, state.PremadeColorsTheir, state.PlayerData);
@@ -349,6 +390,7 @@ public sealed class GameInfoPage : Component
         var vsBadge = RenderVsBadge();
 
         var segmentedControl = RenderSegmentedControl(10, cols => service.SetViewColumns(cols));
+        var dodgeBtn = RenderDodgeButton(services);
 
         var toolbar = Border(
             Grid(
@@ -364,6 +406,7 @@ public sealed class GameInfoPage : Component
                     HStack(8,
                         theirChips,
                         enemyPill,
+                        dodgeBtn ?? Empty(),
                         segmentedControl
                     )
                     .HAlign(HorizontalAlignment.Right)

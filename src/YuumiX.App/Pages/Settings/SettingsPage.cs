@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
@@ -5,9 +6,13 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Animation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Services;
 using YuumiX.App.Theming;
+using YuumiX.Core.Automation;
 using YuumiX.Core.Common;
+using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Persistence;
+using YuumiX.Core.Realtime;
 
 namespace YuumiX.App.Pages.Settings;
 
@@ -40,11 +45,24 @@ public sealed class SettingsPage : Component
     private const int ApiConcurrencyMin = 1;
     private const int ApiConcurrencyMax = 10;
 
+    /// <summary>开源仓库地址（工程 git remote 与 README 一致）。</summary>
+    private const string RepositoryUrl = "https://github.com/ISuuuu/YuumiX";
+
+    /// <summary>应用版本（入口程序集的文件版本，显示为 v主.次.修订）。</summary>
+    private static string AppVersion =>
+        "v" + (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0");
+
     /// <summary>
     /// 取色器的合并写盘延迟。ColorPicker 的 ColorChanged 在拖动时每帧触发，
     /// 逐次同步写盘既打断拖动又没有信息增量；停手 400 ms 后写一次就够了。
     /// </summary>
     private const int ColorCommitDelayMs = 400;
+
+    /// <summary>
+    /// 路径条目的合并写盘延迟。TextBox 的文本回调逐字符触发，逐字符落盘会把半截路径写进配置；
+    /// 停手 600 ms 后写一次（取色器同款机制，见 ColorCommitDelayMs）。
+    /// </summary>
+    private const int PathCommitDelayMs = 600;
 
     /// <summary>
     /// 渲染序号。用于在「改了 POCO 但 Reactor 不知道」时强制重渲染。
@@ -61,6 +79,25 @@ public sealed class SettingsPage : Component
 
     /// <summary>代理地址草稿：只在点「应用」时读它，不参与渲染，避免受控文本框的光标跳动。</summary>
     private string? _proxyDraft;
+
+    /// <summary>路径条目编辑草稿（见 <see cref="PathCommitDelayMs"/>），只由防抖定时器消费。</summary>
+    private string? _pathEditDraft;
+
+    /// <summary>正在编辑的路径条目索引；-1 表示没有待提交的编辑。</summary>
+    private int _pathEditIndex = -1;
+
+    /// <summary>正在编辑的是否为 WeGame 条目（true 时草稿写 <c>WegamePath</c> 而非路径列表）。</summary>
+    private bool _pathEditIsWeGame;
+
+    /// <summary>路径编辑防抖的递增序号（与 <see cref="_colorTick"/> 同款机制）。</summary>
+    private int _pathEditTick;
+
+    /// <summary>云端服务文本草稿：URL 与 userid（防抖机制与路径条目相同）。</summary>
+    private string? _cloudUrlDraft;
+    private string? _cloudUserIdDraft;
+
+    /// <summary>云端文本编辑防抖的递增序号。</summary>
+    private int _cloudTextTick;
 
     private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
     private readonly List<Timer> _toastTimers = [];
@@ -94,8 +131,29 @@ public sealed class SettingsPage : Component
         var initialExpanded = UseMemo(() => new HashSet<string>(), 0);
         var (expandedKeys, setExpandedKeys) = UseState(initialExpanded, threadSafe: true);
 
+        // 清除缓存确认弹窗（旧版 clear_game_cache 前的确认步骤）
+        var (clearDialogOpen, setClearDialogOpen) = UseState(false, threadSafe: true);
+
+        // 云端服务：SignalR 四态徽标状态（EventStream 推送来自后台线程，threadSafe 消费，ADR-07）
+        var signalr = services.Services.GetRequiredService<YuumiX.Core.Realtime.SignalrService>();
+        var (signalrStatus, setSignalrStatus) = UseState(signalr.Current, threadSafe: true);
+
+        // 云端文本（URL/userid）合并写盘序号
+        var (cloudTextTick, setCloudTextTick) = UseState(0, threadSafe: true);
+
+        // 软件更新：检查中 / 检查结果 / 错误 / 下载进度 / 已就绪的安装包路径
+        var updateService = services.Services.GetRequiredService<YuumiX.Core.Updates.UpdateService>();
+        var (isCheckingUpdate, setCheckingUpdate) = UseState(false, threadSafe: true);
+        var (updateInfo, setUpdateInfo) = UseState<YuumiX.Core.Updates.UpdateInfo?>(null, threadSafe: true);
+        var (updateCheckError, setUpdateCheckError) = UseState<string?>(null, threadSafe: true);
+        var (updateProgress, setUpdateProgress) = UseState<YuumiX.Core.Updates.DownloadProgress?>(null, threadSafe: true);
+        var (downloadedUpdatePath, setDownloadedUpdatePath) = UseState<string?>(null, threadSafe: true);
+
         // 颜色合并写盘用的序号；每次取色变化 +1，被防抖 effect 消费。
         var (colorTick, setColorTick) = UseState(0, threadSafe: true);
+
+        // 路径条目合并写盘用的序号；每次路径文本编辑 +1，被防抖 effect 消费。
+        var (pathEditTick, setPathEditTick) = UseState(0, threadSafe: true);
         UseEffect(
             () =>
             {
@@ -169,6 +227,139 @@ public sealed class SettingsPage : Component
             setColorTick(++_colorTick);
         }
 
+        // 路径条目文本变化：先记草稿（渲染时回填用），写盘延后合并（见 PathCommitDelayMs）。
+        void RequestPathCommit(int index, bool isWeGame, string draft)
+        {
+            _pathEditIndex = index;
+            _pathEditIsWeGame = isWeGame;
+            _pathEditDraft = draft;
+            setPathEditTick(++_pathEditTick);
+        }
+
+        // 云端服务文本变化：记草稿，防抖后落盘并触发 Hub 重启/停止
+        void RequestCloudTextCommit(string? urlDraft, string? userIdDraft)
+        {
+            if (urlDraft is not null)
+            {
+                _cloudUrlDraft = urlDraft;
+            }
+
+            if (userIdDraft is not null)
+            {
+                _cloudUserIdDraft = userIdDraft;
+            }
+
+            setCloudTextTick(++_cloudTextTick);
+        }
+
+        // 把待提交的路径草稿写入配置（空值跳过，对齐旧 handleEditPathDirect）。
+        void ApplyPathEdit()
+        {
+            if (_pathEditIndex < 0)
+            {
+                return;
+            }
+
+            var value = (_pathEditDraft ?? string.Empty).Trim();
+            var index = _pathEditIndex;
+            var isWeGame = _pathEditIsWeGame;
+            _pathEditIndex = -1;
+            _pathEditDraft = null;
+            _pathEditIsWeGame = false;
+
+            if (isWeGame)
+            {
+                if ((config.General.WegamePath ?? string.Empty) == value)
+                {
+                    return;
+                }
+
+                config.General.WegamePath = value.Length == 0 ? null : value;
+                Commit(nameof(GeneralConfig.WegamePath));
+                return;
+            }
+
+            var paths = config.General.LolPath;
+            if (index >= paths.Count || value.Length == 0 || paths[index] == value)
+            {
+                return;
+            }
+
+            paths[index] = value;
+            Commit(nameof(GeneralConfig.LolPath));
+        }
+
+        // 防抖：pathEditTick 每变一次就重置定时器，只有最后一次会真正落盘（与颜色防抖同一套机制）。
+        UseEffect(
+            () =>
+            {
+                if (pathEditTick == 0)
+                {
+                    return static () => { };
+                }
+
+                _dispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+                var timer = new Timer(
+                    _ => _dispatcher?.TryEnqueue(ApplyPathEdit),
+                    null,
+                    PathCommitDelayMs,
+                    Timeout.Infinite);
+                return () => timer.Dispose();
+            },
+            pathEditTick);
+
+        // SignalR 状态流订阅（四态徽标）
+        UseEffect(
+            () =>
+            {
+                var subscription = signalr.Status.Subscribe(setSignalrStatus);
+                return () => subscription.Dispose();
+            },
+            0);
+
+        // 把云端文本草稿写入配置并触发 Hub 重启/停止（旧 update_config 的差异副作用）。
+        void ApplyCloudTextEdit()
+        {
+            var url = _cloudUrlDraft;
+            var userId = _cloudUserIdDraft;
+            _cloudUrlDraft = null;
+            _cloudUserIdDraft = null;
+            _cloudTextTick = 0;
+
+            if (url is not null && url.Trim() != config.General.UploadApiUrl)
+            {
+                config.General.UploadApiUrl = url.Trim();
+                Commit(nameof(GeneralConfig.UploadApiUrl));
+            }
+
+            if (userId is not null && userId.Trim() != config.General.SignalrUserId)
+            {
+                config.General.SignalrUserId = userId.Trim();
+                Commit(nameof(GeneralConfig.SignalrUserId));
+            }
+
+            _ = signalr.ApplyConfigAsync();
+        }
+
+        // 防抖：云端文本停止输入 600ms 后落盘（同款机制）
+        UseEffect(
+            () =>
+            {
+                if (cloudTextTick == 0)
+                {
+                    return static () => { };
+                }
+
+                _dispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+                var timer = new Timer(
+                    _ => _dispatcher?.TryEnqueue(ApplyCloudTextEdit),
+                    null,
+                    PathCommitDelayMs,
+                    Timeout.Infinite);
+                return () => timer.Dispose();
+            },
+            cloudTextTick);
+
         // 防抖：colorTick 每变一次就重置定时器，只有最后一次会真正落盘。
         // 定时器回调在线程池，写盘与改状态一律 TryEnqueue 回 UI 线程（ADR-12 决策一）。
         UseEffect(
@@ -199,11 +390,51 @@ public sealed class SettingsPage : Component
             },
             colorTick);
 
-        // 卸载兜底：防抖窗口内切走页面时，直接把待写颜色落盘（不碰 UI 状态，避免卸载后 setState）。
+        // 卸载兜底：防抖窗口内切走页面时，直接把待写颜色/路径落盘（不碰 UI 状态，避免卸载后 setState）。
         UseEffect(
             () => () =>
             {
-                if (_pendingColorField is null)
+                var dirty = false;
+                if (_pendingColorField is not null)
+                {
+                    _pendingColorField = null;
+                    dirty = true;
+                }
+
+                if (_pathEditIndex >= 0)
+                {
+                    // 卸载时没有重渲染可依赖，直接把草稿写进配置对象
+                    var value = (_pathEditDraft ?? string.Empty).Trim();
+                    if (_pathEditIsWeGame)
+                    {
+                        config.General.WegamePath = value.Length == 0 ? null : value;
+                    }
+                    else if (value.Length > 0 && _pathEditIndex < config.General.LolPath.Count)
+                    {
+                        config.General.LolPath[_pathEditIndex] = value;
+                    }
+
+                    _pathEditIndex = -1;
+                    _pathEditDraft = null;
+                    _pathEditIsWeGame = false;
+                    dirty = true;
+                }
+
+                if (_cloudUrlDraft is not null)
+                {
+                    config.General.UploadApiUrl = _cloudUrlDraft.Trim();
+                    _cloudUrlDraft = null;
+                    dirty = true;
+                }
+
+                if (_cloudUserIdDraft is not null)
+                {
+                    config.General.SignalrUserId = _cloudUserIdDraft.Trim();
+                    _cloudUserIdDraft = null;
+                    dirty = true;
+                }
+
+                if (!dirty)
                 {
                     return;
                 }
@@ -211,11 +442,10 @@ public sealed class SettingsPage : Component
                 try
                 {
                     services.ConfigStore.SaveWithBackup(config);
-                    _pendingColorField = null;
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "离开设置页时补写颜色失败");
+                    logger.LogWarning(ex, "离开设置页时补写防抖中的设置失败");
                 }
             },
             0);
@@ -578,8 +808,10 @@ public sealed class SettingsPage : Component
                 [GridSize.Star(), GridSize.Auto],
                 [GridSize.Auto],
                 [
+                    // 开关关闭时禁用输入（对齐旧 ProxySection 的 disabled 联动）
                     TextBox(_proxyDraft ?? config.General.HttpProxyAddr, v => _proxyDraft = v)
                         .Margin(new Thickness(0, 0, 8, 0))
+                        .IsEnabled(config.General.EnableHttpProxy)
                         .AutomationName("代理地址")
                         .Grid(row: 0, column: 0),
                     Button("应用", () =>
@@ -599,7 +831,9 @@ public sealed class SettingsPage : Component
 
                         config.General.HttpProxyAddr = next;
                         Commit(nameof(GeneralConfig.HttpProxyAddr));
-                    }).AutomationName("应用代理").Grid(row: 0, column: 1),
+                    })
+                    .IsEnabled(config.General.EnableHttpProxy)
+                    .AutomationName("应用代理").Grid(row: 0, column: 1),
                 ]
             );
         }
@@ -627,29 +861,360 @@ public sealed class SettingsPage : Component
         // 设置页卡片装配（完全对齐工具箱设计规范）
         // ══════════════════════════════════════════════════════
         var lolPathStatus = config.General.LolPath.Count == 0 ? "未配置" : $"已设置 {config.General.LolPath.Count} 个路径";
-        var lolPathCard = SettingExpandableCard("lolPath", "\uE7B8", "英雄联盟客户端路径", "设置英雄联盟客户端所在目录的路径", lolPathStatus,
-            VStack(8,
-                TextBlock(JoinPaths(config.General.LolPath)).Foreground(Theme.SecondaryText).TextWrapping(),
-                TextBlock("启动时将自动检测并提取客户端锁文件凭据；支持配置多个安装目录").FontSize(12).Foreground(Theme.SecondaryText)));
 
-        var wegamePathCard = ActionCard(
-            "\uE7F4", "WeGame 路径", "关联的 WeGame 客户端程序安装目录",
-            TextBlock(OrDash(config.General.WegamePath)).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
+        // 路径条目行：普通条目 = 可编辑输入框 + 删除；WeGame 条目 = 徽章 + WegamePath 输入框 + 删除。
+        // 输入框值优先取编辑草稿（防抖期间的重渲染不能打断正在输入的文本）。
+        Element PathRow(int index, string path)
+        {
+            var isWeGame = path == AppConfig.WeGameMarker;
+            var draftActive = _pathEditIndex == index && _pathEditIsWeGame == isWeGame;
+            var textValue = draftActive
+                ? _pathEditDraft ?? string.Empty
+                : isWeGame ? config.General.WegamePath ?? string.Empty : path;
+
+            Element input = isWeGame
+                ? TextBox(textValue, v => RequestPathCommit(index, true, v), "WeGame 安装目录")
+                    .AutomationName("WeGame 路径")
+                : TextBox(textValue, v => RequestPathCommit(index, false, v), "英雄联盟客户端安装目录")
+                    .AutomationName($"客户端路径 {index + 1}");
+
+            var rowChildren = new List<Element>();
+            if (isWeGame)
+            {
+                rowChildren.Add(
+                    Border(
+                        TextBlock("WeGame")
+                            .FontSize(11)
+                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                            .Foreground(Theme.Ref("TextFillColorPrimaryBrush"))
+                    )
+                    .Padding(new Thickness(8, 3, 8, 3))
+                    .CornerRadius(4)
+                    .Background(palette.Accent)
+                    .VAlign(VerticalAlignment.Center));
+            }
+
+            rowChildren.Add(input.HAlign(HorizontalAlignment.Stretch).Grid(column: 0));
+            rowChildren.Add(
+                Button("✕", () =>
+                {
+                    // 删除 WeGame 条目时联动清空 WegamePath（对齐旧 handleRemovePath）
+                    var removed = config.General.LolPath[index];
+                    config.General.LolPath.RemoveAt(index);
+                    if (removed == AppConfig.WeGameMarker)
+                    {
+                        config.General.WegamePath = null;
+                    }
+
+                    Commit(nameof(GeneralConfig.LolPath));
+                })
+                .Padding(new Thickness(6, 2, 6, 2))
+                .MinWidth(0)
+                .AutomationName($"删除路径 {index + 1}")
+                .VAlign(VerticalAlignment.Center)
+                .Grid(column: 1));
+
+            return Grid(
+                [GridSize.Star(), GridSize.Auto],
+                [GridSize.Auto],
+                [.. rowChildren])
+                .Padding(new Thickness(0, 4, 0, 4))
+                .WithKey($"path-{index}-{path}");
+        }
+
+        Element LolPathEditor()
+        {
+            var rows = new List<Element>();
+            for (var i = 0; i < config.General.LolPath.Count; i++)
+            {
+                rows.Add(PathRow(i, config.General.LolPath[i]));
+            }
+
+            var content = new List<Element>
+            {
+                // 空列表提示（对齐旧 pathEmpty 文案）
+                rows.Count == 0
+                    ? TextBlock("暂无客户端路径").FontSize(12).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).Margin(new Thickness(0, 4, 0, 8))
+                    : VStack(0, [.. rows]),
+            };
+
+            // 说明文案
+            content.Add(TextBlock("启动时将自动检测并提取客户端锁文件凭据；支持配置多个安装目录")
+                .FontSize(12)
+                .Foreground(Theme.SecondaryText)
+                .Margin(new Thickness(0, 4, 0, 8)));
+
+            // 操作按钮行：自动检测 / 浏览文件夹 / 添加 WeGame 启动项
+            content.Add(HStack(8,
+                Button("自动检测", async () =>
+                {
+                    var detected = await Task.Run(() => services.Services
+                        .GetRequiredService<LolPathDetector>()
+                        .DetectLolPath());
+                    if (detected is null)
+                    {
+                        ShowToast("未检测到运行中的英雄联盟客户端", isError: true);
+                        return;
+                    }
+
+                    if (config.General.LolPath.Contains(detected, StringComparer.Ordinal))
+                    {
+                        ShowToast("该路径已存在");
+                        return;
+                    }
+
+                    config.General.LolPath.Add(detected);
+                    Commit(nameof(GeneralConfig.LolPath));
+                    ShowToast($"已添加: {detected}");
+                }).AutomationName("自动检测客户端路径"),
+                Button("浏览文件夹", async () =>
+                {
+                    var picked = await Services.FolderPickerService.PickFolderAsync();
+                    if (picked is null)
+                    {
+                        return;
+                    }
+
+                    // 与路径列表其余条目同格式：正斜杠 + 盘符大写
+                    var normalized = LolPathDetector.NormalizePath(picked);
+                    if (config.General.LolPath.Contains(normalized, StringComparer.Ordinal))
+                    {
+                        ShowToast("该路径已存在");
+                        return;
+                    }
+
+                    config.General.LolPath.Add(normalized);
+                    Commit(nameof(GeneralConfig.LolPath));
+                    ShowToast($"已添加: {normalized}");
+                }).AutomationName("浏览客户端文件夹"),
+                Button("添加 WeGame 启动项", async () =>
+                {
+                    if (config.General.LolPath.Contains(AppConfig.WeGameMarker))
+                    {
+                        ShowToast("WeGame 启动项已存在");
+                        return;
+                    }
+
+                    var detected = await Task.Run(() => services.Services
+                        .GetRequiredService<LolPathDetector>()
+                        .DetectWeGameDirectory());
+                    if (detected is null)
+                    {
+                        ShowToast("未检测到 WeGame 安装路径，请先安装 WeGame", isError: true);
+                        return;
+                    }
+
+                    config.General.LolPath.Add(AppConfig.WeGameMarker);
+                    config.General.WegamePath = detected;
+                    Commit(nameof(GeneralConfig.LolPath));
+                    ShowToast($"已添加 WeGame 启动项 ({detected})");
+                }).AutomationName("添加 WeGame 启动项")).HAlign(HorizontalAlignment.Right));
+
+            return VStack(4, [.. content]);
+        }
+
+        var lolPathCard = SettingExpandableCard("lolPath", "\uE7B8", "英雄联盟客户端路径", "设置英雄联盟客户端所在目录的路径", lolPathStatus,
+            LolPathEditor());
 
         var clearCacheCard = ActionCard(
             "\uE74D", "清除缓存", "删除所有游戏资源（英雄图标/装备/符文）的磁盘缓存",
-            Button("清除缓存", () =>
+            Button("清除缓存", () => setClearDialogOpen(true)).AutomationName("清除缓存按钮"));
+
+        // 软件更新（对应旧 UpdateSection.vue + UpdateDialog.vue；本轮交付最小形态：
+        // 检查按钮 + 新版信息卡 + 进度/错误 + 安装入口，弹窗细节留待下一步）
+        async Task CheckForUpdateAsync()
+        {
+            if (isCheckingUpdate) return;
+            setCheckingUpdate(true);
+            setUpdateCheckError(null);
+            setUpdateInfo(null);
+            try
+            {
+                var info = await updateService.CheckForUpdateAsync(services.Paths.IsPortable);
+                setUpdateInfo(info);
+                ShowToast(info is null ? "当前已是最新版本" : $"发现新版本 v{info.Version}");
+            }
+            catch (Exception ex)
+            {
+                setUpdateCheckError(ex.Message);
+                ShowToast($"检查更新失败: {ex.Message}", isError: true);
+            }
+            finally
+            {
+                setCheckingUpdate(false);
+            }
+        }
+
+        async Task DownloadUpdateAsync()
+        {
+            var info = updateInfo;
+            if (info is null) return;
+            setUpdateCheckError(null);
+            var progress = new Progress<YuumiX.Core.Updates.DownloadProgress>(p =>
+            {
+                // Progress<T> 已封送回 UI 线程（ADR-07 无需 threadSafe 处理，但保留统一语义）
+                setUpdateProgress(p);
+            });
+            try
+            {
+                string path = await updateService.DownloadUpdateAsync(info, progress);
+                setDownloadedUpdatePath(path);
+                ShowToast("更新下载完成，可立即安装");
+            }
+            catch (Exception ex)
+            {
+                setUpdateCheckError(ex.Message);
+                ShowToast($"下载更新失败: {ex.Message}", isError: true);
+            }
+        }
+
+        void ApplyPendingUpdate()
+        {
+            var path = downloadedUpdatePath;
+            if (path is null) return;
+            try
+            {
+                YuumiX.Core.Updates.UpdateService.ApplyPendingUpdate(path, services.Paths.IsPortable);
+            }
+            catch (Exception ex)
+            {
+                setUpdateCheckError(ex.Message);
+                ShowToast($"安装更新失败: {ex.Message}", isError: true);
+            }
+        }
+
+        var updateCardStatus = updateInfo is { } found ? $"发现新版 v{found.Version}" : "已是最新";
+        var updateCardBody = VStack(8,
+            CardRow("检查更新:",
+                Button(isCheckingUpdate ? "检查中..." : "检查更新", () => _ = CheckForUpdateAsync())
+                    .IsEnabled(!isCheckingUpdate)
+                    .AutomationName("检查更新按钮")),
+            updateCheckError is not null
+                ? TextBlock($"检查/下载失败： {updateCheckError}")
+                    .FontSize(12)
+                    .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
+                : Empty(),
+            updateInfo is not null
+                ? VStack(4,
+                    InfoRow("新版本", $"v{updateInfo.Version}"),
+                    InfoRow("当前版本", $"v{updateInfo.CurrentVersion}"),
+                    string.IsNullOrEmpty(updateInfo.Notes)
+                        ? Empty()
+                        : TextBlock(updateInfo.Notes).FontSize(12).Foreground(Theme.SecondaryText).TextWrapping(),
+                    // 下载与安装区：下载中显示进度，就绪后切换为安装按钮
+                    downloadedUpdatePath is not null
+                        ? Button(services.Paths.IsPortable ? "应用更新并重启" : "立即重启安装", ApplyPendingUpdate)
+                            .AutomationName("安装更新按钮")
+                        : updateProgress is { } p
+                            ? VStack(4,
+                                Progress(p.Percent ?? 0),
+                                Caption($"已下载 {p.Downloaded / 1024.0 / 1024.0:F1} MB" + (p.Total is { } t ? $" / {t / 1024.0 / 1024.0:F1} MB" : string.Empty)))
+                            : Button("下载更新", () => _ = DownloadUpdateAsync()).AutomationName("下载更新按钮"))
+                : Empty(),
+            Button("前往 GitHub Releases", () =>
             {
                 try
                 {
-                    services.AssetCache.Clear();
-                    logger.LogInformation("已清空游戏资源缓存");
+                    _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases/latest",
+                        UseShellExecute = true,
+                    });
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "清除游戏资源缓存失败");
+                    logger.LogWarning(ex, "打开 GitHub Releases 失败");
                 }
-            }).AutomationName("清除缓存按钮"));
+            }).AutomationName("前往 GitHub Releases"));
+
+        var updateCard = SettingExpandableCard(
+            "softwareUpdate", "", "软件更新",
+            services.Paths.IsPortable
+                ? "便携版通过 zip 覆盖方式更新；检查到新版后手动下载应用"
+                : "检查新版本并后台下载，就绪后重启安装",
+            updateCardStatus,
+            updateCardBody);
+
+        // 云端服务（对应旧 CloudServiceSection.vue）：URL / 实时开关 / userid + 四态徽标。
+        // 头回显「已配置上传/未配置」，实时开启时追加状态文字；彩色徽标元素单独构造——
+        // SettingExpandableCard 的头状态位是纯文本，且 Reactor 的 Background/Foreground
+        // 在 string 与 ThemeRef 上没有公共类型，分支构造比强行统一更直白。
+        string SignalrBadgeText(SignalrStatus status) => status.State switch
+        {
+            SignalrConnectionState.Connected => "已连接",
+            SignalrConnectionState.Connecting => "连接中",
+            SignalrConnectionState.Error => "连接失败",
+            _ => "未连接",
+        };
+
+        Element SignalrBadgeElement(SignalrStatus status)
+        {
+            Element Dot(string color) =>
+                Border(Empty()).Width(8).Height(8).CornerRadius(4).Background(color);
+
+            return status.State switch
+            {
+                SignalrConnectionState.Connected => HStack(8,
+                    Dot("#22c55e"),
+                    TextBlock(SignalrBadgeText(status)).FontSize(12).Foreground("#22c55e")),
+                SignalrConnectionState.Connecting => HStack(8,
+                    Dot("#f59e0b"),
+                    TextBlock(SignalrBadgeText(status)).FontSize(12).Foreground("#f59e0b")),
+                SignalrConnectionState.Error => HStack(8,
+                    Dot("#ef4444"),
+                    TextBlock(SignalrBadgeText(status)).FontSize(12).Foreground("#ef4444")),
+                _ => HStack(8,
+                    Dot("#9ca3af"),
+                    TextBlock(SignalrBadgeText(status)).FontSize(12).Foreground("#9ca3af")),
+            };
+        }
+
+        var cloudHeaderStatus = string.IsNullOrWhiteSpace(config.General.UploadApiUrl) ? "未配置" : "已配置上传";
+        if (config.Functions.LcuRealtimeEnabled)
+        {
+            cloudHeaderStatus += $" / {SignalrBadgeText(signalrStatus)}";
+        }
+
+        var cloudCardBody = VStack(10,
+            // SignalR 四态徽标行（仅实时开启时展示，对齐旧头部徽标）
+            config.Functions.LcuRealtimeEnabled
+                ? HStack(12,
+                    SignalrBadgeElement(signalrStatus),
+                    TextBlock("SignalR 连接状态").FontSize(12).Foreground(Theme.SecondaryText))
+                : Empty(),
+            CardRow("服务器 API 地址:",
+                TextBox(
+                    _cloudUrlDraft ?? config.General.UploadApiUrl,
+                    v => RequestCloudTextCommit(v, null),
+                    "http://example.com")
+                    .AutomationName("服务器 API 地址")
+                    .HAlign(HorizontalAlignment.Stretch)),
+            CardRow("LCU 实时查询:",
+                ToggleSwitch(config.Functions.LcuRealtimeEnabled, v =>
+                {
+                    if (v == config.Functions.LcuRealtimeEnabled) return;
+                    config.Functions.LcuRealtimeEnabled = v;
+                    Commit(nameof(FunctionsConfig.LcuRealtimeEnabled));
+                    // 即时应用：开启 → 开始连接（徽标经状态流转 connecting），关闭 → 停止
+                    _ = signalr.ApplyConfigAsync();
+                }, header: null, onContent: "", offContent: "").AutomationName("LCU 实时查询开关")),
+            // error 态附红字错误详情（对齐旧 setting-error-tip）
+            signalrStatus.State == SignalrConnectionState.Error && !string.IsNullOrEmpty(signalrStatus.Error)
+                ? TextBlock($"连接异常： {signalrStatus.Error}")
+                    .FontSize(12)
+                    .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
+                : Empty(),
+            CardRow("userid:",
+                TextBox(
+                    _cloudUserIdDraft ?? config.General.SignalrUserId,
+                    v => RequestCloudTextCommit(null, v),
+                    "留空默认使用 lcu_user_001")
+                    .AutomationName("SignalR userid")
+                    .HAlign(HorizontalAlignment.Stretch)));
+
+        var cloudCard = SettingExpandableCard(
+            "cloud", "", "云端服务", "对局数据上传与 LCU 实时远程查询（SignalR）", cloudHeaderStatus,
+            cloudCardBody);
 
         var hideMenuEnabled = config.Functions.HideTft || config.Functions.HideSavedPlayers;
         var hideMenuCard = SettingExpandableCard("hideMenu", "\uE712", "隐藏菜单", "控制侧边栏云顶之弈与路人集功能入口的显隐", hideMenuEnabled ? "已启用" : "未启用",
@@ -673,7 +1238,74 @@ public sealed class SettingsPage : Component
                         Commit(nameof(FunctionsConfig.HideSavedPlayers));
                     }, header: null, onContent: "", offContent: "").AutomationName("隐藏路人集"))));
 
-        var screenshotCard = SettingExpandableCard("screenshot", "\uE722", "多杀自动截图", "对局中达成三杀/四杀/五杀时自动保存精彩瞬间", config.Functions.EnableScreenshotOnMultikill ? "已启用" : "未启用",
+        // 截图触发事件复选组：3=三杀 4=四杀 5=五杀 8=超神（写入 ScreenshotOnMultikillLevels）
+        Element ScreenshotLevelCheckBox(int level, string label)
+        {
+            var levels = config.Functions.ScreenshotOnMultikillLevels;
+            return CheckBox(
+                levels.Contains(level),
+                v =>
+                {
+                    var changed = false;
+                    if (v && !levels.Contains(level))
+                    {
+                        levels.Add(level);
+                        changed = true;
+                    }
+                    else if (!v && levels.Contains(level))
+                    {
+                        levels.Remove(level);
+                        changed = true;
+                    }
+
+                    if (changed)
+                    {
+                        Commit(nameof(FunctionsConfig.ScreenshotOnMultikillLevels));
+                    }
+                },
+                label).AutomationName(label);
+        }
+
+        var screenshotSavePathRow = Grid(
+            [GridSize.Star(), GridSize.Auto, GridSize.Auto],
+            [GridSize.Auto],
+            [
+                // 只读展示（旧版 n-input readonly 同款），placeholder 提示默认位置
+                TextBox(config.Functions.ScreenshotSavePath, _ => { }, "默认保存在系统「图片」目录下的 Yuumi_Screenshots 文件夹")
+                    .IsReadOnly()
+                    .AutomationName("截图保存目录")
+                    .Margin(new Thickness(0, 0, 8, 0))
+                    .Grid(row: 0, column: 0),
+                Button("浏览", async () =>
+                {
+                    var picked = await FolderPickerService.PickFolderAsync();
+                    if (picked is null)
+                    {
+                        return;
+                    }
+
+                    config.Functions.ScreenshotSavePath = LolPathDetector.NormalizePath(picked);
+                    Commit(nameof(FunctionsConfig.ScreenshotSavePath));
+                    ShowToast("已成功更新截图保存目录");
+                }).AutomationName("浏览截图目录").Grid(row: 0, column: 1),
+                Button("打开目录", () =>
+                {
+                    try
+                    {
+                        // 与旧 open_screenshot_folder 一致：目录不存在时自动创建
+                        var dir = LiveEventMatcher.ResolveSaveDirectory(config.Functions.ScreenshotSavePath);
+                        Directory.CreateDirectory(dir);
+                        System.Diagnostics.Process.Start("explorer.exe", dir);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "打开截图目录失败");
+                        ShowToast($"无法打开截图文件夹: {ex.Message}", isError: true);
+                    }
+                }).AutomationName("打开截图目录").Grid(row: 0, column: 2),
+            ]);
+
+        var screenshotCard = SettingExpandableCard("screenshot", "\uE722", "多杀自动截图", "对局中达成多杀或超神时自动保存精彩瞬间", config.Functions.EnableScreenshotOnMultikill ? "已启用" : "未启用",
             VStack(8,
                 CardRow("启用多杀自动截图:",
                     ToggleSwitch(config.Functions.EnableScreenshotOnMultikill, v =>
@@ -682,8 +1314,17 @@ public sealed class SettingsPage : Component
                         config.Functions.EnableScreenshotOnMultikill = v;
                         Commit(nameof(FunctionsConfig.EnableScreenshotOnMultikill));
                     }, header: null, onContent: "", offContent: "").AutomationName("多杀截图开关")),
-                CardRow("截图保存目录:",
-                    TextBlock(OrDash(config.Functions.ScreenshotSavePath)).Foreground(Theme.SecondaryText))));
+                // 开关开启时才显示：触发事件复选组 + 保存位置（对齐旧 ScreenshotSection.vue）
+                config.Functions.EnableScreenshotOnMultikill
+                    ? VStack(8,
+                        CardRow("截图触发事件:",
+                            HStack(12,
+                                ScreenshotLevelCheckBox(3, "三杀"),
+                                ScreenshotLevelCheckBox(4, "四杀"),
+                                ScreenshotLevelCheckBox(5, "五杀"),
+                                ScreenshotLevelCheckBox(8, "超神"))),
+                        CardRow("截图保存位置:", screenshotSavePathRow))
+                    : Empty()));
 
         var logLevelCard = ActionCard(
             "\uE7BA", "日志等级", "写入 <exe>/log 的日志记录详细程度，修改后立即生效",
@@ -729,14 +1370,31 @@ public sealed class SettingsPage : Component
                 Commit(nameof(PersonalizationConfig.ThemeMode));
             }).Width(140).AutomationName("主题模式选择"));
 
-        var aboutCard = SettingExpandableCard("about", "\uE946", "关于 YuumiX", $"当前版本 v{config.Version} · 运行环境与存储位置", $"v{config.Version}",
+        var aboutCard = SettingExpandableCard("about", "\uE946", "关于 YuumiX", $"当前版本 {AppVersion} · 运行环境与存储位置", AppVersion,
             VStack(10,
+                InfoRow("应用版本", AppVersion),
                 InfoRow("配置版本", $"v{config.Version}"),
                 InfoRow("配置文件", services.ConfigStore.FilePath),
                 InfoRow("数据目录", services.Paths.DataDirectory),
                 InfoRow("便携模式", OnOff(services.Paths.IsPortable)),
                 InfoRow("日志目录", services.Paths.LogDirectory),
-                InfoRow("写回备份", $"{services.ConfigStore.ListBackups().Count} 份（保留最近 {ConfigStore.MaxBackups} 份）")));
+                InfoRow("写回备份", $"{services.ConfigStore.ListBackups().Count} 份（保留最近 {ConfigStore.MaxBackups} 份）"),
+                HStack(8,
+                    Button("开源仓库", () =>
+                    {
+                        try
+                        {
+                            _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = RepositoryUrl,
+                                UseShellExecute = true,
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "打开开源仓库页面失败");
+                        }
+                    }).AutomationName("打开开源仓库"))));
 
         Element RenderToasts()
         {
@@ -811,7 +1469,7 @@ public sealed class SettingsPage : Component
                 // 3. 通用设置
                 GroupHeader("通用设置"),
                 lolPathCard,
-                wegamePathCard,
+                cloudCard,
                 SettingToggleCard("\uE768", "随应用启动客户端", "启动 YuumiX 时一并拉起英雄联盟客户端（含 WeGame 形态）", config.General.EnableStartLolWithApp, v => config.General.EnableStartLolWithApp = v, nameof(GeneralConfig.EnableStartLolWithApp)),
                 ActionCard("\uE711", "关闭到托盘", "关闭窗口时最小化到托盘而不是退出；未设置时按平台默认处理",
                     ThreeStateCheckBox(config.General.EnableCloseToTray, v =>
@@ -822,6 +1480,7 @@ public sealed class SettingsPage : Component
                 SettingToggleCard("\uE740", "游戏开始时最小化", "检测到对局开始后自动最小化主窗口", config.General.EnableGameStartMinimize, v => config.General.EnableGameStartMinimize = v, nameof(GeneralConfig.EnableGameStartMinimize)),
                 clearCacheCard,
                 SettingToggleCard("\uE895", "检查更新", "启动时检查新版本（便携版走整包覆盖）", config.General.EnableCheckUpdate, v => config.General.EnableCheckUpdate = v, nameof(GeneralConfig.EnableCheckUpdate)),
+                updateCard,
 
                 // 4. 高级与隐藏
                 GroupHeader("高级与隐藏"),
@@ -858,6 +1517,37 @@ public sealed class SettingsPage : Component
             [
                 mainScroll.Grid(row: 0, column: 0),
                 RenderToasts().Grid(row: 0, column: 0),
+                // 清除缓存确认弹窗（声明式：IsOpen 驱动显隐）
+                new Microsoft.UI.Reactor.Core.ContentDialogElement(
+                    "清除缓存",
+                    TextBlock("确定要清除所有游戏资源缓存吗？清除后需要重新加载游戏资源。")
+                        .FontSize(13)
+                        .TextWrapping(),
+                    "确定")
+                {
+                    IsOpen = clearDialogOpen,
+                    CloseButtonText = "取消",
+                }
+                .Closed(result =>
+                {
+                    setClearDialogOpen(false);
+                    if (result != Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        var removed = services.AssetCache.Clear();
+                        logger.LogInformation("已清空游戏资源缓存: {Count} 个文件", removed);
+                        ShowToast(removed == 0 ? "缓存目录不存在，无需清除" : $"已清除 {removed} 个缓存文件");
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "清除游戏资源缓存失败");
+                        ShowToast($"清除缓存失败: {ex.Message}", isError: true);
+                    }
+                }),
             ]
         );
     }
@@ -966,11 +1656,6 @@ public sealed class SettingsPage : Component
          .WithBorder(Theme.CardStroke, 1);
 
     private static string OnOff(bool value) => value ? "已开启" : "已关闭";
-
-    private static string JoinPaths(IReadOnlyList<string> paths) =>
-        paths.Count == 0 ? "未配置" : string.Join(" ; ", paths);
-
-    private static string OrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "未配置" : value;
 
     private static int IndexOf(IReadOnlyList<int> values, int current, int fallback)
     {

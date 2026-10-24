@@ -43,9 +43,41 @@ public sealed class ToolsPage : Component
 
     private static readonly string[] SpectateMethodLabels =
     [
-        "CMD 方式 (直接启动客户端进程，绕开限制)",
-        "LCU 方式 (客户端内置观战)"
+        "LCU 方式 (客户端内置观战，失败自动切换 CMD)",
+        "CMD 方式 (直接启动客户端进程，绕开限制)"
     ];
+
+    private static readonly string[] LaneLabels = ["默认", "上单 (Top)", "打野 (Jungle)", "中单 (Mid)", "下路 (Bot)", "辅助 (Support)"];
+
+    private static List<int> GetPickListByLane(FunctionsConfig cfg, int laneIndex) => laneIndex switch
+    {
+        1 => cfg.AutoSelectChampionTop,
+        2 => cfg.AutoSelectChampionJug,
+        3 => cfg.AutoSelectChampionMid,
+        4 => cfg.AutoSelectChampionBot,
+        5 => cfg.AutoSelectChampionSup,
+        _ => cfg.AutoSelectChampion,
+    };
+
+    private static List<int> GetBanListByLane(FunctionsConfig cfg, int laneIndex) => laneIndex switch
+    {
+        1 => cfg.AutoBanChampionTop,
+        2 => cfg.AutoBanChampionJug,
+        3 => cfg.AutoBanChampionMid,
+        4 => cfg.AutoBanChampionBot,
+        5 => cfg.AutoBanChampionSup,
+        _ => cfg.AutoBanChampion,
+    };
+
+    private static List<int> GetSpellListByLane(FunctionsConfig cfg, int laneIndex) => laneIndex switch
+    {
+        1 => cfg.AutoSetSummonerSpellTop,
+        2 => cfg.AutoSetSummonerSpellJug,
+        3 => cfg.AutoSetSummonerSpellMid,
+        4 => cfg.AutoSetSummonerSpellBot,
+        5 => cfg.AutoSetSummonerSpellSup,
+        _ => cfg.AutoSetSummonerSpell,
+    };
 
     private static readonly int[] LobbyModes = [2400, 2450, 450, 430, 420, 440, 900, 1020, 1300, 1700, 4300];
     private static readonly string[] LobbyModeLabels =
@@ -128,6 +160,25 @@ public sealed class ToolsPage : Component
         var (badgeTitleInput, setBadgeTitleInput) = UseState(string.Empty, threadSafe: true);
         var initialSelectedBadges = UseMemo(() => new List<long>(), 0);
         var (selectedBadgeIds, setSelectedBadgeIds) = UseState(initialSelectedBadges, threadSafe: true);
+
+        // 英雄选用/禁用/技能分路状态
+        var (pickLaneIndex, setPickLaneIndex) = UseState(0, threadSafe: true);
+        var (banLaneIndex, setBanLaneIndex) = UseState(0, threadSafe: true);
+        var (spellLaneIndex, setSpellLaneIndex) = UseState(0, threadSafe: true);
+        var (spellSlotIndex, setSpellSlotIndex) = UseState(0, threadSafe: true);
+
+        var (championSummaryList, setChampionSummaryList) = UseState<IReadOnlyList<ChampionSummaryItem>>(Array.Empty<ChampionSummaryItem>(), threadSafe: true);
+        var (championSummaryLoading, setChampionSummaryLoading) = UseState(false, threadSafe: true);
+        var (summonerSpellsList, setSummonerSpellsList) = UseState<IReadOnlyList<SummonerSpellItem>>(Array.Empty<SummonerSpellItem>(), threadSafe: true);
+        var (summonerSpellsLoading, setSummonerSpellsLoading) = UseState(false, threadSafe: true);
+
+        var (pickSearchQuery, setPickSearchQuery) = UseState(string.Empty, threadSafe: true);
+        var (banSearchQuery, setBanSearchQuery) = UseState(string.Empty, threadSafe: true);
+
+        // 二次确认状态
+        var (isConfirmingRestartClient, setIsConfirmingRestartClient) = UseState(false, threadSafe: true);
+        var (isConfirmingClearBadges, setIsConfirmingClearBadges) = UseState(false, threadSafe: true);
+        var (isConfirmingClearBorder, setIsConfirmingClearBorder) = UseState(false, threadSafe: true);
 
         // 游戏设置锁定状态
         var (isSettingsLocked, setIsSettingsLocked) = UseState<bool?>(null, threadSafe: true);
@@ -415,6 +466,140 @@ public sealed class ToolsPage : Component
                 .HAlign(HorizontalAlignment.Stretch);
         }
 
+        var lcuConnection = services.Services.GetRequiredService<LcuConnection>();
+        bool isLcuConnected = lcuConnection.CurrentState.Status == LcuConnectionStatus.Connected;
+
+        async void EnsureCatalogLoaded()
+        {
+            if (championSummaryList.Count == 0 && !championSummaryLoading && isLcuConnected)
+            {
+                setChampionSummaryLoading(true);
+                try
+                {
+                    var champs = await toolsService.GetChampionSummaryAsync();
+                    setChampionSummaryList(champs);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "拉取英雄列表失败");
+                }
+                finally
+                {
+                    setChampionSummaryLoading(false);
+                }
+            }
+
+            if (summonerSpellsList.Count == 0 && !summonerSpellsLoading && isLcuConnected)
+            {
+                setSummonerSpellsLoading(true);
+                try
+                {
+                    var spells = await toolsService.GetSummonerSpellsAsync();
+                    setSummonerSpellsList(spells);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "拉取技能列表失败");
+                }
+                finally
+                {
+                    setSummonerSpellsLoading(false);
+                }
+            }
+        }
+
+        if ((expandedKeys.Contains("autoHover") || expandedKeys.Contains("autoBan") || expandedKeys.Contains("autoSpells"))
+            && (championSummaryList.Count == 0 || summonerSpellsList.Count == 0))
+        {
+            EnsureCatalogLoaded();
+        }
+
+        if (expandedKeys.Contains("badges") && challengesList.Count == 0 && !challengesLoading && isLcuConnected)
+        {
+            LoadChallenges();
+        }
+
+        Element LaneTabs(int currentLane, Action<int> onSelectLane)
+        {
+            var buttons = new List<Element>();
+            for (int i = 0; i < LaneLabels.Length; i++)
+            {
+                int idx = i;
+                bool isCurrent = idx == currentLane;
+                buttons.Add(
+                    Button(LaneLabels[idx], () => onSelectLane(idx))
+                        .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
+                        .BorderBrush(isCurrent ? palette.Accent : "#20808080")
+                        .BorderThickness(isCurrent ? 1.5 : 1)
+                        .CornerRadius(6)
+                        .Padding(8, 4)
+                        .Margin(new Thickness(0, 0, 6, 0))
+                        .AutomationName($"分路_{LaneLabels[idx]}")
+                );
+            }
+            return HStack(0, buttons.ToArray()).Margin(new Thickness(0, 6, 0, 8));
+        }
+
+        void TogglePickChampion(int champId)
+        {
+            var list = GetPickListByLane(config.Functions, pickLaneIndex);
+            if (list.Contains(champId))
+            {
+                list.Remove(champId);
+            }
+            else
+            {
+                if (list.Count >= 5)
+                {
+                    ShowToast("每个分路最多选用 5 位候选英雄", isError: true);
+                    return;
+                }
+                list.Add(champId);
+            }
+            Commit(nameof(FunctionsConfig.AutoSelectChampion));
+        }
+
+        void ClearPickSelection()
+        {
+            var list = GetPickListByLane(config.Functions, pickLaneIndex);
+            list.Clear();
+            Commit(nameof(FunctionsConfig.AutoSelectChampion));
+        }
+
+        void ToggleBanChampion(int champId)
+        {
+            var list = GetBanListByLane(config.Functions, banLaneIndex);
+            if (list.Contains(champId))
+            {
+                list.Remove(champId);
+            }
+            else
+            {
+                if (list.Count >= 5)
+                {
+                    ShowToast("每个分路最多禁用 5 位候选英雄", isError: true);
+                    return;
+                }
+                list.Add(champId);
+            }
+            Commit(nameof(FunctionsConfig.AutoBanChampion));
+        }
+
+        void ClearBanSelection()
+        {
+            var list = GetBanListByLane(config.Functions, banLaneIndex);
+            list.Clear();
+            Commit(nameof(FunctionsConfig.AutoBanChampion));
+        }
+
+        void SetSpellForSlot(int slotIndex, int spellId)
+        {
+            var list = GetSpellListByLane(config.Functions, spellLaneIndex);
+            while (list.Count < 2) list.Add(4);
+            list[slotIndex] = spellId;
+            Commit(nameof(FunctionsConfig.AutoSetSummonerSpell));
+        }
+
         Element GroupHeader(string title) =>
             TextBlock(title)
                 .FontSize(12)
@@ -517,7 +702,19 @@ public sealed class ToolsPage : Component
                         if (v == config.Functions.EnableDodgeInGameInfo) return;
                         config.Functions.EnableDodgeInGameInfo = v;
                         Commit(nameof(FunctionsConfig.EnableDodgeInGameInfo));
-                    }, header: null, onContent: "", offContent: "").AutomationName("对局信息秒退按钮"))
+                    }, header: null, onContent: "", offContent: "").AutomationName("对局信息秒退按钮")),
+                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                TextBlock("分路预选候选英雄库:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
+                LaneTabs(pickLaneIndex, idx => setPickLaneIndex(idx)),
+                ChampionPickerView.Render(
+                    championSummaryList,
+                    GetPickListByLane(config.Functions, pickLaneIndex),
+                    TogglePickChampion,
+                    ClearPickSelection,
+                    pickSearchQuery,
+                    q => setPickSearchQuery(q),
+                    championSummaryLoading,
+                    palette)
             ));
 
         // 4. 自动禁用英雄卡片
@@ -548,11 +745,23 @@ public sealed class ToolsPage : Component
                     NumberBox(config.Functions.AutoBanDelay, v =>
                     {
                         if (double.IsNaN(v)) return;
-                        var next = Math.Clamp(v, 0, 10);
+                        var next = Math.Clamp(v, 0, 15);
                         if (Math.Abs(next - config.Functions.AutoBanDelay) < 0.01) return;
                         config.Functions.AutoBanDelay = next;
                         Commit(nameof(FunctionsConfig.AutoBanDelay));
-                    }).Width(120).AutomationName("自动禁用延迟"))
+                    }).Width(120).AutomationName("自动禁用延迟")),
+                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                TextBlock("分路禁用候选英雄库:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
+                LaneTabs(banLaneIndex, idx => setBanLaneIndex(idx)),
+                ChampionPickerView.Render(
+                    championSummaryList,
+                    GetBanListByLane(config.Functions, banLaneIndex),
+                    ToggleBanChampion,
+                    ClearBanSelection,
+                    banSearchQuery,
+                    q => setBanSearchQuery(q),
+                    championSummaryLoading,
+                    palette)
             ));
 
         // 5. 自动设置召唤师技能卡片
@@ -571,7 +780,18 @@ public sealed class ToolsPage : Component
                         if (v == config.Functions.EnableAutoSetSpells) return;
                         config.Functions.EnableAutoSetSpells = v;
                         Commit(nameof(FunctionsConfig.EnableAutoSetSpells));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动召唤师技能"))
+                    }, header: null, onContent: "", offContent: "").AutomationName("自动召唤师技能")),
+                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                TextBlock("分路召唤师技能组:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
+                LaneTabs(spellLaneIndex, idx => setSpellLaneIndex(idx)),
+                SpellPickerView.Render(
+                    summonerSpellsList,
+                    GetSpellListByLane(config.Functions, spellLaneIndex),
+                    spellSlotIndex,
+                    slot => setSpellSlotIndex(slot),
+                    SetSpellForSlot,
+                    summonerSpellsLoading,
+                    palette)
             ));
 
         // 6. 自动游戏流程卡片
@@ -708,12 +928,18 @@ public sealed class ToolsPage : Component
                                 return;
                             }
 
-                            var target = spectateName.Trim();
-                            var method = spectateMethodIndex == 0 ? SpectateMethod.Cmd : SpectateMethod.Lcu;
+                            // 清洗 LTR/RTL 特殊控制字符并去除首尾空白
+                            var target = spectateName.Replace("\u2066", "").Replace("\u2069", "").Trim();
+                            var method = spectateMethodIndex == 0 ? SpectateMethod.Lcu : SpectateMethod.Cmd;
                             ShowToast($"正在发起对「{target}」的观战请求...");
                             try
                             {
                                 var res = await toolsService.LaunchSpectateAsync(target, method);
+                                if (!res.Success && method == SpectateMethod.Lcu)
+                                {
+                                    ShowToast("LCU 内置观战通道未就绪，正在自动切换至 CMD 方式重试...");
+                                    res = await toolsService.LaunchSpectateAsync(target, SpectateMethod.Cmd);
+                                }
                                 ShowToast(res.Message, isError: !res.Success);
                             }
                             catch (Exception ex)
@@ -725,7 +951,8 @@ public sealed class ToolsPage : Component
             ));
 
         // 8. 好友管理与僵尸号清理卡片
-        var friendCleanerStatus = allFriends.Count > 0 ? $"已加载 {allFriends.Count} 位好友" : "点击展开";
+        var filteredFriendsCount = FriendCleanerView.FilterFriends(allFriends, friendSearchQuery, friendFilterIndex).Count;
+        var friendCleanerStatus = allFriends.Count > 0 ? $"共 {allFriends.Count} 人 / 筛选出 {filteredFriendsCount} 人" : "点击展开";
         var friendCleanerCard = ToolCard(
             "friendCleaner",
             "\uE716",
@@ -823,7 +1050,7 @@ public sealed class ToolsPage : Component
                         if (mode == config.Functions.DefaultGameMode) return;
                         config.Functions.DefaultGameMode = mode;
                         Commit(nameof(FunctionsConfig.DefaultGameMode));
-                    }).Width(220).AutomationName("默认队列选择")),
+                    }).Width(220).IsEnabled(config.Functions.EnableAutoCreateLobby).AutomationName("默认队列选择")),
                 HStack(8,
                     Button("立即创建该模式大厅", async () =>
                     {
@@ -884,13 +1111,24 @@ public sealed class ToolsPage : Component
 
         var restartClientCard = ActionCard(
             "\uE777", "快速重启客户端", "重新引导 LeagueClientUx，无需重新排队或重新输入账号密码",
-            Button("重启客户端", () =>
-            {
-                SendLcu(async t =>
-                {
-                    await t.SendAsync(LcuRequest.Post("/riotclient/kill-and-restart-ux", "{}"));
-                }, "已向 Riot Client 发送重启指令，客户端正在重新引导...");
-            }).AutomationName("快速重启客户端"));
+            isConfirmingRestartClient
+                ? HStack(8,
+                    TextBlock("⚡ 确定重启客户端？无需重登").FontSize(12).Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
+                    Button("取消", () => setIsConfirmingRestartClient(false)).FontSize(11).Padding(8, 4),
+                    Button("确认重启", () =>
+                    {
+                        setIsConfirmingRestartClient(false);
+                        SendLcu(async t =>
+                        {
+                            await t.SendAsync(LcuRequest.Post("/riotclient/kill-and-restart-ux", "{}"));
+                        }, "已向 Riot Client 发送重启指令，客户端正在重新引导...");
+                    })
+                    .Background(Theme.Ref("SystemFillColorCriticalBrush"))
+                    .Foreground("#FFFFFFFF")
+                    .FontSize(11)
+                    .Padding(8, 4)
+                    .AutomationName("确认重启客户端"))
+                : Button("重启客户端", () => setIsConfirmingRestartClient(true)).AutomationName("快速重启客户端"));
 
         // ══════════════════════════════════════════════════════
         // 4. 个人主页组
@@ -918,6 +1156,7 @@ public sealed class ToolsPage : Component
                             try
                             {
                                 await toolsService.SetStatusMessageAsync(signatureDraft.Trim());
+                                setSignatureDraft(string.Empty);
                                 ShowToast("个性签名已成功更新");
                             }
                             catch (Exception ex)
@@ -954,9 +1193,23 @@ public sealed class ToolsPage : Component
                     },
                     async () =>
                     {
-                        if (!int.TryParse(bgChampInput.Trim(), out var champId))
+                        var text = bgChampInput.Trim();
+                        int champId = 0;
+                        if (!int.TryParse(text, out champId))
                         {
-                            ShowToast("请输入有效的英雄数字 ID", isError: true);
+                            var matched = championSummaryList.FirstOrDefault(c =>
+                                c.Name.Contains(text, StringComparison.OrdinalIgnoreCase)
+                                || c.Alias.Contains(text, StringComparison.OrdinalIgnoreCase)
+                                || c.Title.Contains(text, StringComparison.OrdinalIgnoreCase));
+                            if (matched is not null)
+                            {
+                                champId = matched.Id;
+                            }
+                        }
+
+                        if (champId <= 0)
+                        {
+                            ShowToast("未匹配到英雄，请输入有效英雄名称（如「安妮」）或数字 ID", isError: true);
                             return;
                         }
                         setBgLoading(true);
@@ -1007,6 +1260,8 @@ public sealed class ToolsPage : Component
                     ])
             ));
 
+        bool isApexTier = SpoofTiers[spoofTierIndex] is "CHALLENGER" or "GRANDMASTER" or "MASTER" or "UNRANKED";
+
         var rankSpoofCard = ToolCard(
             "rankSpoof", "\uE734", "段位伪装", "在本地客户端及好友列表中伪造段位展示 (仅限视觉效果)", "点击展开",
             VStack(10,
@@ -1018,7 +1273,7 @@ public sealed class ToolsPage : Component
                         .Width(220).AutomationName("伪装段位选择")),
                 CardRow("伪装小段级别 (Division):",
                     ComboBox(SpoofDivisionLabels, spoofDivisionIndex, index => setSpoofDivisionIndex(index))
-                        .Width(180).AutomationName("伪装小段选择")),
+                        .Width(180).IsEnabled(!isApexTier).AutomationName("伪装小段选择")),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
@@ -1082,34 +1337,50 @@ public sealed class ToolsPage : Component
                     }
                 }).AutomationName("设为隐身")));
 
+        Element clearBadgesAction = isConfirmingClearBadges
+            ? (Element)HStack(6,
+                TextBlock("🏅 确定清除所有勋章？").FontSize(11).Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
+                Button("取消", () => setIsConfirmingClearBadges(false)).FontSize(10).Padding(6, 2),
+                Button("确认卸下", async () =>
+                {
+                    setIsConfirmingClearBadges(false);
+                    try
+                    {
+                        await toolsService.ClearChallengeBadgesAsync();
+                        ShowToast("已卸下展示的全部挑战勋章");
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowToast($"卸下勋章失败: {ex.Message}", isError: true);
+                    }
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").FontSize(10).Padding(6, 2))
+            : (Element)Button("卸下全部勋章", () => setIsConfirmingClearBadges(true)).AutomationName("卸下勋章");
+
+        Element clearBorderAction = isConfirmingClearBorder
+            ? (Element)HStack(6,
+                TextBlock("🖼️ 确定清除头像框？").FontSize(11).Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
+                Button("取消", () => setIsConfirmingClearBorder(false)).FontSize(10).Padding(6, 2),
+                Button("确认卸下", async () =>
+                {
+                    setIsConfirmingClearBorder(false);
+                    try
+                    {
+                        await toolsService.ClearProfileTokensAsync();
+                        ShowToast("已卸下生涯头像框");
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowToast($"卸下头像框失败: {ex.Message}", isError: true);
+                    }
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").FontSize(10).Padding(6, 2))
+            : (Element)Button("卸下头像框", () => setIsConfirmingClearBorder(true)).AutomationName("卸下头像框");
+
         var badgesCard = ToolCard(
             "badges", "\uE735", "挑战勋章与头像框", "装配/卸下展示的挑战勋章、称号与头像框", "点击展开",
             VStack(10,
                 HStack(8,
-                    Button("卸下全部勋章", async () =>
-                    {
-                        try
-                        {
-                            await toolsService.ClearChallengeBadgesAsync();
-                            ShowToast("已卸下展示的全部挑战勋章");
-                        }
-                        catch (Exception ex)
-                        {
-                            ShowToast($"卸下勋章失败: {ex.Message}", isError: true);
-                        }
-                    }).AutomationName("卸下勋章"),
-                    Button("卸下头像框", async () =>
-                    {
-                        try
-                        {
-                            await toolsService.ClearProfileTokensAsync();
-                            ShowToast("已卸下生涯头像框");
-                        }
-                        catch (Exception ex)
-                        {
-                            ShowToast($"卸下头像框失败: {ex.Message}", isError: true);
-                        }
-                    }).AutomationName("卸下头像框")
+                    clearBadgesAction,
+                    clearBorderAction
                 ),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
                 ChallengePreferencesView.Render(
@@ -1233,12 +1504,38 @@ public sealed class ToolsPage : Component
             .Margin(new Thickness(0, 16, 0, 0));
         }
 
+        Element? offlineBanner = null;
+        if (!isLcuConnected)
+        {
+            offlineBanner = Border(
+                HStack(8,
+                    TextBlock("\uE7BA")
+                        .FontFamily("Segoe Fluent Icons")
+                        .FontSize(14)
+                        .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
+                        .VAlign(VerticalAlignment.Center),
+                    TextBlock("LCU 客户端未连接，绝大多数工具功能需启动并登录英雄联盟后方可生效。")
+                        .FontSize(12)
+                        .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
+                        .VAlign(VerticalAlignment.Center)
+                )
+            )
+            .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
+            .BorderBrush(Theme.Ref("SystemFillColorCriticalBrush"))
+            .BorderThickness(1)
+            .CornerRadius(6)
+            .Padding(12, 8)
+            .Margin(new Thickness(0, 0, 0, 8));
+        }
+
         var mainScroll = ScrollView(
             VStack(8,
                 VStack(4,
                     Heading("工具箱"),
                     Caption("英雄选择自动化、游戏流程、客户端维护与个人主页功能（对应原实现：src/views/Tools.vue）")
                 ).Margin(new Thickness(0, 0, 0, 6)),
+
+                offlineBanner ?? Empty(),
 
                 // 1. 英雄选择
                 GroupHeader("英雄选择"),
@@ -1270,7 +1567,7 @@ public sealed class ToolsPage : Component
                 rankSpoofCard,
                 onlineStatusCard,
                 badgesCard
-            ).Padding(24).HAlign(HorizontalAlignment.Stretch)
+            ).Padding(24).HAlign(HorizontalAlignment.Stretch).Opacity(isLcuConnected ? 1.0 : 0.6)
         );
 
         return Grid(

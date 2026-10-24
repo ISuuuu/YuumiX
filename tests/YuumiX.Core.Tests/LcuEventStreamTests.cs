@@ -239,7 +239,7 @@ public sealed class LcuEventStreamTests
     [Fact]
     public void WatchedUris_AreAllAllowedByCatalog()
     {
-        Assert.Equal(5, LcuEventStream.WatchedUris.Count);
+        Assert.Equal(7, LcuEventStream.WatchedUris.Count);
 
         foreach (var uri in LcuEventStream.WatchedUris)
         {
