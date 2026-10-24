@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Media.Animation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
@@ -125,13 +126,9 @@ public sealed class SettingsPage : Component
         var initialToasts = UseMemo(() => (IReadOnlyList<ToastItem>)Array.Empty<ToastItem>(), 0);
         var (toasts, setToasts) = UseState(initialToasts, threadSafe: true);
 
-        // 本页自身也订阅主题状态：强调色变化时要跟着重渲染，否则状态条这类
-        // 消费 palette.Accent 的元素会停在旧颜色上（主题模式由 AppShell 统一施加，不在此列）。
+        // 本页自身也订阅主题状态：配色（战绩卡片/死亡数字）变化时编号步进器等
+        // 消费 palette 的元素要跟着重渲染（主题模式由 AppShell 统一施加，不在此列）。
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
-
-        // 可展开卡片记录（默认全部收起，对齐工具箱与 Fluent 规范）
-        var initialExpanded = UseMemo(() => new HashSet<string>(), 0);
-        var (expandedKeys, setExpandedKeys) = UseState(initialExpanded, threadSafe: true);
 
         // 清除缓存确认弹窗（旧版 clear_game_cache 前的确认步骤）
         var (clearDialogOpen, setClearDialogOpen) = UseState(false, threadSafe: true);
@@ -480,188 +477,11 @@ public sealed class SettingsPage : Component
             Rerender();
         }
 
-        void ToggleExpanded(string key)
-        {
-            var next = new HashSet<string>(expandedKeys);
-            if (!next.Add(key))
-            {
-                next.Remove(key);
-            }
-            setExpandedKeys(next);
-        }
-
-        Element CardRow(string label, Element control) =>
-            Grid(
-                [GridSize.Star(), GridSize.Auto],
-                [GridSize.Auto],
-                [
-                    TextBlock(label)
-                        .FontFamily(YuumiTypography.SansFont)
-                        .FontSize(13)
-                        .Foreground(Theme.SecondaryText)
-                        .VAlign(VerticalAlignment.Center)
-                        .Grid(row: 0, column: 0),
-                    control.VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 1),
-                ])
-            .Padding(new Thickness(0, 8, 0, 8));
-
-        Element CleanToggle(bool value, Action<bool> onChange, string? automationName = null) =>
-            ToggleSwitch(value, v => onChange(v), header: null, onContent: null, offContent: null)
-                .MinWidth(0)
-                .HAlign(HorizontalAlignment.Right)
-                .AutomationName(automationName ?? string.Empty);
-
+        // 分组标题只给语义层级与间距，字重/字号/颜色由 Subtitle 与主题提供。
         Element GroupHeader(string title) =>
-            TextBlock(title)
-                .FontFamily(YuumiTypography.SansFont)
-                .FontSize(13)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .Foreground(Theme.SecondaryText)
-                .Margin(new Thickness(4, 16, 0, 6));
-
-        // 单行直接操作卡片（不含展开，右侧直接展示操作按钮或状态开关）
-        Element ActionCard(string title, string description, Element control) =>
-            Border(
-                Grid(
-                    [GridSize.Star(), GridSize.Auto],
-                    [GridSize.Auto],
-                    [
-                        VStack(2,
-                            TextBlock(title)
-                                .FontFamily(YuumiTypography.SansFont)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                                .FontSize(13.5)
-                                .Foreground(palette.TextPrimary),
-                            TextBlock(description)
-                                .FontFamily(YuumiTypography.SansFont)
-                                .FontSize(12)
-                                .Foreground(palette.TextSecondary)
-                                .Margin(new Thickness(0, 3, 0, 0))
-                        ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
-
-                        control.VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 1),
-                    ]
-                ).Padding(new Thickness(16, 12, 16, 12))
-            )
-            .CornerRadius(8)
-            .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1)
-            .HAlign(HorizontalAlignment.Stretch);
-
-        Element SettingToggleCard(string title, string description, bool value, Action<bool> apply, string field, string? note = null) =>
-            ActionCard(
-                title,
-                note is null ? description : $"{description} · {note}",
-                ToggleSwitch(value, v =>
-                {
-                    if (v == value) return;
-                    apply(v);
-                    Commit(field);
-                }, header: null, onContent: null, offContent: null)
-                .MinWidth(0)
-                .HAlign(HorizontalAlignment.Right)
-                .AutomationName(title));
-
-        Element SettingNumberCard(string title, string description, int value, int min, int max, Action<int> apply, string field, string? note = null) =>
-            ActionCard(
-                title,
-                note is null ? description : $"{description} · {note}",
-                CompactStepperControl.Render(
-                    value,
-                    min,
-                    max,
-                    1,
-                    next =>
-                    {
-                        if (next == value) return;
-                        apply(next);
-                        Commit(field);
-                    },
-                    palette,
-                    title));
-
-        Element SettingExpandableCard(
-            string key,
-            string title,
-            string description,
-            string statusText,
-            Element innerContent,
-            bool? isStatusEnabled = null)
-        {
-            var isExpanded = expandedKeys.Contains(key);
-
-            var isEnabled = isStatusEnabled ?? (statusText != "未启用" && statusText != "未配置" && statusText != "未连接");
-            var statusColor = isEnabled ? palette.Accent : palette.TextMuted;
-            var statusWeight = isEnabled ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
-
-            var headerContent = Grid(
-                [GridSize.Star(), GridSize.Auto, GridSize.Auto],
-                [GridSize.Auto],
-                [
-                    VStack(2,
-                        TextBlock(title)
-                            .FontFamily(YuumiTypography.SansFont)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                            .FontSize(13.5)
-                            .Foreground(palette.TextPrimary),
-                        TextBlock(description)
-                            .FontFamily(YuumiTypography.SansFont)
-                            .FontSize(12)
-                            .Foreground(palette.TextSecondary)
-                            .Margin(new Thickness(0, 3, 0, 0))
-                    ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
-
-                    TextBlock(statusText)
-                        .FontFamily(YuumiTypography.SansFont)
-                        .FontSize(12)
-                        .FontWeight(statusWeight)
-                        .Foreground(statusColor)
-                        .VAlign(VerticalAlignment.Center)
-                        .Margin(new Thickness(12, 0, 10, 0))
-                        .Grid(row: 0, column: 1),
-
-                    TextBlock(isExpanded ? "\uE70D" : "\uE76C")
-                        .FontFamily("Segoe Fluent Icons")
-                        .FontSize(12)
-                        .Foreground(Theme.SecondaryText)
-                        .VAlign(VerticalAlignment.Center)
-                        .Grid(row: 0, column: 2),
-                ]
-            ).HAlign(HorizontalAlignment.Stretch);
-
-            var headerButton = Button(headerContent, () => ToggleExpanded(key))
-                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-                .BorderThickness(0)
-                .Padding(new Thickness(16, 12, 16, 12))
-                .HAlign(HorizontalAlignment.Stretch)
-                .HorizontalContentAlignment(HorizontalAlignment.Stretch)
-                .CornerRadius(8)
-                .AutomationName(title);
-
-            Element body;
-            if (isExpanded)
-            {
-                var divider = Border(Empty())
-                    .Height(1)
-                    .Background(Theme.CardStroke)
-                    .Margin(new Thickness(16, 0, 16, 4));
-
-                var paddedContent = Border(innerContent)
-                    .Padding(new Thickness(16, 4, 16, 12));
-
-                body = VStack(0, headerButton, divider, paddedContent);
-            }
-            else
-            {
-                body = headerButton;
-            }
-
-            return Border(body)
-                .CornerRadius(8)
-                .Background(Theme.CardBackground)
-                .WithBorder(Theme.CardStroke, 1)
-                .HAlign(HorizontalAlignment.Stretch);
-        }
+            Subtitle(title)
+                .HeadingLevel(AutomationHeadingLevel.Level2)
+                .Margin(top: 16);
 
         // 颜色改动统一出口：先落到内存配置与主题状态（界面即时生效），再由防抖 effect 落盘。
         void ApplyColor(string field, string value, Action<string> assign)
@@ -713,27 +533,13 @@ public sealed class SettingsPage : Component
                 picker.Width(320).AutomationName(label));
         }
 
-        Element ThemeColorEditor() =>
-            SettingExpandableCard("themeColor", "主题强调色", "界面主色调（不透明）；修改后立即全局生效", ColorHex.NormalizeArgb(config.Personalization.ThemeColor, YuumiTheme.Accent),
-                VStack(14,
-                    ColorEditor(
-                        "主题色",
-                        "界面强调色（不透明）；改完立即生效",
-                        config.Personalization.ThemeColor,
-                        withAlpha: false,
-                        c => ColorHex.ToRgb(c.R, c.G, c.B),
-                        v => config.Personalization.ThemeColor = v,
-                        nameof(PersonalizationConfig.ThemeColor),
-                        YuumiTheme.Accent),
-                    Button("恢复默认", () => ApplyColor(
-                        nameof(PersonalizationConfig.ThemeColor),
-                        YuumiTheme.Accent,
-                        v => config.Personalization.ThemeColor = v))),
-                isStatusEnabled: true);
-
         Element CardColorEditor() =>
-            SettingExpandableCard("cardColors", "战绩卡片配色", "胜利、失败与重开卡片的底色与透明度", "自定义配色",
-                VStack(16,
+            SettingsCardKit.Expander(
+                "战绩卡片配色",
+                "胜利、失败与重开卡片的底色与透明度",
+                SettingsStatus.Custom,
+                headerControl: null,
+                innerContent: VStack(16,
                     ColorEditor(
                         "胜利卡片",
                         "战绩列表里胜利一方的底色（含透明度）",
@@ -769,11 +575,15 @@ public sealed class SettingsPage : Component
                         theme.Apply(config.Personalization);
                         RequestColorCommit(nameof(PersonalizationConfig.WinCardColor));
                     })),
-                isStatusEnabled: true);
+                statusText: "自定义配色");
 
         Element DeathColorEditor() =>
-            SettingExpandableCard("deathColors", "死亡数字配色", "战绩列表与详情中死亡数字的颜色", "自定义配色",
-                VStack(16,
+            SettingsCardKit.Expander(
+                "死亡数字配色",
+                "战绩列表与详情中死亡数字的颜色",
+                SettingsStatus.Custom,
+                headerControl: null,
+                innerContent: VStack(16,
                     ColorEditor(
                         "浅色主题",
                         "浅色主题下每局死亡数的颜色",
@@ -799,7 +609,7 @@ public sealed class SettingsPage : Component
                         theme.Apply(config.Personalization);
                         RequestColorCommit(nameof(PersonalizationConfig.LightDeathsNumberColor));
                     })),
-                isStatusEnabled: true);
+                statusText: "自定义配色");
 
         Element ProxyAddressRow()
         {
@@ -807,63 +617,40 @@ public sealed class SettingsPage : Component
                 value.Length == 0
                 || (value.Contains(':') && !value.Contains(' ') && Uri.TryCreate("http://" + value, UriKind.Absolute, out _));
 
-            return Grid(
-                [GridSize.Star(), GridSize.Auto],
-                [GridSize.Auto],
-                [
-                    // 开关关闭时禁用输入（对齐旧 ProxySection 的 disabled 联动）
-                    TextBox(_proxyDraft ?? config.General.HttpProxyAddr, v => _proxyDraft = v)
-                        .Margin(new Thickness(0, 0, 8, 0))
-                        .IsEnabled(config.General.EnableHttpProxy)
-                        .AutomationName("代理地址")
-                        .Grid(row: 0, column: 0),
-                    Button("应用", () =>
-                    {
-                        var next = (_proxyDraft ?? config.General.HttpProxyAddr).Trim();
-                        if (!LooksValid(next))
-                        {
-                            setError("代理地址格式不对，应形如 127.0.0.1:7897");
-                            Rerender();
-                            return;
-                        }
-
-                        if (next == config.General.HttpProxyAddr)
-                        {
-                            return;
-                        }
-
-                        config.General.HttpProxyAddr = next;
-                        Commit(nameof(GeneralConfig.HttpProxyAddr));
-                    })
+            return HStack(8,
+                // 开关关闭时禁用输入（对齐旧 ProxySection 的 disabled 联动）
+                TextBox(_proxyDraft ?? config.General.HttpProxyAddr, v => _proxyDraft = v)
+                    .Width(240)
                     .IsEnabled(config.General.EnableHttpProxy)
-                    .AutomationName("应用代理").Grid(row: 0, column: 1),
-                ]
-            );
-        }
+                    .AutomationName("代理地址"),
+                Button("应用", () =>
+                {
+                    var next = (_proxyDraft ?? config.General.HttpProxyAddr).Trim();
+                    if (!LooksValid(next))
+                    {
+                        setError("代理地址格式不对，应形如 127.0.0.1:7897");
+                        Rerender();
+                        return;
+                    }
 
-        // 状态反馈浮条
-        Element? feedbackBanner = null;
-        if (error is not null)
-        {
-            feedbackBanner = Border(
-                HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Ref("SystemFillColorCriticalBrush")),
-                    TextBlock($"保存失败: {error}").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).FontSize(12).VAlign(VerticalAlignment.Center)))
-                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
-        }
-        else if (savedAt is { } time)
-        {
-            feedbackBanner = Border(
-                HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(palette.Accent),
-                    TextBlock($"已保存 · {time:HH:mm:ss}").FontSize(12).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)))
-                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
+                    if (next == config.General.HttpProxyAddr)
+                    {
+                        return;
+                    }
+
+                    config.General.HttpProxyAddr = next;
+                    Commit(nameof(GeneralConfig.HttpProxyAddr));
+                })
+                .IsEnabled(config.General.EnableHttpProxy)
+                .AutomationName("应用代理"));
         }
 
         // ══════════════════════════════════════════════════════
-        // 设置页卡片装配（完全对齐工具箱设计规范）
+        // 设置页卡片装配（全部走 SettingsCardKit）
         // ══════════════════════════════════════════════════════
-        var lolPathStatus = config.General.LolPath.Count == 0 ? "未配置" : $"已设置 {config.General.LolPath.Count} 个路径";
+        var lolPathStatus = config.General.LolPath.Count == 0
+            ? "未配置"
+            : $"已设置 {config.General.LolPath.Count} 个路径";
 
         // 路径条目行：普通条目 = 可编辑输入框 + 删除；WeGame 条目 = 徽章 + WegamePath 输入框 + 删除。
         // 输入框值优先取编辑草稿（防抖期间的重渲染不能打断正在输入的文本）。
@@ -886,14 +673,13 @@ public sealed class SettingsPage : Component
             {
                 rowChildren.Add(
                     Border(
-                        TextBlock("WeGame")
-                            .FontSize(11)
+                        Caption("WeGame")
                             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                            .Foreground(Theme.Ref("TextFillColorPrimaryBrush"))
+                            .Foreground(Theme.AccentText)
                     )
-                    .Padding(new Thickness(8, 3, 8, 3))
+                    .Padding(new Thickness(8, 4, 8, 4))
                     .CornerRadius(4)
-                    .Background(palette.Accent)
+                    .Background(Theme.Accent)
                     .VAlign(VerticalAlignment.Center));
             }
 
@@ -937,15 +723,14 @@ public sealed class SettingsPage : Component
             {
                 // 空列表提示（对齐旧 pathEmpty 文案）
                 rows.Count == 0
-                    ? TextBlock("暂无客户端路径").FontSize(12).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).Margin(new Thickness(0, 4, 0, 8))
+                    ? Caption("暂无客户端路径").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).Margin(top: 4, bottom: 8)
                     : VStack(0, [.. rows]),
             };
 
             // 说明文案
-            content.Add(TextBlock("启动时将自动检测并提取客户端锁文件凭据；支持配置多个安装目录")
-                .FontSize(12)
+            content.Add(Caption("启动时将自动检测并提取客户端锁文件凭据；支持配置多个安装目录")
                 .Foreground(Theme.SecondaryText)
-                .Margin(new Thickness(0, 4, 0, 8)));
+                .Margin(top: 4, bottom: 8));
 
             // 操作按钮行：自动检测 / 浏览文件夹 / 添加 WeGame 启动项
             content.Add(HStack(8,
@@ -1016,10 +801,15 @@ public sealed class SettingsPage : Component
             return VStack(4, [.. content]);
         }
 
-        var lolPathCard = SettingExpandableCard("lolPath", "英雄联盟客户端路径", "设置英雄联盟客户端所在目录的路径", lolPathStatus,
-            LolPathEditor());
+        var lolPathCard = SettingsCardKit.Expander(
+            "英雄联盟客户端路径",
+            "设置英雄联盟客户端所在目录的路径",
+            config.General.LolPath.Count == 0 ? SettingsStatus.Unconfigured : SettingsStatus.Custom,
+            headerControl: null,
+            innerContent: LolPathEditor(),
+            statusText: lolPathStatus);
 
-        var clearCacheCard = ActionCard(
+        var clearCacheCard = SettingsCardKit.Card(
             "清除缓存", "删除所有游戏资源（英雄图标/装备/符文）与 OP.GG 数据的磁盘缓存",
             Button("清除缓存", () => setClearDialogOpen(true)).AutomationName("清除缓存按钮"));
 
@@ -1088,14 +878,13 @@ public sealed class SettingsPage : Component
 
         var updateCardStatus = updateInfo is { } found ? $"发现新版 v{found.Version}" : "已是最新";
         var updateCardBody = VStack(8,
-            CardRow("检查更新:",
+            SettingsCardKit.Card("检查更新", "手动检查并下载新版本",
                 Button(isCheckingUpdate ? "检查中..." : "检查更新", () => _ = CheckForUpdateAsync())
                     .IsEnabled(!isCheckingUpdate)
                     .AutomationName("检查更新按钮")),
             updateCheckError is not null
-                ? TextBlock($"检查/下载失败： {updateCheckError}")
-                    .FontSize(12)
-                    .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
+                ? Body($"检查/下载失败： {updateCheckError}")
+                    .Foreground(Theme.SystemCritical)
                 : Empty(),
             updateInfo is not null
                 ? VStack(4,
@@ -1103,7 +892,7 @@ public sealed class SettingsPage : Component
                     InfoRow("当前版本", $"v{updateInfo.CurrentVersion}"),
                     string.IsNullOrEmpty(updateInfo.Notes)
                         ? Empty()
-                        : TextBlock(updateInfo.Notes).FontSize(12).Foreground(Theme.SecondaryText).TextWrapping(),
+                        : Caption(updateInfo.Notes).Foreground(Theme.SecondaryText).TextWrapping(),
                     // 下载与安装区：下载中显示进度，就绪后切换为安装按钮
                     downloadedUpdatePath is not null
                         ? Button(services.Paths.IsPortable ? "应用更新并重启" : "立即重启安装", ApplyPendingUpdate)
@@ -1114,34 +903,34 @@ public sealed class SettingsPage : Component
                                 Caption($"已下载 {p.Downloaded / 1024.0 / 1024.0:F1} MB" + (p.Total is { } t ? $" / {t / 1024.0 / 1024.0:F1} MB" : string.Empty)))
                             : Button("下载更新", () => _ = DownloadUpdateAsync()).AutomationName("下载更新按钮"))
                 : Empty(),
-            Button("前往 GitHub Releases", () =>
-            {
-                try
+            SettingsCardKit.Card("开源发布页", "在浏览器中打开 GitHub Releases",
+                Button("前往 GitHub Releases", () =>
                 {
-                    _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    try
                     {
-                        FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases/latest",
-                        UseShellExecute = true,
-                    });
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "打开 GitHub Releases 失败");
-                }
-            }).AutomationName("前往 GitHub Releases"));
+                        _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases/latest",
+                            UseShellExecute = true,
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "打开 GitHub Releases 失败");
+                    }
+                }).AutomationName("前往 GitHub Releases")));
 
-        var updateCard = SettingExpandableCard(
-            "softwareUpdate", "软件更新",
+        var updateCard = SettingsCardKit.Expander(
+            "软件更新",
             services.Paths.IsPortable
                 ? "便携版通过 zip 覆盖方式更新；检查到新版后手动下载应用"
                 : "检查新版本并后台下载，就绪后重启安装",
-            updateCardStatus,
-            updateCardBody);
+            SettingsStatus.Custom,
+            headerControl: null,
+            innerContent: updateCardBody,
+            statusText: updateCardStatus);
 
-        // 云端服务（对应旧 CloudServiceSection.vue）：URL / 实时开关 / userid + 四态徽标。
-        // 头回显「已配置上传/未配置」，实时开启时追加状态文字；彩色徽标元素单独构造——
-        // SettingExpandableCard 的头状态位是纯文本，且 Reactor 的 Background/Foreground
-        // 在 string 与 ThemeRef 上没有公共类型，分支构造比强行统一更直白。
+        // 云端服务（对应旧 CloudServiceSection.vue）：LCU 实时开关进页头，URL / userid / 连接状态留在展开区。
         string SignalrBadgeText(SignalrStatus status) => status.State switch
         {
             SignalrConnectionState.Connected => "已连接",
@@ -1152,79 +941,89 @@ public sealed class SettingsPage : Component
 
         Element SignalrBadgeElement(SignalrStatus status)
         {
-            Element Dot(string color) =>
+            Element Dot(ThemeRef color) =>
                 Border(Empty()).Width(8).Height(8).CornerRadius(4).Background(color);
 
-            return status.State switch
+            var color = status.State switch
             {
-                SignalrConnectionState.Connected => HStack(8,
-                    Dot("#22c55e"),
-                    TextBlock(SignalrBadgeText(status)).FontSize(12).Foreground("#22c55e")),
-                SignalrConnectionState.Connecting => HStack(8,
-                    Dot("#f59e0b"),
-                    TextBlock(SignalrBadgeText(status)).FontSize(12).Foreground("#f59e0b")),
-                SignalrConnectionState.Error => HStack(8,
-                    Dot("#ef4444"),
-                    TextBlock(SignalrBadgeText(status)).FontSize(12).Foreground("#ef4444")),
-                _ => HStack(8,
-                    Dot("#9ca3af"),
-                    TextBlock(SignalrBadgeText(status)).FontSize(12).Foreground("#9ca3af")),
+                SignalrConnectionState.Connected => Theme.SystemSuccess,
+                SignalrConnectionState.Connecting => Theme.SystemCaution,
+                SignalrConnectionState.Error => Theme.SystemCritical,
+                _ => Theme.SystemNeutral,
             };
+
+            return HStack(8,
+                Dot(color),
+                Caption(SignalrBadgeText(status)).Foreground(color));
         }
 
-        var cloudHeaderStatus = string.IsNullOrWhiteSpace(config.General.UploadApiUrl) ? "未配置" : "已配置上传";
-        if (config.Functions.LcuRealtimeEnabled)
-        {
-            cloudHeaderStatus += $" / {SignalrBadgeText(signalrStatus)}";
-        }
-
-        var cloudCardBody = VStack(10,
+        var cloudCardBody = VStack(8,
             // SignalR 四态徽标行（仅实时开启时展示，对齐旧头部徽标）
             config.Functions.LcuRealtimeEnabled
                 ? HStack(12,
                     SignalrBadgeElement(signalrStatus),
-                    TextBlock("SignalR 连接状态").FontSize(12).Foreground(Theme.SecondaryText))
+                    Caption("SignalR 连接状态").Foreground(Theme.SecondaryText))
                 : Empty(),
-            CardRow("服务器 API 地址:",
+            SettingsCardKit.Card("服务器 API 地址", "对局数据上传的服务端地址",
                 TextBox(
                     _cloudUrlDraft ?? config.General.UploadApiUrl,
                     v => RequestCloudTextCommit(v, null),
                     "http://example.com")
-                    .AutomationName("服务器 API 地址")
-                    .HAlign(HorizontalAlignment.Stretch)),
-            CardRow("LCU 实时查询:",
-                CleanToggle(config.Functions.LcuRealtimeEnabled, v =>
-                {
-                    if (v == config.Functions.LcuRealtimeEnabled) return;
-                    config.Functions.LcuRealtimeEnabled = v;
-                    Commit(nameof(FunctionsConfig.LcuRealtimeEnabled));
-                    // 即时应用：开启 → 开始连接（徽标经状态流转 connecting），关闭 → 停止
-                    _ = signalr.ApplyConfigAsync();
-                }, "LCU 实时查询开关")),
-            // error 态附红字错误详情（对齐旧 setting-error-tip）
-            signalrStatus.State == SignalrConnectionState.Error && !string.IsNullOrEmpty(signalrStatus.Error)
-                ? TextBlock($"连接异常： {signalrStatus.Error}")
-                    .FontSize(12)
-                    .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
-                : Empty(),
-            CardRow("userid:",
+                    .Width(240)
+                    .AutomationName("服务器 API 地址")),
+            SettingsCardKit.Card("userid", "上报数据使用的用户标识",
                 TextBox(
                     _cloudUserIdDraft ?? config.General.SignalrUserId,
                     v => RequestCloudTextCommit(null, v),
                     "留空默认使用 lcu_user_001")
-                    .AutomationName("SignalR userid")
-                    .HAlign(HorizontalAlignment.Stretch)));
+                    .Width(240)
+                    .AutomationName("SignalR userid")),
+            // error 态附红字错误详情（对齐旧 setting-error-tip）
+            signalrStatus.State == SignalrConnectionState.Error && !string.IsNullOrEmpty(signalrStatus.Error)
+                ? Caption($"连接异常： {signalrStatus.Error}")
+                    .Foreground(Theme.SystemCritical)
+                : Empty());
 
-        var cloudCard = SettingExpandableCard(
-            "cloud", "云端服务", "对局数据上传与 LCU 实时远程查询（SignalR）", cloudHeaderStatus,
-            cloudCardBody,
-            isStatusEnabled: config.Functions.LcuRealtimeEnabled ? signalrStatus.State == SignalrConnectionState.Connected : !string.IsNullOrWhiteSpace(config.General.UploadApiUrl));
+        var cloudCard = SettingsCardKit.Expander(
+            "云端服务",
+            "对局数据上传与 LCU 实时远程查询（SignalR）",
+            config.Functions.LcuRealtimeEnabled
+                ? signalrStatus.State == SignalrConnectionState.Connected
+                    ? SettingsStatus.Connected
+                    : SettingsStatus.Disconnected
+                : string.IsNullOrWhiteSpace(config.General.UploadApiUrl)
+                    ? SettingsStatus.Unconfigured
+                    : SettingsStatus.Enabled,
+            headerControl: ToggleSwitch(config.Functions.LcuRealtimeEnabled, v =>
+            {
+                if (v == config.Functions.LcuRealtimeEnabled) return;
+                config.Functions.LcuRealtimeEnabled = v;
+                Commit(nameof(FunctionsConfig.LcuRealtimeEnabled));
+                // 即时应用：开启 → 开始连接（徽标经状态流转 connecting），关闭 → 停止
+                _ = signalr.ApplyConfigAsync();
+            }, header: null, onContent: null, offContent: null)
+                .AutomationName("LCU 实时查询开关"),
+            innerContent: cloudCardBody);
 
         var hideMenuEnabled = config.Functions.HideTft || config.Functions.HideSavedPlayers;
-        var hideMenuCard = SettingExpandableCard("hideMenu", "隐藏菜单", "控制侧边栏云顶之弈与路人集功能入口的显隐", hideMenuEnabled ? "已启用" : "未启用",
-            VStack(4,
-                CardRow("隐藏云顶之弈入口:",
-                    CleanToggle(config.Functions.HideTft, v =>
+        var hideMenuCard = SettingsCardKit.Expander(
+            "隐藏菜单",
+            "控制侧边栏云顶之弈与路人集功能入口的显隐",
+            hideMenuEnabled ? SettingsStatus.Enabled : SettingsStatus.Disabled,
+            // 两项入口的公共开关：关掉即同时显示两个入口，单项仍可在展开区单独控制。
+            headerControl: ToggleSwitch(hideMenuEnabled, v =>
+            {
+                if (v == hideMenuEnabled) return;
+                config.Functions.HideTft = v;
+                config.Functions.HideSavedPlayers = v;
+                menu.Apply(v, v);
+                Commit(nameof(FunctionsConfig.HideTft));
+            }, header: null, onContent: null, offContent: null)
+                .AutomationName("隐藏菜单开关"),
+            innerItems:
+            [
+                SettingsCardKit.Card("隐藏云顶之弈入口", "侧边栏不显示云顶之弈功能入口",
+                    ToggleSwitch(config.Functions.HideTft, v =>
                     {
                         if (v == config.Functions.HideTft) return;
                         config.Functions.HideTft = v;
@@ -1232,15 +1031,16 @@ public sealed class SettingsPage : Component
                         // 与颜色设置「先应用主题后防抖写盘」的语义一致。
                         menu.Apply(config.Functions.HideTft, config.Functions.HideSavedPlayers);
                         Commit(nameof(FunctionsConfig.HideTft));
-                    }, "隐藏云顶之弈")),
-                CardRow("隐藏路人集入口:",
-                    CleanToggle(config.Functions.HideSavedPlayers, v =>
+                    }, header: null, onContent: null, offContent: null).AutomationName("隐藏云顶之弈")),
+                SettingsCardKit.Card("隐藏路人集入口", "侧边栏不显示路人集功能入口",
+                    ToggleSwitch(config.Functions.HideSavedPlayers, v =>
                     {
                         if (v == config.Functions.HideSavedPlayers) return;
                         config.Functions.HideSavedPlayers = v;
                         menu.Apply(config.Functions.HideTft, config.Functions.HideSavedPlayers);
                         Commit(nameof(FunctionsConfig.HideSavedPlayers));
-                    }, "隐藏路人集"))));
+                    }, header: null, onContent: null, offContent: null).AutomationName("隐藏路人集")),
+            ]);
 
         // 截图触发事件复选组：3=三杀 4=四杀 5=五杀 8=超神（写入 ScreenshotOnMultikillLevels）
         Element ScreenshotLevelCheckBox(int level, string label)
@@ -1270,67 +1070,66 @@ public sealed class SettingsPage : Component
                 label).AutomationName(label);
         }
 
-        var screenshotSavePathRow = Grid(
-            [GridSize.Star(), GridSize.Auto, GridSize.Auto],
-            [GridSize.Auto],
-            [
-                // 只读展示（旧版 n-input readonly 同款），placeholder 提示默认位置
-                TextBox(config.Functions.ScreenshotSavePath, _ => { }, "默认保存在系统「图片」目录下的 Yuumi_Screenshots 文件夹")
-                    .IsReadOnly()
-                    .AutomationName("截图保存目录")
-                    .Margin(new Thickness(0, 0, 8, 0))
-                    .Grid(row: 0, column: 0),
-                Button("浏览", async () =>
+        var screenshotSavePathRow = HStack(8,
+            // 只读展示（旧版 n-input readonly 同款），placeholder 提示默认位置
+            TextBox(config.Functions.ScreenshotSavePath, _ => { }, "默认保存在系统「图片」目录下的 Yuumi_Screenshots 文件夹")
+                .Width(240)
+                .IsReadOnly()
+                .AutomationName("截图保存目录"),
+            Button("浏览", async () =>
+            {
+                var picked = await FolderPickerService.PickFolderAsync();
+                if (picked is null)
                 {
-                    var picked = await FolderPickerService.PickFolderAsync();
-                    if (picked is null)
-                    {
-                        return;
-                    }
+                    return;
+                }
 
-                    config.Functions.ScreenshotSavePath = LolPathDetector.NormalizePath(picked);
-                    Commit(nameof(FunctionsConfig.ScreenshotSavePath));
-                    ShowToast("已成功更新截图保存目录");
-                }).AutomationName("浏览截图目录").Grid(row: 0, column: 1),
-                Button("打开目录", () =>
+                config.Functions.ScreenshotSavePath = LolPathDetector.NormalizePath(picked);
+                Commit(nameof(FunctionsConfig.ScreenshotSavePath));
+                ShowToast("已成功更新截图保存目录");
+            }).AutomationName("浏览截图目录"),
+            Button("打开目录", () =>
+            {
+                try
                 {
-                    try
-                    {
-                        // 与旧 open_screenshot_folder 一致：目录不存在时自动创建
-                        var dir = LiveEventMatcher.ResolveSaveDirectory(config.Functions.ScreenshotSavePath);
-                        Directory.CreateDirectory(dir);
-                        System.Diagnostics.Process.Start("explorer.exe", dir);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "打开截图目录失败");
-                        ShowToast($"无法打开截图文件夹: {ex.Message}", isError: true);
-                    }
-                }).AutomationName("打开截图目录").Grid(row: 0, column: 2),
+                    // 与旧 open_screenshot_folder 一致：目录不存在时自动创建
+                    var dir = LiveEventMatcher.ResolveSaveDirectory(config.Functions.ScreenshotSavePath);
+                    Directory.CreateDirectory(dir);
+                    System.Diagnostics.Process.Start("explorer.exe", dir);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "打开截图目录失败");
+                    ShowToast($"无法打开截图文件夹: {ex.Message}", isError: true);
+                }
+            }).AutomationName("打开截图目录"));
+
+        var screenshotCard = SettingsCardKit.Expander(
+            "多杀自动截图",
+            "对局中达成多杀或超神时自动保存精彩瞬间",
+            config.Functions.EnableScreenshotOnMultikill ? SettingsStatus.Enabled : SettingsStatus.Disabled,
+            headerControl: ToggleSwitch(config.Functions.EnableScreenshotOnMultikill, v =>
+            {
+                if (v == config.Functions.EnableScreenshotOnMultikill) return;
+                config.Functions.EnableScreenshotOnMultikill = v;
+                Commit(nameof(FunctionsConfig.EnableScreenshotOnMultikill));
+            }, header: null, onContent: null, offContent: null)
+                .AutomationName("多杀截图开关"),
+            // 开关关闭时子项不可编辑（对齐旧 ScreenshotSection.vue 的「开启后才显示」）
+            innerItems:
+            [
+                SettingsCardKit.Card("截图触发事件", "达成以下任一事件时保存截图",
+                        HStack(12,
+                            ScreenshotLevelCheckBox(3, "三杀"),
+                            ScreenshotLevelCheckBox(4, "四杀"),
+                            ScreenshotLevelCheckBox(5, "五杀"),
+                            ScreenshotLevelCheckBox(8, "超神")))
+                    .IsEnabled(config.Functions.EnableScreenshotOnMultikill),
+                SettingsCardKit.Card("截图保存位置", "截图文件写入的目录", screenshotSavePathRow)
+                    .IsEnabled(config.Functions.EnableScreenshotOnMultikill),
             ]);
 
-        var screenshotCard = SettingExpandableCard("screenshot", "多杀自动截图", "对局中达成多杀或超神时自动保存精彩瞬间", config.Functions.EnableScreenshotOnMultikill ? "已启用" : "未启用",
-            VStack(8,
-                CardRow("启用多杀自动截图:",
-                    CleanToggle(config.Functions.EnableScreenshotOnMultikill, v =>
-                    {
-                        if (v == config.Functions.EnableScreenshotOnMultikill) return;
-                        config.Functions.EnableScreenshotOnMultikill = v;
-                        Commit(nameof(FunctionsConfig.EnableScreenshotOnMultikill));
-                    }, "多杀截图开关")),
-                // 开关开启时才显示：触发事件复选组 + 保存位置（对齐旧 ScreenshotSection.vue）
-                config.Functions.EnableScreenshotOnMultikill
-                    ? VStack(8,
-                        CardRow("截图触发事件:",
-                            HStack(12,
-                                ScreenshotLevelCheckBox(3, "三杀"),
-                                ScreenshotLevelCheckBox(4, "四杀"),
-                                ScreenshotLevelCheckBox(5, "五杀"),
-                                ScreenshotLevelCheckBox(8, "超神"))),
-                        CardRow("截图保存位置:", screenshotSavePathRow))
-                    : Empty()));
-
-        var logLevelCard = ActionCard(
+        var logLevelCard = SettingsCardKit.Card(
             "日志等级", "写入 <exe>/log 的日志记录详细程度，修改后立即生效",
             ComboBox(LogLevelLabels, IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
             {
@@ -1338,9 +1137,9 @@ public sealed class SettingsPage : Component
                 config.General.LogLevel = level;
                 services.ApplyLogLevel(level);
                 Commit(nameof(GeneralConfig.LogLevel));
-            }).Width(160).HAlign(HorizontalAlignment.Right).AutomationName("日志等级选择"));
+            }).Width(160).AutomationName("日志等级选择"));
 
-        var logDirCard = ActionCard(
+        var logDirCard = SettingsCardKit.Card(
             "日志文件", $"存放于 {services.Paths.LogDirectory}",
             Button("打开目录", () =>
             {
@@ -1354,28 +1153,34 @@ public sealed class SettingsPage : Component
                 }
             }).AutomationName("打开日志目录"));
 
-        var httpProxyCard = SettingExpandableCard("httpProxy", "软件 HTTP 代理", "软件更新、TFT 数据、OP.GG 服务访问走此 HTTP 代理通道", config.General.EnableHttpProxy ? "已启用" : "未启用",
-            VStack(8,
-                CardRow("启用 HTTP 代理:",
-                    CleanToggle(config.General.EnableHttpProxy, v =>
-                    {
-                        if (v == config.General.EnableHttpProxy) return;
-                        config.General.EnableHttpProxy = v;
-                        Commit(nameof(GeneralConfig.EnableHttpProxy));
-                    }, "HTTP代理开关")),
-                ProxyAddressRow()));
+        var httpProxyCard = SettingsCardKit.Expander(
+            "软件 HTTP 代理",
+            "软件更新、TFT 数据、OP.GG 服务访问走此 HTTP 代理通道",
+            config.General.EnableHttpProxy ? SettingsStatus.Enabled : SettingsStatus.Disabled,
+            headerControl: ToggleSwitch(config.General.EnableHttpProxy, v =>
+            {
+                if (v == config.General.EnableHttpProxy) return;
+                config.General.EnableHttpProxy = v;
+                Commit(nameof(GeneralConfig.EnableHttpProxy));
+            }, header: null, onContent: null, offContent: null)
+                .AutomationName("HTTP代理开关"),
+            innerContent: SettingsCardKit.Card("代理地址", "形如 127.0.0.1:7897；开关关闭时不可编辑", ProxyAddressRow()));
 
-        var themeModeCard = ActionCard(
+        var themeModeCard = SettingsCardKit.Card(
             "主题模式", "浅色 / 深色 / 跟随系统主题自适应切换",
             ComboBox(ThemeModeLabels, IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
             {
                 config.Personalization.ThemeMode = ThemeModeValues[index];
                 theme.Apply(config.Personalization);
                 Commit(nameof(PersonalizationConfig.ThemeMode));
-            }).Width(160).HAlign(HorizontalAlignment.Right).AutomationName("主题模式选择"));
+            }).Width(160).AutomationName("主题模式选择"));
 
-        var aboutCard = SettingExpandableCard("about", "关于 YuumiX", $"当前版本 {AppVersion} · 运行环境与存储位置", AppVersion,
-            VStack(10,
+        var aboutCard = SettingsCardKit.Expander(
+            "关于 YuumiX",
+            $"当前版本 {AppVersion} · 运行环境与存储位置",
+            SettingsStatus.Custom,
+            headerControl: null,
+            innerContent: VStack(10,
                 InfoRow("应用版本", AppVersion),
                 InfoRow("配置版本", $"v{config.Version}"),
                 InfoRow("配置文件", services.ConfigStore.FilePath),
@@ -1398,7 +1203,8 @@ public sealed class SettingsPage : Component
                         {
                             logger.LogWarning(ex, "打开开源仓库页面失败");
                         }
-                    }).AutomationName("打开开源仓库"))));
+                    }).AutomationName("打开开源仓库"))),
+            statusText: AppVersion);
 
         Element RenderToasts()
         {
@@ -1415,25 +1221,22 @@ public sealed class SettingsPage : Component
                     return Border(
                         HStack(10,
                             Border(
-                                TextBlock(iconGlyph)
+                                Caption(iconGlyph)
                                     .FontFamily("Segoe Fluent Icons")
-                                    .FontSize(11)
                                     .Foreground(iconColor)
                                     .HAlign(HorizontalAlignment.Center)
                                     .VAlign(VerticalAlignment.Center)
                             )
-                            .Width(22)
-                            .Height(22)
-                            .CornerRadius(11)
+                            .Width(24)
+                            .Height(24)
+                            .CornerRadius(12)
                             .Background(Theme.Ref("LayerFillColorDefaultBrush")),
 
-                            TextBlock(item.Message)
-                                .FontSize(13)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                            BodyStrong(item.Message)
                                 .VAlign(VerticalAlignment.Center)
                         )
                     )
-                    .Padding(new Thickness(16, 9, 20, 9))
+                    .Padding(new Thickness(16, 8, 20, 8))
                     .CornerRadius(20)
                     .Background(Theme.CardBackground)
                     .WithBorder(Theme.CardStroke, 1)
@@ -1452,44 +1255,79 @@ public sealed class SettingsPage : Component
 
         var mainScroll = ScrollView(
             VStack(8,
-                TextBlock("设置")
-                    .FontFamily(YuumiTypography.SansFont)
-                    .FontSize(20)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                    .Foreground(palette.TextPrimary)
-                    .Margin(new Thickness(0, 0, 0, 10)),
+                // 页面标题比分组标题（Subtitle 20）高一级，保持视觉层级。
+                Title("设置")
+                    .HeadingLevel(AutomationHeadingLevel.Level1)
+                    .Margin(bottom: 8),
 
                 // 1. 功能
                 GroupHeader("功能"),
-                SettingNumberCard("LCU API 并发数", "该值越大数据加载速度越快，但越可能引起客户端闪退", config.Functions.ApiConcurrencyNumber, ApiConcurrencyMin, ApiConcurrencyMax, v => config.Functions.ApiConcurrencyNumber = v, nameof(FunctionsConfig.ApiConcurrencyNumber), "重启后生效"),
-                SettingNumberCard("默认对局数量", "调整在个人生涯界面中显示的最大对局数量", config.Functions.CareerGamesNumber, CareerGamesMin, CareerGamesMax, v => config.Functions.CareerGamesNumber = v, nameof(FunctionsConfig.CareerGamesNumber)),
-                SettingToggleCard("对局信息过滤", "基于你当前游戏模式（地图/队列）筛选战绩，只显示相同模式的玩家历史数据", config.Functions.GameInfoFilter, v => config.Functions.GameInfoFilter = v, nameof(FunctionsConfig.GameInfoFilter)),
-                SettingToggleCard("保留对局信息界面内容", "保留上一局的对局信息内容直到下一次对局开始", config.Functions.EnableReserveGameinfo, v => config.Functions.EnableReserveGameinfo = v, nameof(FunctionsConfig.EnableReserveGameinfo)),
-                SettingToggleCard("对局详情中显示段位", "在搜索界面对局详情界面中显示段位，启动该选项将影响加载界面的速度", config.Functions.ShowTierInGameInfo, v => config.Functions.ShowTierInGameInfo = v, nameof(FunctionsConfig.ShowTierInGameInfo)),
+                SettingsCardKit.Stepper("LCU API 并发数", "该值越大数据加载速度越快，但越可能引起客户端闪退 · 重启后生效", config.Functions.ApiConcurrencyNumber, ApiConcurrencyMin, ApiConcurrencyMax, v =>
+                {
+                    config.Functions.ApiConcurrencyNumber = v;
+                    Commit(nameof(FunctionsConfig.ApiConcurrencyNumber));
+                }, palette),
+                SettingsCardKit.Stepper("默认对局数量", "调整在个人生涯界面中显示的最大对局数量", config.Functions.CareerGamesNumber, CareerGamesMin, CareerGamesMax, v =>
+                {
+                    config.Functions.CareerGamesNumber = v;
+                    Commit(nameof(FunctionsConfig.CareerGamesNumber));
+                }, palette),
+                SettingsCardKit.Toggle("对局信息过滤", "基于你当前游戏模式（地图/队列）筛选战绩，只显示相同模式的玩家历史数据", config.Functions.GameInfoFilter, v =>
+                {
+                    config.Functions.GameInfoFilter = v;
+                    Commit(nameof(FunctionsConfig.GameInfoFilter));
+                }),
+                SettingsCardKit.Toggle("保留对局信息界面内容", "保留上一局的对局信息内容直到下一次对局开始", config.Functions.EnableReserveGameinfo, v =>
+                {
+                    config.Functions.EnableReserveGameinfo = v;
+                    Commit(nameof(FunctionsConfig.EnableReserveGameinfo));
+                }),
+                SettingsCardKit.Toggle("对局详情中显示段位", "在搜索界面对局详情界面中显示段位，启动该选项将影响加载界面的速度", config.Functions.ShowTierInGameInfo, v =>
+                {
+                    config.Functions.ShowTierInGameInfo = v;
+                    Commit(nameof(FunctionsConfig.ShowTierInGameInfo));
+                }),
 
                 // 2. OP.GG
                 GroupHeader("OP.GG"),
-                SettingToggleCard("自动显示 OP.GG 窗口", "在英雄选择开始时自动显示 OP.GG 窗口", config.Functions.AutoShowOpgg, v => config.Functions.AutoShowOpgg = v, nameof(FunctionsConfig.AutoShowOpgg)),
-                SettingToggleCard("置顶 OP.GG 窗口", "在英雄选择时将 OP.GG 窗口置顶", config.Functions.EnableOpggOnTop, v =>
+                SettingsCardKit.Toggle("自动显示 OP.GG 窗口", "在英雄选择开始时自动显示 OP.GG 窗口", config.Functions.AutoShowOpgg, v =>
+                {
+                    config.Functions.AutoShowOpgg = v;
+                    Commit(nameof(FunctionsConfig.AutoShowOpgg));
+                }),
+                SettingsCardKit.Toggle("置顶 OP.GG 窗口", "在英雄选择时将 OP.GG 窗口置顶", config.Functions.EnableOpggOnTop, v =>
                 {
                     config.Functions.EnableOpggOnTop = v;
                     OpggWindowHost.UpdateAlwaysOnTop(v);
-                }, nameof(FunctionsConfig.EnableOpggOnTop)),
+                    Commit(nameof(FunctionsConfig.EnableOpggOnTop));
+                }),
 
                 // 3. 通用设置
                 GroupHeader("通用设置"),
                 lolPathCard,
                 cloudCard,
-                SettingToggleCard("随应用启动客户端", "启动 YuumiX 时一并拉起英雄联盟客户端（含 WeGame 形态）", config.General.EnableStartLolWithApp, v => config.General.EnableStartLolWithApp = v, nameof(GeneralConfig.EnableStartLolWithApp)),
-                ActionCard("关闭到托盘", "关闭窗口时最小化到托盘而不是退出；未设置时按平台默认处理",
+                SettingsCardKit.Toggle("随应用启动客户端", "启动 YuumiX 时一并拉起英雄联盟客户端（含 WeGame 形态）", config.General.EnableStartLolWithApp, v =>
+                {
+                    config.General.EnableStartLolWithApp = v;
+                    Commit(nameof(GeneralConfig.EnableStartLolWithApp));
+                }),
+                SettingsCardKit.Card("关闭到托盘", "关闭窗口时最小化到托盘而不是退出；未设置时按平台默认处理",
                     ThreeStateCheckBox(config.General.EnableCloseToTray, v =>
                     {
                         config.General.EnableCloseToTray = v;
                         Commit(nameof(GeneralConfig.EnableCloseToTray));
                     }).AutomationName("关闭到托盘开关")),
-                SettingToggleCard("游戏开始时最小化", "检测到对局开始后自动最小化主窗口", config.General.EnableGameStartMinimize, v => config.General.EnableGameStartMinimize = v, nameof(GeneralConfig.EnableGameStartMinimize)),
+                SettingsCardKit.Toggle("游戏开始时最小化", "检测到对局开始后自动最小化主窗口", config.General.EnableGameStartMinimize, v =>
+                {
+                    config.General.EnableGameStartMinimize = v;
+                    Commit(nameof(GeneralConfig.EnableGameStartMinimize));
+                }),
                 clearCacheCard,
-                SettingToggleCard("检查更新", "启动时检查新版本（便携版走整包覆盖）", config.General.EnableCheckUpdate, v => config.General.EnableCheckUpdate = v, nameof(GeneralConfig.EnableCheckUpdate)),
+                SettingsCardKit.Toggle("检查更新", "启动时检查新版本（便携版走整包覆盖）", config.General.EnableCheckUpdate, v =>
+                {
+                    config.General.EnableCheckUpdate = v;
+                    Commit(nameof(GeneralConfig.EnableCheckUpdate));
+                }),
                 updateCard,
 
                 // 4. 高级与隐藏
@@ -1505,13 +1343,14 @@ public sealed class SettingsPage : Component
 
                 // 6. 外观与个性化
                 GroupHeader("外观与个性化"),
-                SettingToggleCard("Mica 背景", "使用系统亚克力/云母材质作为窗口背景", config.Personalization.MicaEnabled, v =>
+                SettingsCardKit.Toggle("Mica 背景", "使用系统亚克力/云母材质作为窗口背景 · 即时生效", config.Personalization.MicaEnabled, v =>
                 {
                     config.Personalization.MicaEnabled = v;
                     theme.Apply(config.Personalization);
-                }, nameof(PersonalizationConfig.MicaEnabled), "即时生效"),
+                    Commit(nameof(PersonalizationConfig.MicaEnabled));
+                }),
                 themeModeCard,
-                ThemeColorEditor(),
+                // 强调色跟随系统，原「主题强调色」卡片已删除；这里只剩业务配色（战绩卡片 / 死亡数字）。
                 CardColorEditor(),
                 DeathColorEditor(),
 
@@ -1541,8 +1380,7 @@ public sealed class SettingsPage : Component
                 // InvalidOperationException（No handler is registered for element type ...）。
                 (ContentDialog(
                     "清除缓存",
-                    TextBlock("确定要清除所有游戏资源缓存吗？清除后需要重新加载游戏资源。")
-                        .FontSize(13)
+                    Body("确定要清除所有游戏资源缓存吗？清除后需要重新加载游戏资源。")
                         .TextWrapping(),
                     primaryButtonText: "确定") with
                 {
@@ -1581,83 +1419,6 @@ public sealed class SettingsPage : Component
         );
     }
 
-    /// <summary>
-    /// 保存状态条：未改动 / 已保存（含备份文件名） / 保存失败。
-    /// 三态而非布尔——把失败显示成「已保存」比不显示状态更糟（ADR-12）。
-    /// </summary>
-    private static Element SaveStatusBanner(DateTime? savedAt, string? backupName, string? error, string accent)
-    {
-        Element body;
-        if (error is not null)
-        {
-            body = VStack(4,
-                TextBlock("保存失败，配置未写入").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                    .Foreground(Theme.Ref("SystemFillColorCriticalBrush")),
-                Caption(error));
-        }
-        else if (savedAt is { } time)
-        {
-            body = VStack(4,
-                TextBlock($"已保存 · {time:HH:mm:ss}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                Caption(backupName is null
-                    ? "本次启动已完成首次备份，后续写回不再重复备份。"
-                    : $"写回前已备份到 {backupName}"));
-        }
-        else
-        {
-            body = VStack(4,
-                TextBlock("修改即写回").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                Caption($"改动会立即写入 config.json；本次启动的首次写回前自动备份，保留最近 {ConfigStore.MaxBackups} 份。"));
-        }
-
-        // 左侧竖条取主题色：这是「主题色改动即时反映到界面」的最小可视化证据，
-        // 其余业务组件后续同样从 ThemeState 取强调色（ADR-12 决策三）。
-        return Border(
-            HStack(12,
-                Border(Empty()).Width(3).Height(34).CornerRadius(2).Background(accent),
-                body))
-            .Padding(14)
-            .CornerRadius(8)
-            .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1);
-    }
-
-    /// <summary>三态开关（<c>bool?</c>）：<c>null</c> 表示老配置未表态，必须与「关」区分开。</summary>
-    private Element TriStateRow(string label, string description, bool? value, Action<bool?> apply) =>
-        SettingRow(
-            label,
-            description,
-            ThreeStateCheckBox(value, v =>
-            {
-                if (v == value)
-                {
-                    return;
-                }
-
-                apply(v);
-            }).AutomationName(label));
-
-    private static Element SettingRow(string label, string description, Element control) =>
-        HStack(16,
-            VStack(4,
-                TextBlock(label),
-                Caption(description)).Width(320),
-            control);
-
-    /// <summary>字段生效时机的标记，只出现在真正即时生效或需要重启的字段上。</summary>
-    private static Element NoteChip(string text) =>
-        Caption($"· {text}").Foreground(Theme.SecondaryText);
-
-    /// <summary>尚未接编辑的字段：明确写出原因，避免被当成缺陷。</summary>
-    private static Element ReadOnlyRow(string label, string value, Element? trailing = null) =>
-        HStack(16,
-            VStack(4,
-                TextBlock(label),
-                Caption("暂不可编辑")).Width(320),
-            HStack(12,
-                trailing ?? Empty(),
-                TextBlock(value).Foreground(Theme.SecondaryText).TextWrapping()));
-
     /// <summary>纯信息行（关于页），没有「可编辑」语义。</summary>
     private static Element InfoRow(string label, string value) =>
         HStack(16,
@@ -1671,18 +1432,6 @@ public sealed class SettingsPage : Component
             .CornerRadius(4)
             .Background(color)
             .WithBorder(Theme.CardStroke, 1);
-
-    private static Element Section(string title, string note, Element content) =>
-        Border(
-            VStack(12,
-                VStack(4,
-                    SubHeading(title),
-                    Caption(note)),
-                content)
-        ).Padding(18)
-         .CornerRadius(8)
-         .Background(Theme.CardBackground)
-         .WithBorder(Theme.CardStroke, 1);
 
     private static string OnOff(bool value) => value ? "已开启" : "已关闭";
 

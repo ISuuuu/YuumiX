@@ -32,6 +32,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="Microsoft.UI.Reactor" />
+    <!-- 设置项容器（SettingsCard/SettingsExpander）。控件模板在包内 .pri 中，
+         裁剪/AOT 时必须保留该程序集，见 Controls/ToolkitXamlMetadata.cs。 -->
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
   </ItemGroup>
 
   <ItemGroup>
