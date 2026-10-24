@@ -21,6 +21,8 @@ public static class PageCatalog
         [
             "挑战勋章装配",
             "资产统计",
+            "战利品进度面板完整化（线形进度条+逐条结果列表，P2）",
+            "战利品 LCU 真实图标替换 emoji 缩略（P2）",
         ]),
         [AppRoute.Search] = ("战绩查询", "src/views/Search.vue",
         [

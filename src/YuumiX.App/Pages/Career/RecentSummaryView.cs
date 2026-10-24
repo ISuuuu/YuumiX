@@ -31,21 +31,29 @@ internal static class RecentSummaryView
         bool loadingTeammates = false,
         Action<RecentTeammate>? onClickTeammate = null)
     {
-        const double TotalBarWidth = 920;
-        const double RightSectionWidth = 220;
-        double leftSectionWidth = TotalBarWidth - RightSectionWidth;
-
         if (summary.IsEmpty)
         {
             return CareerVisuals.Card(
-                HStack(0,
-                    Caption("最近没有可统计的对局（重开局不计入统计）。")
-                        .Width(leftSectionWidth)
-                        .VAlign(VerticalAlignment.Center),
-                    ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
-                        .Width(120)
-                        .HAlign(HorizontalAlignment.Right)
-                        .VAlign(VerticalAlignment.Center)),
+                Grid(
+                    [GridSize.Star(), GridSize.Auto],
+                    [GridSize.Auto],
+                    [
+                        Caption("最近没有可统计的对局（重开局不计入统计）。")
+                            .VAlign(VerticalAlignment.Center)
+                            .Grid(row: 0, column: 0),
+                        ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
+                            .Width(140)
+                            .HAlign(HorizontalAlignment.Right)
+                            .VAlign(VerticalAlignment.Center)
+                            .Set(cb =>
+                            {
+                                if (cb.SelectedIndex != currentQueueIndex && currentQueueIndex >= 0 && currentQueueIndex < queueLabels.Length)
+                                {
+                                    cb.SelectedIndex = currentQueueIndex;
+                                }
+                            })
+                            .Grid(row: 0, column: 1),
+                    ]),
                 padding: 12);
         }
 
@@ -109,7 +117,6 @@ internal static class RecentSummaryView
         }
 
         Element leftSection = HStack(12, leftItems.ToArray())
-            .Width(leftSectionWidth)
             .VAlign(VerticalAlignment.Center);
 
         // 右侧操作：最近队友按钮（带弹层） + 队列下拉
@@ -127,15 +134,27 @@ internal static class RecentSummaryView
         Element rightSection = HStack(8,
             flyoutButton,
             ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
-                .Width(110)
-                .AutomationName("队列筛选"))
-            .Width(RightSectionWidth)
+                .Width(140)
+                .AutomationName("队列筛选")
+                .Set(cb =>
+                {
+                    if (cb.SelectedIndex != currentQueueIndex && currentQueueIndex >= 0 && currentQueueIndex < queueLabels.Length)
+                    {
+                        cb.SelectedIndex = currentQueueIndex;
+                    }
+                }))
             .VAlign(VerticalAlignment.Center)
             .HAlign(HorizontalAlignment.Right);
 
-        return CareerVisuals.Card(
-            HStack(0, leftSection, rightSection),
-            padding: 10);
+        Element barGrid = Grid(
+            [GridSize.Star(), GridSize.Auto],
+            [GridSize.Auto],
+            [
+                leftSection.Grid(row: 0, column: 0),
+                rightSection.Grid(row: 0, column: 1),
+            ]);
+
+        return CareerVisuals.Card(barGrid, padding: 10);
     }
 
     private static Element TeammatesFlyout(
@@ -260,19 +279,22 @@ internal static class RecentSummaryView
             .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
             .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
 
+    /// <summary>低胜率徽标色（裁决 D5）：旧版用灰蓝 #94A3B8 而不是失败红——低胜率不是"失败"，只是平淡。</summary>
+    private const string LowWinRateColor = "#FF94A3B8";
+
     private static Element ChampionCell(RecentChampionStat champion, GameDataCatalog catalog, YuumiPalette palette)
     {
         double wr = champion.Games > 0 ? (champion.Wins * 100.0 / champion.Games) : 0;
         string badgeBg = wr >= 60
             ? CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x33)
             : (wr < 45
-                ? CareerVisuals.WithAlpha(CareerVisuals.LoseText, 0x33)
+                ? CareerVisuals.WithAlpha(LowWinRateColor, 0x33)
                 : CareerVisuals.WithAlpha(palette.Accent, 0x14));
 
         string badgeFg = wr >= 60
             ? CareerVisuals.WinText
             : (wr < 45
-                ? CareerVisuals.LoseText
+                ? LowWinRateColor
                 : palette.Accent);
 
         string champName = catalog.Champions.TryGetValue(champion.ChampionId, out string? name) && !string.IsNullOrWhiteSpace(name)
@@ -313,7 +335,7 @@ internal static class RecentSummaryView
                 HStack(6,
                     TextBlock($"胜率: {champion.WinRateText}")
                         .FontSize(11)
-                        .Foreground(wr >= 60 ? CareerVisuals.WinText : (wr < 45 ? CareerVisuals.LoseText : palette.Accent)),
+                        .Foreground(wr >= 60 ? CareerVisuals.WinText : (wr < 45 ? LowWinRateColor : palette.Accent)),
                     TextBlock($"({champion.Wins}胜 {champion.Losses}负)")
                         .FontSize(11)
                         .Foreground(Theme.SecondaryText)),

@@ -31,7 +31,8 @@ public interface ICareerService
     /// <summary>
     /// 获取当前登录账号的战利品与材料概览。
     /// </summary>
-    Task<PlayerLootOverview> GetLootOverviewAsync(
+    /// <returns>概览（可为全空的成功结果）；未连接或读取失败时为 <c>null</c>，界面据此区分"失败提示"与"空账号"。</returns>
+    Task<PlayerLootOverview?> GetLootOverviewAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default);
 
@@ -54,9 +55,12 @@ public interface ICareerService
         IProgress<LootOperationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>三合一重铸选中的碎片（物品总数需为 3 的倍数）。</summary>
+    /// <summary>
+    /// 三合一重铸选中的碎片。按 lootId 分组、每组取 3 的倍数、余数保留；
+    /// 一组都凑不齐时返回失败结果（界面提示"无法重随"）。
+    /// </summary>
     Task<LootOperationResult> RerollLootsAsync(
-        IReadOnlyList<string> lootIds,
+        IReadOnlyList<(string LootId, int Count)> items,
         IProgress<LootOperationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
@@ -66,14 +70,11 @@ public interface ICareerService
         IProgress<LootOperationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>锻造钥匙（3 碎片 -> 1 钥匙）。</summary>
-    Task<LootOperationResult> ForgeKeyAsync(
-        CancellationToken cancellationToken = default);
-
     /// <summary>
     /// 获取当前登录账号的全英雄熟练度与里程碑概览。
     /// </summary>
-    Task<MasteryOverview> GetMasteryOverviewAsync(
+    /// <returns>概览（可为全空的成功结果）；未连接或读取失败时为 <c>null</c>，界面据此区分"失败提示"与"空账号"。</returns>
+    Task<MasteryOverview?> GetMasteryOverviewAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default);
 

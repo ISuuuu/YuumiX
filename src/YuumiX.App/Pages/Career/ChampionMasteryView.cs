@@ -45,22 +45,30 @@ internal static class ChampionMasteryView
         int sortIndex = 0,
         Action<int>? onSortChanged = null)
     {
-        IReadOnlyList<ChampionMasteryItem> rawChampions = overview.Champions.Count > 0
-            ? overview.Champions
-            : MasteryOverview.Sample.Champions;
+        // D1：概览为空给普通空态；"读取失败"的提示（获取英雄熟练度失败）由页面在概览为 null 时给出。
+        if (overview.Champions.Count == 0)
+        {
+            return CareerVisuals.Card(
+                VStack(10,
+                    TextBlock("该账号暂无英雄熟练度记录")
+                        .FontSize(13)
+                        .Foreground(Theme.SecondaryText),
+                    Button("重试", onRefresh).Height(30).Padding(14, 0).FontSize(12).AutomationName("重试加载熟练度")),
+                padding: 24);
+        }
 
         IReadOnlyList<ChampionMasteryItem> champions = FilterAndSort(
-            rawChampions,
+            overview.Champions,
             searchQuery,
             chestFilterIndex,
             levelFilterIndex,
             sortIndex,
             catalog);
 
-        int totalCount = overview.TotalChampions > 0 ? overview.TotalChampions : 105;
-        long totalPoints = overview.TotalPoints > 0 ? overview.TotalPoints : 677046;
-        ChampionMasteryItem? maxLevel = overview.MaxLevelHero ?? rawChampions.FirstOrDefault();
-        int eligibleChests = overview.EligibleChestCount > 0 ? overview.EligibleChestCount : 105;
+        int totalCount = overview.TotalChampions;
+        long totalPoints = overview.TotalPoints;
+        ChampionMasteryItem? maxLevel = overview.MaxLevelHero;
+        int eligibleChests = overview.EligibleChestCount;
         int grantedChests = overview.GrantedChestCount;
 
         return VStack(14,

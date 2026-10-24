@@ -214,26 +214,152 @@ public sealed class CareerServiceTests
         Assert.Equal(2, server.Requests.Count);
     }
 
+    /// <summary>D1：未连接返回 <c>null</c>（界面给失败提示），而不是样例数据。</summary>
     [Fact]
-    public async Task GetLootOverviewAsync_ReturnsSampleWithoutConnection()
+    public async Task GetLootOverviewAsync_ReturnsNullWithoutConnection()
     {
         var service = new CareerService(() => null);
-        PlayerLootOverview loot = await service.GetLootOverviewAsync();
+        PlayerLootOverview? loot = await service.GetLootOverviewAsync();
 
-        Assert.NotEmpty(loot.OpenableItems);
-        Assert.NotEmpty(loot.InventoryItems);
-        Assert.True(loot.TotalKeys > 0);
+        Assert.Null(loot);
     }
 
+    /// <summary>D1：读取失败同样返回 <c>null</c>，绝不静默回退样例数据（演示数据会以假乱真）。</summary>
     [Fact]
-    public async Task GetMasteryOverviewAsync_ReturnsSampleWithoutConnection()
+    public async Task GetLootOverviewAsync_ReturnsNullOnFailure()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.NotFound();
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        PlayerLootOverview? loot = await service.GetLootOverviewAsync();
+
+        Assert.Null(loot);
+    }
+
+    /// <summary>空账号（载荷为空数组）是成功结果：返回全空概览而不是 <c>null</c>，界面给普通空态。</summary>
+    [Fact]
+    public async Task GetLootOverviewAsync_ReturnsEmptyOverviewForFreshAccount()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("[]");
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        PlayerLootOverview? loot = await service.GetLootOverviewAsync();
+
+        Assert.NotNull(loot);
+        Assert.Empty(loot!.OpenableItems);
+        Assert.Empty(loot.InventoryItems);
+        Assert.Equal(0, loot.TotalKeys);
+    }
+
+    /// <summary>
+    /// KeyLootId 配对（A2）：需要钥匙的箱子必须带出对应的钥匙 ID 与拥有数——
+    /// 杰作宝箱（premium）配 MATERIAL_key_premium，普通宝箱配 MATERIAL_key；
+    /// 缺了这条，单件开箱永远走 MATERIAL_key 兜底，杰作宝箱会消耗错钥匙。
+    /// </summary>
+    [Fact]
+    public async Task GetLootOverviewAsync_AssignsKeyLootIdByChestKind()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("""
+        [
+          { "lootId": "CHEST_hextech", "itemDesc": "海克斯科技宝箱", "count": 3, "displayCategories": "CHEST" },
+          { "lootId": "CHEST_masterwork_premium", "itemDesc": "杰作宝箱", "count": 2, "displayCategories": "CHEST" },
+          { "lootId": "MATERIAL_key", "itemDesc": "海克斯科技钥匙", "count": 4, "displayCategories": "MATERIAL" },
+          { "lootId": "MATERIAL_key_premium", "itemDesc": "杰作钥匙", "count": 1, "displayCategories": "MATERIAL" }
+        ]
+        """);
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        PlayerLootOverview? loot = await service.GetLootOverviewAsync();
+        Assert.NotNull(loot);
+
+        OpenableLootItem hextech = Assert.Single(loot!.OpenableItems, item => item.LootId == "CHEST_hextech");
+        Assert.True(hextech.NeedKey);
+        Assert.Equal("MATERIAL_key", hextech.KeyLootId);
+        Assert.Equal(4, hextech.KeyCount);
+
+        OpenableLootItem masterwork = Assert.Single(loot.OpenableItems, item => item.LootId == "CHEST_masterwork_premium");
+        Assert.Equal("MATERIAL_key_premium", masterwork.KeyLootId);
+        Assert.Equal(1, masterwork.KeyCount);
+
+        Assert.Equal(5, loot.TotalKeys);
+    }
+
+    /// <summary>D3 数据基础：库存解析必须带出 lootType / upgradeEssenceValue / parentItemStatus，
+    /// 否则永恒星碑筛选与升级前置校验（缺英雄名单、精粹费用）都无法工作。</summary>
+    [Fact]
+    public async Task GetLootOverviewAsync_ParsesUpgradeAndStatstoneFields()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("""
+        [
+          {
+            "lootId": "SKIN_RENTAL_266001",
+            "itemDesc": "仲裁圣骑 亚托克斯",
+            "displayCategories": "SKIN",
+            "lootType": "SKIN",
+            "count": 1,
+            "value": 6900,
+            "disenchantValue": 1050,
+            "itemStatus": "NOT_OWNED",
+            "parentItemStatus": "NOT_OWNED",
+            "upgradeRecipeName": "SKIN_RENTAL_266001_upgrade",
+            "upgradeEssenceValue": 5850
+          },
+          {
+            "lootId": "STATSTONE_SHARD_1",
+            "itemDesc": "永恒星碑碎片",
+            "displayCategories": "MATERIAL",
+            "lootType": "STATSTONE",
+            "count": 2,
+            "itemStatus": "NONE"
+          }
+        ]
+        """);
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        PlayerLootOverview? loot = await service.GetLootOverviewAsync();
+        Assert.NotNull(loot);
+
+        LootInventoryItem skin = Assert.Single(loot!.InventoryItems, item => item.LootId == "SKIN_RENTAL_266001");
+        Assert.Equal(5850, skin.UpgradeEssenceCost);
+        Assert.Equal("SKIN_RENTAL_266001_upgrade", skin.UpgradeRecipeName);
+        Assert.Equal("NOT_OWNED", skin.ParentItemStatus);
+
+        LootInventoryItem statstone = Assert.Single(loot.InventoryItems, item => item.LootId == "STATSTONE_SHARD_1");
+        Assert.True(statstone.IsStatstone);
+    }
+
+    /// <summary>D1：熟练度读取失败返回 <c>null</c>，绝不静默回退样例数据。</summary>
+    [Fact]
+    public async Task GetMasteryOverviewAsync_ReturnsNullWithoutConnection()
     {
         var service = new CareerService(() => null);
-        MasteryOverview mastery = await service.GetMasteryOverviewAsync();
+        MasteryOverview? mastery = await service.GetMasteryOverviewAsync();
 
-        Assert.NotEmpty(mastery.Champions);
-        Assert.True(mastery.TotalChampions > 0);
-        Assert.NotNull(mastery.MaxLevelHero);
+        Assert.Null(mastery);
+    }
+
+    /// <summary>空账号（载荷为空数组）是成功结果：返回全空概览而不是 <c>null</c>。</summary>
+    [Fact]
+    public async Task GetMasteryOverviewAsync_ReturnsEmptyOverviewForFreshAccount()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("[]");
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        MasteryOverview? mastery = await service.GetMasteryOverviewAsync();
+
+        Assert.NotNull(mastery);
+        Assert.Empty(mastery!.Champions);
+        Assert.Equal(0, mastery.TotalChampions);
     }
 
     [Fact]
@@ -306,8 +432,9 @@ public sealed class CareerServiceTests
         Assert.Equal("至臻 灵魂莲华 提莫", Assert.Single(result.Rewards));
     }
 
+    /// <summary>钥匙碎片合成走数量弹窗（旧版 batchOpenLoots 语义）：固定 FORGE 配方 + repeatCount。</summary>
     [Fact]
-    public async Task ForgeKeyAsync_SendsCraftRequest()
+    public async Task OpenLootAsync_ForgesKeysWithFixedRecipeAndRepeatCount()
     {
         await using FakeLcuServer server = FakeLcuServer.Start();
         server.Handler = request =>
@@ -322,10 +449,11 @@ public sealed class CareerServiceTests
         using LcuHttpTransport transport = NewTransport(server);
         var service = new CareerService(() => transport);
 
-        var result = await service.ForgeKeyAsync();
+        var result = await service.OpenLootAsync("MATERIAL_key_fragment_FORGE", ["MATERIAL_key_fragment"], 3);
 
         Assert.True(result.Success);
-        Assert.Equal(1, result.SucceededCount);
+        Assert.Equal(3, result.SucceededCount);
+        Assert.Equal(3, server.Requests.Count(r => r.Path.Contains("/craft")));
     }
 
     [Fact]
@@ -356,6 +484,92 @@ public sealed class CareerServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(1, result.SucceededCount);
+    }
+
+    /// <summary>
+    /// 重铸余数语义（A3）：按 lootId 分组后每组只取 3 的倍数、余数保留——
+    /// 5 个同类碎片只发 1 次请求消耗 3 个；一个整组都凑不齐时整体拒绝。
+    /// </summary>
+    [Fact]
+    public async Task RerollLootsAsync_SendsWholeGroupsOnlyAndKeepsRemainder()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request =>
+        {
+            if (request.Path == "/lol-loot/v1/recipes/initial-item/CHAMPION_RENTAL_1")
+            {
+                return FakeResponse.Ok("""[ { "recipeName": "CHAMPION_RENTAL_reroll" } ]""");
+            }
+            if (request.Path.StartsWith("/lol-loot/v1/recipes/CHAMPION_RENTAL_reroll/craft", StringComparison.Ordinal))
+            {
+                return FakeResponse.Ok("""{ "added": [ { "playerLoot": { "itemDesc": "永久英雄" } } ] }""");
+            }
+            return FakeResponse.NotFound();
+        };
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        // 5 个碎片 → 只发 1 组（3 个），余 2 个保留
+        var result = await service.RerollLootsAsync([("CHAMPION_RENTAL_1", 5)]);
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.SucceededCount);
+
+        var craft = Assert.Single(server.Requests, r => r.Path.Contains("/craft"));
+        Assert.Equal("""["CHAMPION_RENTAL_1","CHAMPION_RENTAL_1","CHAMPION_RENTAL_1"]""", craft.Body);
+    }
+
+    /// <summary>不同 lootId 各自成组，互不混组（旧版按分类可混组，本轮口径按 lootId）。</summary>
+    [Fact]
+    public async Task RerollLootsAsync_GroupsPerLootId()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request =>
+        {
+            if (request.Path.EndsWith("CHAMPION_RENTAL_1", StringComparison.Ordinal))
+            {
+                return FakeResponse.Ok("""[ { "recipeName": "CHAMPION_RENTAL_1_reroll" } ]""");
+            }
+            if (request.Path.EndsWith("SKIN_RENTAL_1", StringComparison.Ordinal))
+            {
+                return FakeResponse.Ok("""[ { "recipeName": "SKIN_RENTAL_1_reroll" } ]""");
+            }
+            if (request.Path.Contains("/craft"))
+            {
+                return FakeResponse.Ok("{}");
+            }
+            return FakeResponse.NotFound();
+        };
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        // 英雄 4 个（1 组）+ 皮肤 2 个（不足一组，整类跳过）→ 只有英雄发 1 次请求
+        var result = await service.RerollLootsAsync(
+        [
+            ("CHAMPION_RENTAL_1", 4),
+            ("SKIN_RENTAL_1", 2),
+        ]);
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.SucceededCount);
+        Assert.All(server.Requests.Where(r => r.Path.Contains("/craft")), r =>
+            Assert.Equal("""["CHAMPION_RENTAL_1","CHAMPION_RENTAL_1","CHAMPION_RENTAL_1"]""", r.Body));
+    }
+
+    /// <summary>一组都凑不齐时给失败结果（界面据此提示"无法重随"），不打任何 craft 请求。</summary>
+    [Fact]
+    public async Task RerollLootsAsync_FailsWhenNoGroupAvailable()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        var result = await service.RerollLootsAsync([("CHAMPION_RENTAL_1", 2)]);
+
+        Assert.False(result.Success);
+        Assert.Empty(server.Requests);
     }
 
     private static LcuHttpTransport NewTransport(FakeLcuServer server) => new(

@@ -59,6 +59,31 @@ internal static class SearchVisuals
         return Icon(path, size, 3);
     }
 
+    /// <summary>符文图标。</summary>
+    public static Element RuneIcon(GameDataCatalog catalog, int runeId, double size)
+    {
+        string? path = runeId > 0 && catalog.Runes.TryGetValue(runeId, out string? iconPath) ? iconPath : null;
+        return Icon(path, size, size / 2);
+    }
+
+    /// <summary>海克斯强化图标（仅 2400/2450 队列）。带名称提示。</summary>
+    public static Element AugmentIcon(GameDataCatalog catalog, int augmentId, double size)
+    {
+        string? iconPath = null;
+        string name = "海克斯强化";
+        if (catalog.Augments.TryGetValue(augmentId, out CherryAugmentDetail? aug))
+        {
+            iconPath = aug.IconPath;
+            name = aug.Name;
+        }
+
+        return Icon(iconPath, size, 4)
+            .WithToolTip(TextBlock(name));
+    }
+
+    /// <summary>是否为带海克斯强化的队列（2400 海克斯大乱斗 / 2450 经典海斗）。</summary>
+    public static bool IsAugmentQueue(int queueId) => queueId is 2400 or 2450;
+
     /// <summary>
     /// 装备行：前六格连排 + 固定空档 + 守卫格。
     ///
