@@ -6,6 +6,7 @@ using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Pages.Career;
 using YuumiX.App.Pages.Search;
+using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Features.GameInfo.Models;
@@ -18,6 +19,7 @@ public sealed record PlayerCardProps(
     GameInfoPlayer? PlayerData,
     int PremadeIdx,
     int Index,
+    YuumiPalette Palette,
     string? SelfPuuid = null,
     IReadOnlyDictionary<string, SavedPlayerMarker>? SavedMap = null,
     Action<string, SummonerProfile?>? OnNavigateCareer = null,
@@ -35,6 +37,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         var p = Props.Player;
         var d = Props.PlayerData;
         int premadeIdx = Props.PremadeIdx;
+        var palette = Props.Palette;
 
         int champId = p.ChampionId > 0 ? p.ChampionId : (d?.ChampionId ?? 0);
         string avatarAsset = champId > 0
@@ -44,8 +47,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         var masteryDetail = ChampionMasteryDetail.Create(d?.Masteries, champId);
 
         var premadeColor = premadeIdx >= 0 ? PremadeColors.GetColor(premadeIdx) : null;
-        string bg = premadeColor?.Bg ?? "#12FFFFFF";
-        string border = premadeColor?.Border ?? "#18FFFFFF";
+        string bg = premadeColor?.Bg ?? palette.HoverBg;
+        string border = premadeColor?.Border ?? palette.BorderSubtle;
 
         // 头像区（42x42，圆形）
         int xpProgress = d?.Info?.PercentCompleteForNextLevel ?? 0;
@@ -121,6 +124,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         var nameText = TextBlock(displayName)
             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .FontSize(12)
+            .Foreground(palette.TextPrimary)
             .TextTrimming(TextTrimming.CharacterEllipsis)
             .VAlign(VerticalAlignment.Center);
 
@@ -147,8 +151,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         if (isSelf)
         {
             nameRowItems.Add(
-                Border(TextBlock("我").FontSize(8.5).Foreground("#FF3B82F6"))
-                    .Background("#203B82F6")
+                Border(TextBlock("我").FontSize(8.5).Foreground(palette.Accent))
+                    .Background(palette.AccentAlpha15)
                     .CornerRadius(2.5)
                     .Padding(2.5, 0.5)
                     .Margin(3, 0, 0, 0)
@@ -171,8 +175,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             bool isAlly = d.FateFlag == "ally";
             string fateText = FateBadgeVisuals.GetBadgeText(d);
-            string fateBg = isAlly ? "#2010B981" : "#20EF4444";
-            string fateFg = isAlly ? "#FF10B981" : "#FFEF4444";
+            string fateBg = isAlly ? palette.WinBg : palette.LoseBg;
+            string fateFg = isAlly ? palette.WinText : palette.LoseText;
 
             nameRowItems.Add(
                 Border(TextBlock(fateText).FontSize(8.5).Foreground(fateFg))
@@ -189,15 +193,15 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
             nameRowItems.Add(
-                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8.5)
+                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8.5, palette)
                     .Margin(3, 0, 0, 0));
         }
 
         if (d?.Streak is { Count: >= 2 })
         {
             string streakText = $"{d.Streak.Count}{(d.Streak.IsWin ? "胜" : "负")}";
-            string streakFg = d.Streak.IsWin ? "#FF10B981" : "#FFEF4444";
-            string streakBg = d.Streak.IsWin ? "#2010B981" : "#20EF4444";
+            string streakFg = d.Streak.IsWin ? palette.WinText : palette.LoseText;
+            string streakBg = d.Streak.IsWin ? palette.WinBg : palette.LoseBg;
 
             nameRowItems.Add(
                 Border(TextBlock(streakText).FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(streakFg))
@@ -227,21 +231,21 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .VAlign(VerticalAlignment.Center),
                 TextBlock($"{d.Solo.TierText} {d.Solo.LeaguePoints} LP · {d.Solo.Wins}胜")
                     .FontSize(9.5)
-                    .Foreground("#FFAAAAAA")
+                    .Foreground(palette.TextSecondary)
                     .TextTrimming(TextTrimming.CharacterEllipsis)
                     .VAlign(VerticalAlignment.Center)
             ).WithToolTip(TextBlock(BuildRankTooltip("单双排", d.Solo)));
 
             var flexElement = HStack(3,
                 CareerVisuals.RankedMedal(d.Flex!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(TextBlock("灵活").FontSize(8).Foreground("#FF10B981"))
-                    .Background("#2010B981")
+                Border(TextBlock("灵活").FontSize(8).Foreground(palette.WinText))
+                    .Background(palette.WinBg)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .VAlign(VerticalAlignment.Center),
                 TextBlock($"{d.Flex.TierText} {d.Flex.LeaguePoints} LP · {d.Flex.Wins}胜")
                     .FontSize(9.5)
-                    .Foreground("#FFAAAAAA")
+                    .Foreground(palette.TextSecondary)
                     .TextTrimming(TextTrimming.CharacterEllipsis)
                     .VAlign(VerticalAlignment.Center)
             ).WithToolTip(TextBlock(BuildRankTooltip("灵活排", d.Flex)));
@@ -259,7 +263,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .VAlign(VerticalAlignment.Center),
                 TextBlock($"{d.Solo.TierText} {d.Solo.LeaguePoints} LP · {d.Solo.Wins}胜")
                     .FontSize(9.5)
-                    .Foreground("#FFAAAAAA")
+                    .Foreground(palette.TextSecondary)
                     .TextTrimming(TextTrimming.CharacterEllipsis)
                     .VAlign(VerticalAlignment.Center)
             ).WithToolTip(TextBlock(BuildRankTooltip("单双排", d.Solo)));
@@ -268,14 +272,14 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             rankRow = HStack(3,
                 CareerVisuals.RankedMedal(d!.Flex!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(TextBlock("灵活").FontSize(8).Foreground("#FF10B981"))
-                    .Background("#2010B981")
+                Border(TextBlock("灵活").FontSize(8).Foreground(palette.WinText))
+                    .Background(palette.WinBg)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .VAlign(VerticalAlignment.Center),
                 TextBlock($"{d.Flex.TierText} {d.Flex.LeaguePoints} LP · {d.Flex.Wins}胜")
                     .FontSize(9.5)
-                    .Foreground("#FFAAAAAA")
+                    .Foreground(palette.TextSecondary)
                     .TextTrimming(TextTrimming.CharacterEllipsis)
                     .VAlign(VerticalAlignment.Center)
             ).WithToolTip(TextBlock(BuildRankTooltip("灵活排", d.Flex)));
@@ -284,7 +288,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             rankRow = TextBlock("无段位")
                 .FontSize(9.5)
-                .Foreground("#FF888888")
+                .Foreground(palette.TextMuted)
                 .WithToolTip(TextBlock("单双排: 无段位\n灵活排: 无段位"));
         }
 
@@ -292,24 +296,24 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         Element statsRow;
         if (d?.Loading == true)
         {
-            statsRow = TextBlock("正在加载战绩...").FontSize(9.5).Foreground("#FF888888");
+            statsRow = TextBlock("正在加载战绩...").FontSize(9.5).Foreground(palette.TextMuted);
         }
         else if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
-            statsRow = TextBlock("战绩已隐藏").FontSize(9.5).Foreground("#FF888888");
+            statsRow = TextBlock("战绩已隐藏").FontSize(9.5).Foreground(palette.TextMuted);
         }
         else if (d?.WinRate.HasValue == true)
         {
             int wr = (int)Math.Round(d.WinRate.Value);
-            string wrColor = wr >= 70 ? "#FF10B981" : wr >= 50 ? "#FF3B82F6" : "#FF94A3B8";
+            string wrColor = wr >= 70 ? palette.WinText : wr >= 50 ? palette.Accent : palette.TextMuted;
             string kdaStr = d.AvgKda.HasValue ? $"KDA {d.AvgKda.Value:F2}" : string.Empty;
 
             string kdaColor = d.AvgKda switch
             {
                 >= 5.0 => "#FFFFD700",
-                >= 4.0 => "#FF3B82F6",
-                >= 3.0 => "#FF10B981",
-                _ => "#FFCCCCCC",
+                >= 4.0 => palette.Accent,
+                >= 3.0 => palette.WinText,
+                _ => palette.TextSecondary,
             };
 
             int totalGames = (d.WinCount ?? 0) + (d.LossesCount ?? 0);
@@ -340,7 +344,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             var statsItems = new List<Element>
             {
                 wrBlock,
-                TextBlock(" · ").FontSize(9.5).Foreground("#FF888888"),
+                TextBlock(" · ").FontSize(9.5).Foreground(palette.TextMuted),
                 kdaBlock,
             };
 
@@ -348,7 +352,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         }
         else
         {
-            statsRow = TextBlock("暂无战绩").FontSize(9.5).Foreground("#FF888888");
+            statsRow = TextBlock("暂无战绩").FontSize(9.5).Foreground(palette.TextMuted);
         }
 
         var topContent = Grid(
@@ -374,9 +378,9 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     Border(
                         TextBlock($"Lv.{masteryDetail.Level} {masteryDetail.FormattedPoints}")
                             .FontSize(8.5)
-                            .Foreground("#FFAAAAAA")
+                            .Foreground(palette.TextSecondary)
                     )
-                    .Background("#15FFFFFF")
+                    .Background(palette.HoverBg)
                     .CornerRadius(3)
                     .Padding(3, 1)
                     .VAlign(VerticalAlignment.Center)
@@ -399,8 +403,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             else if (masteryDetail?.IsPracticing == true)
             {
                 leftItems.Add(
-                    Border(TextBlock("练英雄").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFEF4444"))
-                        .Background("#25EF4444")
+                    Border(TextBlock("练英雄").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.LoseText))
+                        .Background(palette.LoseBg)
                         .CornerRadius(3)
                         .Padding(3, 1)
                         .Margin(3, 0, 0, 0)
@@ -424,10 +428,10 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                 var posPill = Border(
                     TextBlock(posStr)
                         .FontSize(8.5)
-                        .Foreground("#FFAAAAAA")
+                        .Foreground(palette.TextSecondary)
                         .VAlign(VerticalAlignment.Center)
                 )
-                .Background("#12FFFFFF")
+                .Background(palette.HoverBg)
                 .CornerRadius(3)
                 .Padding(3, 1)
                 .WithToolTip(TextBlock(posTip));

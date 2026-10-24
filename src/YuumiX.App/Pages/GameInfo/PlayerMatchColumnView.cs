@@ -45,7 +45,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var palette = Props.Palette;
 
         var premadeColor = premadeIdx >= 0 ? PremadeColors.GetColor(premadeIdx) : null;
-        string headerBg = premadeColor?.Bg ?? "#0DFFFFFF";
+        string headerBg = premadeColor?.Bg ?? palette.HoverBg;
 
         // 阵营顶部色彩指示（根据 mapSide 蓝/红互换）
         string topBorderColor;
@@ -74,33 +74,23 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         // 顶部概要头部（5 列模式与 10 列模式高度和排布不同）
         var header = isTenCol
-            ? RenderTenColHeader(p, d, headerBg, services, savedInfo)
-            : RenderFiveColHeader(p, d, headerBg, services, savedInfo);
+            ? RenderTenColHeader(p, d, headerBg, services, savedInfo, palette)
+            : RenderFiveColHeader(p, d, headerBg, services, savedInfo, palette);
 
         // 战绩列表（前 10 局）
         var matchesList = RenderMatchesList(d, isTenCol, palette, services, encounteredGameIds);
 
-        var colContent = VStack(0, header, matchesList);
+        var topBar = Border(Empty())
+            .Height(3)
+            .Background(topBorderColor);
 
+        var colContent = VStack(0, topBar, header, matchesList);
+
+        int rightBorder = Props.IsTeamSeparator ? 2 : (Props.IsLast ? 0 : 1);
         var columnBorder = Border(colContent)
             .Background("#00000000")
-            .WithBorder(topBorderColor, 3); // 顶部 3px 阵营指示线
-
-        if (Props.IsTeamSeparator)
-        {
-            // 双方队伍中间的突出分割线
-            return Border(columnBorder)
-                .WithBorder(topBorderColor, 0)
-                .BorderThickness(new Thickness(0, 0, 2, 0))
-                .BorderBrush("#30FFFFFF");
-        }
-
-        if (!Props.IsLast)
-        {
-            return Border(columnBorder)
-                .BorderThickness(new Thickness(0, 0, 1, 0))
-                .BorderBrush("#15FFFFFF");
-        }
+            .BorderThickness(new Thickness(0, 0, rightBorder, 0))
+            .BorderBrush(palette.BorderSubtle);
 
         return columnBorder;
     }
@@ -110,7 +100,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         GameInfoPlayer? d,
         string bg,
         AppServices services,
-        SavedPlayerMarker? savedInfo)
+        SavedPlayerMarker? savedInfo,
+        YuumiPalette palette)
     {
         int champId = p.ChampionId > 0 ? p.ChampionId : (d?.ChampionId ?? 0);
         string avatarAsset = champId > 0
@@ -179,6 +170,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var nameText = TextBlock(displayName)
             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .FontSize(11.5)
+            .Foreground(palette.TextPrimary)
             .TextTrimming(TextTrimming.CharacterEllipsis)
             .VAlign(VerticalAlignment.Center);
 
@@ -212,8 +204,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             bool isAlly = d.FateFlag == "ally";
             string fateText = FateBadgeVisuals.GetBadgeText(d);
-            string fateBg = isAlly ? "#2010B981" : "#20EF4444";
-            string fateFg = isAlly ? "#FF10B981" : "#FFF87171";
+            string fateBg = isAlly ? palette.WinBg : palette.LoseBg;
+            string fateFg = isAlly ? palette.WinText : palette.LoseText;
 
             nameRowItems.Add(
                 Border(TextBlock(fateText).FontSize(8.5).Foreground(fateFg))
@@ -229,7 +221,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
             nameRowItems.Add(
-                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8.5)
+                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8.5, palette)
                     .Margin(3, 0, 0, 0));
         }
 
@@ -240,13 +232,13 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         if (d?.WinCount.HasValue == true && d?.LossesCount.HasValue == true)
         {
-            summaryItems.Add(TextBlock($"{d.WinCount}胜").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FF10B981"));
-            summaryItems.Add(TextBlock($"{d.LossesCount}负").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFF43F5E").Margin(2, 0, 4, 0));
+            summaryItems.Add(TextBlock($"{d.WinCount}胜").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.WinText));
+            summaryItems.Add(TextBlock($"{d.LossesCount}负").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.LoseText).Margin(2, 0, 4, 0));
         }
         else if (d?.WinRate.HasValue == true)
         {
             int wr = (int)Math.Round(d.WinRate.Value);
-            string wrColor = wr >= 50 ? "#FF10B981" : "#FFF43F5E";
+            string wrColor = wr >= 50 ? palette.WinText : palette.LoseText;
             summaryItems.Add(TextBlock($"{wr}%").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(wrColor).Margin(0, 0, 4, 0));
         }
 
@@ -256,7 +248,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             string shortRank = ShortRank(activeRank.Tier, activeRank.Division);
             var rankBlock = HStack(2,
                 CareerVisuals.RankedMedal(activeRank.Tier, 12).VAlign(VerticalAlignment.Center),
-                TextBlock(shortRank).FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground("#FFAAAAAA").VAlign(VerticalAlignment.Center)
+                TextBlock(shortRank).FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.TextSecondary).VAlign(VerticalAlignment.Center)
             )
             .Margin(0, 0, 4, 0)
             .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail)));
@@ -268,9 +260,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             string masteryTip = $"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)";
             summaryItems.Add(
-                Border(TextBlock($"Lv.{masteryDetail.Level}").FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFCCCCCC"))
-                    .Background("#20FFFFFF")
-                    .WithBorder("#20FFFFFF", 1)
+                Border(TextBlock($"Lv.{masteryDetail.Level}").FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.TextSecondary))
+                    .Background(palette.HoverBg)
+                    .WithBorder(palette.BorderSubtle, 1)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .VAlign(VerticalAlignment.Center)
@@ -295,7 +287,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .Height(48)
             .Background(bg)
             .BorderThickness(new Thickness(0, 0, 0, 1))
-            .BorderBrush("#15FFFFFF")
+            .BorderBrush(palette.BorderSubtle)
             .Padding(6, 4);
 
         if (!string.IsNullOrEmpty(premadeTip))
@@ -311,7 +303,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         GameInfoPlayer? d,
         string bg,
         AppServices services,
-        SavedPlayerMarker? savedInfo)
+        SavedPlayerMarker? savedInfo,
+        YuumiPalette palette)
     {
         int champId = p.ChampionId > 0 ? p.ChampionId : (d?.ChampionId ?? 0);
         string avatarAsset = champId > 0
@@ -320,46 +313,18 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         var masteryDetail = ChampionMasteryDetail.Create(d?.Masteries, champId);
 
-        // 头像左侧胜率竖条（动态自底向上填充，透明度渐变，§2.3.2）
-        Element? wrBar = null;
-        if (d?.WinRate.HasValue == true)
-        {
-            double rate = d.WinRate.Value;
-            double diff = Math.Abs(rate - 50.0);
-            double strength = diff / 50.0;
-            double opacity = Math.Round(0.3 + strength * 0.7, 2);
-            double fillHeight = Math.Max(2, Math.Round(24.0 * (diff * 2.0 / 100.0)));
-            string barColor = rate >= 50 ? "#FF10B981" : "#FFF43F5E";
-
-            wrBar = Border(
-                Border(Empty())
-                    .Width(3)
-                    .Height(fillHeight)
-                    .CornerRadius(1.5)
-                    .Background(barColor)
-                    .Opacity(opacity)
-                    .VAlign(VerticalAlignment.Bottom)
-            )
-            .Width(3)
-            .Height(24)
-            .CornerRadius(1.5)
-            .Background("#1AFFFFFF")
-            .VAlign(VerticalAlignment.Center)
-            .Margin(0, 0, 3, 0)
-            .WithToolTip(TextBlock($"胜率 {rate:F0}%"));
-        }
-
-        // 英雄头像（26x26，圆角 5）
+        // ── 第 1 层：居中 36x36 英雄头像（带 Lv.x 熟练度角标 / 招牌 / 练英雄） ──
         var avatarCore = Border(
-            Component<LcuImage, LcuImageProps>(new LcuImageProps(avatarAsset, Size: 26, CornerRadius: 5))
+            Component<LcuImage, LcuImageProps>(new LcuImageProps(avatarAsset, Size: 36, CornerRadius: 6))
                 .Provide(AppHost.Context, services)
         )
-        .Width(26)
-        .Height(26)
-        .CornerRadius(5)
+        .Width(36)
+        .Height(36)
+        .CornerRadius(6)
         .WithBorder(masteryDetail?.IsTopChampion == true ? "#FFFFD700" : "#00000000", masteryDetail?.IsTopChampion == true ? 1.5 : 0);
 
-        Element avatarElement = avatarCore;
+        var avatarStack = new List<Element> { avatarCore };
+
         if (masteryDetail?.IsPracticing == true)
         {
             var practiceBadge = Border(
@@ -370,16 +335,16 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
             )
-            .Width(11)
-            .Height(11)
-            .CornerRadius(5.5)
+            .Width(12)
+            .Height(12)
+            .CornerRadius(6)
             .Background("#FFF43F5E")
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Top)
             .Margin(0, -2, -2, 0)
             .WithToolTip(TextBlock("练英雄/新手状态"));
 
-            avatarElement = Grid([GridSize.Auto], [GridSize.Auto], [avatarCore, practiceBadge]);
+            avatarStack.Add(practiceBadge);
         }
         else if (masteryDetail?.IsTopChampion == true)
         {
@@ -390,64 +355,54 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
             )
-            .Width(11)
-            .Height(11)
-            .CornerRadius(5.5)
+            .Width(12)
+            .Height(12)
+            .CornerRadius(6)
             .Background("#FFF59E0B")
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Top)
             .Margin(0, -2, -2, 0)
             .WithToolTip(TextBlock("招牌/绝活英雄"));
 
-            avatarElement = Grid([GridSize.Auto], [GridSize.Auto], [avatarCore, starBadge]);
+            avatarStack.Add(starBadge);
         }
 
-        // 头像区：含胜率竖条 + 头像，头像下方为胜负统计（带常玩位置分析 ToolTip，§2.3.2）
-        var avatarRow = HStack(0,
-            wrBar is not null ? wrBar : Empty(),
-            avatarElement);
-
-        string posTooltip = BuildPosTooltip(d);
-
-        Element avatarColumn;
-        if (d?.WinCount.HasValue == true && d?.LossesCount.HasValue == true)
+        if (masteryDetail is { Level: > 0 })
         {
-            var countsRow = HStack(1,
-                TextBlock($"{d.WinCount}胜").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FF10B981"),
-                TextBlock($"{d.LossesCount}负").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFF43F5E")
-            ).HAlign(HorizontalAlignment.Center);
+            var levelBadge = Border(
+                TextBlock($"Lv.{masteryDetail.Level}")
+                    .FontSize(7.5)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                    .Foreground("#FFFFFFFF")
+                    .HAlign(HorizontalAlignment.Center)
+                    .VAlign(VerticalAlignment.Center)
+            )
+            .Background("#D00F172A")
+            .CornerRadius(2)
+            .Padding(2, 0)
+            .HAlign(HorizontalAlignment.Center)
+            .VAlign(VerticalAlignment.Bottom)
+            .Margin(0, 0, 0, -3)
+            .WithToolTip(TextBlock($"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)"));
 
-            if (!string.IsNullOrEmpty(posTooltip))
-            {
-                countsRow = countsRow.WithToolTip(TextBlock(posTooltip));
-            }
-
-            avatarColumn = VStack(1, avatarRow, countsRow);
-        }
-        else if (d?.WinRate.HasValue == true)
-        {
-            int wr = (int)Math.Round(d.WinRate.Value);
-            string wrColor = wr >= 50 ? "#FF10B981" : "#FFF43F5E";
-            var wrBlock = TextBlock($"{wr}%").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(wrColor).HAlign(HorizontalAlignment.Center);
-            if (!string.IsNullOrEmpty(posTooltip))
-            {
-                wrBlock = wrBlock.WithToolTip(TextBlock(posTooltip));
-            }
-            avatarColumn = VStack(1, avatarRow, wrBlock);
-        }
-        else
-        {
-            avatarColumn = avatarRow;
+            avatarStack.Add(levelBadge);
         }
 
+        var avatarElement = Grid([GridSize.Auto], [GridSize.Auto], avatarStack.ToArray())
+            .HAlign(HorizontalAlignment.Center);
+
+        // ── 第 2 层：居中玩家名称 (11.5px Bold, palette.TextPrimary, 单行省略) ──
         string displayName = PlayerNameVisuals.GetDisplayName(p, d, 0);
         string searchName = PlayerNameVisuals.GetSearchName(p, d);
         bool hasSearchTarget = !string.IsNullOrEmpty(searchName);
 
         var nameText = TextBlock(displayName)
-            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-            .FontSize(11)
+            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            .FontSize(11.5)
+            .Foreground(palette.TextPrimary)
             .TextTrimming(TextTrimming.CharacterEllipsis)
+            .TextAlignment(TextAlignment.Center)
+            .HAlign(HorizontalAlignment.Center)
             .VAlign(VerticalAlignment.Center);
 
         if (hasSearchTarget)
@@ -461,9 +416,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                 });
         }
 
-        // 信息区第 1 行：玩家名 + 锁
         var nameRowItems = new List<Element> { nameText };
-
         if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
             nameRowItems.Add(
@@ -476,118 +429,156 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .WithToolTip(TextBlock("战绩已隐藏")));
         }
 
-        var nameRow = HStack(0, nameRowItems.ToArray());
+        var nameRow = HStack(0, nameRowItems.ToArray())
+            .HAlign(HorizontalAlignment.Center);
 
-        // 信息区第 2 行：熟练度微徽章（左）+ 排位段位（右）（带详细 ToolTip，§2.3.2）
-        var rankMasteryItems = new List<Element>();
-        if (masteryDetail is { Level: > 0 })
-        {
-            rankMasteryItems.Add(
-                Border(TextBlock($"Lv.{masteryDetail.Level}").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFCCCCCC"))
-                    .Background("#20FFFFFF")
-                    .WithBorder("#20FFFFFF", 1)
-                    .CornerRadius(2)
-                    .Padding(2, 0.5)
-                    .Margin(0, 0, 2, 0)
-                    .VAlign(VerticalAlignment.Center)
-                    .WithToolTip(TextBlock($"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)")));
-        }
-
+        // ── 第 3 层：居中段位图标或战绩胶囊 ──
         var activeRank = d?.PrimaryRank;
+        Element rankOrRecord;
         if (activeRank?.HasRank == true)
         {
             string shortRank = ShortRank(activeRank.Tier, activeRank.Division);
-            var rankBlock = HStack(2,
-                CareerVisuals.RankedMedal(activeRank.Tier, 11).VAlign(VerticalAlignment.Center),
-                TextBlock(shortRank).FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground("#FFAAAAAA").VAlign(VerticalAlignment.Center)
-            )
-            .Margin(2, 0, 0, 0)
-            .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail)));
-
-            rankMasteryItems.Add(rankBlock);
-        }
-
-        var rankMasteryRow = HStack(0, rankMasteryItems.ToArray());
-
-        var topSection = Grid(
-            [GridSize.Auto, GridSize.Star()],
-            [GridSize.Auto],
-            [
-                avatarColumn.Grid(row: 0, column: 0).Margin(0, 0, 4, 0).VAlign(VerticalAlignment.Top),
-                VStack(2, nameRow, rankMasteryRow)
-                    .Grid(row: 0, column: 1)
-                    .VAlign(VerticalAlignment.Top),
-            ]
-        );
-
-        // 第 3 行：常玩位置 + 标识徽标（带 ToolTip，§2.3.2）
-        string posText = "";
-        if (d?.Positions?.PrimaryPosition != null)
-        {
-            string p1 = ShortPosition(d.Positions.PrimaryPosition);
-            posText = $"{p1} {d.Positions.PrimaryPercentage}%";
-            if (d.Positions.SecondaryPosition != null && d.Positions.SecondaryPercentage > 0)
+            var rankItems = new List<Element>
             {
-                string p2 = ShortPosition(d.Positions.SecondaryPosition);
-                posText += $" / {p2} {d.Positions.SecondaryPercentage}%";
+                CareerVisuals.RankedMedal(activeRank.Tier, 13).VAlign(VerticalAlignment.Center),
+                TextBlock(shortRank)
+                    .FontSize(9)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    .Foreground(palette.TextSecondary)
+                    .VAlign(VerticalAlignment.Center),
+            };
+
+            if (d?.WinCount.HasValue == true && d?.LossesCount.HasValue == true)
+            {
+                rankItems.Add(
+                    TextBlock($"{d.WinCount}胜{d.LossesCount}负")
+                        .FontSize(8)
+                        .Foreground(palette.TextMuted)
+                        .Margin(3, 0, 0, 0)
+                        .VAlign(VerticalAlignment.Center));
             }
+
+            rankOrRecord = HStack(2, rankItems.ToArray())
+                .HAlign(HorizontalAlignment.Center)
+                .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail)));
+        }
+        else if (d?.WinCount.HasValue == true && d?.LossesCount.HasValue == true)
+        {
+            string posTip = BuildPosTooltip(d);
+            var recordPill = HStack(2,
+                TextBlock($"{d.WinCount}胜").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.WinText),
+                TextBlock($"{d.LossesCount}负").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.LoseText)
+            ).HAlign(HorizontalAlignment.Center);
+
+            if (!string.IsNullOrEmpty(posTip))
+            {
+                recordPill = recordPill.WithToolTip(TextBlock(posTip));
+            }
+
+            rankOrRecord = recordPill;
+        }
+        else if (d?.WinRate.HasValue == true)
+        {
+            int wr = (int)Math.Round(d.WinRate.Value);
+            string wrColor = wr >= 50 ? palette.WinText : palette.LoseText;
+            rankOrRecord = TextBlock($"{wr}%")
+                .FontSize(9)
+                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                .Foreground(wrColor)
+                .HAlign(HorizontalAlignment.Center);
+        }
+        else
+        {
+            rankOrRecord = TextBlock("无段位")
+                .FontSize(8.5)
+                .Foreground(palette.TextMuted)
+                .HAlign(HorizontalAlignment.Center);
         }
 
+        // ── 第 4 层：标记胶囊（宿命 / 路人集 / 连胜负 / 位置） ──
         var flagItems = new List<Element>();
+
         if (!string.IsNullOrEmpty(d?.FateFlag))
         {
             bool isAlly = d.FateFlag == "ally";
             string fateText = FateBadgeVisuals.GetBadgeText(d);
-            string fateBg = isAlly ? "#2010B981" : "#20EF4444";
-            string fateFg = isAlly ? "#FF10B981" : "#FFF87171";
+            string fateBg = isAlly ? palette.WinBg : palette.LoseBg;
+            string fateFg = isAlly ? palette.WinText : palette.LoseText;
 
             flagItems.Add(
                 Border(TextBlock(fateText).FontSize(8).Foreground(fateFg))
                     .Background(fateBg)
                     .CornerRadius(2)
-                    .Padding(2, 0.5)
-                    .Margin(0, 0, 2, 0)
+                    .Padding(3, 0.5)
+                    .Margin(1, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
         }
 
-        // 路人集徽标：10 列第三行（有 tag 显示 tag；无 tag 且无宿命徽标时显示灰「历史」，§2.3.2 / §4.8）
         if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
             flagItems.Add(
-                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8)
-                    .Margin(0, 0, 2, 0));
+                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8, palette)
+                    .Margin(1, 0));
         }
 
-        var posBlock = TextBlock(posText)
-            .FontSize(8)
-            .Foreground("#FF888888")
-            .TextTrimming(TextTrimming.CharacterEllipsis)
-            .VAlign(VerticalAlignment.Center);
-
-        if (!string.IsNullOrEmpty(posTooltip))
+        if (d?.Streak is { Count: >= 2 })
         {
-            posBlock = posBlock.WithToolTip(TextBlock(posTooltip));
+            string streakText = $"{d.Streak.Count}{(d.Streak.IsWin ? "胜" : "负")}";
+            string streakFg = d.Streak.IsWin ? palette.WinText : palette.LoseText;
+            string streakBg = d.Streak.IsWin ? palette.WinBg : palette.LoseBg;
+
+            flagItems.Add(
+                Border(TextBlock(streakText).FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(streakFg))
+                    .Background(streakBg)
+                    .CornerRadius(2)
+                    .Padding(3, 0.5)
+                    .Margin(1, 0)
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock(d.Streak.IsWin ? $"{d.Streak.Count}连胜" : $"{d.Streak.Count}连败")));
         }
 
-        var thirdRow = Grid(
-            [GridSize.Star(), GridSize.Auto],
-            [GridSize.Auto],
-            [
-                posBlock.Grid(row: 0, column: 0),
-                HStack(0, flagItems.ToArray()).Grid(row: 0, column: 1).VAlign(VerticalAlignment.Center),
-            ]
-        );
+        // 若无徽标，显示常玩位置
+        if (flagItems.Count == 0 && d?.Positions?.PrimaryPosition != null)
+        {
+            string p1 = ShortPosition(d.Positions.PrimaryPosition);
+            string posText = $"{p1} {d.Positions.PrimaryPercentage}%";
+            string posTooltip = BuildPosTooltip(d);
+            var posBlock = TextBlock(posText)
+                .FontSize(8)
+                .Foreground(palette.TextMuted)
+                .TextTrimming(TextTrimming.CharacterEllipsis)
+                .VAlign(VerticalAlignment.Center);
 
+            if (!string.IsNullOrEmpty(posTooltip))
+            {
+                posBlock = posBlock.WithToolTip(TextBlock(posTooltip));
+            }
+
+            flagItems.Add(posBlock);
+        }
+
+        Element fourthLayer = flagItems.Count > 0
+            ? HStack(2, flagItems.ToArray()).HAlign(HorizontalAlignment.Center)
+            : Border(Empty()).Height(12);
+
+        // 垂直居中堆叠布局（高度约 110px）
         string premadeTip = Props.PremadeIdx >= 0 ? $"组队 {Props.PremadeIdx + 1}" : string.Empty;
-        var headerBorder = Border(
-            VStack(1, topSection, thirdRow)
+        var headerContent = VStack(3,
+            avatarElement,
+            nameRow,
+            rankOrRecord,
+            fourthLayer
         )
-        .Height(58)
-        .Background(bg)
-        .BorderThickness(new Thickness(0, 0, 0, 1))
-        .BorderBrush("#15FFFFFF")
-        .Padding(4, 3);
+        .HAlign(HorizontalAlignment.Stretch)
+        .VAlign(VerticalAlignment.Center);
+
+        var headerBorder = Border(headerContent)
+            .Height(110)
+            .Background(bg)
+            .BorderThickness(new Thickness(0, 0, 0, 1))
+            .BorderBrush(palette.BorderSubtle)
+            .Padding(3, 6);
 
         if (!string.IsNullOrEmpty(premadeTip))
         {
@@ -607,7 +598,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (d?.Loading == true)
         {
             return VStack(0,
-                Border(TextBlock("· · ·").FontSize(11).Foreground("#FF666666").HAlign(HorizontalAlignment.Center))
+                Border(TextBlock("· · ·").FontSize(11).Foreground(palette.TextMuted).HAlign(HorizontalAlignment.Center))
                     .Margin(0, 32, 0, 0)
             );
         }
@@ -621,7 +612,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             return VStack(4,
                 TextBlock("📭").FontSize(14).HAlign(HorizontalAlignment.Center),
-                TextBlock("暂无对局记录").FontSize(8.5).Foreground("#FF666666").HAlign(HorizontalAlignment.Center)
+                TextBlock("暂无对局记录").FontSize(8.5).Foreground(palette.TextMuted).HAlign(HorizontalAlignment.Center)
             )
             .Padding(0, 24, 0, 0);
         }
@@ -642,13 +633,12 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         IReadOnlySet<long>? encounteredGameIds)
     {
         string cardBg = m.Remake
-            ? palette.RemakeCard
-            : (m.Win ? palette.WinCard : palette.LoseCard);
+            ? palette.RemakeBg
+            : (m.Win ? palette.WinBg : palette.LoseBg);
 
         string cardBorder = m.Remake
-            ? palette.RemakeAccent
-            : (m.Win ? palette.WinAccent : palette.LoseAccent);
-        cardBorder = SearchVisuals.WithAlpha(cardBorder, "55");
+            ? palette.RemakeBorder
+            : (m.Win ? palette.WinBorder : palette.LoseBorder);
 
         string championAsset = $"/lol-game-data/assets/v1/champion-icons/{m.ChampionId}.png";
 
@@ -688,7 +678,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             TextBlock(m.QueueName)
                 .FontSize(isTenCol ? 8.5 : 9)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .Foreground("#FFAAAAAA")
+                .Foreground(palette.TextSecondary)
                 .TextTrimming(TextTrimming.CharacterEllipsis)
                 .Grid(row: 0, column: 0)
         };
@@ -702,7 +692,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             topRowElements.Add(
                 TextBlock(posName)
                     .FontSize(8.5)
-                    .Foreground("#FFAAAAAA")
+                    .Foreground(palette.TextSecondary)
                     .Margin(3, 0, 3, 0)
                     .Grid(row: 0, column: topCol));
             topCol++;
@@ -716,9 +706,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                 Border(TextBlock("同局")
                         .FontSize(8)
                         .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
-                        .Foreground("#FF3B82F6"))
-                    .Background("#263B82F6")
-                    .WithBorder("#663B82F6", 1)
+                        .Foreground(palette.Accent))
+                    .Background(palette.AccentAlpha15)
+                    .WithBorder(palette.AccentAlpha40, 1)
                     .CornerRadius(3)
                     .Padding(3, 0.5)
                     .Margin(3, 0, 3, 0)
@@ -732,7 +722,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         topRowElements.Add(
             TextBlock(m.ShortDateText)
                 .FontSize(isTenCol ? 8 : 8.5)
-                .Foreground("#FF888888")
+                .Foreground(palette.TextMuted)
                 .Grid(row: 0, column: topCol));
 
         var topRow = Grid(topRowColumns.ToArray(), [GridSize.Auto], topRowElements.ToArray())
@@ -741,11 +731,11 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         // KDA 行（击杀/死亡/助攻，死亡红色加粗）
         var kdaItems = new List<Element>
         {
-            TextBlock($"{m.Kills}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFFFFFFF"),
-            TextBlock(isTenCol ? " " : " / ").FontSize(isTenCol ? 8.5 : 9.5).Foreground("#FF666666"),
-            TextBlock($"{m.Deaths}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFEF4444"),
-            TextBlock(isTenCol ? " " : " / ").FontSize(isTenCol ? 8.5 : 9.5).Foreground("#FF666666"),
-            TextBlock($"{m.Assists}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFFFFFFF"),
+            TextBlock($"{m.Kills}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.TextPrimary),
+            TextBlock(isTenCol ? " " : " / ").FontSize(isTenCol ? 8.5 : 9.5).Foreground(palette.TextMuted),
+            TextBlock($"{m.Deaths}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.DeathText),
+            TextBlock(isTenCol ? " " : " / ").FontSize(isTenCol ? 8.5 : 9.5).Foreground(palette.TextMuted),
+            TextBlock($"{m.Assists}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.TextPrimary),
         };
 
         var kdaLine = HStack(0, kdaItems.ToArray());
@@ -753,7 +743,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         Element statsBox;
         if (!isTenCol)
         {
-            var (ratioText, ratioColor) = FormatKdaRatio(m);
+            var (ratioText, ratioColor) = FormatKdaRatio(m, palette);
             statsBox = VStack(1,
                 kdaLine,
                 TextBlock($"{ratioText} KDA")
@@ -785,7 +775,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         .Padding(isTenCol ? 3 : 5, isTenCol ? 2.5 : 3.5);
     }
 
-    private static (string text, string color) FormatKdaRatio(MatchSummary m)
+    private static (string text, string color) FormatKdaRatio(MatchSummary m, YuumiPalette palette)
     {
         if (m.Deaths == 0)
         {
@@ -801,8 +791,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             >= 5.0 => "#FFFFD700",
             >= 3.0 => "#FF3B82F6",
-            >= 2.0 => "#FF10B981",
-            _ => "#FFAAAAAA",
+            >= 2.0 => palette.WinText,
+            _ => palette.TextSecondary,
         };
 
         return (text, color);
