@@ -29,7 +29,9 @@ public sealed class NoticePage : Component
         var services = UseContext(AppHost.Context);
 
         // threadSafe: true —— 拉取在后台线程完成，回调直接封送回 UI 线程（ADR-07）。
-        var (view, setView) = UseState(new NoticeViewState(IsLoading: true), threadSafe: true);
+        // 初值只被首次渲染读取，必须用 UseMemo 固定实例，否则每次渲染都会新分配一个 state 对象。
+        var initialState = UseMemo(() => new NoticeViewState(IsLoading: true), []);
+        var (view, setView) = UseState(initialState, threadSafe: true);
         var (reloadTick, setReloadTick) = UseState(0);
 
         // 首次挂载与「重试 / 刷新」（reloadTick 递增）都会触发拉取。
