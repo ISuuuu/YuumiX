@@ -48,6 +48,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         YuumiPalette palette = Props.Palette;
 
         var (replayRevealed, setReplayRevealed) = UseState(false, threadSafe: true);
+        var (isHovered, setIsHovered) = UseState(false, threadSafe: true);
 
         // 7 格装备（6 核心装备 + 1 饰品守卫）
         var items = new Element[Search.SearchVisuals.ItemSlotCount];
@@ -128,7 +129,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .Width(ResultWidth)
             .VAlign(VerticalAlignment.Center);
 
-        // KDA 列（D4）：比率按旧版阈值配色——Perfect 橙 / ≥5 玫红 / ≥3 蓝 / 其余次要灰；死亡数标红
+        // KDA 列（D4）：比率按旧版阈值配色——Perfect 橙 / ≥5 玫红 / ≥3 蓝 / 其余次要灰；死亡数走 palette.DeathText
         string kdaRatioText = summary.Deaths == 0 ? "Perfect KDA" : $"{summary.KdaText} KDA";
         string? kdaRatioColor = KdaRatioColor(summary);
         Element kdaTextRow = HStack(2,
@@ -136,7 +137,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             TextBlock(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .FontSize(13)
                 .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
-                .Foreground(CareerVisuals.LoseText),
+                .Foreground(palette.DeathText),
             TextBlock($" / {summary.Assists}").FontSize(13).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold));
 
         Element kdaRatioBlock = TextBlock(kdaRatioText)
@@ -188,13 +189,14 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .Width(GoldWidth)
             .VAlign(VerticalAlignment.Center);
 
-        // 地图与时间列（自适应靠右）
+        // 地图与时间列（自适应靠右，日期格式对齐原系统 yyyy/MM/dd HH:mm）
+        string formattedTime = summary.DetailDateText;
         Element info = VStack(3,
                 TextBlock(summary.MapName)
                     .FontSize(11)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Right),
-                TextBlock(summary.TimeText)
+                TextBlock(formattedTime)
                     .FontSize(11)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Right))
@@ -211,7 +213,6 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .VAlign(VerticalAlignment.Center);
 
         Element rightGroup = HStack(8, info, replayBtn)
-            .Width(170)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
 
@@ -226,25 +227,52 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             gold)
             .VAlign(VerticalAlignment.Center);
 
-        const double CardContentWidth = 920;
-        double leftGroupWidth = CardContentWidth - 170;
+        // 自适应 Grid 两列布局：左侧拉伸，右侧自动靠右
+        Element cardContent = Grid(
+            [GridSize.Star(), GridSize.Auto],
+            [GridSize.Auto],
+            [
+                leftGroup.Grid(row: 0, column: 0),
+                rightGroup.Grid(row: 0, column: 1),
+            ]);
 
-        Element cardContent = HStack(0,
-            leftGroup.Width(leftGroupWidth),
-            rightGroup);
+        // 卡片底色、悬停底色与描边联动
+        string normalBg = summary.Remake ? palette.RemakeBg : (summary.Win ? palette.WinBg : palette.LoseBg);
+        string hoverBg = summary.Remake ? palette.RemakeBgHover : (summary.Win ? palette.WinBgHover : palette.LoseBgHover);
+        string normalBorder = summary.Remake ? palette.RemakeBorder : (summary.Win ? palette.WinBorder : palette.LoseBorder);
+        string hoverBorder = palette.AccentAlpha30;
+
+        string currentBg = isHovered ? hoverBg : normalBg;
+        string currentBorder = isHovered ? hoverBorder : normalBorder;
 
         return Border(cardContent)
             .Height(RowHeight)
             .Padding(14, 8)
             .CornerRadius(8)
-            .Background(Search.SearchVisuals.CardBackground(palette, summary))
-            .WithBorder(CareerVisuals.WithAlpha(summary.Win ? CareerVisuals.WinText : (summary.Remake ? palette.RemakeCard : CareerVisuals.LoseText), 0x33), 1)
+            .Background(currentBg)
+            .WithBorder(currentBorder, 1)
             .AutomationName($"查看对局 {summary.GameId}")
             // D6：悬停（含 focus 落入行内按钮）浮现回放；整行点击跳战绩详情（§4）
-            .OnPointerEntered((_, _) => setReplayRevealed(true))
-            .OnPointerExited((_, _) => setReplayRevealed(false))
-            .OnGotFocus((_, _) => setReplayRevealed(true))
-            .OnLostFocus((_, _) => setReplayRevealed(false))
+            .OnPointerEntered((_, _) =>
+            {
+                setReplayRevealed(true);
+                setIsHovered(true);
+            })
+            .OnPointerExited((_, _) =>
+            {
+                setReplayRevealed(false);
+                setIsHovered(false);
+            })
+            .OnGotFocus((_, _) =>
+            {
+                setReplayRevealed(true);
+                setIsHovered(true);
+            })
+            .OnLostFocus((_, _) =>
+            {
+                setReplayRevealed(false);
+                setIsHovered(false);
+            })
             // 键盘可达（REACTOR_A11Y_004）：Tab 聚焦后 Enter/Space 等效点击
             .IsTabStop(true)
             .OnKeyDown((_, args) =>

@@ -903,12 +903,13 @@ public sealed class CareerPage : Component
 
         return isSelected
             ? button
-                .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1F))
+                .Background(palette.AccentAlpha10)
                 .Foreground(palette.Accent)
                 .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
-                .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x33), 1)
+                .WithBorder(palette.AccentAlpha20, 1)
             : button
-                .Foreground(Theme.SecondaryText)
+                .Background("#00000000")
+                .Foreground(palette.TextSecondary)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold);
     }
 
