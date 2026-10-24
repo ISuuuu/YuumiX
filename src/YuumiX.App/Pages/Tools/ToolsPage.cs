@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Animation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Features.Tools.Models;
@@ -335,37 +336,24 @@ public sealed class ToolsPage : Component
             .Padding(new Thickness(0, 8, 0, 8));
 
         // 单行直接操作卡片（不折叠，右侧直接展示操作按钮或状态开关）
-        Element ActionCard(string iconGlyph, string title, string description, Element control) =>
+        Element ActionCard(string title, string description, Element control) =>
             Border(
                 Grid(
-                    [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+                    [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        Border(
-                            TextBlock(iconGlyph)
-                                .FontFamily("Segoe Fluent Icons")
-                                .FontSize(15)
-                                .Foreground(palette.Accent)
-                                .HAlign(HorizontalAlignment.Center)
-                                .VAlign(VerticalAlignment.Center)
-                        )
-                        .Width(34)
-                        .Height(34)
-                        .CornerRadius(17)
-                        .Background(Theme.Ref("LayerFillColorDefaultBrush"))
-                        .Margin(new Thickness(0, 0, 14, 0))
-                        .Grid(row: 0, column: 0),
-
                         VStack(2,
                             TextBlock(title)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                                .FontSize(14),
+                                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                                .FontSize(13.5)
+                                .Foreground(palette.TextPrimary),
                             TextBlock(description)
                                 .FontSize(12)
-                                .Foreground(Theme.SecondaryText)
-                        ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
+                                .Foreground(palette.TextSecondary)
+                                .Margin(new Thickness(0, 3, 0, 0))
+                        ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
-                        control.VAlign(VerticalAlignment.Center).Grid(row: 0, column: 2),
+                        control.VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
                     ]
                 ).Padding(new Thickness(16, 12, 16, 12))
             )
@@ -376,51 +364,42 @@ public sealed class ToolsPage : Component
 
         Element ToolCard(
             string key,
-            string iconGlyph,
             string title,
             string description,
             string statusText,
-            Element innerContent)
+            Element innerContent,
+            bool? isStatusEnabled = null)
         {
             var isExpanded = expandedKeys.Contains(key);
 
+            var isEnabled = isStatusEnabled ?? (statusText != "未启用" && statusText != "未锁定 (可写入)" && statusText != "点击展开");
+            var statusColor = isEnabled ? palette.Accent : palette.TextMuted;
+            var statusWeight = isEnabled ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+
             var headerContent = Grid(
-                [GridSize.Auto, GridSize.Star(), GridSize.Auto, GridSize.Auto],
+                [GridSize.Star(), GridSize.Auto, GridSize.Auto],
                 [GridSize.Auto],
                 [
-                    // 左侧圆角图标徽章
-                    Border(
-                        TextBlock(iconGlyph)
-                            .FontFamily("Segoe Fluent Icons")
-                            .FontSize(15)
-                            .Foreground(palette.Accent)
-                            .HAlign(HorizontalAlignment.Center)
-                            .VAlign(VerticalAlignment.Center)
-                    )
-                    .Width(34)
-                    .Height(34)
-                    .CornerRadius(17)
-                    .Background(Theme.Ref("LayerFillColorDefaultBrush"))
-                    .Margin(new Thickness(0, 0, 14, 0))
-                    .Grid(row: 0, column: 0),
-
-                    // 中间标题与说明
+                    // 标题与说明
                     VStack(2,
                         TextBlock(title)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                            .FontSize(14),
+                            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                            .FontSize(13.5)
+                            .Foreground(palette.TextPrimary),
                         TextBlock(description)
                             .FontSize(12)
-                            .Foreground(Theme.SecondaryText)
-                    ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
+                            .Foreground(palette.TextSecondary)
+                            .Margin(new Thickness(0, 3, 0, 0))
+                    ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
                     // 右侧状态摘要
                     TextBlock(statusText)
                         .FontSize(12)
-                        .Foreground(Theme.SecondaryText)
+                        .FontWeight(statusWeight)
+                        .Foreground(statusColor)
                         .VAlign(VerticalAlignment.Center)
                         .Margin(new Thickness(12, 0, 10, 0))
-                        .Grid(row: 0, column: 2),
+                        .Grid(row: 0, column: 1),
 
                     // 展开指示器（下箭头 / 右箭头）
                     TextBlock(isExpanded ? "\uE70D" : "\uE76C")
@@ -428,7 +407,7 @@ public sealed class ToolsPage : Component
                         .FontSize(12)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
-                        .Grid(row: 0, column: 3),
+                        .Grid(row: 0, column: 2),
                 ]
             ).HAlign(HorizontalAlignment.Stretch);
 
@@ -614,20 +593,24 @@ public sealed class ToolsPage : Component
 
         var autoAcceptCard = ToolCard(
             "autoAccept",
-            "\uE73E",
             "自动接受对局",
             "在你设置的秒数之后自动接受对局匹配",
             autoAcceptStatus,
             VStack(4,
                 CardRow("在对局找到后接受对局前延迟的秒数:",
-                    NumberBox(config.Functions.AutoAcceptMatchingDelay, v =>
-                    {
-                        if (double.IsNaN(v)) return;
-                        var next = (int)Math.Clamp(v, 0, 11);
-                        if (next == config.Functions.AutoAcceptMatchingDelay) return;
-                        config.Functions.AutoAcceptMatchingDelay = next;
-                        Commit(nameof(FunctionsConfig.AutoAcceptMatchingDelay));
-                    }).Width(120).AutomationName("自动接受延迟")),
+                    CompactStepperControl.Render(
+                        config.Functions.AutoAcceptMatchingDelay,
+                        0,
+                        11,
+                        1,
+                        next =>
+                        {
+                            if (next == config.Functions.AutoAcceptMatchingDelay) return;
+                            config.Functions.AutoAcceptMatchingDelay = next;
+                            Commit(nameof(FunctionsConfig.AutoAcceptMatchingDelay));
+                        },
+                        palette,
+                        "自动接受延迟")),
                 CardRow("启用自动接受对局:",
                     ToggleSwitch(config.Functions.EnableAutoAcceptMatching, v =>
                     {
@@ -643,7 +626,6 @@ public sealed class ToolsPage : Component
 
         var autoSwapCard = ToolCard(
             "autoSwap",
-            "\uE8D4",
             "自动接受交换请求",
             "自动接受队友的交换楼层或英雄的请求",
             autoSwapStatus,
@@ -670,7 +652,6 @@ public sealed class ToolsPage : Component
 
         var autoHoverCard = ToolCard(
             "autoHover",
-            "\uE739",
             "自动选用/预选英雄",
             "在你进入英雄选择时自动亮起/预选英雄",
             autoHoverStatus,
@@ -722,7 +703,6 @@ public sealed class ToolsPage : Component
 
         var autoBanCard = ToolCard(
             "autoBan",
-            "\uE711",
             "自动禁用英雄",
             "在你的禁用环节开始时自动禁用英雄",
             autoBanStatus,
@@ -742,14 +722,19 @@ public sealed class ToolsPage : Component
                         Commit(nameof(FunctionsConfig.PretendBan));
                     }, header: null, onContent: "", offContent: "").AutomationName("避开队友预选")),
                 CardRow("自动禁用前等待延迟 (秒):",
-                    NumberBox(config.Functions.AutoBanDelay, v =>
-                    {
-                        if (double.IsNaN(v)) return;
-                        var next = Math.Clamp(v, 0, 15);
-                        if (Math.Abs(next - config.Functions.AutoBanDelay) < 0.01) return;
-                        config.Functions.AutoBanDelay = next;
-                        Commit(nameof(FunctionsConfig.AutoBanDelay));
-                    }).Width(120).AutomationName("自动禁用延迟")),
+                    CompactStepperControl.RenderDouble(
+                        config.Functions.AutoBanDelay,
+                        0,
+                        15,
+                        1,
+                        next =>
+                        {
+                            if (Math.Abs(next - config.Functions.AutoBanDelay) < 0.01) return;
+                            config.Functions.AutoBanDelay = next;
+                            Commit(nameof(FunctionsConfig.AutoBanDelay));
+                        },
+                        palette,
+                        "自动禁用延迟")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
                 TextBlock("分路禁用候选英雄库:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
                 LaneTabs(banLaneIndex, idx => setBanLaneIndex(idx)),
@@ -769,7 +754,6 @@ public sealed class ToolsPage : Component
 
         var autoSpellsCard = ToolCard(
             "autoSpells",
-            "\uE74C",
             "自动设置召唤师技能",
             "当你的英雄选择开始时自动设置召唤师技能",
             autoSpellsStatus,
@@ -804,7 +788,6 @@ public sealed class ToolsPage : Component
 
         var autoGameflowCard = ToolCard(
             "autoGameflow",
-            "\uE768",
             "自动游戏流程",
             "自动处理邀请、点赞、再来一局与 ARAM 报边",
             autoFlowStatus,
@@ -900,7 +883,6 @@ public sealed class ToolsPage : Component
         // 7. 观战卡片
         var spectateCard = ToolCard(
             "spectate",
-            "\uE7B3",
             "观战",
             "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)",
             "点击展开",
@@ -955,7 +937,6 @@ public sealed class ToolsPage : Component
         var friendCleanerStatus = allFriends.Count > 0 ? $"共 {allFriends.Count} 人 / 筛选出 {filteredFriendsCount} 人" : "点击展开";
         var friendCleanerCard = ToolCard(
             "friendCleaner",
-            "\uE716",
             "好友管理与僵尸号清理",
             "扫描好友列表，筛选并批量清理长期未上线的离线好友 (支持安全保护)",
             friendCleanerStatus,
@@ -1016,7 +997,7 @@ public sealed class ToolsPage : Component
             ));
 
         var benchOverlayCard = ActionCard(
-            "\uE790", "大乱斗板凳席悬浮窗", "在大乱斗选人阶段显示半透明置顶悬浮窗，可无 CD 抢板凳席英雄",
+            "大乱斗板凳席悬浮窗", "在大乱斗选人阶段显示半透明置顶悬浮窗，可无 CD 抢板凳席英雄",
             ToggleSwitch(config.Functions.EnableBenchOverlay, v =>
             {
                 if (v == config.Functions.EnableBenchOverlay) return;
@@ -1025,7 +1006,7 @@ public sealed class ToolsPage : Component
             }, header: null, onContent: "", offContent: "").AutomationName("大乱斗悬浮窗开关"));
 
         var autoReconnectCard = ActionCard(
-            "\uE72C", "自动重连", "当你意外掉线退出游戏时自动重新连接",
+            "自动重连", "当你意外掉线退出游戏时自动重新连接",
             ToggleSwitch(config.Functions.EnableAutoReconnect, v =>
             {
                 if (v == config.Functions.EnableAutoReconnect) return;
@@ -1034,7 +1015,7 @@ public sealed class ToolsPage : Component
             }, header: null, onContent: "", offContent: "").AutomationName("自动重连开关"));
 
         var autoLobbyCard = ToolCard(
-            "autoLobby", "\uE715", "自动创建大厅", "启动 LOL 客户端后自动创建默认模式的大厅", config.Functions.EnableAutoCreateLobby ? "已启用" : "未启用",
+            "autoLobby", "自动创建大厅", "启动 LOL 客户端后自动创建默认模式的大厅", config.Functions.EnableAutoCreateLobby ? "已启用" : "未启用",
             VStack(4,
                 CardRow("客户端就绪后自动拉入指定大厅房间:",
                     ToggleSwitch(config.Functions.EnableAutoCreateLobby, v =>
@@ -1075,7 +1056,7 @@ public sealed class ToolsPage : Component
         };
 
         var lockSettingsCard = ActionCard(
-            "\uE72E", "游戏设置锁定", $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]",
+            "游戏设置锁定", $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]",
             Button(isSettingsLocked == true ? "解除锁定" : "立即锁定", () =>
             {
                 var nextState = !(isSettingsLocked ?? false);
@@ -1095,7 +1076,7 @@ public sealed class ToolsPage : Component
         // 3. 客户端组
         // ══════════════════════════════════════════════════════
         var fixWindowCard = ActionCard(
-            "\uE740", "修复客户端窗口", "修复客户端错误的窗口大小与黑边缩放（重设 LeagueClientUx 尺寸）",
+            "修复客户端窗口", "修复客户端错误的窗口大小与黑边缩放（重设 LeagueClientUx 尺寸）",
             Button("立即修复", async () =>
             {
                 try
@@ -1110,7 +1091,7 @@ public sealed class ToolsPage : Component
             }).AutomationName("修复客户端窗口"));
 
         var restartClientCard = ActionCard(
-            "\uE777", "快速重启客户端", "重新引导 LeagueClientUx，无需重新排队或重新输入账号密码",
+            "快速重启客户端", "重新引导 LeagueClientUx，无需重新排队或重新输入账号密码",
             isConfirmingRestartClient
                 ? HStack(8,
                     TextBlock("⚡ 确定重启客户端？无需重登").FontSize(12).Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
@@ -1134,7 +1115,7 @@ public sealed class ToolsPage : Component
         // 4. 个人主页组
         // ══════════════════════════════════════════════════════
         var signatureCard = ToolCard(
-            "signature", "\uE70F", "个性签名", "自定义修改你在客户端好友列表中展示的个性状态签名", "点击展开",
+            "signature", "个性签名", "自定义修改你在客户端好友列表中展示的个性状态签名", "点击展开",
             VStack(8,
                 TextBlock("输入你想展示的个性化签名并应用：")
                     .FontSize(12).Foreground(Theme.SecondaryText),
@@ -1168,7 +1149,7 @@ public sealed class ToolsPage : Component
             ));
 
         var profileBgCard = ToolCard(
-            "profileBg", "\uEB9F", "生涯背景", "在个人生涯主页展示任意指定的英雄皮肤插画背景", "点击展开",
+            "profileBg", "生涯背景", "在个人生涯主页展示任意指定的英雄皮肤插画背景", "点击展开",
             VStack(10,
                 TextBlock("浏览英雄皮肤并预览应用，或直接输入皮肤 ID：")
                     .FontSize(12).Foreground(Theme.SecondaryText),
@@ -1263,7 +1244,7 @@ public sealed class ToolsPage : Component
         bool isApexTier = SpoofTiers[spoofTierIndex] is "CHALLENGER" or "GRANDMASTER" or "MASTER" or "UNRANKED";
 
         var rankSpoofCard = ToolCard(
-            "rankSpoof", "\uE734", "段位伪装", "在本地客户端及好友列表中伪造段位展示 (仅限视觉效果)", "点击展开",
+            "rankSpoof", "段位伪装", "在本地客户端及好友列表中伪造段位展示 (仅限视觉效果)", "点击展开",
             VStack(10,
                 CardRow("排位队列类型:",
                     ComboBox(SpoofQueueLabels, spoofQueueIndex, index => setSpoofQueueIndex(index))
@@ -1298,7 +1279,7 @@ public sealed class ToolsPage : Component
             ));
 
         var onlineStatusCard = ActionCard(
-            "\uE701", "在线状态切换", "在好友列表中切换你的展示状态（在线 / 离开 / 隐身）",
+            "在线状态切换", "在好友列表中切换你的展示状态（在线 / 离开 / 隐身）",
             HStack(8,
                 Button("在线", async () =>
                 {
@@ -1376,7 +1357,7 @@ public sealed class ToolsPage : Component
             : (Element)Button("卸下头像框", () => setIsConfirmingClearBorder(true)).AutomationName("卸下头像框");
 
         var badgesCard = ToolCard(
-            "badges", "\uE735", "挑战勋章与头像框", "装配/卸下展示的挑战勋章、称号与头像框", "点击展开",
+            "badges", "挑战勋章与头像框", "装配/卸下展示的挑战勋章、称号与头像框", "点击展开",
             VStack(10,
                 HStack(8,
                     clearBadgesAction,
@@ -1530,10 +1511,11 @@ public sealed class ToolsPage : Component
 
         var mainScroll = ScrollView(
             VStack(8,
-                VStack(4,
-                    Heading("工具箱"),
-                    Caption("英雄选择自动化、游戏流程、客户端维护与个人主页功能（对应原实现：src/views/Tools.vue）")
-                ).Margin(new Thickness(0, 0, 0, 6)),
+                TextBlock("其他功能")
+                    .FontSize(20)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.ExtraBold)
+                    .Foreground(palette.TextPrimary)
+                    .Margin(new Thickness(0, 0, 0, 10)),
 
                 offlineBanner ?? Empty(),
 
@@ -1567,7 +1549,11 @@ public sealed class ToolsPage : Component
                 rankSpoofCard,
                 onlineStatusCard,
                 badgesCard
-            ).Padding(24).HAlign(HorizontalAlignment.Stretch).Opacity(isLcuConnected ? 1.0 : 0.6)
+            )
+            .MaxWidth(800)
+            .HAlign(HorizontalAlignment.Stretch)
+            .Padding(24)
+            .Opacity(isLcuConnected ? 1.0 : 0.6)
         );
 
         return Grid(
