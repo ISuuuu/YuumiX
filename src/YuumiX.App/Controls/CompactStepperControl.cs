@@ -2,7 +2,6 @@ using System;
 using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
@@ -40,10 +39,8 @@ public static class CompactStepperControl
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "减少" : $"{automationName} 减少"),
 
-                TextBlock(value.ToString(CultureInfo.InvariantCulture))
+                BodyStrong(value.ToString(CultureInfo.InvariantCulture))
                     .Width(44)
-                    .FontSize(12.5)
-                    .FontWeight(FontWeights.SemiBold)
                     .TextAlignment(TextAlignment.Center)
                     .VAlign(VerticalAlignment.Center),
 
@@ -92,10 +89,8 @@ public static class CompactStepperControl
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "减少" : $"{automationName} 减少"),
 
-                TextBlock(value.ToString("0.#", CultureInfo.InvariantCulture))
+                BodyStrong(value.ToString("0.#", CultureInfo.InvariantCulture))
                     .Width(44)
-                    .FontSize(12.5)
-                    .FontWeight(FontWeights.SemiBold)
                     .TextAlignment(TextAlignment.Center)
                     .VAlign(VerticalAlignment.Center),
 
