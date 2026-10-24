@@ -369,13 +369,14 @@ public sealed class ToolsPage : Component
             string title,
             string description,
             string statusText,
-            Element innerContent,
-            bool? isStatusEnabled = null)
+            bool isStatusEnabled,
+            Element innerContent)
         {
             var isExpanded = expandedKeys.Contains(key);
 
-            var isEnabled = isStatusEnabled ?? (statusText != "未启用" && statusText != "未锁定 (可写入)" && statusText != "点击展开");
-            var statusColor = isEnabled ? Theme.Accent : Theme.SecondaryText;
+            // 状态点颜色只由调用方给出的布尔决定。曾按 statusText 是否等于几个字面量反推，
+            // 结果是改一次文案就静默翻转配色，且 "未锁定 (可写入)" 那个分支早已无人产出（见 lockStatusCard）。
+            var statusColor = isStatusEnabled ? Theme.Accent : Theme.SecondaryText;
 
             var headerContent = Grid(
                 [GridSize.Star(), GridSize.Auto, GridSize.Auto],
@@ -590,6 +591,7 @@ public sealed class ToolsPage : Component
             "自动接受对局",
             "在你设置的秒数之后自动接受对局匹配",
             autoAcceptStatus,
+            config.Functions.EnableAutoAcceptMatching,
             VStack(4,
                 CardRow("在对局找到后接受对局前延迟的秒数:",
                     CompactStepperControl.Render(
@@ -623,6 +625,7 @@ public sealed class ToolsPage : Component
             "自动接受交换请求",
             "自动接受队友的交换楼层或英雄的请求",
             autoSwapStatus,
+            autoSwapEnabled,
             VStack(4,
                 CardRow("自动接受楼层交换请求:",
                     CleanToggle(config.Functions.AutoAcceptCeilSwap, v =>
@@ -649,6 +652,7 @@ public sealed class ToolsPage : Component
             "自动选用/预选英雄",
             "在你进入英雄选择时自动亮起/预选英雄",
             autoHoverStatus,
+            autoHoverEnabled,
             VStack(4,
                 CardRow("启用自动亮起/预选:",
                     CleanToggle(config.Functions.EnableAutoHoverChampion, v =>
@@ -700,6 +704,7 @@ public sealed class ToolsPage : Component
             "自动禁用英雄",
             "在你的禁用环节开始时自动禁用英雄",
             autoBanStatus,
+            config.Functions.EnableAutoBanChampion,
             VStack(4,
                 CardRow("禁用环节自动禁用设定英雄:",
                     CleanToggle(config.Functions.EnableAutoBanChampion, v =>
@@ -751,6 +756,7 @@ public sealed class ToolsPage : Component
             "自动设置召唤师技能",
             "当你的英雄选择开始时自动设置召唤师技能",
             autoSpellsStatus,
+            config.Functions.EnableAutoSetSpells,
             VStack(4,
                 CardRow("锁定英雄后自动写入配置好的技能组:",
                     CleanToggle(config.Functions.EnableAutoSetSpells, v =>
@@ -785,6 +791,7 @@ public sealed class ToolsPage : Component
             "自动游戏流程",
             "自动处理邀请、点赞、再来一局与 ARAM 报边",
             autoFlowStatus,
+            autoFlowEnabled,
             VStack(4,
                 CardRow("自动接受好友邀请:",
                     CleanToggle(config.Functions.EnableAutoHandleInvite, v =>
@@ -880,6 +887,7 @@ public sealed class ToolsPage : Component
             "观战",
             "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)",
             "点击展开",
+            false,
             VStack(8,
                 Body("输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战：")
                     .Foreground(Theme.SecondaryText),
@@ -933,6 +941,7 @@ public sealed class ToolsPage : Component
             "好友管理与僵尸号清理",
             "扫描好友列表，筛选并批量清理长期未上线的离线好友 (支持安全保护)",
             friendCleanerStatus,
+            allFriends.Count > 0,
             FriendCleanerView.Render(
                 allFriends,
                 isScanningFriends,
@@ -1009,6 +1018,7 @@ public sealed class ToolsPage : Component
 
         var autoLobbyCard = ToolCard(
             "autoLobby", "自动创建大厅", "启动 LOL 客户端后自动创建默认模式的大厅", config.Functions.EnableAutoCreateLobby ? "已启用" : "未启用",
+            config.Functions.EnableAutoCreateLobby,
             VStack(4,
                 CardRow("客户端就绪后自动拉入指定大厅房间:",
                     CleanToggle(config.Functions.EnableAutoCreateLobby, v =>
@@ -1108,6 +1118,7 @@ public sealed class ToolsPage : Component
         // ══════════════════════════════════════════════════════
         var signatureCard = ToolCard(
             "signature", "个性签名", "自定义修改你在客户端好友列表中展示的个性状态签名", "点击展开",
+            false,
             VStack(8,
                 Body("输入你想展示的个性化签名并应用：")
                     .Foreground(Theme.SecondaryText),
@@ -1142,6 +1153,7 @@ public sealed class ToolsPage : Component
 
         var profileBgCard = ToolCard(
             "profileBg", "生涯背景", "在个人生涯主页展示任意指定的英雄皮肤插画背景", "点击展开",
+            false,
             VStack(10,
                 Body("浏览英雄皮肤并预览应用，或直接输入皮肤 ID：")
                     .Foreground(Theme.SecondaryText),
@@ -1237,6 +1249,7 @@ public sealed class ToolsPage : Component
 
         var rankSpoofCard = ToolCard(
             "rankSpoof", "段位伪装", "在本地客户端及好友列表中伪造段位展示 (仅限视觉效果)", "点击展开",
+            false,
             VStack(10,
                 CardRow("排位队列类型:",
                     ComboBox(SpoofQueueLabels, spoofQueueIndex, index => setSpoofQueueIndex(index))
@@ -1350,6 +1363,7 @@ public sealed class ToolsPage : Component
 
         var badgesCard = ToolCard(
             "badges", "挑战勋章与头像框", "装配/卸下展示的挑战勋章、称号与头像框", "点击展开",
+            false,
             VStack(10,
                 HStack(8,
                     clearBadgesAction,

@@ -9,7 +9,7 @@ namespace YuumiX.App.Controls;
 
 /// <summary>
 /// 设置卡片的语义状态。渲染时才映射为中文文案与语义色，
-/// 禁止反向从显示文案推断状态（<c>statusText != "未启用"</c> 这类写法一律不通过）。
+/// 禁止拿显示文案反推状态（用字符串比较判断「是否启用」的写法一律不通过）。
 /// </summary>
 public enum SettingsStatus
 {
