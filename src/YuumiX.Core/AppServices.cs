@@ -27,7 +27,7 @@ namespace YuumiX.Core;
 /// 出现两个「谁先启动」的问题。等到阶段 3 引入 LCU 进程监控这类真正的后台服务时，
 /// 再评估是否值得引入 <c>IHostedService</c> 语义。
 /// </summary>
-public sealed class AppServices : IDisposable
+public sealed class AppServices : IAsyncDisposable
 {
     private readonly CancellationTokenSource _shutdown = new();
     private bool _disposed;
@@ -382,7 +382,7 @@ public sealed class AppServices : IDisposable
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed)
         {
@@ -392,10 +392,20 @@ public sealed class AppServices : IDisposable
         _disposed = true;
 
         // 顺序要紧：先发关闭信号，让后台循环尽快退出并写完最后一条日志；
-        // 再关容器（触发各服务 Dispose）；最后关日志工厂。
+        // 再异步关容器——IAutomationAgent 等单例只实现 IAsyncDisposable，
+        // 用同步 Dispose 关容器会抛 InvalidOperationException，等于每次退出都留一条未处理异常。
+        // 最后关日志工厂。
         _shutdown.Cancel();
 
-        (Services as IDisposable)?.Dispose();
+        if (Services is IAsyncDisposable asyncDisposable)
+        {
+            await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+        }
+        else
+        {
+            (Services as IDisposable)?.Dispose();
+        }
+
         LoggerFactory.Dispose();
         _shutdown.Dispose();
     }

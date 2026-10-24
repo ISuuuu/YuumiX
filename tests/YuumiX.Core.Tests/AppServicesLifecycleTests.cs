@@ -10,13 +10,16 @@ using YuumiX.Core.Runtime;
 namespace YuumiX.Core.Tests;
 
 /// <summary>
-/// 组合根生命周期：关闭令牌必须在 Dispose 时被取消，且 Dispose 幂等。
+/// 组合根生命周期：关闭令牌必须在 <c>DisposeAsync</c> 时被取消，且 <c>DisposeAsync</c> 幂等。
 /// 阶段 3 起所有后台循环都依赖这个信号退出，回归会直接表现为「窗口关了进程还在」。
+///
+/// 注意：<see cref="AppServices"/> 实现的是 <see cref="IAsyncDisposable"/> 而非 <see cref="IDisposable"/>——
+/// 容器内有只实现 IAsyncDisposable 的单例（IAutomationAgent 等），同步关容器会抛 InvalidOperationException。
 /// </summary>
 public sealed class AppServicesLifecycleTests
 {
     [Fact]
-    public void Create_RegistersAssetPipelineInOrder()
+    public async Task Create_RegistersAssetPipelineInOrder()
     {
         using var exeDir = new TempDirectory();
         using var appData = new TempDirectory();
@@ -32,12 +35,12 @@ public sealed class AppServicesLifecycleTests
         }
         finally
         {
-            services.Dispose();
+            await services.DisposeAsync();
         }
     }
 
     [Fact]
-    public void Create_ProvidesUncancelledShutdownToken()
+    public async Task Create_ProvidesUncancelledShutdownToken()
     {
         using var exeDir = new TempDirectory();
         using var appData = new TempDirectory();
@@ -52,28 +55,28 @@ public sealed class AppServicesLifecycleTests
         }
         finally
         {
-            services.Dispose();
+            await services.DisposeAsync();
         }
     }
 
     [Fact]
-    public void Dispose_CancelsShutdownTokenAndIsIdempotent()
+    public async Task DisposeAsync_CancelsShutdownTokenAndIsIdempotent()
     {
         using var exeDir = new TempDirectory();
         using var appData = new TempDirectory();
         var services = AppServices.Create(RuntimePaths.Detect(exeDir.Path, appData.Path));
         var token = services.ShutdownToken;
 
-        services.Dispose();
+        await services.DisposeAsync();
 
         Assert.True(token.IsCancellationRequested);
 
         // 第二次调用不应抛 ObjectDisposedException（退出路径上可能被重复触发）
-        services.Dispose();
+        await services.DisposeAsync();
     }
 
     [Fact]
-    public void Create_WritesLogFileUnderExecutableDirectory()
+    public async Task Create_WritesLogFileUnderExecutableDirectory()
     {
         using var exeDir = new TempDirectory();
         using var appData = new TempDirectory();
@@ -86,12 +89,12 @@ public sealed class AppServicesLifecycleTests
         }
         finally
         {
-            services.Dispose();
+            await services.DisposeAsync();
         }
     }
 
     [Fact]
-    public void Create_RegistersLoggerForGenericCategory()
+    public async Task Create_RegistersLoggerForGenericCategory()
     {
         using var exeDir = new TempDirectory();
         using var appData = new TempDirectory();
@@ -104,7 +107,7 @@ public sealed class AppServicesLifecycleTests
         }
         finally
         {
-            services.Dispose();
+            await services.DisposeAsync();
         }
     }
 }

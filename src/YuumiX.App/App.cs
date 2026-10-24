@@ -25,6 +25,6 @@ try
 }
 finally
 {
-    // 消息循环退出后刷新并关闭日志文件
-    AppHost.Shutdown();
+    // 消息循环退出后刷新并关闭日志文件（容器释放是异步的：部分单例只实现 IAsyncDisposable）
+    await AppHost.ShutdownAsync();
 }

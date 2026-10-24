@@ -164,9 +164,13 @@ public static class AppHost
     }
 
     /// <summary>释放服务与日志。</summary>
-    public static void Shutdown()
+    public static async ValueTask ShutdownAsync()
     {
-        _services?.Dispose();
+        if (_services is { } services)
+        {
+            await services.DisposeAsync().ConfigureAwait(false);
+        }
+
         _services = null;
         _theme = null;
         _menu = null;
