@@ -59,9 +59,8 @@ internal static class RecentSummaryView
 
         // 左侧 1：近期战绩与 KDA 概览
         Element statsCol = HStack(8,
-            TextBlock($"近期对局（最近 {summary.Games} 场）")
-                .FontSize(12)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            Caption($"近期对局（最近 {summary.Games} 场）")
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(Theme.PrimaryText)
                 .VAlign(VerticalAlignment.Center),
             CareerVisuals.Stat("胜:", summary.Wins.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.WinText),
@@ -74,8 +73,7 @@ internal static class RecentSummaryView
         if (summary.PositionGames > 0)
         {
             Element positionsContainer = HStack(6,
-                TextBlock("常玩位置:")
-                    .FontSize(11)
+                Caption("常玩位置:")
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center),
                 HStack(4, summary.Positions
@@ -86,20 +84,16 @@ internal static class RecentSummaryView
 
             leftItems.Add(positionsContainer.WithToolTip(
                 VStack(4,
-                    TextBlock("常玩位置分布")
-                        .FontSize(12)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
+                    Caption("常玩位置分布")
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
                     VStack(2, summary.Positions.Select(pos =>
                         HStack(8,
-                            TextBlock(CareerVisuals.PositionText(pos.Position))
-                                .FontSize(11)
+                            Caption(CareerVisuals.PositionText(pos.Position))
                                 .Width(40),
-                            TextBlock($"{pos.Games} 场")
-                                .FontSize(11)
+                            Caption($"{pos.Games} 场")
                                 .Foreground(Theme.SecondaryText)
                                 .Width(40),
-                            TextBlock($"{pos.Percentage}%")
-                                .FontSize(11)
+                            Caption($"{pos.Percentage}%")
                                 .Foreground(palette.Accent)
                                 .Width(40)
                         ).WithKey(pos.Position.ToString())).ToArray())
@@ -120,10 +114,9 @@ internal static class RecentSummaryView
             .VAlign(VerticalAlignment.Center);
 
         // 右侧操作：最近队友按钮（带弹层） + 队列下拉
-        Element teammatesButton = Button("最近队友", () => onRecentTeammates?.Invoke())
+        Element teammatesButton = Button(Caption("最近队友"), () => onRecentTeammates?.Invoke())
             .Height(30)
             .Padding(10, 0)
-            .FontSize(11)
             .AutomationName("最近队友");
 
         Element flyoutButton = Flyout(
@@ -166,15 +159,13 @@ internal static class RecentSummaryView
         Element inner;
         if (loadingTeammates)
         {
-            inner = TextBlock("正在计算最近 20 局同队队友…")
-                .FontSize(12)
+            inner = Caption("正在计算最近 20 局同队队友…")
                 .Foreground(Theme.SecondaryText)
                 .HAlign(HorizontalAlignment.Center);
         }
         else if (teammates is null || teammates.Summoners.Count == 0)
         {
-            inner = TextBlock("暂无最近同队玩家数据（需在近期对局中存在同队玩家）。")
-                .FontSize(12)
+            inner = Caption("暂无最近同队玩家数据（需在近期对局中存在同队玩家）。")
                 .Foreground(Theme.SecondaryText);
         }
         else
@@ -189,11 +180,8 @@ internal static class RecentSummaryView
         return Border(
             VStack(10,
                 HStack(8,
-                    TextBlock("最近同队玩家")
-                        .FontSize(13)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
-                    TextBlock("点击可查看战绩")
-                        .FontSize(11)
+                    BodyStrong("最近同队玩家"),
+                    Caption("点击可查看战绩")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)),
                 inner))
@@ -216,19 +204,17 @@ internal static class RecentSummaryView
 
         Element centerInfo = VStack(2,
             HStack(6,
-                TextBlock(tm.Name)
-                    .FontSize(12)
+                Caption(tm.Name)
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(Theme.PrimaryText),
                 tm.Tag is not null
-                    ? Border(TextBlock(tm.Tag).FontSize(10).Foreground(palette.Accent))
+                    ? Border(Caption(tm.Tag).Foreground(palette.Accent))
                         .Padding(4, 1)
                         .CornerRadius(3)
                         .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1E))
                     : Empty()
             ),
-            TextBlock($"最近相遇: {playTimeText}")
-                .FontSize(10)
+            Caption($"最近相遇: {playTimeText}")
                 .Foreground(Theme.SecondaryText)
         ).Margin(8, 0, 0, 0).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1);
 
@@ -255,24 +241,22 @@ internal static class RecentSummaryView
 
     private static Element KdaStat(RecentFormSummary summary)
     {
-        Element deaths = TextBlock(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            .FontSize(12)
-            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+        Element deaths = Caption(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .Foreground(CareerVisuals.LoseText);
 
         return HStack(4,
-            TextBlock("KDA:").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-            TextBlock($"{summary.Kills} /").FontSize(12)
+            Caption("KDA:").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+            Caption($"{summary.Kills} /")
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
             deaths,
-            TextBlock($"/ {summary.Assists}").FontSize(12)
+            Caption($"/ {summary.Assists}")
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-            TextBlock($"({summary.KdaText})").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
+            Caption($"({summary.KdaText})").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
     }
 
     private static Element PositionChip(RecentPositionStat position, YuumiPalette palette) =>
-        Border(TextBlock($"{CareerVisuals.PositionText(position.Position)} {position.Percentage}%")
-                .FontSize(11)
+        Border(Caption($"{CareerVisuals.PositionText(position.Position)} {position.Percentage}%")
                 .Foreground(palette.Accent))
             .Padding(7, 2)
             .CornerRadius(4)
@@ -310,9 +294,8 @@ internal static class RecentSummaryView
                     Search.SearchVisuals.ChampionIcon(champion.ChampionId),
                     ChampionSize,
                     ChampionSize / 2),
-                Border(TextBlock(champion.Games.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .FontSize(9)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Border(Caption(champion.Games.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(badgeFg)
                         .HAlign(HorizontalAlignment.Center))
                     .Padding(3, 0)
@@ -326,21 +309,16 @@ internal static class RecentSummaryView
 
         return cell.WithToolTip(
             VStack(4,
-                TextBlock(champName)
-                    .FontSize(12)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
-                TextBlock($"出场 {champion.Games} 次 · 主位置 {posText}")
-                    .FontSize(11)
+                Caption(champName)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+                Caption($"出场 {champion.Games} 次 · 主位置 {posText}")
                     .Foreground(Theme.SecondaryText),
                 HStack(6,
-                    TextBlock($"胜率: {champion.WinRateText}")
-                        .FontSize(11)
+                    Caption($"胜率: {champion.WinRateText}")
                         .Foreground(wr >= 60 ? CareerVisuals.WinText : (wr < 45 ? LowWinRateColor : palette.Accent)),
-                    TextBlock($"({champion.Wins}胜 {champion.Losses}负)")
-                        .FontSize(11)
+                    Caption($"({champion.Wins}胜 {champion.Losses}负)")
                         .Foreground(Theme.SecondaryText)),
-                TextBlock($"KDA: {champion.KdaText} ({champion.Kills}/{champion.Deaths}/{champion.Assists})")
-                    .FontSize(11)
+                Caption($"KDA: {champion.KdaText} ({champion.Kills}/{champion.Deaths}/{champion.Assists})")
                     .Foreground(palette.Accent)));
     }
 }

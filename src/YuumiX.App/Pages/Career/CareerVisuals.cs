@@ -57,24 +57,28 @@ internal static class CareerVisuals
             : color;
 
     /// <summary>表格单元格（固定宽度 + 居中对齐），表头与数据行共用同一套宽度。</summary>
-    public static Element Cell(string text, double width, bool header = false) =>
-        TextBlock(text)
+    public static Element Cell(string text, double width, bool header = false)
+    {
+        var cell = Caption(text)
             .Width(width)
-            .FontSize(header ? 11 : 12)
             .TextAlignment(TextAlignment.Center)
             .Foreground(header ? Theme.SecondaryText : Theme.PrimaryText);
+
+        // 表头原来靠更小字号区分，字号收敛到 Caption 后改用字重承担层级
+        return header ? cell.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold) : cell;
+    }
 
     /// <summary>一行「标签 : 值」，用于近期看板的统计文字。</summary>
     public static Element Stat(string label, string value, string? valueColor = null)
     {
-        Element valueText = TextBlock(value).FontSize(13).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold);
+        Element valueText = BodyStrong(value);
         if (valueColor is not null)
         {
             valueText = valueText.Foreground(valueColor);
         }
 
         return HStack(4,
-            TextBlock(label).FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+            Caption(label).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
             valueText);
     }
 
@@ -119,13 +123,11 @@ internal static class CareerVisuals
         string text,
         string foreground,
         string background,
-        double fontSize = 11,
         double padX = 6,
         double padY = 2,
         string? borderBrush = null)
     {
-        var border = Border(TextBlock(text)
-                .FontSize(fontSize)
+        var border = Border(Caption(text)
                 .Foreground(foreground)
                 .VAlign(VerticalAlignment.Center))
             .Padding(padX, padY)

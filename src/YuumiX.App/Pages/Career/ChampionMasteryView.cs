@@ -50,10 +50,9 @@ internal static class ChampionMasteryView
         {
             return CareerVisuals.Card(
                 VStack(10,
-                    TextBlock("该账号暂无英雄熟练度记录")
-                        .FontSize(13)
+                    Body("该账号暂无英雄熟练度记录")
                         .Foreground(Theme.SecondaryText),
-                    Button("重试", onRefresh).Height(30).Padding(14, 0).FontSize(12).AutomationName("重试加载熟练度")),
+                    Button(Caption("重试"), onRefresh).Height(30).Padding(14, 0).AutomationName("重试加载熟练度")),
                 padding: 24);
         }
 
@@ -99,15 +98,13 @@ internal static class ChampionMasteryView
         Element card1 = StatCard(
             "熟练英雄总数",
             HStack(4,
-                TextBlock($"{totalCount}").FontSize(24).FontWeight(Microsoft.UI.Text.FontWeights.Bold),
-                TextBlock("位").FontSize(12).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom).Margin(0, 0, 0, 4)),
+                Title($"{totalCount}"),
+                Caption("位").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom).Margin(0, 0, 0, 4)),
             "累计拥有熟练度记录");
 
         Element card2 = StatCard(
             "熟练度总分",
-            TextBlock($"{totalPoints:N0}")
-                .FontSize(24)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            Title($"{totalPoints:N0}")
                 .Foreground(CareerVisuals.WinText),
             "全英雄点数总和");
 
@@ -120,8 +117,8 @@ internal static class ChampionMasteryView
         Element card3 = StatCard(
             "最高等级英雄",
             HStack(6,
-                TextBlock(heroName).FontSize(16).FontWeight(Microsoft.UI.Text.FontWeights.Bold).VAlign(VerticalAlignment.Center),
-                Border(TextBlock($"Lv. {heroLevel}").FontSize(11).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.Accent))
+                BodyLarge(heroName).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).VAlign(VerticalAlignment.Center),
+                Border(Caption($"Lv. {heroLevel}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.Accent))
                     .Padding(6, 2)
                     .CornerRadius(4)
                     .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1F))
@@ -131,9 +128,9 @@ internal static class ChampionMasteryView
         Element card4 = StatCard(
             "里程碑宝箱",
             HStack(4,
-                TextBlock($"{grantedChests}").FontSize(24).FontWeight(Microsoft.UI.Text.FontWeights.Bold),
-                TextBlock("/").FontSize(16).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                TextBlock($"+{eligibleChests} 可得").FontSize(14).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(CareerVisuals.WinText).VAlign(VerticalAlignment.Center)),
+                Title($"{grantedChests}"),
+                BodyLarge("/").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+                BodyStrong($"+{eligibleChests} 可得").Foreground(CareerVisuals.WinText).VAlign(VerticalAlignment.Center)),
             "本赛段里程碑宝箱追踪");
 
         return HStack(12,
@@ -147,9 +144,9 @@ internal static class ChampionMasteryView
     {
         return CareerVisuals.Card(
             VStack(6,
-                TextBlock(title).FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
+                Caption(title).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
                 value,
-                TextBlock(subtitle).FontSize(11).Foreground(Theme.SecondaryText)),
+                Caption(subtitle).Foreground(Theme.SecondaryText)),
             padding: 14);
     }
 
@@ -179,11 +176,11 @@ internal static class ChampionMasteryView
             .VAlign(VerticalAlignment.Center);
 
         Element rightToolbar = HStack(8,
-            TextBlock("排序:").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+            Caption("排序:").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
             ComboBox(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx))
                 .Width(125)
                 .AutomationName("排序方式"),
-            Button("刷新", onRefresh).Height(30).Padding(14, 0).FontSize(11).AutomationName("刷新熟练度"))
+            Button(Caption("刷新"), onRefresh).Height(30).Padding(14, 0).AutomationName("刷新熟练度"))
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
 
@@ -307,9 +304,8 @@ internal static class ChampionMasteryView
                     Search.SearchVisuals.ChampionIcon(item.ChampionId),
                     46,
                     8),
-                Border(TextBlock(item.ChampionLevel.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .FontSize(10)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Border(Caption(item.ChampionLevel.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
                     .Padding(4, 1)
@@ -326,15 +322,11 @@ internal static class ChampionMasteryView
         Element header = HStack(10,
             avatar.VAlign(VerticalAlignment.Center),
             VStack(3,
-                TextBlock(champName)
-                    .FontSize(14)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
+                BodyStrong(champName),
                 HStack(3,
-                    TextBlock($"{item.ChampionPoints:N0}")
-                        .FontSize(13)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                    BodyStrong($"{item.ChampionPoints:N0}")
                         .Foreground(CareerVisuals.WinText),
-                    TextBlock("分").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom)))
+                    Caption("分").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom)))
                 .VAlign(VerticalAlignment.Center));
 
         // 进度条：总宽约 192px
@@ -355,16 +347,14 @@ internal static class ChampionMasteryView
         Element progressBar = VStack(4,
             progressTrack,
             HStack(0,
-                TextBlock($"{item.ProgressPercentage}%")
+                Caption($"{item.ProgressPercentage}%")
                     .Width(70)
-                    .FontSize(11)
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(Theme.SecondaryText),
-                TextBlock(item.ChampionPointsUntilNextLevel > 0
+                Caption(item.ChampionPointsUntilNextLevel > 0
                         ? $"距下一级还需 {item.ChampionPointsUntilNextLevel:N0}"
                         : "已满级")
                     .Width(122)
-                    .FontSize(11)
                     .Foreground(Theme.SecondaryText)
                     .TextAlignment(TextAlignment.Right)
                     .HAlign(HorizontalAlignment.Right)));
@@ -372,7 +362,7 @@ internal static class ChampionMasteryView
         // 里程碑与评级标签
         var badges = new List<Element>
         {
-            Border(TextBlock($"里程碑 {item.ChampionSeasonMilestone}").FontSize(10).Foreground(Theme.SecondaryText))
+            Border(Caption($"里程碑 {item.ChampionSeasonMilestone}").Foreground(Theme.SecondaryText))
                 .Padding(5, 1)
                 .CornerRadius(3)
                 .Background(CareerVisuals.WithAlpha(palette.Accent, 0x10))
@@ -381,9 +371,8 @@ internal static class ChampionMasteryView
 
         foreach (string grade in item.MilestoneGrades)
         {
-            badges.Add(Border(TextBlock(grade)
-                    .FontSize(10)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            badges.Add(Border(Caption(grade)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(CareerVisuals.GoldColor))
                 .Padding(4, 1)
                 .CornerRadius(3)
@@ -391,8 +380,8 @@ internal static class ChampionMasteryView
         }
 
         Element chestBtn = Border(HStack(3,
-                TextBlock("可获宝箱").FontSize(10).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.Accent),
-                TextBlock("📦").FontSize(10)))
+                Caption("可获宝箱").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.Accent),
+                Caption("📦")))
             .Padding(6, 2)
             .CornerRadius(4)
             .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1A))

@@ -44,8 +44,7 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
         var profile = Props.Profile;
 
         Element avatar = profile is null
-            ? Border(TextBlock("\uE77B")
-                    .FontSize(14)
+            ? Border(Body("\uE77B")
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))
@@ -59,19 +58,14 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
 
         Element text = profile is null
             ? VStack(
-                TextBlock(Props.IsConnected ? "未登录召唤师" : "未连接客户端")
-                    .FontSize(13)
+                Body(Props.IsConnected ? "未登录召唤师" : "未连接客户端")
                     .Foreground(Theme.PrimaryText),
-                TextBlock("点击进入生涯")
-                    .FontSize(11)
+                Caption("点击进入生涯")
                     .Foreground(Theme.SecondaryText))
             : VStack(
-                TextBlock(profile.RiotId)
-                    .FontSize(13)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                BodyStrong(profile.RiotId)
                     .Foreground(Theme.PrimaryText),
-                TextBlock($"等级 {profile.SummonerLevel}")
-                    .FontSize(11)
+                Caption($"等级 {profile.SummonerLevel}")
                     .Foreground(Theme.SecondaryText));
 
         // 展开态：头像 + 文字，整卡是带背景与描边的信息卡（对齐旧版 .user-card）。

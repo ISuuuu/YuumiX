@@ -93,8 +93,7 @@ public sealed class NoticePage : Component
                 .Width(24)
                 .Height(24)
                 .IsActive(true),
-            TextBlock("正在获取最新公告...")
-                .FontSize(13)
+            Body("正在获取最新公告...")
                 .Foreground(Theme.SecondaryText))
         .HAlign(HorizontalAlignment.Center)
         .VAlign(VerticalAlignment.Center);
@@ -105,17 +104,13 @@ public sealed class NoticePage : Component
     {
         return VStack(
             12,
-            TextBlock("\uE783")
+            Subtitle("\uE783")
                 .FontFamily("Segoe Fluent Icons")
-                .FontSize(22)
                 .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                 .HAlign(HorizontalAlignment.Center),
-            TextBlock("公告获取失败")
-                .FontSize(15)
-                .FontWeight(FontWeights.SemiBold)
+            BodyStrong("公告获取失败")
                 .HAlign(HorizontalAlignment.Center),
-            TextBlock(message)
-                .FontSize(12)
+            Caption(message)
                 .Foreground(Theme.SecondaryText)
                 .TextWrapping()
                 .MaxWidth(420)
@@ -135,9 +130,7 @@ public sealed class NoticePage : Component
             [
                 VStack(
                     4,
-                    TextBlock("公告")
-                        .FontSize(24)
-                        .FontWeight(FontWeights.Bold),
+                    Title("公告"),
                     Caption("内容来自 GitHub 仓库 NOTICE.md，进入页面时自动获取最新"))
                 .Grid(row: 0, column: 0),
 
@@ -153,13 +146,11 @@ public sealed class NoticePage : Component
             blocks.Add(Border(
                     HStack(
                         8,
-                        TextBlock("\uE7BA")
+                        Caption("\uE7BA")
                             .FontFamily("Segoe Fluent Icons")
-                            .FontSize(12)
                             .Foreground(Theme.Ref("SystemFillColorCautionBrush"))
                             .VAlign(VerticalAlignment.Center),
-                        TextBlock("网络获取失败，当前显示上次缓存的公告内容")
-                            .FontSize(12)
+                        Caption("网络获取失败，当前显示上次缓存的公告内容")
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)))
                 .Padding(12, 8)
@@ -294,23 +285,23 @@ internal static class NoticeMarkdown
     {
         return block.Kind switch
         {
-            // 字号梯度对齐旧 markdown-body：h1 1.05rem/800、h2 0.92rem/700、h3 0.86rem/700。
-            BlockKind.Heading1 => TextBlock(block.Text).FontSize(17).FontWeight(FontWeights.Bold).TextWrapping(),
-            BlockKind.Heading2 => TextBlock(block.Text).FontSize(15).FontWeight(FontWeights.SemiBold).TextWrapping(),
-            BlockKind.Heading3 => TextBlock(block.Text).FontSize(14).FontWeight(FontWeights.SemiBold).TextWrapping(),
+            // 标题层级按 AGENTS.md §1 的语义工厂收敛：h1 → BodyLarge、h2/h3 → BodyStrong。
+            BlockKind.Heading1 => BodyLarge(block.Text).FontWeight(FontWeights.SemiBold).TextWrapping(),
+            BlockKind.Heading2 => BodyStrong(block.Text).TextWrapping(),
+            BlockKind.Heading3 => BodyStrong(block.Text).TextWrapping(),
             BlockKind.ListItem => RenderRichText($"{block.Marker}  {block.Text}"),
             _ => RenderRichText(block.Text),
         };
     }
 
-    /// <summary>段落与列表项共用：单段富文本（正文 13px，行距对齐旧 1.7 ≈ 22px）。</summary>
+    /// <summary>段落与列表项共用：单段富文本（正文取 RichTextBlock 默认 Body 字号，行距对齐旧 1.7 ≈ 22px）。</summary>
     private static Element RenderRichText(string text)
     {
         // 注意：RichTextBlockElement 的 Foreground 不生效（REACTOR_MOD_003，只对
         // Control / TextBlock 生效），正文颜色交给 Run 的默认前景色继承。
+        // 字号同样不写字面量：RichTextBlock 继承正文默认字号（Body 14）。
         return RichTextBlock(
                 new[] { Paragraph(ParseInlines(text).ToArray()) })
-            .FontSize(13)
             .LineHeight(22);
     }
 

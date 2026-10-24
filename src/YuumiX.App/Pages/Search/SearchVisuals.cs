@@ -154,39 +154,31 @@ internal static class SearchVisuals
         int kills,
         int deaths,
         int assists,
-        double fontSize,
         YuumiPalette palette,
         bool strong = false,
         string? uniformColor = null)
     {
-        var fontWeight = strong
-            ? Microsoft.UI.Text.FontWeights.Bold
-            : Microsoft.UI.Text.FontWeights.Normal;
+        TextBlockElement Weighted(TextBlockElement block) =>
+            strong ? block.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold) : block;
 
-        Element Number(int value, string color)
-        {
-            return TextBlock(value.ToString(CultureInfo.InvariantCulture))
-                .FontSize(fontSize)
-                .FontWeight(fontWeight)
-                .Foreground(color);
-        }
+        static string Str(int value) => value.ToString(CultureInfo.InvariantCulture);
 
         if (uniformColor is not null)
         {
             return HStack(0,
-                Number(kills, uniformColor),
-                TextBlock("/").FontSize(fontSize).FontWeight(fontWeight).Foreground(uniformColor),
-                Number(deaths, uniformColor),
-                TextBlock("/").FontSize(fontSize).FontWeight(fontWeight).Foreground(uniformColor),
-                Number(assists, uniformColor));
+                Weighted(Caption(Str(kills)).Foreground(uniformColor)),
+                Weighted(Caption("/").Foreground(uniformColor)),
+                Weighted(Caption(Str(deaths)).Foreground(uniformColor)),
+                Weighted(Caption("/").Foreground(uniformColor)),
+                Weighted(Caption(Str(assists)).Foreground(uniformColor)));
         }
 
         return HStack(0,
-            Number(kills, palette.TextPrimary),
-            TextBlock("/").FontSize(fontSize).Foreground(palette.TextSecondary),
-            Number(deaths, palette.DeathText),
-            TextBlock("/").FontSize(fontSize).Foreground(palette.TextSecondary),
-            Number(assists, palette.TextPrimary));
+            Weighted(Caption(Str(kills)).Foreground(Theme.PrimaryText)),
+            Weighted(Caption("/").Foreground(Theme.SecondaryText)),
+            Weighted(Caption(Str(deaths)).Foreground(palette.DeathText)),
+            Weighted(Caption("/").Foreground(Theme.SecondaryText)),
+            Weighted(Caption(Str(assists)).Foreground(Theme.PrimaryText)));
     }
 
     /// <summary>表格里的数字列：定宽 + 文本对齐，保证各行末位对齐，杜绝与其他列数字粘连。</summary>
@@ -197,6 +189,21 @@ internal static class SearchVisuals
         string? foreground = null,
         TextAlignment alignment = TextAlignment.Right)
     {
+        var cell = NumberCellCore(text, width, strong, alignment);
+        return foreground is null ? cell : cell.Foreground(foreground);
+    }
+
+    /// <summary>同上，前景色取系统结构色令牌（胜负/强调色仍是字符串，故按类型重载）。</summary>
+    public static Element NumberCell(
+        string text,
+        double width,
+        bool strong,
+        ThemeRef foreground,
+        TextAlignment alignment) =>
+        NumberCellCore(text, width, strong, alignment).Foreground(foreground);
+
+    private static TextBlockElement NumberCellCore(string text, double width, bool strong, TextAlignment alignment)
+    {
         var hAlign = alignment switch
         {
             TextAlignment.Center => HorizontalAlignment.Center,
@@ -204,23 +211,12 @@ internal static class SearchVisuals
             _ => HorizontalAlignment.Right,
         };
 
-        var cell = TextBlock(text)
-            .FontSize(12)
+        var cell = Caption(text)
             .Width(width)
             .TextAlignment(alignment)
             .HAlign(hAlign);
 
-        if (strong)
-        {
-            cell = cell.FontWeight(Microsoft.UI.Text.FontWeights.Bold);
-        }
-
-        if (foreground is not null)
-        {
-            cell = cell.Foreground(foreground);
-        }
-
-        return cell;
+        return strong ? cell.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold) : cell;
     }
 
     /// <summary>千分位数字（金币与输出）。InvariantCulture 保证与客户端显示一致，不受系统区域影响。</summary>

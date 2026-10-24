@@ -123,7 +123,7 @@ public sealed class GameInfoPage : Component
             return null;
         }
 
-        return Button("秒退", async () =>
+        return Button(Caption("秒退"), async () =>
         {
             try
             {
@@ -136,7 +136,6 @@ public sealed class GameInfoPage : Component
         })
         .Background("#FFE53935")
         .Foreground("#FFFFFFFF")
-        .FontSize(11)
         .Padding(12, 4)
         .CornerRadius(6)
         .Margin(new Thickness(0, 0, 8, 0))
@@ -147,22 +146,20 @@ public sealed class GameInfoPage : Component
     {
         var items = new List<Element>
         {
-            TextBlock(title)
-                .FontSize(18)
+            BodyLarge(title)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .Foreground(palette.TextPrimary)
+                .Foreground(Theme.PrimaryText)
                 .HAlign(HorizontalAlignment.Center),
-            TextBlock(subtitle)
-                .FontSize(12)
-                .Foreground(palette.TextSecondary)
+            Caption(subtitle)
+                .Foreground(Theme.SecondaryText)
                 .HAlign(HorizontalAlignment.Center)
         };
 
         if (onDemoClick != null)
         {
             items.Add(
-                Button("预览演示对局", onDemoClick)
-                    .FontSize(11.5)
+                Button(Caption("预览演示对局"), onDemoClick)
+                    .AutomationName("预览演示对局")
                     .CornerRadius(4)
                     .Margin(0, 12, 0, 0)
                     .HAlign(HorizontalAlignment.Center)
@@ -192,10 +189,8 @@ public sealed class GameInfoPage : Component
         // 左侧队伍 Tab 切换器（带指示下划线与激活色彩）
         var allyTabBtn = Button(
             VStack(0,
-                TextBlock($"友方 ({state.MyTeam.Count})")
-                    .FontSize(12)
-                    .FontWeight(isMyTab ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
-                    .Foreground(isMyTab ? palette.Accent : palette.TextSecondary)
+                Caption($"友方 ({state.MyTeam.Count})")
+                    .Foreground(isMyTab ? Theme.AccentText : Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
                     .Height(2)
@@ -205,7 +200,7 @@ public sealed class GameInfoPage : Component
             () => service.SetActiveTab("my")
         )
         .AutomationName($"友方队伍 ({state.MyTeam.Count})")
-        .Background(isMyTab ? palette.HoverBg : "#00000000")
+        .Background(isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
         .CornerRadius(0)
         .Padding(0, 8, 0, 0)
@@ -213,10 +208,8 @@ public sealed class GameInfoPage : Component
 
         var enemyTabBtn = Button(
             VStack(0,
-                TextBlock($"敌方 ({state.TheirTeam.Count})")
-                    .FontSize(12)
-                    .FontWeight(!isMyTab ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
-                    .Foreground(!isMyTab ? palette.Accent : palette.TextSecondary)
+                Caption($"敌方 ({state.TheirTeam.Count})")
+                    .Foreground(!isMyTab ? Theme.AccentText : Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
                     .Height(2)
@@ -226,7 +219,7 @@ public sealed class GameInfoPage : Component
             () => service.SetActiveTab("their")
         )
         .AutomationName($"敌方队伍 ({state.TheirTeam.Count})")
-        .Background(!isMyTab ? palette.HoverBg : "#00000000")
+        .Background(!isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
         .CornerRadius(0)
         .Padding(0, 8, 0, 0)
@@ -243,7 +236,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .BorderThickness(new Thickness(0, 0, 0, 1))
-        .BorderBrush(palette.BorderSubtle);
+        .BorderBrush(Theme.CardStroke);
 
         // 左侧玩家卡片列表
         var cards = currentTeam.Select((p, idx) =>
@@ -269,7 +262,7 @@ public sealed class GameInfoPage : Component
         )
         .Width(250)
         .Background(palette.CardBg)
-        .WithBorder(palette.BorderSubtle, 1)
+        .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
         // 右侧工具栏：• 友方 (N) + 组队芯片 + VS + 组队芯片 + • 敌方 (N) + 视图切换器
@@ -327,7 +320,7 @@ public sealed class GameInfoPage : Component
         .Height(44)
         .Padding(12, 6, 12, 6)
         .BorderThickness(new Thickness(0, 0, 0, 1))
-        .BorderBrush(palette.BorderSubtle);
+        .BorderBrush(Theme.CardStroke);
 
         // 右侧 5 列战绩（均分宽度）
         var matchColumns = currentTeam.Select((p, idx) =>
@@ -369,7 +362,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .Background(palette.CardBg)
-        .WithBorder(palette.BorderSubtle, 1)
+        .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
         return Grid(
@@ -440,7 +433,7 @@ public sealed class GameInfoPage : Component
         .Height(44)
         .Padding(12, 6, 12, 6)
         .BorderThickness(new Thickness(0, 0, 0, 1))
-        .BorderBrush(palette.BorderSubtle);
+        .BorderBrush(Theme.CardStroke);
 
         // 10 列战绩（我方 5 列 + 敌方 5 列）
         var colElements = new List<Element>();
@@ -516,7 +509,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .Background(palette.CardBg)
-        .WithBorder(palette.BorderSubtle, 1)
+        .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
         return Grid(
@@ -549,9 +542,8 @@ public sealed class GameInfoPage : Component
             .VAlign(VerticalAlignment.Center)
             .Margin(0, 0, 5, 0);
 
-        var label = TextBlock(text)
-            .FontSize(11)
-            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+        var label = Caption(text)
+            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .Foreground(fgColor)
             .VAlign(VerticalAlignment.Center);
 
@@ -580,15 +572,14 @@ public sealed class GameInfoPage : Component
     private static Element RenderVsBadge(YuumiPalette palette)
     {
         return Border(
-            TextBlock("VS")
-                .FontSize(10)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
-                .Foreground(palette.TextSecondary)
+            Caption("VS")
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                .Foreground(Theme.SecondaryText)
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
         )
-        .Background(palette.HoverBg)
-        .WithBorder(palette.BorderSubtle, 1)
+        .Background(Theme.SubtleFill)
+        .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(10)
         .Padding(7, 2);
     }
@@ -598,15 +589,12 @@ public sealed class GameInfoPage : Component
         bool isFive = currentColumns == 5;
 
         var teamContent = HStack(4,
-            TextBlock("\uE716")
+            Caption("\uE716")
                 .FontFamily("Segoe Fluent Icons")
-                .FontSize(11)
-                .Foreground(isFive ? "#FFFFFFFF" : palette.TextSecondary)
+                .Foreground(isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
-            TextBlock("按队伍")
-                .FontSize(11)
-                .FontWeight(isFive ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal)
-                .Foreground(isFive ? "#FFFFFFFF" : palette.TextSecondary)
+            Caption("按队伍")
+                .Foreground(isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
         );
 
@@ -619,15 +607,12 @@ public sealed class GameInfoPage : Component
             .Height(28);
 
         var allContent = HStack(4,
-            TextBlock("\uE80A")
+            Caption("\uE80A")
                 .FontFamily("Segoe Fluent Icons")
-                .FontSize(11)
-                .Foreground(!isFive ? "#FFFFFFFF" : palette.TextSecondary)
+                .Foreground(!isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
-            TextBlock("全部战绩")
-                .FontSize(11)
-                .FontWeight(!isFive ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal)
-                .Foreground(!isFive ? "#FFFFFFFF" : palette.TextSecondary)
+            Caption("全部战绩")
+                .Foreground(!isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
         );
 
@@ -642,8 +627,8 @@ public sealed class GameInfoPage : Component
         return Border(
             HStack(2, teamBtn, allBtn)
         )
-        .Background(palette.HoverBg)
-        .BorderBrush(palette.BorderSubtle)
+        .Background(Theme.SubtleFill)
+        .BorderBrush(Theme.CardStroke)
         .BorderThickness(new Thickness(1))
         .CornerRadius(6)
         .Padding(2);

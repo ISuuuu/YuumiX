@@ -78,9 +78,7 @@ public sealed class HomePage : Component
         var centerContent = VStack(
             24,
             // 居中大标题
-            TextBlock("客户端连接成功 🎉")
-                .FontSize(28)
-                .FontWeight(FontWeights.Bold)
+            Title("客户端连接成功 🎉")
                 .HorizontalAlignment(HorizontalAlignment.Center),
 
             // 居中卡片展示 PID 与 Port
@@ -90,29 +88,21 @@ public sealed class HomePage : Component
                     // PID 行
                     HStack(
                         4,
-                        TextBlock("PID = ")
+                        Body("PID = ")
                             .FontFamily("Consolas, SF Mono, monospace")
-                            .FontSize(15)
                             .Foreground(Theme.SecondaryText),
-                        TextBlock($"{pid}")
-                            .FontFamily("Consolas, SF Mono, monospace")
-                            .FontSize(15)
-                            .FontWeight(FontWeights.SemiBold)
-                    )
+                        BodyStrong($"{pid}")
+                            .FontFamily("Consolas, SF Mono, monospace"))
                     .HorizontalAlignment(HorizontalAlignment.Center),
 
                     // Port 行
                     HStack(
                         4,
-                        TextBlock("--app-port = ")
+                        Body("--app-port = ")
                             .FontFamily("Consolas, SF Mono, monospace")
-                            .FontSize(15)
                             .Foreground(Theme.SecondaryText),
-                        TextBlock($"{port}")
-                            .FontFamily("Consolas, SF Mono, monospace")
-                            .FontSize(15)
-                            .FontWeight(FontWeights.SemiBold)
-                    )
+                        BodyStrong($"{port}")
+                            .FontFamily("Consolas, SF Mono, monospace"))
                     .HorizontalAlignment(HorizontalAlignment.Center)
                 )
                 .Padding(32, 22)
@@ -162,14 +152,11 @@ public sealed class HomePage : Component
                 .Margin(0, 0, 0, 4),
 
             // 标题
-            TextBlock("客户端未连接")
-                .FontSize(24)
-                .FontWeight(FontWeights.Bold)
+            Title("客户端未连接")
                 .HorizontalAlignment(HorizontalAlignment.Center),
 
             // 说明文案
-            TextBlock("请启动英雄联盟客户端，连接成功后将自动识别并加载数据")
-                .FontSize(13)
+            Body("请启动英雄联盟客户端，连接成功后将自动识别并加载数据")
                 .Foreground(Theme.SecondaryText)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .Margin(0, 0, 0, 8),
@@ -187,8 +174,7 @@ public sealed class HomePage : Component
                     .Width(16)
                     .Height(16)
                     .IsActive(true),
-                TextBlock("等待客户端启动中...")
-                    .FontSize(13)
+                Body("等待客户端启动中...")
                     .Foreground(Theme.SecondaryText)
             )
             .HorizontalAlignment(HorizontalAlignment.Center)

@@ -45,7 +45,6 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var palette = Props.Palette;
 
         var premadeColor = premadeIdx >= 0 ? PremadeColors.GetColor(premadeIdx) : null;
-        string headerBg = premadeColor?.Bg ?? palette.HoverBg;
 
         // 阵营顶部色彩指示（根据 mapSide 蓝/红互换）
         string topBorderColor;
@@ -74,8 +73,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         // 顶部概要头部（5 列模式与 10 列模式高度和排布不同）
         var header = isTenCol
-            ? RenderTenColHeader(p, d, headerBg, services, savedInfo, palette)
-            : RenderFiveColHeader(p, d, headerBg, services, savedInfo, palette);
+            ? RenderTenColHeader(p, d, premadeColor, services, savedInfo, palette)
+            : RenderFiveColHeader(p, d, premadeColor, services, savedInfo, palette);
 
         // 战绩列表（前 10 局）
         var matchesList = RenderMatchesList(d, isTenCol, palette, services, encounteredGameIds);
@@ -90,7 +89,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var columnBorder = Border(colContent)
             .Background("#00000000")
             .BorderThickness(new Thickness(0, 0, rightBorder, 0))
-            .BorderBrush(palette.BorderSubtle);
+            .BorderBrush(Theme.CardStroke);
 
         return columnBorder;
     }
@@ -98,7 +97,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
     private Element RenderFiveColHeader(
         PremadePlayerLike p,
         GameInfoPlayer? d,
-        string bg,
+        PremadeColor? premadeColor,
         AppServices services,
         SavedPlayerMarker? savedInfo,
         YuumiPalette palette)
@@ -124,9 +123,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (masteryDetail?.IsPracticing == true)
         {
             var practiceBadge = Border(
-                TextBlock("练")
-                    .FontSize(8)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Caption("练")
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground("#FFFFFFFF")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -145,8 +143,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         else if (masteryDetail?.IsTopChampion == true)
         {
             var starBadge = Border(
-                TextBlock("★")
-                    .FontSize(8)
+                Caption("★")
                     .Foreground("#FFFFFFFF")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -167,10 +164,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         string searchName = PlayerNameVisuals.GetSearchName(p, d);
         bool hasSearchTarget = !string.IsNullOrEmpty(searchName);
 
-        var nameText = TextBlock(displayName)
+        var nameText = Caption(displayName)
             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-            .FontSize(11.5)
-            .Foreground(palette.TextPrimary)
+            .Foreground(Theme.PrimaryText)
             .TextTrimming(TextTrimming.CharacterEllipsis)
             .VAlign(VerticalAlignment.Center);
 
@@ -191,9 +187,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
             nameRowItems.Add(
-                TextBlock("\uE72E")
+                Caption("\uE72E")
                     .FontFamily("Segoe Fluent Icons")
-                    .FontSize(10)
                     .Foreground("#FFD97706")
                     .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
@@ -208,7 +203,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             string fateFg = isAlly ? palette.WinText : palette.LoseText;
 
             nameRowItems.Add(
-                Border(TextBlock(fateText).FontSize(8.5).Foreground(fateFg))
+                Border(Caption(fateText).Foreground(fateFg))
                     .Background(fateBg)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
@@ -221,7 +216,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
             nameRowItems.Add(
-                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8.5, palette)
+                FateBadgeVisuals.BuildSavedBadge(savedInfo, palette)
                     .Margin(3, 0, 0, 0));
         }
 
@@ -232,14 +227,14 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         if (d?.WinCount.HasValue == true && d?.LossesCount.HasValue == true)
         {
-            summaryItems.Add(TextBlock($"{d.WinCount}胜").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.WinText));
-            summaryItems.Add(TextBlock($"{d.LossesCount}负").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.LoseText).Margin(2, 0, 4, 0));
+            summaryItems.Add(Caption($"{d.WinCount}胜").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.WinText));
+            summaryItems.Add(Caption($"{d.LossesCount}负").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.LoseText).Margin(2, 0, 4, 0));
         }
         else if (d?.WinRate.HasValue == true)
         {
             int wr = (int)Math.Round(d.WinRate.Value);
             string wrColor = wr >= 50 ? palette.WinText : palette.LoseText;
-            summaryItems.Add(TextBlock($"{wr}%").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(wrColor).Margin(0, 0, 4, 0));
+            summaryItems.Add(Caption($"{wr}%").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(wrColor).Margin(0, 0, 4, 0));
         }
 
         var activeRank = d?.PrimaryRank;
@@ -248,7 +243,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             string shortRank = ShortRank(activeRank.Tier, activeRank.Division);
             var rankBlock = HStack(2,
                 CareerVisuals.RankedMedal(activeRank.Tier, 12).VAlign(VerticalAlignment.Center),
-                TextBlock(shortRank).FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.TextSecondary).VAlign(VerticalAlignment.Center)
+                Caption(shortRank).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)
             )
             .Margin(0, 0, 4, 0)
             .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail)));
@@ -260,9 +255,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             string masteryTip = $"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)";
             summaryItems.Add(
-                Border(TextBlock($"Lv.{masteryDetail.Level}").FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.TextSecondary))
-                    .Background(palette.HoverBg)
-                    .WithBorder(palette.BorderSubtle, 1)
+                Border(Caption($"Lv.{masteryDetail.Level}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText))
+                    .Background(Theme.SubtleFill)
+                    .WithBorder(Theme.CardStroke, 1)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .VAlign(VerticalAlignment.Center)
@@ -285,10 +280,13 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         string premadeTip = Props.PremadeIdx >= 0 ? $"组队 {Props.PremadeIdx + 1}" : string.Empty;
         var headerBorder = Border(headerContent)
             .Height(48)
-            .Background(bg)
             .BorderThickness(new Thickness(0, 0, 0, 1))
-            .BorderBrush(palette.BorderSubtle)
+            .BorderBrush(Theme.CardStroke)
             .Padding(6, 4);
+
+        headerBorder = premadeColor is null
+            ? headerBorder.Background(Theme.SubtleFill)
+            : headerBorder.Background(premadeColor.Bg);
 
         if (!string.IsNullOrEmpty(premadeTip))
         {
@@ -301,7 +299,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
     private Element RenderTenColHeader(
         PremadePlayerLike p,
         GameInfoPlayer? d,
-        string bg,
+        PremadeColor? premadeColor,
         AppServices services,
         SavedPlayerMarker? savedInfo,
         YuumiPalette palette)
@@ -328,9 +326,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (masteryDetail?.IsPracticing == true)
         {
             var practiceBadge = Border(
-                TextBlock("练")
-                    .FontSize(7.5)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Caption("练")
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground("#FFFFFFFF")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -349,8 +346,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         else if (masteryDetail?.IsTopChampion == true)
         {
             var starBadge = Border(
-                TextBlock("★")
-                    .FontSize(7.5)
+                Caption("★")
                     .Foreground("#FFFFFFFF")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -370,9 +366,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (masteryDetail is { Level: > 0 })
         {
             var levelBadge = Border(
-                TextBlock($"Lv.{masteryDetail.Level}")
-                    .FontSize(7.5)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Caption($"Lv.{masteryDetail.Level}")
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground("#FFFFFFFF")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -391,15 +386,14 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var avatarElement = Grid([GridSize.Auto], [GridSize.Auto], avatarStack.ToArray())
             .HAlign(HorizontalAlignment.Center);
 
-        // ── 第 2 层：居中玩家名称 (11.5px Bold, palette.TextPrimary, 单行省略) ──
+        // ── 第 2 层：居中玩家名称 (Caption 半粗, Theme.PrimaryText, 单行省略) ──
         string displayName = PlayerNameVisuals.GetDisplayName(p, d, 0);
         string searchName = PlayerNameVisuals.GetSearchName(p, d);
         bool hasSearchTarget = !string.IsNullOrEmpty(searchName);
 
-        var nameText = TextBlock(displayName)
-            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
-            .FontSize(11.5)
-            .Foreground(palette.TextPrimary)
+        var nameText = Caption(displayName)
+            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+            .Foreground(Theme.PrimaryText)
             .TextTrimming(TextTrimming.CharacterEllipsis)
             .TextAlignment(TextAlignment.Center)
             .HAlign(HorizontalAlignment.Center)
@@ -420,9 +414,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
             nameRowItems.Add(
-                TextBlock("\uE72E")
+                Caption("\uE72E")
                     .FontFamily("Segoe Fluent Icons")
-                    .FontSize(9)
                     .Foreground("#FFD97706")
                     .Margin(2, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
@@ -441,19 +434,17 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             var rankItems = new List<Element>
             {
                 CareerVisuals.RankedMedal(activeRank.Tier, 13).VAlign(VerticalAlignment.Center),
-                TextBlock(shortRank)
-                    .FontSize(9)
+                Caption(shortRank)
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                    .Foreground(palette.TextSecondary)
+                    .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center),
             };
 
             if (d?.WinCount.HasValue == true && d?.LossesCount.HasValue == true)
             {
                 rankItems.Add(
-                    TextBlock($"{d.WinCount}胜{d.LossesCount}负")
-                        .FontSize(8)
-                        .Foreground(palette.TextMuted)
+                    Caption($"{d.WinCount}胜{d.LossesCount}负")
+                        .Foreground(Theme.DisabledText)
                         .Margin(3, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center));
             }
@@ -466,8 +457,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             string posTip = BuildPosTooltip(d);
             var recordPill = HStack(2,
-                TextBlock($"{d.WinCount}胜").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.WinText),
-                TextBlock($"{d.LossesCount}负").FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.LoseText)
+                Caption($"{d.WinCount}胜").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.WinText),
+                Caption($"{d.LossesCount}负").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.LoseText)
             ).HAlign(HorizontalAlignment.Center);
 
             if (!string.IsNullOrEmpty(posTip))
@@ -481,17 +472,15 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             int wr = (int)Math.Round(d.WinRate.Value);
             string wrColor = wr >= 50 ? palette.WinText : palette.LoseText;
-            rankOrRecord = TextBlock($"{wr}%")
-                .FontSize(9)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            rankOrRecord = Caption($"{wr}%")
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(wrColor)
                 .HAlign(HorizontalAlignment.Center);
         }
         else
         {
-            rankOrRecord = TextBlock("无段位")
-                .FontSize(8.5)
-                .Foreground(palette.TextMuted)
+            rankOrRecord = Caption("无段位")
+                .Foreground(Theme.DisabledText)
                 .HAlign(HorizontalAlignment.Center);
         }
 
@@ -506,7 +495,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             string fateFg = isAlly ? palette.WinText : palette.LoseText;
 
             flagItems.Add(
-                Border(TextBlock(fateText).FontSize(8).Foreground(fateFg))
+                Border(Caption(fateText).Foreground(fateFg))
                     .Background(fateBg)
                     .CornerRadius(2)
                     .Padding(3, 0.5)
@@ -518,7 +507,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
             flagItems.Add(
-                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8, palette)
+                FateBadgeVisuals.BuildSavedBadge(savedInfo, palette)
                     .Margin(1, 0));
         }
 
@@ -529,7 +518,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             string streakBg = d.Streak.IsWin ? palette.WinBg : palette.LoseBg;
 
             flagItems.Add(
-                Border(TextBlock(streakText).FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(streakFg))
+                Border(Caption(streakText).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(streakFg))
                     .Background(streakBg)
                     .CornerRadius(2)
                     .Padding(3, 0.5)
@@ -544,9 +533,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             string p1 = ShortPosition(d.Positions.PrimaryPosition);
             string posText = $"{p1} {d.Positions.PrimaryPercentage}%";
             string posTooltip = BuildPosTooltip(d);
-            var posBlock = TextBlock(posText)
-                .FontSize(8)
-                .Foreground(palette.TextMuted)
+            var posBlock = Caption(posText)
+                .Foreground(Theme.DisabledText)
                 .TextTrimming(TextTrimming.CharacterEllipsis)
                 .VAlign(VerticalAlignment.Center);
 
@@ -575,10 +563,13 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         var headerBorder = Border(headerContent)
             .Height(110)
-            .Background(bg)
             .BorderThickness(new Thickness(0, 0, 0, 1))
-            .BorderBrush(palette.BorderSubtle)
+            .BorderBrush(Theme.CardStroke)
             .Padding(3, 6);
+
+        headerBorder = premadeColor is null
+            ? headerBorder.Background(Theme.SubtleFill)
+            : headerBorder.Background(premadeColor.Bg);
 
         if (!string.IsNullOrEmpty(premadeTip))
         {
@@ -598,7 +589,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (d?.Loading == true)
         {
             return VStack(0,
-                Border(TextBlock("· · ·").FontSize(11).Foreground(palette.TextMuted).HAlign(HorizontalAlignment.Center))
+                Border(Caption("· · ·").Foreground(Theme.DisabledText).HAlign(HorizontalAlignment.Center))
                     .Margin(0, 32, 0, 0)
             );
         }
@@ -611,8 +602,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (d?.Matches == null || d.Matches.Count == 0)
         {
             return VStack(4,
-                TextBlock("📭").FontSize(14).HAlign(HorizontalAlignment.Center),
-                TextBlock("暂无对局记录").FontSize(8.5).Foreground(palette.TextMuted).HAlign(HorizontalAlignment.Center)
+                Body("📭").HAlign(HorizontalAlignment.Center),
+                Caption("暂无对局记录").Foreground(Theme.DisabledText).HAlign(HorizontalAlignment.Center)
             )
             .Padding(0, 24, 0, 0);
         }
@@ -650,9 +641,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .Provide(AppHost.Context, services);
 
         var levelBadge = Border(
-            TextBlock($"{m.ChampionLevel}")
-                .FontSize(isTenCol ? 7 : 7.5)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            Caption($"{m.ChampionLevel}")
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground("#FFFFFFFF")
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
@@ -675,10 +665,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         // 卡片顶部：模式名称 + 位置 + 「同局」标记 + 日期（带 ToolTip，§2.3.3）
         var topRowElements = new List<Element>
         {
-            TextBlock(m.QueueName)
-                .FontSize(isTenCol ? 8.5 : 9)
+            Caption(m.QueueName)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .Foreground(palette.TextSecondary)
+                .Foreground(Theme.SecondaryText)
                 .TextTrimming(TextTrimming.CharacterEllipsis)
                 .Grid(row: 0, column: 0)
         };
@@ -690,9 +679,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             topRowColumns.Add(GridSize.Auto);
             topRowElements.Add(
-                TextBlock(posName)
-                    .FontSize(8.5)
-                    .Foreground(palette.TextSecondary)
+                Caption(posName)
+                    .Foreground(Theme.SecondaryText)
                     .Margin(3, 0, 3, 0)
                     .Grid(row: 0, column: topCol));
             topCol++;
@@ -703,9 +691,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             topRowColumns.Add(GridSize.Auto);
             topRowElements.Add(
-                Border(TextBlock("同局")
-                        .FontSize(8)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Border(Caption("同局")
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(palette.Accent))
                     .Background(palette.AccentAlpha15)
                     .WithBorder(palette.AccentAlpha40, 1)
@@ -720,9 +707,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         topRowColumns.Add(GridSize.Auto);
         topRowElements.Add(
-            TextBlock(m.ShortDateText)
-                .FontSize(isTenCol ? 8 : 8.5)
-                .Foreground(palette.TextMuted)
+            Caption(m.ShortDateText)
+                .Foreground(Theme.DisabledText)
                 .Grid(row: 0, column: topCol));
 
         var topRow = Grid(topRowColumns.ToArray(), [GridSize.Auto], topRowElements.ToArray())
@@ -731,11 +717,11 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         // KDA 行（击杀/死亡/助攻，死亡红色加粗）
         var kdaItems = new List<Element>
         {
-            TextBlock($"{m.Kills}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.TextPrimary),
-            TextBlock(isTenCol ? " " : " / ").FontSize(isTenCol ? 8.5 : 9.5).Foreground(palette.TextMuted),
-            TextBlock($"{m.Deaths}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.DeathText),
-            TextBlock(isTenCol ? " " : " / ").FontSize(isTenCol ? 8.5 : 9.5).Foreground(palette.TextMuted),
-            TextBlock($"{m.Assists}").FontSize(isTenCol ? 10 : 11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(palette.TextPrimary),
+            Caption($"{m.Kills}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.PrimaryText),
+            Caption(isTenCol ? " " : " / ").Foreground(Theme.DisabledText),
+            Caption($"{m.Deaths}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.DeathText),
+            Caption(isTenCol ? " " : " / ").Foreground(Theme.DisabledText),
+            Caption($"{m.Assists}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.PrimaryText),
         };
 
         var kdaLine = HStack(0, kdaItems.ToArray());
@@ -746,8 +732,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             var (ratioText, ratioColor) = FormatKdaRatio(m, palette);
             statsBox = VStack(1,
                 kdaLine,
-                TextBlock($"{ratioText} KDA")
-                    .FontSize(8.5)
+                Caption($"{ratioText} KDA")
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(ratioColor)
             );

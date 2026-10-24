@@ -36,17 +36,4 @@ public static class ButtonStyleExtensions
             .Set("ButtonBorderBrush", Theme.Ref("SystemFillColorCriticalBrush"))
             .Set("ButtonBorderBrushPointerOver", "#D83B01")
             .Set("ButtonBorderBrushPressed", "#A80000"));
-
-    /// <summary>
-    /// 强调按钮（Accent 样式）：使用当前主题强调色作为背景的主操作按钮。
-    /// </summary>
-    public static ButtonElement AccentButton(this ButtonElement button, string accentColor) =>
-        button.Resources(resources => resources
-            .Set("ButtonBackground", accentColor)
-            .Set("ButtonBackgroundPointerOver", accentColor)
-            .Set("ButtonBackgroundPressed", accentColor)
-            .Set("ButtonForeground", "#FFFFFFFF")
-            .Set("ButtonForegroundPointerOver", "#FFFFFFFF")
-            .Set("ButtonForegroundPressed", "#FFFFFFFF")
-            .Set("ButtonBorderBrush", accentColor));
 }

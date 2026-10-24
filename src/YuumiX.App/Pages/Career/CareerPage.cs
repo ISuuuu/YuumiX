@@ -868,17 +868,15 @@ public sealed class CareerPage : Component
     private static Element FailureHint(string message, Action onRetry) =>
         CareerVisuals.Card(
             HStack(12,
-                TextBlock(message).FontSize(13).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                Button("重试", onRetry).Height(30).Padding(14, 0).FontSize(12).AutomationName($"重试：{message}")),
+                Body(message).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+                Button(Caption("重试"), onRetry).Height(30).Padding(14, 0).AutomationName($"重试：{message}")),
             padding: 16);
 
     /// <summary>未登录时的资料卡占位：说明原因而不是留白。</summary>
     private static Element EmptyHeader(bool loading) =>
         CareerVisuals.Card(
             VStack(6,
-                TextBlock(loading ? "正在读取生涯数据…" : "未读取到当前召唤师（客户端未登录）")
-                    .FontSize(14)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+                BodyStrong(loading ? "正在读取生涯数据…" : "未读取到当前召唤师（客户端未登录）"),
                 Caption("启动并登录英雄联盟客户端后，这里会显示头像、等级与排位成绩。")),
             padding: 20);
 
@@ -891,10 +889,8 @@ public sealed class CareerPage : Component
         YuumiPalette palette)
     {
         bool isSelected = target == current;
-        var text = TextBlock(label)
-            .FontSize(13.5)
-            .FontWeight(isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
-            .Foreground(isSelected ? palette.Accent : palette.TextSecondary)
+        var text = Body(label)
+            .Foreground(isSelected ? Theme.AccentText : Theme.SecondaryText)
             .HAlign(HorizontalAlignment.Center)
             .VAlign(VerticalAlignment.Center);
 

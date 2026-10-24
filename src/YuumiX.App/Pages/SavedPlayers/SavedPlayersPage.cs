@@ -452,8 +452,7 @@ public sealed class SavedPlayersPage : Component
     {
         var badge = totalCount > 0
             ? Border(
-                TextBlock($"{totalCount}")
-                    .FontSize(11)
+                Caption($"{totalCount}")
                     .FontWeight(FontWeights.SemiBold)
                     .Foreground(palette.Accent)
                     .Margin(6, 1)
@@ -471,15 +470,11 @@ public sealed class SavedPlayersPage : Component
                 // 左侧标题与说明
                 HStack(
                     8,
-                    TextBlock("路人集")
-                        .FontSize(22)
-                        .FontWeight(FontWeights.Bold),
+                    Subtitle("路人集"),
                     badge,
-                    TextBlock("·")
-                        .FontSize(14)
+                    Body("·")
                         .Foreground(Theme.SecondaryText),
-                    TextBlock("对局结束后自动记录同局的队友与对手，可添加标记以便选人阶段提醒")
-                        .FontSize(12)
+                    Caption("对局结束后自动记录同局的队友与对手，可添加标记以便选人阶段提醒")
                         .Foreground(Theme.SecondaryText)
                         .VerticalAlignment(VerticalAlignment.Center)
                 )
@@ -489,13 +484,11 @@ public sealed class SavedPlayersPage : Component
                 // 右侧导入/导出操作
                 HStack(
                     8,
-                    Button("导入标记", onImport)
+                    Button(Caption("导入标记"), onImport)
                         .AutomationName("导入标记")
-                        .FontSize(12)
                         .Padding(12, 5),
-                    Button("导出标记", onExport)
+                    Button(Caption("导出标记"), onExport)
                         .AutomationName("导出标记")
-                        .FontSize(12)
                         .Padding(12, 5)
                 )
                 .VerticalAlignment(VerticalAlignment.Center)
@@ -518,9 +511,8 @@ public sealed class SavedPlayersPage : Component
         YuumiPalette palette)
     {
         var clearBtn = !string.IsNullOrEmpty(searchDraft)
-            ? Button("✕", onClearSearch)
+            ? Button(Caption("✕"), onClearSearch)
                 .AutomationName("清空搜索")
-                .FontSize(11)
                 .Padding(6, 2)
                 .VerticalAlignment(VerticalAlignment.Center)
             : null;
@@ -542,9 +534,8 @@ public sealed class SavedPlayersPage : Component
         Element FilterButton(string label, string key)
         {
             var isSelected = filter == key;
-            var btn = Button(label, () => setFilter(key))
+            var btn = Button(Caption(label), () => setFilter(key))
                 .AutomationName(label)
-                .FontSize(12)
                 .Padding(14, 5);
 
             return isSelected
@@ -614,15 +605,13 @@ public sealed class SavedPlayersPage : Component
             {
                 return VStack(
                     8,
-                    TextBlock($"未找到与 “{committedSearch}” 相关的玩家")
-                        .FontSize(14)
-                        .FontWeight(FontWeights.SemiBold)
+                    BodyStrong($"未找到与 “{committedSearch}” 相关的玩家")
                         .Foreground(Theme.SecondaryText)
                         .HorizontalAlignment(HorizontalAlignment.Center),
-                    Button("清空搜索条件", onClearSearch)
-                        .FontSize(12)
+                    Button(Caption("清空搜索条件"), onClearSearch)
                         .Padding(14, 5)
                         .HorizontalAlignment(HorizontalAlignment.Center)
+                        .AutomationName("清空搜索条件")
                 )
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .VerticalAlignment(VerticalAlignment.Center);
@@ -630,13 +619,10 @@ public sealed class SavedPlayersPage : Component
 
             return VStack(
                 6,
-                TextBlock("暂无路人玩家记录")
-                    .FontSize(15)
-                    .FontWeight(FontWeights.SemiBold)
+                BodyStrong("暂无路人玩家记录")
                     .Foreground(Theme.SecondaryText)
                     .HorizontalAlignment(HorizontalAlignment.Center),
-                TextBlock("对局结束后同局的队友与对手会自动出现在这里")
-                    .FontSize(12)
+                Caption("对局结束后同局的队友与对手会自动出现在这里")
                     .Foreground(Theme.SecondaryText)
                     .HorizontalAlignment(HorizontalAlignment.Center)
             )
@@ -670,24 +656,22 @@ public sealed class SavedPlayersPage : Component
             footerSentinel = HStack(
                 8,
                 ProgressRing().Width(16).Height(16).IsActive(true),
-                TextBlock("正在加载更多玩家...").FontSize(11).Foreground(Theme.SecondaryText)
+                Caption("正在加载更多玩家...").Foreground(Theme.SecondaryText)
             )
             .HorizontalAlignment(HorizontalAlignment.Center)
             .Margin(0, 10, 0, 16);
         }
         else if (players.Count < totalCount)
         {
-            footerSentinel = Button("加载更多玩家", onLoadMorePlayers)
+            footerSentinel = Button(Caption("加载更多玩家"), onLoadMorePlayers)
                 .AutomationName("加载更多玩家")
-                .FontSize(12)
                 .Padding(18, 5)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .Margin(0, 8, 0, 16);
         }
         else if (players.Count >= totalCount && totalCount > 0)
         {
-            footerSentinel = TextBlock("已加载全部玩家记录")
-                .FontSize(11)
+            footerSentinel = Caption("已加载全部玩家记录")
                 .Foreground(Theme.SecondaryText)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .Margin(0, 10, 0, 16);
@@ -743,11 +727,8 @@ public sealed class SavedPlayersPage : Component
             4,
             HStack(
                 6,
-                TextBlock(player.SummonerName)
-                    .FontSize(14)
-                    .FontWeight(FontWeights.SemiBold),
-                TextBlock(string.IsNullOrEmpty(player.TagLine) ? "#—" : $"#{player.TagLine}")
-                    .FontSize(12)
+                BodyStrong(player.SummonerName),
+                Caption(string.IsNullOrEmpty(player.TagLine) ? "#—" : $"#{player.TagLine}")
                     .Foreground(Theme.SecondaryText)
                     .VerticalAlignment(VerticalAlignment.Center)
             ),
@@ -755,8 +736,7 @@ public sealed class SavedPlayersPage : Component
                 6,
                 !string.IsNullOrEmpty(player.Tag)
                     ? Border(
-                        TextBlock(player.Tag)
-                            .FontSize(11)
+                        Caption(player.Tag)
                             .FontWeight(FontWeights.SemiBold)
                             .Margin(6, 1)
                       )
@@ -766,8 +746,7 @@ public sealed class SavedPlayersPage : Component
 
                 !string.IsNullOrEmpty(modeName)
                     ? Border(
-                        TextBlock(modeName)
-                            .FontSize(11)
+                        Caption(modeName)
                             .Foreground(Theme.SecondaryText)
                             .Margin(6, 1)
                       )
@@ -778,8 +757,7 @@ public sealed class SavedPlayersPage : Component
 
                 player.EncounterCount >= 2
                     ? Border(
-                        TextBlock($"相遇 {player.EncounterCount} 次")
-                            .FontSize(11)
+                        Caption($"相遇 {player.EncounterCount} 次")
                             .Foreground(palette.Accent)
                             .Margin(6, 1)
                       )
@@ -795,30 +773,26 @@ public sealed class SavedPlayersPage : Component
         var timeText = FormatTime(player.LastMetAt);
         var rightStack = HStack(
             6,
-            TextBlock(timeText)
-                .FontSize(12)
+            Caption(timeText)
                 .Foreground(Theme.SecondaryText)
                 .VerticalAlignment(VerticalAlignment.Center)
                 .Margin(0, 0, 12, 0),
 
-            Button("编辑标记", () =>
+            Button(Caption("编辑标记"), () =>
             {
                 setEditingTag(player.Tag ?? string.Empty);
                 setEditingPuuid(player.Puuid);
             })
             .AutomationName("编辑标记")
-            .FontSize(11)
             .Padding(8, 3),
 
-            Button("删除", () => setPendingDeletePuuid(player.Puuid))
+            Button(Caption("删除"), () => setPendingDeletePuuid(player.Puuid))
                 .AutomationName("删除")
-                .FontSize(11)
                 .Padding(8, 3)
                 .Foreground(palette.LoseAccent),
 
-            Button(isExpanded ? "▾" : "▸", onToggle)
+            Button(Caption(isExpanded ? "▾" : "▸"), onToggle)
                 .AutomationName("展开或折叠对局历史")
-                .FontSize(12)
                 .Padding(8, 3)
         )
         .VerticalAlignment(VerticalAlignment.Center);
@@ -856,17 +830,16 @@ public sealed class SavedPlayersPage : Component
             deleteConfirmRow = Border(
                 HStack(
                     10,
-                    TextBlock("⚠️ 确定要删除该玩家及其所有相遇记录吗？")
-                        .FontSize(11)
+                    Caption("⚠️ 确定要删除该玩家及其所有相遇记录吗？")
                         .Foreground(palette.LoseAccent)
                         .VerticalAlignment(VerticalAlignment.Center),
-                    Button("确认删除", onConfirmDelete)
-                        .FontSize(11)
+                    Button(Caption("确认删除"), onConfirmDelete)
                         .Padding(10, 3)
-                        .Background(palette.LoseAccent),
-                    Button("取消", () => setPendingDeletePuuid(null))
-                        .FontSize(11)
+                        .Background(palette.LoseAccent)
+                        .AutomationName("确认删除"),
+                    Button(Caption("取消"), () => setPendingDeletePuuid(null))
                         .Padding(10, 3)
+                        .AutomationName("取消")
                 )
                 .Padding(10, 6)
             )
@@ -890,12 +863,12 @@ public sealed class SavedPlayersPage : Component
                 .AutomationName("编辑玩家标记")
                 .Width(260)
                 .Height(30),
-                Button("保存", onSaveTag)
-                    .FontSize(11)
+                Button(Caption("保存"), onSaveTag)
+                    .AutomationName("保存")
                     .Padding(12, 4)
                     .Background(palette.Accent),
-                Button("取消", () => setEditingPuuid(null))
-                    .FontSize(11)
+                Button(Caption("取消"), () => setEditingPuuid(null))
+                    .AutomationName("取消")
                     .Padding(12, 4)
             )
             .Margin(0, 10, 0, 0);
@@ -910,14 +883,13 @@ public sealed class SavedPlayersPage : Component
                 historySection = HStack(
                     8,
                     ProgressRing().Width(18).Height(18).IsActive(true),
-                    TextBlock("加载相遇对局...").FontSize(11).Foreground(Theme.SecondaryText)
+                    Caption("加载相遇对局...").Foreground(Theme.SecondaryText)
                 )
                 .Margin(0, 10, 0, 4);
             }
             else if (encounteredGames.Count == 0)
             {
-                historySection = TextBlock("暂无相遇对局记录")
-                    .FontSize(11)
+                historySection = Caption("暂无相遇对局记录")
                     .Foreground(Theme.SecondaryText)
                     .Margin(0, 10, 0, 4);
             }
@@ -926,12 +898,10 @@ public sealed class SavedPlayersPage : Component
                 var gameRows = encounteredGames.Select(g =>
                     HStack(
                         12,
-                        TextBlock(FormatQueue(g.QueueType))
-                            .FontSize(11)
+                        Caption(FormatQueue(g.QueueType))
                             .FontWeight(FontWeights.SemiBold)
                             .Width(110),
-                        TextBlock(FormatTime(g.UpdateAt))
-                            .FontSize(11)
+                        Caption(FormatTime(g.UpdateAt))
                             .Foreground(Theme.SecondaryText)
                     )
                     .Margin(0, 2, 0, 2)
@@ -942,9 +912,9 @@ public sealed class SavedPlayersPage : Component
                     gameRows.Add(
                         HStack(
                             8,
-                            Button("加载更多对局记录", onLoadMoreGames)
-                                .FontSize(11)
+                            Button(Caption("加载更多对局记录"), onLoadMoreGames)
                                 .Padding(10, 3)
+                                .AutomationName("加载更多对局记录")
                         )
                         .Margin(0, 4, 0, 2)
                     );
@@ -952,8 +922,7 @@ public sealed class SavedPlayersPage : Component
 
                 historySection = VStack(
                     4,
-                    TextBlock("相遇对局历史：")
-                        .FontSize(11)
+                    Caption("相遇对局历史：")
                         .Foreground(Theme.SecondaryText)
                         .Margin(0, 8, 0, 2),
                     VStack(gameRows.ToArray()).Spacing(2)
@@ -986,8 +955,7 @@ public sealed class SavedPlayersPage : Component
 
         var items = toasts.Select(t =>
             Border(
-                TextBlock(t.Message)
-                    .FontSize(12)
+                Caption(t.Message)
                     .FontWeight(FontWeights.Medium)
                     .Foreground(t.IsError ? palette.LoseAccent : palette.Accent)
                     .Margin(12, 6)

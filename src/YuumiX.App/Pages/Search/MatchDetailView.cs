@@ -56,9 +56,8 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
             color = p.Palette.TextSecondary;
         }
 
-        var text = TextBlock(p.DisplayName)
-            .FontSize(12)
-            .FontWeight(p.IsQueriedPlayer ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.SemiBold)
+        var text = Caption(p.DisplayName)
+            .FontWeight(p.IsQueriedPlayer ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
             .Foreground(color);
 
         if (hasPuuid)
@@ -109,8 +108,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
                 .AutomationName($"搜索 {p.DisplayName}");
         }
 
-        return TextBlock(p.DisplayName)
-            .FontSize(12)
+        return Caption(p.DisplayName)
             .Foreground(p.Palette.TextSecondary)
             .WithToolTip(TextBlock("机器人（不可查看战绩）"));
     }
@@ -189,25 +187,25 @@ internal static class MatchDetailView
                     .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch))
             .CornerRadius(10)
             .Background(palette.CardBg)
-            .WithBorder(palette.BorderSubtle, 1)
+            .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
     }
 
     /// <summary>未选中任何对局时的占位：保持面板存在，避免整页在「有/无选中」之间跳动。</summary>
     private static Element EmptyPanel(YuumiPalette palette) =>
-        Border(Caption("在左侧选择一局以查看详情").FontSize(12).Foreground(palette.TextSecondary).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
+        Border(Caption("在左侧选择一局以查看详情").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
             .Padding(24)
             .CornerRadius(10)
             .Background(palette.CardBg)
-            .WithBorder(palette.BorderSubtle, 1)
+            .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
 
     /// <summary>详情请求进行中的占位。</summary>
     private static Element PendingHint(YuumiPalette palette) =>
-        Border(Caption("正在读取该局详情…").FontSize(12).Foreground(palette.TextSecondary)).Padding(16).CornerRadius(8)
+        Border(Caption("正在读取该局详情…").Foreground(Theme.SecondaryText)).Padding(16).CornerRadius(8)
             .Background(palette.CardBg)
-            .WithBorder(palette.BorderSubtle, 1)
+            .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 
     /// <summary>
@@ -245,17 +243,15 @@ internal static class MatchDetailView
         Element info = HStack(10,
             Border(Empty()).Width(4).Height(34).CornerRadius(2).Background(accent),
             VStack(3,
-                TextBlock(SearchVisuals.ResultText(summary))
-                    .FontSize(16)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                BodyLarge(SearchVisuals.ResultText(summary))
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(accent),
-                TextBlock(meta).FontSize(11).Foreground(palette.TextSecondary)))
+                Caption(meta).Foreground(Theme.SecondaryText)))
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
-        Element copyBtn = Button("复制 ID", () => onCopyGameId?.Invoke(summary.GameId))
+        Element copyBtn = Button(Caption("复制 ID"), () => onCopyGameId?.Invoke(summary.GameId))
             .Height(30)
             .Padding(8, 0)
-            .FontSize(11)
             .AutomationName("复制游戏 ID")
             .WithToolTip(TextBlock($"复制游戏 ID: {summary.GameId} 到剪贴板"));
 
@@ -333,7 +329,7 @@ internal static class MatchDetailView
         }
 
         Element body = team.Players.Count == 0
-            ? Border(Caption("无参与者数据").FontSize(12).Foreground(palette.TextSecondary)).Padding(12)
+            ? Border(Caption("无参与者数据").Foreground(Theme.SecondaryText)).Padding(12)
             : VStack(0, rows.ToArray());
 
         return Border(VStack(0, header, body))
@@ -349,13 +345,12 @@ internal static class MatchDetailView
         string? iconUri = AppAssets.GetMatchDetailIconUri(iconName);
         Element icon = iconUri is not null
             ? Image(iconUri).Width(16).Height(16).AutomationName(tooltip).VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
-            : TextBlock(tooltip).FontSize(10).Foreground(palette.TextSecondary).VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
+            : Caption(tooltip).Foreground(Theme.SecondaryText).VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         return HStack(3,
                 icon,
-                TextBlock(count.ToString(CultureInfo.InvariantCulture))
-                    .FontSize(11)
-                    .Foreground(palette.TextSecondary)
+                Caption(count.ToString(CultureInfo.InvariantCulture))
+                    .Foreground(Theme.SecondaryText)
                     .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center))
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
             .WithToolTip(TextBlock(tooltip));
@@ -367,9 +362,7 @@ internal static class MatchDetailView
         int teamId = team.TeamId; // 100 or 200
 
         return HStack(8,
-            TextBlock(team.Win ? "胜方" : "败方")
-                .FontSize(14)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            BodyStrong(team.Win ? "胜方" : "败方")
                 .Foreground(accent)
                 .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center),
             ResourceItem("kills.png", team.Kills, "击杀", palette),
@@ -382,9 +375,8 @@ internal static class MatchDetailView
 
     /// <summary>列名：按指定对齐方式对齐到各自数据列，保证表头与数字同一条基线。</summary>
     private static Element ColumnLabel(string text, int column, YuumiPalette palette, HorizontalAlignment alignment) =>
-        TextBlock(text)
-            .FontSize(11)
-            .Foreground(palette.TextSecondary)
+        Caption(text)
+            .Foreground(Theme.SecondaryText)
             .HAlign(alignment)
             .TextAlignment(alignment switch
             {
@@ -413,9 +405,8 @@ internal static class MatchDetailView
             SearchVisuals.ChampionIcon(player.ChampionId), 36, 6);
 
         Element levelBadge = Border(
-                TextBlock(player.ChampionLevel.ToString(CultureInfo.InvariantCulture))
-                    .FontSize(9)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Caption(player.ChampionLevel.ToString(CultureInfo.InvariantCulture))
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground("#FFFFFFFF")
                     .TextAlignment(TextAlignment.Center)
                     .HAlign(HorizontalAlignment.Center)
@@ -470,8 +461,7 @@ internal static class MatchDetailView
         if (player.IsPrivate)
         {
             identityChildren.Add(
-                TextBlock("🔒")
-                    .FontSize(10)
+                Caption("🔒")
                     .Foreground(CareerVisuals.GoldColor)
                     .WithToolTip(TextBlock("战绩已隐藏")));
         }
@@ -511,8 +501,8 @@ internal static class MatchDetailView
         string queriedColor = team.Win ? palette.WinText : palette.LoseText;
 
         Element kdaCell = isQueriedPlayer
-            ? SearchVisuals.Kda(player.Kills, player.Deaths, player.Assists, 12, palette, strong: true, uniformColor: queriedColor)
-            : SearchVisuals.Kda(player.Kills, player.Deaths, player.Assists, 12, palette, strong: false, uniformColor: null);
+            ? SearchVisuals.Kda(player.Kills, player.Deaths, player.Assists, palette, strong: true, uniformColor: queriedColor)
+            : SearchVisuals.Kda(player.Kills, player.Deaths, player.Assists, palette, strong: false, uniformColor: null);
 
         Element csCell = isQueriedPlayer
             ? SearchVisuals.NumberCell(
@@ -525,7 +515,7 @@ internal static class MatchDetailView
                 player.CreepScore.ToString(CultureInfo.InvariantCulture),
                 60,
                 strong: false,
-                foreground: palette.TextSecondary,
+                foreground: Theme.SecondaryText,
                 alignment: TextAlignment.Center);
 
         Element goldCell = isQueriedPlayer
@@ -539,7 +529,7 @@ internal static class MatchDetailView
                 SearchVisuals.Thousands(player.Gold),
                 76,
                 strong: false,
-                foreground: palette.TextSecondary,
+                foreground: Theme.SecondaryText,
                 alignment: TextAlignment.Right);
 
         Element damageCell = isQueriedPlayer
@@ -553,7 +543,7 @@ internal static class MatchDetailView
                 SearchVisuals.Thousands(player.DamageToChampions),
                 76,
                 strong: true,
-                foreground: palette.TextPrimary,
+                foreground: Theme.PrimaryText,
                 alignment: TextAlignment.Right);
 
         var rowBorder = Border(
