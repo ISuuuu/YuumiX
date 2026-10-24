@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
@@ -121,7 +122,7 @@ internal static class SearchVisuals
 
     /// <summary>卡片底色：取配置里的三套颜色（ADR-12），与设置页配色项一一对应。</summary>
     public static string CardBackground(YuumiPalette palette, MatchSummary summary) =>
-        summary.Remake ? palette.RemakeCard : summary.Win ? palette.WinCard : palette.LoseCard;
+        summary.Remake ? palette.RemakeBg : summary.Win ? palette.WinBg : palette.LoseBg;
 
     /// <summary>分路标签（上单/打野/中单/下路/辅助）。</summary>
     public static string? PositionText(MatchPosition? position) => position switch
@@ -134,59 +135,92 @@ internal static class SearchVisuals
         _ => null,
     };
 
-    /// <summary>卡片描边与结果文字用的实色（不含 alpha，见 <see cref="YuumiPalette.WinAccent"/>）。</summary>
+    /// <summary>卡片描边与结果文字用的实色（不含 alpha，见 <see cref="YuumiPalette.WinText"/>）。</summary>
     public static string ResultAccent(YuumiPalette palette, MatchSummary summary) =>
-        summary.Remake ? palette.RemakeAccent : summary.Win ? palette.WinAccent : palette.LoseAccent;
+        summary.Remake ? palette.RemakeText : summary.Win ? palette.WinText : palette.LoseText;
 
-    /// <summary>
-    /// 卡片描边用的**浅色**形态：把胜负底色的 alpha 提到 <c>0x66</c>。
-    ///
-    /// 直接拿实色描边会让整列卡片镶一圈深绿/深红，页面显得很重；
-    /// 原实现的描边是"比底色深一档"的浅色细线，因此这里只调 alpha、不改色相。
-    /// </summary>
+    /// <summary>卡片描边用的浅色形态。</summary>
     public static string ResultBorder(YuumiPalette palette, MatchSummary summary) =>
-        WithAlpha(CardBackground(palette, summary), "66");
+        summary.Remake ? palette.RemakeBorder : summary.Win ? palette.WinBorder : palette.LoseBorder;
 
     /// <summary>把 8 位 <c>#AARRGGBB</c> 的 alpha 换成指定两位十六进制值。</summary>
     public static string WithAlpha(string argb, string alpha) =>
         argb.Length == 9 && argb[0] == '#' ? string.Concat("#", alpha, argb.AsSpan(3)) : argb;
 
     /// <summary>
-    /// KDA 文本块：死亡数单独着色。
-    ///
-    /// 拆成五段而不是一个字符串，是因为原实现里死亡数是唯一的红色数字，
-    /// 语义上就是"该被注意的那一项"；用 RichText 又要处理段落样式与裁剪，反而更重。
+    /// KDA 文本块：死亡数单独着色（非本人行严格走 palette.DeathText，本人行统一走胜负色）。
     /// </summary>
     public static Element Kda(
         int kills,
         int deaths,
         int assists,
         double fontSize,
-        YuumiPalette palette)
+        YuumiPalette palette,
+        bool strong = false,
+        string? uniformColor = null)
     {
-        Element Number(int value, string? color = null)
+        var fontWeight = strong
+            ? Microsoft.UI.Text.FontWeights.Bold
+            : Microsoft.UI.Text.FontWeights.Normal;
+
+        Element Number(int value, string color)
         {
-            Element text = TextBlock(value.ToString(CultureInfo.InvariantCulture)).FontSize(fontSize);
-            return color is null ? text : text.Foreground(color);
+            return TextBlock(value.ToString(CultureInfo.InvariantCulture))
+                .FontSize(fontSize)
+                .FontWeight(fontWeight)
+                .Foreground(color);
+        }
+
+        if (uniformColor is not null)
+        {
+            return HStack(0,
+                Number(kills, uniformColor),
+                TextBlock("/").FontSize(fontSize).FontWeight(fontWeight).Foreground(uniformColor),
+                Number(deaths, uniformColor),
+                TextBlock("/").FontSize(fontSize).FontWeight(fontWeight).Foreground(uniformColor),
+                Number(assists, uniformColor));
         }
 
         return HStack(0,
-            Number(kills),
-            TextBlock("/").FontSize(fontSize).Foreground(Theme.SecondaryText),
-            Number(deaths, palette.LoseAccent),
-            TextBlock("/").FontSize(fontSize).Foreground(Theme.SecondaryText),
-            Number(assists));
+            Number(kills, palette.TextPrimary),
+            TextBlock("/").FontSize(fontSize).Foreground(palette.TextSecondary),
+            Number(deaths, palette.DeathText),
+            TextBlock("/").FontSize(fontSize).Foreground(palette.TextSecondary),
+            Number(assists, palette.TextPrimary));
     }
 
-    /// <summary>表格里的数字列：定宽 + 右对齐，保证各行末位对齐。</summary>
-    public static Element NumberCell(string text, double width, bool strong = false)
+    /// <summary>表格里的数字列：定宽 + 文本对齐，保证各行末位对齐，杜绝与其他列数字粘连。</summary>
+    public static Element NumberCell(
+        string text,
+        double width,
+        bool strong = false,
+        string? foreground = null,
+        TextAlignment alignment = TextAlignment.Right)
     {
-        Element cell = TextBlock(text)
+        var hAlign = alignment switch
+        {
+            TextAlignment.Center => HorizontalAlignment.Center,
+            TextAlignment.Left => HorizontalAlignment.Left,
+            _ => HorizontalAlignment.Right,
+        };
+
+        var cell = TextBlock(text)
             .FontSize(12)
             .Width(width)
-            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Right);
+            .TextAlignment(alignment)
+            .HAlign(hAlign);
 
-        return strong ? cell.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold) : cell;
+        if (strong)
+        {
+            cell = cell.FontWeight(Microsoft.UI.Text.FontWeights.Bold);
+        }
+
+        if (foreground is not null)
+        {
+            cell = cell.Foreground(foreground);
+        }
+
+        return cell;
     }
 
     /// <summary>千分位数字（金币与输出）。InvariantCulture 保证与客户端显示一致，不受系统区域影响。</summary>

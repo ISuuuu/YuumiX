@@ -134,7 +134,7 @@ internal static class ChampionPickerView
                 HStack(6,
                     Component<LcuImage, LcuImageProps>(new LcuImageProps(champ.IconPath, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                     VStack(2,
-                        TextBlock(champ.Name).FontSize(12).FontWeight(isSelected ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal),
+                        TextBlock(champ.Name).FontSize(12).FontWeight(isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal),
                         TextBlock(champ.Title).FontSize(10).Foreground(Theme.SecondaryText)
                     ).VAlign(VerticalAlignment.Center)
                 ),

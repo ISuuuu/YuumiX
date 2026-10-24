@@ -25,6 +25,7 @@ public sealed class ThemeState
         ArgumentNullException.ThrowIfNull(initial);
         _changes = new EventStream<YuumiPalette>(onObserverError);
         Current = YuumiPalette.FromConfig(initial);
+        YuumiPalette.SyncWinUiAccentResources(Current.Accent);
     }
 
     /// <summary>当前调色板。UI 首帧直接取它，避免先渲染一帧默认色再被覆盖。</summary>
@@ -46,6 +47,7 @@ public sealed class ThemeState
         }
 
         Current = next;
+        YuumiPalette.SyncWinUiAccentResources(next.Accent);
         _changes.Publish(next);
     }
 }

@@ -72,19 +72,20 @@ public sealed class GameInfoPage : Component
             return RenderPlaceholder(
                 "LCU 客户端未连接",
                 "请先启动英雄联盟客户端并登录",
+                palette,
                 () => gameInfoService.LoadDemoState());
         }
 
         // 2. 云顶之弈模式
         if (state.IsTftMode)
         {
-            return RenderPlaceholder("云顶之弈对局中", "云顶之弈模式不显示召唤师峡谷数据");
+            return RenderPlaceholder("云顶之弈对局中", "云顶之弈模式不显示召唤师峡谷数据", palette);
         }
 
         // 3. 错误状态
         if (!string.IsNullOrEmpty(state.Error))
         {
-            return RenderPlaceholder("数据读取异常", state.Error);
+            return RenderPlaceholder("数据读取异常", state.Error, palette);
         }
 
         // 4. 等待对局
@@ -93,13 +94,14 @@ public sealed class GameInfoPage : Component
             return RenderPlaceholder(
                 "等待对局开始",
                 "进入选人阶段或对局中后将自动展示双方玩家数据",
+                palette,
                 () => gameInfoService.LoadDemoState());
         }
 
         // 5. 正在读取队伍
         if (state.IsLoadingTeams)
         {
-            return RenderPlaceholder("正在读取对局玩家", "正在连接 LCU 获取对局双方玩家信息...");
+            return RenderPlaceholder("正在读取对局玩家", "正在连接 LCU 获取对局双方玩家信息...", palette);
         }
 
         // 6. 正常对局渲染
@@ -141,17 +143,18 @@ public sealed class GameInfoPage : Component
         .AutomationName("秒退对局");
     }
 
-    private static Element RenderPlaceholder(string title, string subtitle, Action? onDemoClick = null)
+    private static Element RenderPlaceholder(string title, string subtitle, YuumiPalette palette, Action? onDemoClick = null)
     {
         var items = new List<Element>
         {
             TextBlock(title)
                 .FontSize(18)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                .Foreground(palette.TextPrimary)
                 .HAlign(HorizontalAlignment.Center),
             TextBlock(subtitle)
                 .FontSize(12)
-                .Foreground("#FFAAAAAA")
+                .Foreground(palette.TextSecondary)
                 .HAlign(HorizontalAlignment.Center)
         };
 
@@ -192,17 +195,17 @@ public sealed class GameInfoPage : Component
                 TextBlock($"友方 ({state.MyTeam.Count})")
                     .FontSize(12)
                     .FontWeight(isMyTab ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
-                    .Foreground(isMyTab ? "#FF3B82F6" : "#FFAAAAAA")
+                    .Foreground(isMyTab ? palette.Accent : palette.TextSecondary)
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
                     .Height(2)
-                    .Background(isMyTab ? "#FF3B82F6" : "#00000000")
+                    .Background(isMyTab ? palette.Accent : "#00000000")
                     .Margin(0, 6, 0, 0)
             ),
             () => service.SetActiveTab("my")
         )
         .AutomationName($"友方队伍 ({state.MyTeam.Count})")
-        .Background(isMyTab ? "#08FFFFFF" : "#00000000")
+        .Background(isMyTab ? palette.HoverBg : "#00000000")
         .BorderThickness(new Thickness(0))
         .CornerRadius(0)
         .Padding(0, 8, 0, 0)
@@ -213,17 +216,17 @@ public sealed class GameInfoPage : Component
                 TextBlock($"敌方 ({state.TheirTeam.Count})")
                     .FontSize(12)
                     .FontWeight(!isMyTab ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
-                    .Foreground(!isMyTab ? "#FF3B82F6" : "#FFAAAAAA")
+                    .Foreground(!isMyTab ? palette.Accent : palette.TextSecondary)
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
                     .Height(2)
-                    .Background(!isMyTab ? "#FF3B82F6" : "#00000000")
+                    .Background(!isMyTab ? palette.Accent : "#00000000")
                     .Margin(0, 6, 0, 0)
             ),
             () => service.SetActiveTab("their")
         )
         .AutomationName($"敌方队伍 ({state.TheirTeam.Count})")
-        .Background(!isMyTab ? "#08FFFFFF" : "#00000000")
+        .Background(!isMyTab ? palette.HoverBg : "#00000000")
         .BorderThickness(new Thickness(0))
         .CornerRadius(0)
         .Padding(0, 8, 0, 0)
@@ -240,7 +243,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .BorderThickness(new Thickness(0, 0, 0, 1))
-        .BorderBrush("#15FFFFFF");
+        .BorderBrush(palette.BorderSubtle);
 
         // 左侧玩家卡片列表
         var cards = currentTeam.Select((p, idx) =>
@@ -249,7 +252,7 @@ public sealed class GameInfoPage : Component
             int premadeIdx = PremadeAnalyzer.GetPlayerColorIdx(p, isMyTab ? state.PremadeColorsMy : state.PremadeColorsTheir);
 
             return Component<PlayerCardView, PlayerCardProps>(
-                new PlayerCardProps(p, pData, premadeIdx, idx, state.CurrentSummonerPuuid, state.SavedPlayerMap, onNavigateCareer, onNavigateSearch));
+                new PlayerCardProps(p, pData, premadeIdx, idx, palette, state.CurrentSummonerPuuid, state.SavedPlayerMap, onNavigateCareer, onNavigateSearch));
         }).ToArray();
 
         var leftPanel = Border(
@@ -265,8 +268,8 @@ public sealed class GameInfoPage : Component
             )
         )
         .Width(250)
-        .Background(Theme.CardBackground)
-        .WithBorder(Theme.CardStroke, 1)
+        .Background(palette.CardBg)
+        .WithBorder(palette.BorderSubtle, 1)
         .CornerRadius(8);
 
         // 右侧工具栏：• 友方 (N) + 组队芯片 + VS + 组队芯片 + • 敌方 (N) + 视图切换器
@@ -292,9 +295,9 @@ public sealed class GameInfoPage : Component
         var theirChips = Component<PremadeGroupChipsView, PremadeGroupChipsProps>(
             new PremadeGroupChipsProps(theirGroups));
 
-        var vsBadge = RenderVsBadge();
+        var vsBadge = RenderVsBadge(palette);
 
-        var segmentedControl = RenderSegmentedControl(5, cols => service.SetViewColumns(cols));
+        var segmentedControl = RenderSegmentedControl(5, cols => service.SetViewColumns(cols), palette);
         var dodgeBtn = RenderDodgeButton(services);
 
         var toolbarLeft = HStack(8,
@@ -324,7 +327,7 @@ public sealed class GameInfoPage : Component
         .Height(44)
         .Padding(12, 6, 12, 6)
         .BorderThickness(new Thickness(0, 0, 0, 1))
-        .BorderBrush("#15FFFFFF");
+        .BorderBrush(palette.BorderSubtle);
 
         // 右侧 5 列战绩（均分宽度）
         var matchColumns = currentTeam.Select((p, idx) =>
@@ -365,8 +368,8 @@ public sealed class GameInfoPage : Component
                 ]
             )
         )
-        .Background(Theme.CardBackground)
-        .WithBorder(Theme.CardStroke, 1)
+        .Background(palette.CardBg)
+        .WithBorder(palette.BorderSubtle, 1)
         .CornerRadius(8);
 
         return Grid(
@@ -406,9 +409,9 @@ public sealed class GameInfoPage : Component
         var theirChips = Component<PremadeGroupChipsView, PremadeGroupChipsProps>(
             new PremadeGroupChipsProps(theirGroups));
 
-        var vsBadge = RenderVsBadge();
+        var vsBadge = RenderVsBadge(palette);
 
-        var segmentedControl = RenderSegmentedControl(10, cols => service.SetViewColumns(cols));
+        var segmentedControl = RenderSegmentedControl(10, cols => service.SetViewColumns(cols), palette);
         var dodgeBtn = RenderDodgeButton(services);
 
         var toolbar = Border(
@@ -437,7 +440,7 @@ public sealed class GameInfoPage : Component
         .Height(44)
         .Padding(12, 6, 12, 6)
         .BorderThickness(new Thickness(0, 0, 0, 1))
-        .BorderBrush("#15FFFFFF");
+        .BorderBrush(palette.BorderSubtle);
 
         // 10 列战绩（我方 5 列 + 敌方 5 列）
         var colElements = new List<Element>();
@@ -512,8 +515,8 @@ public sealed class GameInfoPage : Component
                 ]
             )
         )
-        .Background(Theme.CardBackground)
-        .WithBorder(Theme.CardStroke, 1)
+        .Background(palette.CardBg)
+        .WithBorder(palette.BorderSubtle, 1)
         .CornerRadius(8);
 
         return Grid(
@@ -574,23 +577,23 @@ public sealed class GameInfoPage : Component
             .Padding(8, 3);
     }
 
-    private static Element RenderVsBadge()
+    private static Element RenderVsBadge(YuumiPalette palette)
     {
         return Border(
             TextBlock("VS")
                 .FontSize(10)
                 .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
-                .Foreground("#FFAAAAAA")
+                .Foreground(palette.TextSecondary)
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
         )
-        .Background("#15FFFFFF")
-        .WithBorder("#20FFFFFF", 1)
+        .Background(palette.HoverBg)
+        .WithBorder(palette.BorderSubtle, 1)
         .CornerRadius(10)
         .Padding(7, 2);
     }
 
-    private static Element RenderSegmentedControl(int currentColumns, Action<int> onSelect)
+    private static Element RenderSegmentedControl(int currentColumns, Action<int> onSelect, YuumiPalette palette)
     {
         bool isFive = currentColumns == 5;
 
@@ -598,18 +601,18 @@ public sealed class GameInfoPage : Component
             TextBlock("\uE716")
                 .FontFamily("Segoe Fluent Icons")
                 .FontSize(11)
-                .Foreground(isFive ? "#FFFFFFFF" : "#FFAAAAAA")
+                .Foreground(isFive ? "#FFFFFFFF" : palette.TextSecondary)
                 .VAlign(VerticalAlignment.Center),
             TextBlock("按队伍")
                 .FontSize(11)
-                .FontWeight(isFive ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
-                .Foreground(isFive ? "#FFFFFFFF" : "#FFAAAAAA")
+                .FontWeight(isFive ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal)
+                .Foreground(isFive ? "#FFFFFFFF" : palette.TextSecondary)
                 .VAlign(VerticalAlignment.Center)
         );
 
         var teamBtn = Button(teamContent, () => onSelect(5))
             .AutomationName("按队伍模式")
-            .Background(isFive ? "#253B82F6" : "#00000000")
+            .Background(isFive ? palette.Accent : "#00000000")
             .BorderThickness(new Thickness(0))
             .CornerRadius(4)
             .Padding(8, 4)
@@ -619,18 +622,18 @@ public sealed class GameInfoPage : Component
             TextBlock("\uE80A")
                 .FontFamily("Segoe Fluent Icons")
                 .FontSize(11)
-                .Foreground(!isFive ? "#FFFFFFFF" : "#FFAAAAAA")
+                .Foreground(!isFive ? "#FFFFFFFF" : palette.TextSecondary)
                 .VAlign(VerticalAlignment.Center),
             TextBlock("全部战绩")
                 .FontSize(11)
-                .FontWeight(!isFive ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
-                .Foreground(!isFive ? "#FFFFFFFF" : "#FFAAAAAA")
+                .FontWeight(!isFive ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal)
+                .Foreground(!isFive ? "#FFFFFFFF" : palette.TextSecondary)
                 .VAlign(VerticalAlignment.Center)
         );
 
         var allBtn = Button(allContent, () => onSelect(10))
             .AutomationName("全部战绩模式")
-            .Background(!isFive ? "#253B82F6" : "#00000000")
+            .Background(!isFive ? palette.Accent : "#00000000")
             .BorderThickness(new Thickness(0))
             .CornerRadius(4)
             .Padding(8, 4)
@@ -639,8 +642,8 @@ public sealed class GameInfoPage : Component
         return Border(
             HStack(2, teamBtn, allBtn)
         )
-        .Background("#10FFFFFF")
-        .BorderBrush("#20FFFFFF")
+        .Background(palette.HoverBg)
+        .BorderBrush(palette.BorderSubtle)
         .BorderThickness(new Thickness(1))
         .CornerRadius(6)
         .Padding(2);
