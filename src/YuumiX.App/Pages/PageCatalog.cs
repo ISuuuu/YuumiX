@@ -45,8 +45,6 @@ public static class PageCatalog
         ]),
         [AppRoute.Tools] = ("工具箱", "src/views/Tools.vue",
         [
-            "英雄熟练度与分路详细选择器弹窗",
-            "召唤师技能与符文出装一键导入",
             "大乱斗板凳席独立悬浮窗（阶段 8）",
         ]),
         [AppRoute.Settings] = ("设置", "src/views/Settings.vue",

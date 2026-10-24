@@ -214,6 +214,7 @@ public sealed class AppServices : IDisposable
             () => provider.GetRequiredService<LcuConnection>().Transport,
             provider.GetRequiredService<ISgpService>(),
             () => provider.GetRequiredService<LcuConnection>().Credentials,
+            () => provider.GetRequiredService<AppConfig>(),
             provider.GetService<ILogger<ToolsService>>()));
         collection.AddSingleton<IFriendCleanerService>(provider => new FriendCleanerService(
             () => provider.GetRequiredService<LcuConnection>().Transport,
@@ -269,6 +270,22 @@ public sealed class AppServices : IDisposable
             provider.GetRequiredService<AgentSupervisor>(),
             provider.GetRequiredService<AgentLifecycle>(),
             provider.GetService<ILogger<AutoTagReminderAgent>>()));
+        collection.AddSingleton<AutoInviteAgent>(provider => new AutoInviteAgent(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetRequiredService<AgentSupervisor>(),
+            provider.GetService<ILogger<AutoInviteAgent>>()));
+        collection.AddSingleton<AutoHonorAgent>(provider => new AutoHonorAgent(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetRequiredService<AgentSupervisor>(),
+            provider.GetService<ILogger<AutoHonorAgent>>()));
+        collection.AddSingleton<AutoPlayAgainAgent>(provider => new AutoPlayAgainAgent(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetRequiredService<AgentSupervisor>(),
+            provider.GetRequiredService<AgentLifecycle>(),
+            provider.GetService<ILogger<AutoPlayAgainAgent>>()));
 
         // ── 多杀自动截图（requirements-settings.md S4，对应原 agents/auto_screenshot.rs）──
         // Live Client Data 是游戏进程的独立 HTTP 端口（127.0.0.1:2999），不走 LCU Transport。

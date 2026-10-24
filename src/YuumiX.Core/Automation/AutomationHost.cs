@@ -21,6 +21,9 @@ public sealed class AutomationHost : IDisposable
     private readonly AutoEncounterRecorderAgent _autoEncounterRecorderAgent;
     private readonly AutoTagReminderAgent _autoTagReminderAgent;
     private readonly MultiKillCaptureAgent _multiKillCaptureAgent;
+    private readonly AutoInviteAgent _autoInviteAgent;
+    private readonly AutoHonorAgent _autoHonorAgent;
+    private readonly AutoPlayAgainAgent _autoPlayAgainAgent;
     private readonly ILogger<AutomationHost>? _logger;
 
     private IDisposable? _eventSubscription;
@@ -45,6 +48,9 @@ public sealed class AutomationHost : IDisposable
         AutoEncounterRecorderAgent autoEncounterRecorderAgent,
         AutoTagReminderAgent autoTagReminderAgent,
         MultiKillCaptureAgent multiKillCaptureAgent,
+        AutoInviteAgent autoInviteAgent,
+        AutoHonorAgent autoHonorAgent,
+        AutoPlayAgainAgent autoPlayAgainAgent,
         ILogger<AutomationHost>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -57,6 +63,9 @@ public sealed class AutomationHost : IDisposable
         ArgumentNullException.ThrowIfNull(autoEncounterRecorderAgent);
         ArgumentNullException.ThrowIfNull(autoTagReminderAgent);
         ArgumentNullException.ThrowIfNull(multiKillCaptureAgent);
+        ArgumentNullException.ThrowIfNull(autoInviteAgent);
+        ArgumentNullException.ThrowIfNull(autoHonorAgent);
+        ArgumentNullException.ThrowIfNull(autoPlayAgainAgent);
 
         _connection = connection;
         _lifecycle = lifecycle;
@@ -68,6 +77,9 @@ public sealed class AutomationHost : IDisposable
         _autoEncounterRecorderAgent = autoEncounterRecorderAgent;
         _autoTagReminderAgent = autoTagReminderAgent;
         _multiKillCaptureAgent = multiKillCaptureAgent;
+        _autoInviteAgent = autoInviteAgent;
+        _autoHonorAgent = autoHonorAgent;
+        _autoPlayAgainAgent = autoPlayAgainAgent;
         _logger = logger;
     }
 
@@ -86,6 +98,9 @@ public sealed class AutomationHost : IDisposable
         _ = _autoEncounterRecorderAgent.StartAsync(cancellationToken);
         _ = _autoTagReminderAgent.StartAsync(cancellationToken);
         _ = _multiKillCaptureAgent.StartAsync(cancellationToken);
+        _ = _autoInviteAgent.StartAsync(cancellationToken);
+        _ = _autoHonorAgent.StartAsync(cancellationToken);
+        _ = _autoPlayAgainAgent.StartAsync(cancellationToken);
 
         _eventSubscription = _connection.Events.Subscribe(OnLcuEvent);
 
@@ -98,6 +113,8 @@ public sealed class AutomationHost : IDisposable
                 _autoReconnectAgent.OnPhaseChanged(GamePhase.None);
                 _autoCreateLobbyAgent.OnConnectionReset();
                 _multiKillCaptureAgent.OnPhaseChanged(GamePhase.None);
+                _autoPlayAgainAgent.OnPhaseChanged(GamePhase.None);
+                _autoHonorAgent.OnPhaseChanged(GamePhase.None);
                 Phases.Publish(GamePhase.None);
             }
             else if (state.Status == LcuConnectionStatus.Connected)
@@ -167,11 +184,21 @@ public sealed class AutomationHost : IDisposable
                 _autoEncounterRecorderAgent.OnPhaseChanged(phase);
                 _autoTagReminderAgent.OnPhaseChanged(phase);
                 _multiKillCaptureAgent.OnPhaseChanged(phase);
+                _autoPlayAgainAgent.OnPhaseChanged(phase);
+                _autoHonorAgent.OnPhaseChanged(phase);
                 Phases.Publish(phase);
             }
             else if (evt.Uri.StartsWith("/lol-matchmaking/v1/ready-check", StringComparison.OrdinalIgnoreCase))
             {
                 _autoAcceptAgent.OnReadyCheckEvent(evt.Data);
+            }
+            else if (evt.Uri.StartsWith("/lol-lobby/v2/received-invitations", StringComparison.OrdinalIgnoreCase))
+            {
+                _autoInviteAgent.OnInvitationsEvent(evt.Data);
+            }
+            else if (evt.Uri.StartsWith("/lol-honor-v2/v1/ballot", StringComparison.OrdinalIgnoreCase))
+            {
+                _autoHonorAgent.OnBallotEvent(evt.Data);
             }
             else if (evt.Uri.StartsWith("/lol-champ-select/v1/session", StringComparison.OrdinalIgnoreCase))
             {
@@ -203,5 +230,8 @@ public sealed class AutomationHost : IDisposable
         _ = _autoEncounterRecorderAgent.StopAsync();
         _ = _autoTagReminderAgent.StopAsync();
         _ = _multiKillCaptureAgent.StopAsync();
+        _ = _autoInviteAgent.StopAsync();
+        _ = _autoHonorAgent.StopAsync();
+        _ = _autoPlayAgainAgent.StopAsync();
     }
 }

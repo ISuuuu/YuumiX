@@ -547,4 +547,115 @@ public sealed class AutomationTests
         Assert.Contains("蓝色方", sentDoc.RootElement.GetProperty("body").GetString()); // cellId=0 < 5 → 蓝色方
         Assert.Equal("celebration", sentDoc.RootElement.GetProperty("type").GetString()); // 队友不可见
     }
+
+    [Fact]
+    public async Task AutoInviteAgent_Accepts_Pending_Invitation()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => new LcuResponse(200, "{}")
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoHandleInvite = true;
+        var supervisor = new AgentSupervisor();
+
+        await using var agent = new AutoInviteAgent(() => transport, () => config, supervisor);
+        await agent.StartAsync();
+
+        using var doc = JsonDocument.Parse("""
+        [
+            {
+                "invitationId": "inv-12345",
+                "state": "Pending",
+                "canAcceptInvitation": true
+            },
+            {
+                "invitationId": "inv-declined",
+                "state": "Declined",
+                "canAcceptInvitation": false
+            }
+        ]
+        """);
+
+        agent.OnInvitationsEvent(doc.RootElement);
+
+        await Task.Delay(300);
+
+        var acceptReq = transport.RecordedRequests.FirstOrDefault(r => r.Path == "/lol-lobby/v2/received-invitations/inv-12345/accept");
+        Assert.NotNull(acceptReq);
+        Assert.Equal(HttpMethod.Post, acceptReq.Method);
+
+        var notAccepted = transport.RecordedRequests.FirstOrDefault(r => r.Path.Contains("inv-declined"));
+        Assert.Null(notAccepted);
+    }
+
+    [Fact]
+    public async Task AutoHonorAgent_Honors_Allies_And_Submits_Ballot()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => new LcuResponse(200, "{}")
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoHonor = true;
+        var supervisor = new AgentSupervisor();
+
+        await using var agent = new AutoHonorAgent(() => transport, () => config, supervisor);
+        await agent.StartAsync();
+
+        using var doc = JsonDocument.Parse("""
+        {
+            "eligibleAllies": [
+                { "puuid": "ally-puuid-1", "botPlayer": false },
+                { "puuid": "ally-bot", "botPlayer": true }
+            ],
+            "votePool": { "votes": 1 }
+        }
+        """);
+
+        agent.OnBallotEvent(doc.RootElement);
+
+        await Task.Delay(300);
+
+        var honorReq = transport.RecordedRequests.FirstOrDefault(r => r.Path == "/lol-honor-v2/v1/honor-player");
+        Assert.NotNull(honorReq);
+        using var honorDoc = JsonDocument.Parse(honorReq.JsonBody!);
+        Assert.Equal("ally-puuid-1", honorDoc.RootElement.GetProperty("recipientPuuid").GetString());
+        Assert.Equal("HEART", honorDoc.RootElement.GetProperty("honorType").GetString());
+
+        var ballotReq = transport.RecordedRequests.FirstOrDefault(r => r.Path == "/lol-honor-v2/v1/ballot");
+        Assert.NotNull(ballotReq);
+    }
+
+    [Fact]
+    public async Task AutoPlayAgainAgent_Cancels_When_Phase_Changes()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => new LcuResponse(200, "{}")
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoPlayAgain = true;
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoPlayAgainAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        lifecycle.UpdatePhase("WaitingForStats");
+        agent.OnPhaseChanged(GamePhase.WaitingForStats);
+
+        // 立即切换到 Lobby（脱离结算阶段），应该触发任务取消
+        await Task.Delay(100);
+        lifecycle.UpdatePhase("Lobby");
+        agent.OnPhaseChanged(GamePhase.Lobby);
+
+        await Task.Delay(300);
+
+        var playAgainReq = transport.RecordedRequests.FirstOrDefault(r => r.Path == "/lol-lobby/v2/play-again");
+        Assert.Null(playAgainReq);
+    }
 }
