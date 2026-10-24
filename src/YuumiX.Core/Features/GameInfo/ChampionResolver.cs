@@ -20,7 +20,8 @@ public sealed record ChampSelectMemberLike(
     int ChampionId = 0,
     int ChampionPickIntent = 0,
     string? Puuid = null,
-    long SummonerId = 0);
+    long SummonerId = 0,
+    bool IsHumanoid = false);
 
 /// <summary>
 /// 选人会话快照。
@@ -28,7 +29,8 @@ public sealed record ChampSelectMemberLike(
 public sealed record ChampSelectSessionLike(
     IReadOnlyList<IReadOnlyList<ChampSelectActionLike>>? Actions = null,
     IReadOnlyList<ChampSelectMemberLike>? MyTeam = null,
-    IReadOnlyList<ChampSelectMemberLike>? TheirTeam = null);
+    IReadOnlyList<ChampSelectMemberLike>? TheirTeam = null,
+    bool IsCustomGame = false);
 
 /// <summary>
 /// 选人与对局中的玩家英雄 ID 解析器（纯函数）。

@@ -9,6 +9,7 @@ using YuumiX.App.Pages.Search;
 using YuumiX.Core;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Features.GameInfo.Models;
+using YuumiX.Core.Features.Summoner.Models;
 
 namespace YuumiX.App.Pages.GameInfo;
 
@@ -17,7 +18,10 @@ public sealed record PlayerCardProps(
     GameInfoPlayer? PlayerData,
     int PremadeIdx,
     int Index,
-    string? SelfPuuid = null);
+    string? SelfPuuid = null,
+    IReadOnlyDictionary<string, SavedPlayerMarker>? SavedMap = null,
+    Action<string, SummonerProfile?>? OnNavigateCareer = null,
+    Action<string, string?>? OnNavigateSearch = null);
 
 /// <summary>
 /// 左侧玩家卡片视图（对应旧版 <c>PlayerCard.vue</c>）。
@@ -44,6 +48,12 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         string border = premadeColor?.Border ?? "#18FFFFFF";
 
         // 头像区（42x42，圆形）
+        int xpProgress = d?.Info?.PercentCompleteForNextLevel ?? 0;
+        string ringBorderColor = masteryDetail?.IsTopChampion == true
+            ? "#FFFFD700"
+            : (xpProgress > 0 ? "#443B82F6" : "#00000000");
+        double ringBorderThickness = masteryDetail?.IsTopChampion == true ? 2.0 : (xpProgress > 0 ? 1.5 : 0.0);
+
         var avatarCore = Border(
             Component<LcuImage, LcuImageProps>(new LcuImageProps(avatarAsset, Size: 42, CornerRadius: 21))
                 .Provide(AppHost.Context, services)
@@ -51,7 +61,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         .Width(42)
         .Height(42)
         .CornerRadius(21)
-        .WithBorder(masteryDetail?.IsTopChampion == true ? "#FFFFD700" : "#00000000", masteryDetail?.IsTopChampion == true ? 2 : 0);
+        .WithBorder(ringBorderColor, ringBorderThickness);
 
         var avatarStack = new List<Element> { avatarCore };
 
@@ -70,7 +80,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             .CornerRadius(6.5)
             .Background("#E0E06B6B")
             .HAlign(HorizontalAlignment.Right)
-            .VAlign(VerticalAlignment.Bottom);
+            .VAlign(VerticalAlignment.Bottom)
+            .WithToolTip(TextBlock("练英雄/新手状态 (熟练度≤1级或点数<5000，近期少用或初次尝试)"));
 
             avatarStack.Add(practiceBadge);
         }
@@ -99,19 +110,39 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         var avatarElement = Grid([GridSize.Auto], [GridSize.Auto], avatarStack.ToArray());
 
         // 玩家名称与徽标
-        string displayName = d?.DisplayName ?? p.DisplayName ?? p.GameName ?? p.SummonerName ?? "玩家";
+        string displayName = PlayerNameVisuals.GetDisplayName(p, d, Props.Index);
+        string searchName = PlayerNameVisuals.GetSearchName(p, d);
+        bool hasSearchTarget = !string.IsNullOrEmpty(searchName);
+
         bool isSelf = !string.IsNullOrEmpty(Props.SelfPuuid) &&
                       (!string.IsNullOrEmpty(p.Puuid) && p.Puuid == Props.SelfPuuid ||
                        d?.Info?.Puuid == Props.SelfPuuid);
 
-        var nameRowItems = new List<Element>
+        var nameText = TextBlock(displayName)
+            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+            .FontSize(12)
+            .TextTrimming(TextTrimming.CharacterEllipsis)
+            .VAlign(VerticalAlignment.Center);
+
+        if (hasSearchTarget)
         {
-            TextBlock(displayName)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .FontSize(12)
-                .TextTrimming(TextTrimming.CharacterEllipsis)
-                .VAlign(VerticalAlignment.Center)
-        };
+            nameText = nameText
+                .WithToolTip(TextBlock($"生涯 {searchName}"))
+                .OnTapped((_, _) =>
+                {
+                    string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
+                    if (!string.IsNullOrEmpty(puuid) && puuid != "00000000-0000-0000-0000-000000000000")
+                    {
+                        Props.OnNavigateCareer?.Invoke(puuid, d?.Info);
+                    }
+                    else
+                    {
+                        Props.OnNavigateSearch?.Invoke(searchName, null);
+                    }
+                });
+        }
+
+        var nameRowItems = new List<Element> { nameText };
 
         if (isSelf)
         {
@@ -132,13 +163,14 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .FontSize(10)
                     .Foreground("#FFD97706")
                     .Margin(3, 0, 0, 0)
-                    .VAlign(VerticalAlignment.Center));
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("战绩已隐藏")));
         }
 
         if (!string.IsNullOrEmpty(d?.FateFlag))
         {
             bool isAlly = d.FateFlag == "ally";
-            string fateText = isAlly ? "曾友" : "曾敌";
+            string fateText = FateBadgeVisuals.GetBadgeText(d);
             string fateBg = isAlly ? "#2010B981" : "#20EF4444";
             string fateFg = isAlly ? "#FF10B981" : "#FFEF4444";
 
@@ -148,16 +180,18 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .CornerRadius(2.5)
                     .Padding(2.5, 0.5)
                     .Margin(3, 0, 0, 0)
-                    .VAlign(VerticalAlignment.Center));
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
         }
 
-        var savedBadge = Border(TextBlock("历史").FontSize(8.5).Foreground("#FFAAAAAA"))
-            .Background("#1AFFFFFF")
-            .CornerRadius(2.5)
-            .Padding(2.5, 0.5)
-            .Margin(3, 0, 0, 0)
-            .VAlign(VerticalAlignment.Center);
-        nameRowItems.Add(savedBadge);
+        // 路人集徽标：有 tag 显示 tag 主色胶囊；无 tag 且无宿命徽标时显示灰「历史」；自身不显示（§2.2 / §4.8）
+        var savedInfo = FateBadgeVisuals.ResolveSavedInfo(d, p, Props.SavedMap, Props.SelfPuuid);
+        if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
+        {
+            nameRowItems.Add(
+                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8.5)
+                    .Margin(3, 0, 0, 0));
+        }
 
         if (d?.Streak is { Count: >= 2 })
         {
@@ -171,19 +205,23 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .CornerRadius(2.5)
                     .Padding(2.5, 0.5)
                     .Margin(3, 0, 0, 0)
-                    .VAlign(VerticalAlignment.Center));
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock(d.Streak.IsWin ? $"{d.Streak.Count}连胜" : $"{d.Streak.Count}连败")));
         }
 
         var nameRow = HStack(0, nameRowItems.ToArray());
 
-        // 段位展示（单双 / 灵活排位）
+        // 段位展示（单双 / 灵活排位：双段位两行，单段位单行，均带 ToolTip，§2.2）
+        bool hasSolo = d?.Solo?.HasRank == true;
+        bool hasFlex = d?.Flex?.HasRank == true;
+
         Element rankRow;
-        if (d?.Solo?.HasRank == true)
+        if (hasSolo && hasFlex)
         {
-            rankRow = HStack(3,
-                CareerVisuals.RankedMedal(d.Solo.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(TextBlock("单双").FontSize(8).Foreground("#FFAAAAAA"))
-                    .Background("#1AFFFFFF")
+            var soloElement = HStack(3,
+                CareerVisuals.RankedMedal(d!.Solo!.Tier, 13).VAlign(VerticalAlignment.Center),
+                Border(TextBlock("单双").FontSize(8).Foreground("#FF3B82F6"))
+                    .Background("#203B82F6")
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .VAlign(VerticalAlignment.Center),
@@ -192,14 +230,12 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .Foreground("#FFAAAAAA")
                     .TextTrimming(TextTrimming.CharacterEllipsis)
                     .VAlign(VerticalAlignment.Center)
-            );
-        }
-        else if (d?.Flex?.HasRank == true)
-        {
-            rankRow = HStack(3,
-                CareerVisuals.RankedMedal(d.Flex.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(TextBlock("灵活").FontSize(8).Foreground("#FFAAAAAA"))
-                    .Background("#1AFFFFFF")
+            ).WithToolTip(TextBlock(BuildRankTooltip("单双排", d.Solo)));
+
+            var flexElement = HStack(3,
+                CareerVisuals.RankedMedal(d.Flex!.Tier, 13).VAlign(VerticalAlignment.Center),
+                Border(TextBlock("灵活").FontSize(8).Foreground("#FF10B981"))
+                    .Background("#2010B981")
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .VAlign(VerticalAlignment.Center),
@@ -208,14 +244,51 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .Foreground("#FFAAAAAA")
                     .TextTrimming(TextTrimming.CharacterEllipsis)
                     .VAlign(VerticalAlignment.Center)
-            );
+            ).WithToolTip(TextBlock(BuildRankTooltip("灵活排", d.Flex)));
+
+            rankRow = VStack(1, soloElement, flexElement);
+        }
+        else if (hasSolo)
+        {
+            rankRow = HStack(3,
+                CareerVisuals.RankedMedal(d!.Solo!.Tier, 13).VAlign(VerticalAlignment.Center),
+                Border(TextBlock("单双").FontSize(8).Foreground("#FF3B82F6"))
+                    .Background("#203B82F6")
+                    .CornerRadius(2)
+                    .Padding(2, 0.5)
+                    .VAlign(VerticalAlignment.Center),
+                TextBlock($"{d.Solo.TierText} {d.Solo.LeaguePoints} LP · {d.Solo.Wins}胜")
+                    .FontSize(9.5)
+                    .Foreground("#FFAAAAAA")
+                    .TextTrimming(TextTrimming.CharacterEllipsis)
+                    .VAlign(VerticalAlignment.Center)
+            ).WithToolTip(TextBlock(BuildRankTooltip("单双排", d.Solo)));
+        }
+        else if (hasFlex)
+        {
+            rankRow = HStack(3,
+                CareerVisuals.RankedMedal(d!.Flex!.Tier, 13).VAlign(VerticalAlignment.Center),
+                Border(TextBlock("灵活").FontSize(8).Foreground("#FF10B981"))
+                    .Background("#2010B981")
+                    .CornerRadius(2)
+                    .Padding(2, 0.5)
+                    .VAlign(VerticalAlignment.Center),
+                TextBlock($"{d.Flex.TierText} {d.Flex.LeaguePoints} LP · {d.Flex.Wins}胜")
+                    .FontSize(9.5)
+                    .Foreground("#FFAAAAAA")
+                    .TextTrimming(TextTrimming.CharacterEllipsis)
+                    .VAlign(VerticalAlignment.Center)
+            ).WithToolTip(TextBlock(BuildRankTooltip("灵活排", d.Flex)));
         }
         else
         {
-            rankRow = TextBlock("无段位").FontSize(9.5).Foreground("#FF888888");
+            rankRow = TextBlock("无段位")
+                .FontSize(9.5)
+                .Foreground("#FF888888")
+                .WithToolTip(TextBlock("单双排: 无段位\n灵活排: 无段位"));
         }
 
-        // 胜率与 KDA
+        // 胜率与 KDA（色阶修正：≥70 绿 / ≥50 蓝 / <50 灰，带 ToolTip，§2.2）
         Element statsRow;
         if (d?.Loading == true)
         {
@@ -228,7 +301,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         else if (d?.WinRate.HasValue == true)
         {
             int wr = (int)Math.Round(d.WinRate.Value);
-            string wrColor = wr >= 70 ? "#FF10B981" : wr >= 50 ? "#FF059669" : "#FFEF4444";
+            string wrColor = wr >= 70 ? "#FF10B981" : wr >= 50 ? "#FF3B82F6" : "#FF94A3B8";
             string kdaStr = d.AvgKda.HasValue ? $"KDA {d.AvgKda.Value:F2}" : string.Empty;
 
             string kdaColor = d.AvgKda switch
@@ -239,11 +312,36 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                 _ => "#FFCCCCCC",
             };
 
+            int totalGames = (d.WinCount ?? 0) + (d.LossesCount ?? 0);
+            if (totalGames == 0) totalGames = d.Matches?.Count ?? 0;
+            string wrTip = $"近期胜率\n统计范围: 近 {totalGames} 场对局\n战绩详情: {d.WinCount ?? 0}胜 / {d.LossesCount ?? 0}负 ({wr}%)\n近期有效对局的胜负比例";
+
+            var validMatches = d.Matches?.Where(m => !m.Remake).ToList();
+            string kdaTip = $"近期场均 KDA\n综合数值: {(d.AvgKda.HasValue ? d.AvgKda.Value.ToString("F2") : "0.00")}\n计算公式: (击杀 + 助攻) ÷ 死亡";
+            if (validMatches is { Count: > 0 })
+            {
+                double avgK = validMatches.Average(m => m.Kills);
+                double avgD = validMatches.Average(m => m.Deaths);
+                double avgA = validMatches.Average(m => m.Assists);
+                kdaTip = $"近期场均 KDA\n场均数据: {avgK:F1} / {avgD:F1} / {avgA:F1}\n综合数值: {(d.AvgKda.HasValue ? d.AvgKda.Value.ToString("F2") : "0.00")}\n计算公式: (击杀 + 助攻) ÷ 死亡";
+            }
+
+            var wrBlock = TextBlock($"{wr}%")
+                .FontSize(10.5)
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                .Foreground(wrColor)
+                .WithToolTip(TextBlock(wrTip));
+
+            var kdaBlock = TextBlock(kdaStr)
+                .FontSize(9.5)
+                .Foreground(kdaColor)
+                .WithToolTip(TextBlock(kdaTip));
+
             var statsItems = new List<Element>
             {
-                TextBlock($"{wr}%").FontSize(10.5).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(wrColor),
+                wrBlock,
                 TextBlock(" · ").FontSize(9.5).Foreground("#FF888888"),
-                TextBlock(kdaStr).FontSize(9.5).Foreground(kdaColor),
+                kdaBlock,
             };
 
             statsRow = HStack(0, statsItems.ToArray());
@@ -264,13 +362,14 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             ]
         );
 
-        // 底栏：左侧熟练度 + 招牌/练英雄，右侧位置分布 + 常用英雄小头像
+        // 底栏：左侧熟练度 + 招牌/练英雄，右侧位置分布 + 常用英雄小头像（带 ToolTip）
         Element? bottomBar = null;
         if (masteryDetail is { Level: > 0 } || d?.Positions?.PrimaryPosition != null || d?.TopChampions is { Count: > 0 })
         {
             var leftItems = new List<Element>();
             if (masteryDetail is { Level: > 0 })
             {
+                string masteryTip = $"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)";
                 leftItems.Add(
                     Border(
                         TextBlock($"Lv.{masteryDetail.Level} {masteryDetail.FormattedPoints}")
@@ -281,6 +380,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .CornerRadius(3)
                     .Padding(3, 1)
                     .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock(masteryTip))
                 );
             }
 
@@ -293,6 +393,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                         .Padding(3, 1)
                         .Margin(3, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
+                        .WithToolTip(TextBlock("招牌/绝活英雄 (熟练度排名前三且≥1万分，或累计≥10万分)"))
                 );
             }
             else if (masteryDetail?.IsPracticing == true)
@@ -304,6 +405,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                         .Padding(3, 1)
                         .Margin(3, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
+                        .WithToolTip(TextBlock("练英雄/新手状态 (熟练度≤1级或点数<5000，近期少用或初次尝试)"))
                 );
             }
 
@@ -316,12 +418,21 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     posStr += $" / {d.Positions.SecondaryPercentage}%";
                 }
 
-                rightItems.Add(
+                string posTip = $"近期位置分布 ({d.Positions.TotalValid}场)\n" +
+                    string.Join("\n", d.Positions.Entries.Select(e => $"{e.Name}: {e.Count}场 · {e.Percentage}%"));
+
+                var posPill = Border(
                     TextBlock(posStr)
                         .FontSize(8.5)
                         .Foreground("#FFAAAAAA")
                         .VAlign(VerticalAlignment.Center)
-                );
+                )
+                .Background("#12FFFFFF")
+                .CornerRadius(3)
+                .Padding(3, 1)
+                .WithToolTip(TextBlock(posTip));
+
+                rightItems.Add(posPill);
             }
 
             if (d?.TopChampions is { Count: > 0 })
@@ -332,9 +443,13 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     var champImg = Component<LcuImage, LcuImageProps>(new LcuImageProps(champAsset, Size: 16, CornerRadius: 3))
                         .Provide(AppHost.Context, services);
 
+                    string posDesc = topChamp.PrimaryPosition is not null ? $" · {SearchVisuals.PositionText(topChamp.PrimaryPosition)}" : "";
+                    string champTip = $"出场 {topChamp.Games} 次{posDesc}\n{topChamp.WinRate}% 胜率 · {topChamp.Wins}胜 {topChamp.Losses}负 · KDA {topChamp.Kda}";
+
                     var champBadge = Border(champImg)
                         .Margin(2, 0, 0, 0)
-                        .VAlign(VerticalAlignment.Center);
+                        .VAlign(VerticalAlignment.Center)
+                        .WithToolTip(TextBlock(champTip));
 
                     rightItems.Add(champBadge);
                 }
@@ -356,11 +471,17 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             : topContent;
 
         return Border(fullContent)
-            .Width(234)
             .Background(bg)
             .WithBorder(border, 1)
-            .CornerRadius(8)
-            .Padding(8)
-            .Margin(0, 0, 0, 6);
+            .CornerRadius(6)
+            .Padding(10, 8);
+    }
+
+    private static string BuildRankTooltip(string queueName, RankedQueueEntry q)
+    {
+        int total = q.Wins + q.Losses;
+        int wr = total > 0 ? (int)Math.Round((double)q.Wins / total * 100) : 0;
+        string stats = total > 0 ? $" ({q.Wins}胜{q.Losses}负 · {wr}%胜率)" : "";
+        return $"{queueName}: {q.TierText} {q.LeaguePoints} LP{stats}";
     }
 }

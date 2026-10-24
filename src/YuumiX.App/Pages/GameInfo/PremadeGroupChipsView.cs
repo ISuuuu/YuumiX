@@ -48,6 +48,11 @@ public sealed class PremadeGroupChipsView : Component<PremadeGroupChipsProps>
             var icon = Component<LcuImage, LcuImageProps>(new LcuImageProps(asset, Size: 18, CornerRadius: 9))
                 .Margin(i > 0 ? -6 : 0, 0, 0, 0);
 
+            if (!string.IsNullOrEmpty(member.DisplayName))
+            {
+                icon = icon.WithToolTip(TextBlock(member.DisplayName));
+            }
+
             memberIcons.Add(icon);
         }
 
@@ -61,6 +66,7 @@ public sealed class PremadeGroupChipsView : Component<PremadeGroupChipsProps>
         .Background(color.Bg)
         .WithBorder(color.Border, 1)
         .CornerRadius(10)
-        .Padding(6, 2);
+        .Padding(6, 2)
+        .WithToolTip(TextBlock($"组队 {group.ColorIdx + 1}"));
     }
 }

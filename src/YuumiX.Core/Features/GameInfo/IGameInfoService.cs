@@ -43,4 +43,16 @@ public interface IGameInfoService
     /// 加载演示对局数据（供未在对局中时直接预览 10 人透视效果）。
     /// </summary>
     void LoadDemoState();
+
+    /// <summary>
+    /// 同步当前玩家最新战绩（10s 节流，force 可跳过）。
+    /// SGP 强制拉 0..49，失败回退 IMatchService；命中自己的多个条目统一更新。
+    /// </summary>
+    Task SyncCurrentPlayerMatchesAsync(bool forceNetwork = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 通知对局结束：按 2s/3.5s/5s 链式轮询当前玩家战绩；
+    /// 阶段重新进入活跃时自动取消。Core 侧已自动检测阶段转换，App 侧可转发 GameLifecycle 事件补触发。
+    /// </summary>
+    void NotifyGameEnded();
 }

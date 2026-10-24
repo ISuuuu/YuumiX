@@ -190,4 +190,79 @@ public static partial class PlayerIdentity
 
         return trimmed.ToLowerInvariant();
     }
+
+    /// <summary>
+    /// 判断是否为排位匿名占位名或电脑名（不可点击跳转搜索或生涯）。
+    /// </summary>
+    public static bool IsPlaceholderName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return true;
+        }
+
+        string trimmed = name.Trim();
+        if (trimmed == "未知")
+        {
+            return true;
+        }
+
+        int hashIdx = trimmed.IndexOf('#');
+        string pureName = hashIdx >= 0 ? trimmed[..hashIdx].Trim() : trimmed;
+
+        return PlaceholderNameRegex().IsMatch(pureName) || BotNameRegex().IsMatch(pureName);
+    }
+
+    /// <summary>
+    /// 提取可用于跨页面搜索/查询的规范化名称（<c>name#tag</c>）。
+    /// 若为占位名或空，返回空字符串。
+    /// </summary>
+    public static string GetSearchName(PremadePlayerLike p, GameInfoPlayer? d)
+    {
+        var info = d?.Info;
+        string raw = !string.IsNullOrWhiteSpace(info?.GameName) ? info.GameName
+            : !string.IsNullOrWhiteSpace(info?.DisplayName) ? info.DisplayName
+            : !string.IsNullOrWhiteSpace(p.DisplayName) ? p.DisplayName
+            : !string.IsNullOrWhiteSpace(p.SummonerName) ? p.SummonerName
+            : !string.IsNullOrWhiteSpace(p.GameName) ? p.GameName
+            : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(raw) || IsPlaceholderName(raw))
+        {
+            return string.Empty;
+        }
+
+        if (raw.Contains('#'))
+        {
+            return raw;
+        }
+
+        string tag = !string.IsNullOrWhiteSpace(info?.TagLine) ? info.TagLine
+            : !string.IsNullOrWhiteSpace(p.TagLine) ? p.TagLine
+            : string.Empty;
+
+        return string.IsNullOrEmpty(tag) ? raw : $"{raw}#{tag}";
+    }
+
+    /// <summary>
+    /// 提取界面显示的玩家名（去除 <c>#tag</c> 部分）。
+    /// </summary>
+    public static string GetDisplayName(PremadePlayerLike p, GameInfoPlayer? d, int index)
+    {
+        var info = d?.Info;
+        string raw = !string.IsNullOrWhiteSpace(info?.GameName) ? info.GameName
+            : !string.IsNullOrWhiteSpace(info?.DisplayName) ? info.DisplayName
+            : !string.IsNullOrWhiteSpace(p.DisplayName) ? p.DisplayName
+            : !string.IsNullOrWhiteSpace(p.GameName) ? p.GameName
+            : !string.IsNullOrWhiteSpace(p.SummonerName) ? p.SummonerName
+            : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return $"玩家{index + 1}";
+        }
+
+        int hash = raw.IndexOf('#');
+        return hash >= 0 ? raw[..hash] : raw;
+    }
 }

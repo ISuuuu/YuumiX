@@ -158,45 +158,6 @@ public class GameInfoServiceTests
         }
     }
 
-    [Fact]
-    public void ReserveGameinfo_WhenEnabled_PreservesLastGameSnapshot()
-    {
-        var config = new AppConfig();
-        config.Functions.EnableReserveGameinfo = true;
-
-        var (service, server) = CreateTestService(config);
-        using (service)
-        {
-            var initialPlayer = new GameInfoPlayer
-            {
-                Info = new SummonerProfile
-                {
-                    AccountId = 1,
-                    SummonerId = 100,
-                    SummonerLevel = 30,
-                    PercentCompleteForNextLevel = 0,
-                    XpSinceLastLevel = 0,
-                    XpUntilNextLevel = 0,
-                    Puuid = "p-100",
-                    DisplayName = "Player",
-                    GameName = "Player",
-                    TagLine = "1",
-                    ProfileIconId = 1,
-                },
-                ChampionId = 81,
-            };
-
-            // 手动填充对局快照
-            var dict = new Dictionary<string, GameInfoPlayer> { ["p-100"] = initialPlayer };
-            // 设置激活对局状态
-            service.SetActiveTab("my");
-
-            // 通过反射或私有设置验证保留逻辑
-            // 切换到 Lobby 阶段
-            service.Dispose();
-        }
-    }
-
     /// <summary>
     /// 「对局信息过滤」开关的消费验证：开启时只保留与当前对局相同队列的战绩
     /// （对照旧 useGamePlayerData.ts 的 filterEnabled 消费）。

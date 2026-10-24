@@ -4,7 +4,7 @@ namespace YuumiX.App.Navigation;
 
 /// <summary>
 /// 跨页面生涯跳转载荷，对应原 Vue 的 <c>navigateCareerPayload</c>。
-/// 用于从最近队友卡片、战绩详情玩家名等入口打开**他人**的生涯页（需求 §2.8）。
+/// 用于从最近队友卡片、对局信息玩家卡片等入口打开**他人**的生涯页（需求 §2.8 / §11.4）。
 /// </summary>
 public sealed class CareerNavigationPayload
 {

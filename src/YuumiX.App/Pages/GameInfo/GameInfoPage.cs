@@ -4,10 +4,12 @@ using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.GameInfo.Models;
+using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
 
 namespace YuumiX.App.Pages.GameInfo;
@@ -24,6 +26,18 @@ public sealed class GameInfoPage : Component
         var theme = UseContext(AppHost.ThemeContext);
         var gameInfoService = services.Services.GetRequiredService<IGameInfoService>();
         var lcu = services.Services.GetRequiredService<LcuConnection>();
+
+        var nav = UseNavigation<AppRoute>();
+        Action<string, SummonerProfile?> onNavigateCareer = (puuid, profile) =>
+        {
+            CareerNavigationPayload.Instance.Set(puuid, profile);
+            nav.Replace(AppRoute.Career);
+        };
+        Action<string, string?> onNavigateSearch = (query, puuid) =>
+        {
+            SearchNavigationPayload.Instance.Set(query, puuid);
+            nav.Replace(AppRoute.Search);
+        };
 
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
         UseEffect(
@@ -90,8 +104,8 @@ public sealed class GameInfoPage : Component
 
         // 6. 正常对局渲染
         return state.ViewColumns == 10
-            ? RenderTenColumnView(state, gameInfoService, palette, services)
-            : RenderFiveColumnView(state, gameInfoService, palette, services);
+            ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch)
+            : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch);
     }
 
     private static Element? RenderDodgeButton(AppServices services)
@@ -163,7 +177,9 @@ public sealed class GameInfoPage : Component
         GameInfoState state,
         IGameInfoService service,
         YuumiPalette palette,
-        AppServices services)
+        AppServices services,
+        Action<string, SummonerProfile?> onNavigateCareer,
+        Action<string, string?> onNavigateSearch)
     {
         bool isMyTab = state.ActiveTab == "my";
         var currentTeam = isMyTab ? state.MyTeam : state.TheirTeam;
@@ -233,7 +249,7 @@ public sealed class GameInfoPage : Component
             int premadeIdx = PremadeAnalyzer.GetPlayerColorIdx(p, isMyTab ? state.PremadeColorsMy : state.PremadeColorsTheir);
 
             return Component<PlayerCardView, PlayerCardProps>(
-                new PlayerCardProps(p, pData, premadeIdx, idx, state.CurrentSummonerPuuid));
+                new PlayerCardProps(p, pData, premadeIdx, idx, state.CurrentSummonerPuuid, state.SavedPlayerMap, onNavigateCareer, onNavigateSearch));
         }).ToArray();
 
         var leftPanel = Border(
@@ -327,7 +343,9 @@ public sealed class GameInfoPage : Component
                     isMyTab ? "ally" : "enemy",
                     state.MapSide,
                     false,
-                    idx == currentTeam.Count - 1))
+                    idx == currentTeam.Count - 1,
+                    state.SavedPlayerMap,
+                    onNavigateSearch))
                 .Grid(row: 0, column: idx);
         }).ToArray();
 
@@ -366,7 +384,8 @@ public sealed class GameInfoPage : Component
         GameInfoState state,
         IGameInfoService service,
         YuumiPalette palette,
-        AppServices services)
+        AppServices services,
+        Action<string, string?> onNavigateSearch)
     {
         var myGroups = PremadeAnalyzer.BuildPremadeGroups(state.MyTeam, state.PremadeColorsMy, state.PlayerData);
         var theirGroups = PremadeAnalyzer.BuildPremadeGroups(state.TheirTeam, state.PremadeColorsTheir, state.PlayerData);
@@ -441,7 +460,9 @@ public sealed class GameInfoPage : Component
                     "ally",
                     state.MapSide,
                     isTeamSeparator,
-                    false))
+                    false,
+                    state.SavedPlayerMap,
+                    onNavigateSearch))
                 .Grid(row: 0, column: i);
 
             colElements.Add(col);
@@ -466,7 +487,9 @@ public sealed class GameInfoPage : Component
                     "enemy",
                     state.MapSide,
                     false,
-                    isLast))
+                    isLast,
+                    state.SavedPlayerMap,
+                    onNavigateSearch))
                 .Grid(row: 0, column: offset + i);
 
             colElements.Add(col);

@@ -43,6 +43,9 @@ public sealed record GameInfoState
     /// <summary>当前登录玩家 PUUID</summary>
     public string? CurrentSummonerPuuid { get; init; }
 
+    /// <summary>路人集标记映射（puuid → 精简标记），当前登录玩家视角（§4.8）</summary>
+    public IReadOnlyDictionary<string, SavedPlayerMarker> SavedPlayerMap { get; init; } = new Dictionary<string, SavedPlayerMarker>();
+
     /// <summary>我方阵营："blue"（蓝方） | "red"（红方） | null</summary>
     public string? MapSide { get; init; }
 

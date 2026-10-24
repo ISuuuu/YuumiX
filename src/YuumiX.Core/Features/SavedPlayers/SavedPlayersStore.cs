@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Runtime;
 
@@ -295,6 +296,68 @@ public sealed class SavedPlayersStore : IDisposable
             var puuid = reader.GetString(0);
             var tag = reader.GetString(1);
             map[puuid] = tag;
+        }
+
+        return map;
+    }
+
+    /// <summary>
+    /// 获取全部保存玩家的精简映射：puuid → 标记信息（tag + 相遇次数 + 最近相遇对局 + 最近相遇时间 + 相遇对局 ID 列表）。
+    /// 对应旧版 Rust 命令 <c>get_saved_players_map</c>，对局信息页徽章与宿命检测候选共用。
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, SavedPlayerMarker>> GetSavedPlayersMapAsync(
+        string selfPuuid,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        if (string.IsNullOrWhiteSpace(selfPuuid))
+        {
+            return new Dictionary<string, SavedPlayerMarker>();
+        }
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var map = new Dictionary<string, SavedPlayerMarker>();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT sp.puuid,
+                   sp.tag,
+                   (SELECT COUNT(*) FROM encountered_games eg
+                    WHERE eg.puuid = sp.puuid AND eg.self_puuid = sp.self_puuid),
+                   (SELECT eg.game_id FROM encountered_games eg
+                    WHERE eg.puuid = sp.puuid AND eg.self_puuid = sp.self_puuid
+                    ORDER BY eg.update_at DESC LIMIT 1),
+                   sp.last_met_at,
+                   (SELECT GROUP_CONCAT(DISTINCT eg.game_id) FROM encountered_games eg
+                    WHERE eg.puuid = sp.puuid AND eg.self_puuid = sp.self_puuid)
+            FROM saved_players sp WHERE sp.self_puuid = @selfPuuid";
+        cmd.Parameters.AddWithValue("@selfPuuid", selfPuuid);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            long encounterCount = reader.IsDBNull(2) ? 0 : reader.GetInt64(2);
+            var gameIds = new List<long>();
+            if (!reader.IsDBNull(5))
+            {
+                foreach (string part in reader.GetString(5).Split(',', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (long.TryParse(part.Trim(), out long gid))
+                    {
+                        gameIds.Add(gid);
+                    }
+                }
+            }
+
+            map[reader.GetString(0)] = new SavedPlayerMarker
+            {
+                Tag = reader.IsDBNull(1) ? null : reader.GetString(1),
+                EncounterCount = (int)Math.Clamp(encounterCount, 0, int.MaxValue),
+                LastEncounteredGameId = reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                LastMetAt = reader.IsDBNull(4) ? null : reader.GetInt64(4),
+                EncounteredGameIds = gameIds,
+            };
         }
 
         return map;

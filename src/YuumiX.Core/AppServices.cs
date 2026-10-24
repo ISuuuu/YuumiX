@@ -314,6 +314,8 @@ public sealed class AppServices : IDisposable
         collection.AddSingleton<AutomationHost>();
 
         // ── 对局信息（GameInfo 模块）────────────────────────────────
+        collection.AddSingleton<ILiveClientService>(provider => new LiveClientService(
+            logger: provider.GetService<ILogger<LiveClientService>>()));
         collection.AddSingleton<IMasteryService>(provider => new MasteryService(
             () => provider.GetRequiredService<LcuConnection>().Transport));
         collection.AddSingleton<IFateService>(provider => new FateService(
@@ -328,7 +330,11 @@ public sealed class AppServices : IDisposable
             provider.GetRequiredService<IFateService>(),
             provider.GetRequiredService<AppConfig>(),
             connection: provider.GetRequiredService<LcuConnection>(),
-            logger: provider.GetRequiredService<ILogger<GameInfoService>>()));
+            logger: provider.GetRequiredService<ILogger<GameInfoService>>(),
+            sgpService: provider.GetRequiredService<ISgpService>(),
+            savedPlayersStore: provider.GetRequiredService<SavedPlayersStore>(),
+            liveClientService: provider.GetRequiredService<ILiveClientService>(),
+            catalogProvider: () => provider.GetService<GameDataService>()?.Current));
 
         var services = collection.BuildServiceProvider();
 
