@@ -49,10 +49,6 @@ public sealed class AppShell : Component
 
     public override Element Render()
     {
-        // 全局字体注入（ContentControlThemeFontFamily + TextBlock 隐式样式）。
-        // 必须早于任何页面元素的创建；内部有幂等守卫，重复调用无副作用。
-        AppFonts.Apply();
-
         var services = AppHost.Services;
         var nav = UseNavigation(AppRoute.Home);
 
