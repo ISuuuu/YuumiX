@@ -1514,7 +1514,11 @@ public sealed class SettingsPage : Component
                 GroupHeader("关于"),
                 aboutCard
             ).Padding(24).HAlign(HorizontalAlignment.Stretch)
-        );
+        )
+        // 点击页面空白处时，WinUI 会把焦点下发给 ScrollView 内容里的「第一个可聚焦控件」，
+        // 本页即「LCU API 并发数」的 NumberBox —— 光标会莫名其妙跳进那个输入框。
+        // 让 ScrollView 自身成为可聚焦元素后，焦点停在滚动容器上，不再下发给子控件。
+        .Set(sv => sv.IsTabStop = true);
 
         return Grid(
             [GridSize.Star()],
@@ -1523,16 +1527,20 @@ public sealed class SettingsPage : Component
                 mainScroll.Grid(row: 0, column: 0),
                 RenderToasts().Grid(row: 0, column: 0),
                 // 清除缓存确认弹窗（声明式：IsOpen 驱动显隐）
-                new Microsoft.UI.Reactor.Core.ContentDialogElement(
+                // 必须走 Factories.ContentDialog：Reactor 的 handler 注册是惰性的，只有工厂调用
+                // 才会把 ContentDialogElement 注册进 ControlRegistry；直接
+                // new Microsoft.UI.Reactor.Core.ContentDialogElement(...) 能编译但在挂载时抛
+                // InvalidOperationException（No handler is registered for element type ...）。
+                (ContentDialog(
                     "清除缓存",
                     TextBlock("确定要清除所有游戏资源缓存吗？清除后需要重新加载游戏资源。")
                         .FontSize(13)
                         .TextWrapping(),
-                    "确定")
+                    primaryButtonText: "确定") with
                 {
                     IsOpen = clearDialogOpen,
                     CloseButtonText = "取消",
-                }
+                })
                 .Closed(result =>
                 {
                     setClearDialogOpen(false);

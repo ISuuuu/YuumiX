@@ -17,6 +17,8 @@ using YuumiX.App.Pages.Tools;
 using YuumiX.App.Theming;
 using YuumiX.App.Windowing;
 using YuumiX.Core.Automation;
+using YuumiX.Core.Features.Summoner;
+using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
 
 namespace YuumiX.App.Shell;
@@ -104,6 +106,53 @@ public sealed class AppShell : Component
             },
             1);
 
+        // 侧边栏召唤师信息卡片的数据源（对应旧版 sidebar-bottom 的 user-card）。
+        // 客户端连上后拉一次当前召唤师；断线即清空，卡片退回到占位态。
+        // threadSafe: true —— 拉取在后台线程完成，回调直接封送回 UI 线程（ADR-07）。
+        var summonerService = services.Services.GetRequiredService<ISummonerService>();
+        var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                if (!isClientConnected)
+                {
+                    setSummoner(null);
+                    return static () => { };
+                }
+
+                var cancellation = new CancellationTokenSource();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var profile = await summonerService
+                            .GetCurrentSummonerAsync(cancellation.Token)
+                            .ConfigureAwait(false);
+
+                        if (!cancellation.IsCancellationRequested)
+                        {
+                            setSummoner(profile);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    catch (Exception ex)
+                    {
+                        services.LoggerFactory
+                            .CreateLogger<AppShell>()
+                            .LogWarning(ex, "读取当前召唤师失败，侧边栏信息卡片保持为空");
+                    }
+                });
+
+                return () =>
+                {
+                    cancellation.Cancel();
+                    cancellation.Dispose();
+                };
+            },
+            isClientConnected);
+
         // 菜单项必须跨渲染保持同一批实例：每次渲染新建数组会让 NavigationView 重建菜单，
         // 选中项被重置为第一项并触发 OnSelectedTagChanged，表现为「界面重渲染后莫名跳回主页」。
         // 这是主题即时生效暴露出来的问题（ADR-12 决策三带来的额外重渲染）。
@@ -111,7 +160,7 @@ public sealed class AppShell : Component
         // 平时（主题变化/普通重渲染）保持原实例数组。
         var menuKey = (menuVisibility.HideTft ? 1 : 0) | (menuVisibility.HideSavedPlayers ? 2 : 0);
         var menuItems = UseMemo(
-            () => RouteCatalog.All
+            () => RouteCatalog.Primary
                 .Where(item => item.Route switch
                 {
                     AppRoute.Tft => !menuVisibility.HideTft,
@@ -121,6 +170,10 @@ public sealed class AppShell : Component
                 .Select(item => NavItem(item.Label, item.Glyph, item.Route.ToString()))
                 .ToArray(),
             menuKey);
+
+        // 底部附加操作区：动作项（OP.GG / 修复无限加载）在前，路由项（公告 / 设置）在后，
+        // 拼出来的顺序与旧版 sidebar-bottom 一致。这些项不受「隐藏菜单」影响，key 固定。
+        var footerItems = UseMemo(BuildFooterItems, 0);
 
         // 导航栏开合：初值取自持久化配置（跨启动恢复上次状态）。本地 UseState 保证
         // 主题/菜单变化引发重渲染时，用户当前的开合状态不会被重置回配置初值。
@@ -132,18 +185,42 @@ public sealed class AppShell : Component
             IsSettingsVisible = false,
             IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed,
             PaneDisplayMode = NavigationViewPaneDisplayMode.Left,
-            OpenPaneLength = 150,
+            // 展开/折叠宽度对齐旧版 sidebar：210px / 64px。
+            OpenPaneLength = 210,
+            CompactPaneLength = 64,
             IsPaneOpen = paneOpen,
             IsPaneToggleButtonVisible = true,
-            FooterMenuItems = [NavItem("OP.GG", "\uE737", "Opgg")],
+            // 底部附加操作区：OP.GG / 修复无限加载 / 公告 / 设置。
+            FooterMenuItems = footerItems,
+            // 分隔线 + 召唤师信息卡片。
+            // WinUI 模板把 PaneFooter 排在 FooterMenuItems 之上，所以卡片落在底部菜单项上方，
+            // 而分隔线正好是底部区的顶边——与旧版 sidebar-bottom 的 border-top 同位。
+            PaneFooter = VStack(
+                Border(Empty())
+                    .Height(1)
+                    .Background(Theme.DividerStroke)
+                    .Margin(new Microsoft.UI.Xaml.Thickness(0, 0, 0, 8)),
+                Component<SummonerPaneCard, SummonerPaneCardProps>(
+                    new SummonerPaneCardProps(
+                        summoner,
+                        isClientConnected,
+                        () => nav.Replace(AppRoute.Career)))),
         };
+
+        // 菜单项高度对齐旧版 nav-item 的 42px：WinUI 左栏项默认 MinHeight 36，
+        // 加上上下各 2 的 margin 共 40；把 MinHeight 提到 38 正好凑满 42。
+        // 圆角与项间距沿用 WinUI 原生值，不额外覆盖。
+        navigationView = navigationView.Resources(builder =>
+        {
+            builder.Set("NavigationViewItemOnLeftMinHeight", 38d);
+        });
 
         // 侧边栏是平级切换语义，因此用 Replace 而非 Navigate，避免堆积返回栈。
         navigationView = navigationView with
         {
             OnSelectedTagChanged = tag =>
             {
-                if (tag == "Opgg")
+                if (tag == SidebarTags.Opgg)
                 {
                     if (!isClientConnected)
                     {
@@ -153,6 +230,14 @@ public sealed class AppShell : Component
                     {
                         OpggWindowHost.ShowOrActivate();
                     }
+                    return;
+                }
+
+                if (tag == SidebarTags.Reconnect)
+                {
+                    // 旧版的「修复无限加载」是手动重连动作；新项目目前只有自动重连代理，
+                    // 入口先预留在这里，点击给出明确反馈而不是静默无响应。
+                    ShowToast("「修复无限加载」待迁移：当前仅支持自动重连");
                     return;
                 }
 
@@ -285,6 +370,29 @@ public sealed class AppShell : Component
             GamePhase.WatchInProgress => "观战中",
             _ => gamePhase.ToString(),
         };
+    }
+
+    /// <summary>
+    /// 构造底部附加操作区的菜单项。
+    ///
+    /// 动作项（OP.GG / 修复无限加载）在前、路由项（公告 / 设置）在后，
+    /// 拼出来的顺序即旧版 sidebar-bottom 的排列顺序。
+    /// </summary>
+    private static NavigationViewItemData[] BuildFooterItems()
+    {
+        var items = new List<NavigationViewItemData>();
+
+        foreach (var action in RouteCatalog.FooterActions)
+        {
+            items.Add(NavItem(action.Label, action.Glyph, action.Tag));
+        }
+
+        foreach (var route in RouteCatalog.Footer)
+        {
+            items.Add(NavItem(route.Label, route.Glyph, route.Route.ToString()));
+        }
+
+        return items.ToArray();
     }
 
     /// <summary>
