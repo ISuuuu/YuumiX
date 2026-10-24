@@ -174,14 +174,14 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                     .AutomationName("回放下载中")
                     .WithToolTip(TextBlock("回放下载中…")),
             "watch" =>
-                Button(TextBlock("\uE768").FontSize(11).Foreground(CareerVisuals.WinText), onClick)
+                Button(Caption("\uE768").Foreground(CareerVisuals.WinText), onClick)
                     .Width(28)
                     .Height(28)
                     .Padding(2, 0)
                     .AutomationName("观看回放")
                     .WithToolTip(TextBlock("点击启动对局回放")),
             "unsupported" =>
-                Button(TextBlock("\uE711").FontSize(11).Foreground(Theme.SecondaryText), onClick)
+                Button(Caption("\uE711").Foreground(Theme.SecondaryText), onClick)
                     .Width(28)
                     .Height(28)
                     .Padding(2, 0)
@@ -189,14 +189,14 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                     .AutomationName("回放不可用")
                     .WithToolTip(TextBlock(notice ?? "该对局回放不可用")),
             "error" =>
-                Button(TextBlock("\uE783").FontSize(11).Foreground(CareerVisuals.LoseText), onClick)
+                Button(Caption("\uE783").Foreground(CareerVisuals.LoseText), onClick)
                     .Width(28)
                     .Height(28)
                     .Padding(2, 0)
                     .AutomationName("下载失败重试")
                     .WithToolTip(TextBlock(notice ?? "下载失败，点击重试")),
             _ =>
-                Button(TextBlock("\uE896").FontSize(11).Foreground(Theme.SecondaryText), onClick)
+                Button(Caption("\uE896").Foreground(Theme.SecondaryText), onClick)
                     .Width(28)
                     .Height(28)
                     .Padding(2, 0)
@@ -210,30 +210,30 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
         return status switch
         {
             "downloading" or "checking" =>
-                Button(HStack(6, ProgressRing().Width(14).Height(14), TextBlock("下载中…").FontSize(11)), onClick)
+                Button(HStack(6, ProgressRing().Width(14).Height(14), Caption("下载中…")), onClick)
                     .Height(28)
                     .Padding(10, 0)
                     .AutomationName("回放下载中"),
             "watch" =>
-                Button(HStack(6, TextBlock("\uE768").FontSize(11).Foreground(CareerVisuals.WinText), TextBlock("观看回放").FontSize(11)), onClick)
+                Button(HStack(6, Caption("\uE768").Foreground(CareerVisuals.WinText), Caption("观看回放")), onClick)
                     .Height(28)
                     .Padding(10, 0)
                     .AutomationName("观看回放"),
             "unsupported" =>
-                Button(HStack(6, TextBlock("\uE711").FontSize(11), TextBlock("不可用").FontSize(11)), onClick)
+                Button(HStack(6, Caption("\uE711"), Caption("不可用")), onClick)
                     .Height(28)
                     .Padding(10, 0)
                     .IsEnabled(false)
                     .AutomationName("回放不可用")
                     .WithToolTip(TextBlock(notice ?? "该对局回放不可用")),
             "error" =>
-                Button(HStack(6, TextBlock("\uE783").FontSize(11).Foreground(CareerVisuals.LoseText), TextBlock("重试").FontSize(11)), onClick)
+                Button(HStack(6, Caption("\uE783").Foreground(CareerVisuals.LoseText), Caption("重试")), onClick)
                     .Height(28)
                     .Padding(10, 0)
                     .AutomationName("重试")
                     .WithToolTip(TextBlock(notice ?? "下载失败，点击重试")),
             _ =>
-                Button(HStack(6, TextBlock("\uE896").FontSize(11), TextBlock("下载回放").FontSize(11)), onClick)
+                Button(HStack(6, Caption("\uE896"), Caption("下载回放")), onClick)
                     .Height(28)
                     .Padding(10, 0)
                     .AutomationName("下载回放"),

@@ -50,11 +50,10 @@ internal static class ChampionPickerView
                 selectedChips.Add(
                     Border(
                         HStack(6,
-                            TextBlock($"#{order}").FontSize(11).Foreground(palette.Accent).VAlign(VerticalAlignment.Center),
+                            Caption($"#{order}").Foreground(palette.Accent).VAlign(VerticalAlignment.Center),
                             Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, Size: 24, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
-                            TextBlock(name).FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).VAlign(VerticalAlignment.Center),
-                            Button("\uE711", () => onToggleChampion(id))
-                                .FontSize(10)
+                            Caption(name).VAlign(VerticalAlignment.Center),
+                            Button(Caption("\uE711"), () => onToggleChampion(id))
                                 .Padding(4, 2)
                                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                                 .Foreground(Theme.SecondaryText)
@@ -75,8 +74,7 @@ internal static class ChampionPickerView
                         .FontSize(12)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
-                    Button("清空全部", onClearSelection)
-                        .FontSize(11)
+                    Button(Caption("清空全部"), onClearSelection)
                         .Padding(6, 2)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .AutomationName("清空已选英雄")
@@ -135,7 +133,7 @@ internal static class ChampionPickerView
                     Component<LcuImage, LcuImageProps>(new LcuImageProps(champ.IconPath, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                     VStack(2,
                         TextBlock(champ.Name).FontSize(12).FontWeight(isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal),
-                        TextBlock(champ.Title).FontSize(10).Foreground(Theme.SecondaryText)
+                        Caption(champ.Title).Foreground(Theme.SecondaryText)
                     ).VAlign(VerticalAlignment.Center)
                 ),
                 () => onToggleChampion(champ.Id)

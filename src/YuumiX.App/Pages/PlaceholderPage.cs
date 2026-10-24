@@ -38,7 +38,7 @@ public sealed class PlaceholderPage : Component<PlaceholderProps>
 
         var featureList = Props.PendingFeatures
             .Select(feature => (Element)HStack(8,
-                TextBlock("\uE73E").FontSize(11).Foreground(Theme.SecondaryText),
+                Caption("\uE73E").Foreground(Theme.SecondaryText),
                 TextBlock(feature).Foreground(Theme.SecondaryText).TextWrapping()))
             .ToArray();
 

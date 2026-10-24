@@ -286,7 +286,7 @@ public sealed class AppShell : Component
         // 菜单项高度对齐旧版 nav-item 的 42px：WinUI 左栏项默认 MinHeight 36，
         // 加上上下各 2 的 margin 共 40；把 MinHeight 提到 38 正好凑满 42。
         // 圆角与项间距沿用 WinUI 原生值，不额外覆盖。
-        navigationView = navigationView.FontFamily(YuumiTypography.SansFont).Resources(builder =>
+        navigationView = navigationView.Resources(builder =>
         {
             builder.Set("NavigationViewItemOnLeftMinHeight", 38d);
         });
@@ -399,9 +399,8 @@ public sealed class AppShell : Component
                     return Border(
                         HStack(10,
                             Border(
-                                TextBlock(iconGlyph)
+                                Caption(iconGlyph)
                                     .FontFamily("Segoe Fluent Icons")
-                                    .FontSize(11)
                                     .Foreground(iconColor)
                                     .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Center)
                                     .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)

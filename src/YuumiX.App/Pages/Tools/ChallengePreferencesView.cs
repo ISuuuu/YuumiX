@@ -135,16 +135,12 @@ internal static class ChallengePreferencesView
                         [
                             checkText,
                             VStack(2,
-                                TextBlock(b.Name)
-                                    .FontSize(12)
-                                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                                TextBlock(b.Description)
-                                    .FontSize(10)
+                                Caption(b.Name),
+                                Caption(b.Description)
                                     .Foreground(Theme.SecondaryText)
                             ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
                             Border(
-                                TextBlock(b.CurrentLevel)
-                                    .FontSize(10)
+                                Caption(b.CurrentLevel)
                                     .Foreground(palette.Accent)
                             )
                             .Padding(6, 2)

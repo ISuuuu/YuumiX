@@ -59,8 +59,7 @@ internal static class SkinPickerView
         int nextIdx = activeSkinIndex < skins.Count - 1 ? activeSkinIndex + 1 : 0;
 
         Element carouselControls = HStack(8,
-            Button("\uE76B", () => onSelectSkinIndex(prevIdx))
-                .FontSize(11)
+            Button(Caption("\uE76B"), () => onSelectSkinIndex(prevIdx))
                 .Padding(8, 4)
                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .AutomationName("上一款皮肤"),
@@ -68,8 +67,7 @@ internal static class SkinPickerView
                 .FontSize(12)
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
-            Button("\uE76C", () => onSelectSkinIndex(nextIdx))
-                .FontSize(11)
+            Button(Caption("\uE76C"), () => onSelectSkinIndex(nextIdx))
                 .Padding(8, 4)
                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .AutomationName("下一款皮肤")
@@ -81,11 +79,8 @@ internal static class SkinPickerView
                 [GridSize.Auto],
                 [
                     VStack(4,
-                        TextBlock(activeSkin.Name)
-                            .FontSize(14)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                        TextBlock($"皮肤 ID: {activeSkin.Id} {(activeSkin.IsBase ? "（默认原皮）" : "")}")
-                            .FontSize(11)
+                        Body(activeSkin.Name),
+                        Caption($"皮肤 ID: {activeSkin.Id} {(activeSkin.IsBase ? "（默认原皮）" : "")}")
                             .Foreground(Theme.SecondaryText)
                     ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 

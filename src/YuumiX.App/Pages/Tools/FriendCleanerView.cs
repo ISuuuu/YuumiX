@@ -75,10 +75,8 @@ internal static class FriendCleanerView
         {
             actionToolbar = Border(
                 HStack(12,
-                    TextBlock($"⚠️ 确定要从游戏好友列表中彻底删除选中的 {selectedCount} 位好友吗？此操作无法撤销。")
+                    Caption($"⚠️ 确定要从游戏好友列表中彻底删除选中的 {selectedCount} 位好友吗？此操作无法撤销。")
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
-                        .FontSize(12)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .VAlign(VerticalAlignment.Center),
                     Button("确认删除", onConfirmDelete)
                         .Background(Theme.Ref("SystemFillColorCriticalBrush"))
@@ -184,30 +182,25 @@ internal static class FriendCleanerView
 
                     VStack(2,
                         HStack(8,
-                            TextBlock(entry.DisplayName)
-                                .FontSize(13)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+                            Body(entry.DisplayName),
                             string.IsNullOrWhiteSpace(entry.Friend.Note)
                                 ? Empty()
-                                : TextBlock($"({entry.Friend.Note})")
-                                    .FontSize(11)
+                                : Caption($"({entry.Friend.Note})")
                                     .Foreground(Theme.SecondaryText)
                                     .VAlign(VerticalAlignment.Center)
                         ),
-                        TextBlock(entry.FormattedLastMatchTime)
-                            .FontSize(11)
+                        Caption(entry.FormattedLastMatchTime)
                             .Foreground(tagColor)
                     ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
 
                     Border(
-                        TextBlock(entry.Friend.Availability switch
+                        Caption(entry.Friend.Availability switch
                         {
                             "chat" => "在线",
                             "away" => "离开",
                             "dnd" => "请勿打扰",
                             _ => "离线",
                         })
-                        .FontSize(11)
                         .Foreground(entry.Friend.Availability == "chat" ? Theme.Ref("SystemFillColorSuccessBrush") : Theme.SecondaryText)
                     )
                     .Padding(6, 2)

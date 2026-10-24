@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Media.Animation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
@@ -326,9 +327,7 @@ public sealed class ToolsPage : Component
                 [GridSize.Star(), GridSize.Auto],
                 [GridSize.Auto],
                 [
-                    TextBlock(label)
-                        .FontFamily(YuumiTypography.SansFont)
-                        .FontSize(13)
+                    Body(label)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(row: 0, column: 0),
@@ -350,15 +349,9 @@ public sealed class ToolsPage : Component
                     [GridSize.Auto],
                     [
                         VStack(2,
-                            TextBlock(title)
-                                .FontFamily(YuumiTypography.SansFont)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                                .FontSize(13.5)
-                                .Foreground(palette.TextPrimary),
-                            TextBlock(description)
-                                .FontFamily(YuumiTypography.SansFont)
-                                .FontSize(12)
-                                .Foreground(palette.TextSecondary)
+                            Body(title).Foreground(Theme.PrimaryText),
+                            Body(description)
+                                .Foreground(Theme.SecondaryText)
                                 .Margin(new Thickness(0, 3, 0, 0))
                         ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
@@ -382,8 +375,7 @@ public sealed class ToolsPage : Component
             var isExpanded = expandedKeys.Contains(key);
 
             var isEnabled = isStatusEnabled ?? (statusText != "未启用" && statusText != "未锁定 (可写入)" && statusText != "点击展开");
-            var statusColor = isEnabled ? palette.Accent : palette.TextMuted;
-            var statusWeight = isEnabled ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
+            var statusColor = isEnabled ? Theme.Accent : Theme.SecondaryText;
 
             var headerContent = Grid(
                 [GridSize.Star(), GridSize.Auto, GridSize.Auto],
@@ -391,32 +383,22 @@ public sealed class ToolsPage : Component
                 [
                     // 标题与说明
                     VStack(2,
-                        TextBlock(title)
-                            .FontFamily(YuumiTypography.SansFont)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                            .FontSize(13.5)
-                            .Foreground(palette.TextPrimary),
-                        TextBlock(description)
-                            .FontFamily(YuumiTypography.SansFont)
-                            .FontSize(12)
-                            .Foreground(palette.TextSecondary)
+                        Body(title).Foreground(Theme.PrimaryText),
+                        Body(description)
+                            .Foreground(Theme.SecondaryText)
                             .Margin(new Thickness(0, 3, 0, 0))
                     ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
                     // 右侧状态摘要
-                    TextBlock(statusText)
-                        .FontFamily(YuumiTypography.SansFont)
-                        .FontSize(12)
-                        .FontWeight(statusWeight)
+                    Caption(statusText)
                         .Foreground(statusColor)
                         .VAlign(VerticalAlignment.Center)
                         .Margin(new Thickness(12, 0, 10, 0))
                         .Grid(row: 0, column: 1),
 
                     // 展开指示器（下箭头 / 右箭头）
-                    TextBlock(isExpanded ? "\uE70D" : "\uE76C")
+                    Caption(isExpanded ? "\uE70D" : "\uE76C")
                         .FontFamily("Segoe Fluent Icons")
-                        .FontSize(12)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(row: 0, column: 2),
@@ -591,12 +573,11 @@ public sealed class ToolsPage : Component
             Commit(nameof(FunctionsConfig.AutoSetSummonerSpell));
         }
 
+        // 与设置页同一字阶：页面标题 Title(28) / 分组 Subtitle(20) / 卡片标题 Body(14) / 说明 Caption(12)。
+        // 卡片标题与状态一律不加字重——雅黑没有 SemiBold，600 会被吸附到 Bold，小字号下笔画粘连、发糊。
         Element GroupHeader(string title) =>
-            TextBlock(title)
-                .FontFamily(YuumiTypography.SansFont)
-                .FontSize(13)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .Foreground(Theme.SecondaryText)
+            Subtitle(title)
+                .HeadingLevel(AutomationHeadingLevel.Level2)
                 .Margin(new Thickness(4, 16, 0, 6));
 
         // 1. 自动接受对局卡片
@@ -698,7 +679,7 @@ public sealed class ToolsPage : Component
                         Commit(nameof(FunctionsConfig.EnableDodgeInGameInfo));
                     }, "对局信息秒退按钮")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
-                TextBlock("分路预选候选英雄库:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
+                Caption("分路预选候选英雄库:").Foreground(Theme.SecondaryText),
                 LaneTabs(pickLaneIndex, idx => setPickLaneIndex(idx)),
                 ChampionPickerView.Render(
                     championSummaryList,
@@ -749,7 +730,7 @@ public sealed class ToolsPage : Component
                         palette,
                         "自动禁用延迟")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
-                TextBlock("分路禁用候选英雄库:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
+                Caption("分路禁用候选英雄库:").Foreground(Theme.SecondaryText),
                 LaneTabs(banLaneIndex, idx => setBanLaneIndex(idx)),
                 ChampionPickerView.Render(
                     championSummaryList,
@@ -779,7 +760,7 @@ public sealed class ToolsPage : Component
                         Commit(nameof(FunctionsConfig.EnableAutoSetSpells));
                     }, "自动召唤师技能")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
-                TextBlock("分路召唤师技能组:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
+                Caption("分路召唤师技能组:").Foreground(Theme.SecondaryText),
                 LaneTabs(spellLaneIndex, idx => setSpellLaneIndex(idx)),
                 SpellPickerView.Render(
                     summonerSpellsList,
@@ -900,8 +881,7 @@ public sealed class ToolsPage : Component
             "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)",
             "点击展开",
             VStack(8,
-                TextBlock("输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战：")
-                    .FontSize(12)
+                Body("输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战：")
                     .Foreground(Theme.SecondaryText),
                 CardRow("观战通道:",
                     ComboBox(SpectateMethodLabels, spectateMethodIndex, idx => setSpectateMethodIndex(idx))
@@ -1107,9 +1087,9 @@ public sealed class ToolsPage : Component
             "快速重启客户端", "重新引导 LeagueClientUx，无需重新排队或重新输入账号密码",
             isConfirmingRestartClient
                 ? HStack(8,
-                    TextBlock("⚡ 确定重启客户端？无需重登").FontSize(12).Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                    Button("取消", () => setIsConfirmingRestartClient(false)).FontSize(11).Padding(8, 4),
-                    Button("确认重启", () =>
+                    Caption("⚡ 确定重启客户端？无需重登").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
+                    Button(Caption("取消"), () => setIsConfirmingRestartClient(false)).Padding(8, 4).AutomationName("取消重启客户端"),
+                    Button(Caption("确认重启"), () =>
                     {
                         setIsConfirmingRestartClient(false);
                         SendLcu(async t =>
@@ -1119,7 +1099,6 @@ public sealed class ToolsPage : Component
                     })
                     .Background(Theme.Ref("SystemFillColorCriticalBrush"))
                     .Foreground("#FFFFFFFF")
-                    .FontSize(11)
                     .Padding(8, 4)
                     .AutomationName("确认重启客户端"))
                 : Button("重启客户端", () => setIsConfirmingRestartClient(true)).AutomationName("快速重启客户端"));
@@ -1130,8 +1109,8 @@ public sealed class ToolsPage : Component
         var signatureCard = ToolCard(
             "signature", "个性签名", "自定义修改你在客户端好友列表中展示的个性状态签名", "点击展开",
             VStack(8,
-                TextBlock("输入你想展示的个性化签名并应用：")
-                    .FontSize(12).Foreground(Theme.SecondaryText),
+                Body("输入你想展示的个性化签名并应用：")
+                    .Foreground(Theme.SecondaryText),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
@@ -1164,8 +1143,8 @@ public sealed class ToolsPage : Component
         var profileBgCard = ToolCard(
             "profileBg", "生涯背景", "在个人生涯主页展示任意指定的英雄皮肤插画背景", "点击展开",
             VStack(10,
-                TextBlock("浏览英雄皮肤并预览应用，或直接输入皮肤 ID：")
-                    .FontSize(12).Foreground(Theme.SecondaryText),
+                Body("浏览英雄皮肤并预览应用，或直接输入皮肤 ID：")
+                    .Foreground(Theme.SecondaryText),
                 SkinPickerView.Render(
                     bgChampInput,
                     v => setBgChampInput(v),
@@ -1272,7 +1251,7 @@ public sealed class ToolsPage : Component
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        TextBlock("应用后好友列表中的名片即时显示此段位").FontSize(12).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
+                        Body("应用后好友列表中的名片即时显示此段位").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
                         Button("应用伪装", async () =>
                         {
                             var q = SpoofQueues[spoofQueueIndex];
@@ -1333,9 +1312,9 @@ public sealed class ToolsPage : Component
 
         Element clearBadgesAction = isConfirmingClearBadges
             ? (Element)HStack(6,
-                TextBlock("🏅 确定清除所有勋章？").FontSize(11).Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                Button("取消", () => setIsConfirmingClearBadges(false)).FontSize(10).Padding(6, 2),
-                Button("确认卸下", async () =>
+                Caption("🏅 确定清除所有勋章？").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
+                Button(Caption("取消"), () => setIsConfirmingClearBadges(false)).Padding(6, 2).AutomationName("取消卸下勋章"),
+                Button(Caption("确认卸下"), async () =>
                 {
                     setIsConfirmingClearBadges(false);
                     try
@@ -1347,14 +1326,14 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"卸下勋章失败: {ex.Message}", isError: true);
                     }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").FontSize(10).Padding(6, 2))
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").Padding(6, 2).AutomationName("确认卸下勋章"))
             : (Element)Button("卸下全部勋章", () => setIsConfirmingClearBadges(true)).AutomationName("卸下勋章");
 
         Element clearBorderAction = isConfirmingClearBorder
             ? (Element)HStack(6,
-                TextBlock("🖼️ 确定清除头像框？").FontSize(11).Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                Button("取消", () => setIsConfirmingClearBorder(false)).FontSize(10).Padding(6, 2),
-                Button("确认卸下", async () =>
+                Caption("🖼️ 确定清除头像框？").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
+                Button(Caption("取消"), () => setIsConfirmingClearBorder(false)).Padding(6, 2).AutomationName("取消卸下头像框"),
+                Button(Caption("确认卸下"), async () =>
                 {
                     setIsConfirmingClearBorder(false);
                     try
@@ -1366,7 +1345,7 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"卸下头像框失败: {ex.Message}", isError: true);
                     }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").FontSize(10).Padding(6, 2))
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").Padding(6, 2).AutomationName("确认卸下头像框"))
             : (Element)Button("卸下头像框", () => setIsConfirmingClearBorder(true)).AutomationName("卸下头像框");
 
         var badgesCard = ToolCard(
@@ -1428,7 +1407,7 @@ public sealed class ToolsPage : Component
             feedbackBanner = Border(
                 HStack(12,
                     Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Ref("SystemFillColorCriticalBrush")),
-                    TextBlock($"配置错误: {error}").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).FontSize(12).VAlign(VerticalAlignment.Center)))
+                    Caption($"配置错误: {error}").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center)))
                 .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
         else if (actionFeedback is not null)
@@ -1436,7 +1415,7 @@ public sealed class ToolsPage : Component
             feedbackBanner = Border(
                 HStack(12,
                     Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(palette.Accent),
-                    TextBlock(actionFeedback).FontSize(12).Foreground(palette.Accent).VAlign(VerticalAlignment.Center)))
+                    Caption(actionFeedback).Foreground(palette.Accent).VAlign(VerticalAlignment.Center)))
                 .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
         else if (savedAt is { } time)
@@ -1444,7 +1423,7 @@ public sealed class ToolsPage : Component
             feedbackBanner = Border(
                 HStack(12,
                     Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(palette.Accent),
-                    TextBlock($"配置已保存 · {time:HH:mm:ss}").FontSize(12).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)))
+                    Caption($"配置已保存 · {time:HH:mm:ss}").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)))
                 .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
 
@@ -1463,9 +1442,8 @@ public sealed class ToolsPage : Component
                     return Border(
                         HStack(10,
                             Border(
-                                TextBlock(iconGlyph)
+                                Caption(iconGlyph)
                                     .FontFamily("Segoe Fluent Icons")
-                                    .FontSize(11)
                                     .Foreground(iconColor)
                                     .HAlign(HorizontalAlignment.Center)
                                     .VAlign(VerticalAlignment.Center)
@@ -1475,9 +1453,7 @@ public sealed class ToolsPage : Component
                             .CornerRadius(11)
                             .Background(Theme.Ref("LayerFillColorDefaultBrush")),
 
-                            TextBlock(item.Message)
-                                .FontSize(13)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                            Body(item.Message)
                                 .VAlign(VerticalAlignment.Center)
                         )
                     )
@@ -1503,14 +1479,11 @@ public sealed class ToolsPage : Component
         {
             offlineBanner = Border(
                 HStack(8,
-                    TextBlock("\uE7BA")
+                    Body("\uE7BA")
                         .FontFamily("Segoe Fluent Icons")
-                        .FontSize(14)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center),
-                    TextBlock("LCU 客户端未连接，绝大多数工具功能需启动并登录英雄联盟后方可生效。")
-                        .FontFamily(YuumiTypography.SansFont)
-                        .FontSize(12)
+                    Caption("LCU 客户端未连接，绝大多数工具功能需启动并登录英雄联盟后方可生效。")
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center)
                 )
@@ -1525,11 +1498,8 @@ public sealed class ToolsPage : Component
 
         var mainScroll = ScrollView(
             VStack(8,
-                TextBlock("其他功能")
-                    .FontFamily(YuumiTypography.SansFont)
-                    .FontSize(20)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                    .Foreground(palette.TextPrimary)
+                Title("其他功能")
+                    .HeadingLevel(AutomationHeadingLevel.Level1)
                     .Margin(new Thickness(0, 0, 0, 10)),
 
                 offlineBanner ?? Empty(),
@@ -1568,7 +1538,8 @@ public sealed class ToolsPage : Component
             .MaxWidth(800)
             .HAlign(HorizontalAlignment.Stretch)
             .Padding(24)
-            .Opacity(isLcuConnected ? 1.0 : 0.6)
+            // 离线时不再整页降透明度：0.6 叠在 Mica + 半透明卡片上会把正文压成一片灰雾，
+            // 12~14px 中文几乎不可读。禁用提示改由顶部离线横幅承担，卡片保持正常对比度。
         );
 
         return Grid(
