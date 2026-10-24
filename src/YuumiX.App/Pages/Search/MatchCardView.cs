@@ -43,13 +43,12 @@ internal static class MatchCardView
             SearchVisuals.ChampionIcon(summary.ChampionId), ChampionSize, ChampionSize / 2);
 
         Element middle = VStack(2,
-            TextBlock(summary.QueueName)
-                .FontSize(12)
+            Caption(summary.QueueName)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .Foreground(palette.TextPrimary),
+                .Foreground(Theme.PrimaryText),
             HStack(6,
-                TextBlock(summary.ShortDateText).FontSize(11).Foreground(palette.TextSecondary),
-                SearchVisuals.Kda(summary.Kills, summary.Deaths, summary.Assists, 11, palette)));
+                Caption(summary.ShortDateText).Foreground(Theme.SecondaryText),
+                SearchVisuals.Kda(summary.Kills, summary.Deaths, summary.Assists, palette)));
 
         string borderBrush;
         string bg;
@@ -123,8 +122,8 @@ internal static class MatchCardView
         if (palette is not null)
         {
             border = border
-                .Background(palette.HoverBg)
-                .WithBorder(palette.BorderSubtle, 1);
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.CardStroke, 1);
         }
         else
         {

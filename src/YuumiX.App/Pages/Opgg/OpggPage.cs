@@ -289,9 +289,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                             .Height(24)
                             .VAlign(VerticalAlignment.Center),
 
-                        TextBlock("OP.GG")
-                            .FontSize(15)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.Black)
+                        BodyStrong("OP.GG")
                             .Foreground(OpggVisuals.OpggBrandColor)
                             .VAlign(VerticalAlignment.Center),
 
@@ -300,8 +298,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                         // 「梯队」Tab
                         Button(
                             currentView == "tier"
-                                ? TextBlock("梯队").Foreground("#FFFFFF").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).FontSize(13)
-                                : TextBlock("梯队").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).FontSize(13),
+                                ? Body("梯队").Foreground("#FFFFFF").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                                : Body("梯队").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
                             () => onSelectView("tier"))
                             .Background(currentView == "tier" ? OpggVisuals.ActiveTabGreen : "transparent")
                             .Height(30)
@@ -311,8 +309,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                         // 「出装」Tab
                         Button(
                             currentView == "build"
-                                ? TextBlock("出装").Foreground("#FFFFFF").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).FontSize(13)
-                                : TextBlock("出装").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).FontSize(13),
+                                ? Body("出装").Foreground("#FFFFFF").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                                : Body("出装").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
                             () =>
                             {
                                 if (selectedChampId.HasValue) onSelectView("build");
@@ -330,8 +328,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                     // 右侧：游戏版本号
                     string.IsNullOrWhiteSpace(metaVersion)
                         ? Empty().Grid(0, 2)
-                        : TextBlock($"游戏版本: {metaVersion}")
-                            .FontSize(11.5)
+                        : Caption($"游戏版本: {metaVersion}")
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(0, 2)
@@ -363,8 +360,7 @@ public sealed class OpggPage : Component<OpggPageProps>
         {
             return VStack(12,
                 ProgressRing().Width(36).Height(36),
-                TextBlock("正在拉取 OP.GG 数据...")
-                    .FontSize(13)
+                Body("正在拉取 OP.GG 数据...")
                     .Foreground(Theme.SecondaryText)
             )
             .HAlign(HorizontalAlignment.Center)
@@ -374,13 +370,11 @@ public sealed class OpggPage : Component<OpggPageProps>
         if (!string.IsNullOrWhiteSpace(errorMessage))
         {
             return VStack(12,
-                TextBlock("\uE783")
+                TitleLarge("\uE783")
                     .FontFamily("Segoe Fluent Icons")
-                    .FontSize(32)
                     .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                     .HAlign(HorizontalAlignment.Center),
-                TextBlock(errorMessage)
-                    .FontSize(13)
+                Body(errorMessage)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center),
                 Button("重试", onRetry)
@@ -435,9 +429,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                 return Border(
                     HStack(10,
                         Border(
-                            TextBlock(iconGlyph)
+                            Caption(iconGlyph)
                                 .FontFamily("Segoe Fluent Icons")
-                                .FontSize(11)
                                 .Foreground(iconColor)
                                 .HAlign(HorizontalAlignment.Center)
                                 .VAlign(VerticalAlignment.Center)
@@ -447,9 +440,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                         .CornerRadius(11)
                         .Background(Theme.Ref("LayerFillColorDefaultBrush")),
 
-                        TextBlock(item.Message)
-                            .FontSize(13)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        BodyStrong(item.Message)
                             .VAlign(VerticalAlignment.Center)
                     )
                 )

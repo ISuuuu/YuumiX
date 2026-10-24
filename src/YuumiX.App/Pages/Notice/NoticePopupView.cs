@@ -120,22 +120,19 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         // ── 标题栏：铃铛 + 标题 + 关闭（旧版 notice-popup-header）──
         var header = Border(
                 HStack(7,
-                    TextBlock("\uE7E7")
+                    Body("\uE7E7")
                         .FontFamily("Segoe Fluent Icons")
-                        .FontSize(14)
                         .Foreground(accent)
                         .VAlign(VerticalAlignment.Center),
-                    TextBlock("公告")
-                        .FontSize(13)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.ExtraBold)
+                    Body("公告")
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.Ref("TextFillColorPrimaryBrush"))
                         .VAlign(VerticalAlignment.Center),
                     // 弹性占位：把关闭按钮推到最右（旧版 justify-content: space-between）。
                     (Element)Empty().HAlign(HorizontalAlignment.Stretch),
                     Button(
-                        TextBlock("\uE711")
+                        Caption("\uE711")
                             .FontFamily("Segoe Fluent Icons")
-                            .FontSize(10)
                             .Foreground(Theme.Ref("TextFillColorSecondaryBrush")),
                         () => Props.OnClose())
                     .SubtleButton()
@@ -156,8 +153,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
             NoticeStatus.Loaded => RenderContentBody(content, accent),
 
             NoticeStatus.Failed => VStack(10,
-                    TextBlock("公告获取失败，请检查网络或代理设置")
-                        .FontSize(12)
+                    Caption("公告获取失败，请检查网络或代理设置")
                         .Foreground(Theme.Ref("TextFillColorSecondaryBrush"))
                         .TextWrapping(),
                     Button("重试", () => setAttempt(attempt + 1))
@@ -168,8 +164,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
 
             _ => VStack(10,
                     ProgressRing().Width(22).Height(22),
-                    TextBlock("正在获取公告…")
-                        .FontSize(12)
+                    Caption("正在获取公告…")
                         .Foreground(Theme.Ref("TextFillColorSecondaryBrush")))
                 .HAlign(HorizontalAlignment.Center)
                 .Padding(new Thickness(16, 24, 16, 24)),
@@ -195,13 +190,11 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         {
             blocks.Add(Border(
                     HStack(6,
-                        TextBlock("\uE7BA")
+                        Caption("\uE7BA")
                             .FontFamily("Segoe Fluent Icons")
-                            .FontSize(11)
                             .Foreground(Theme.Ref("SystemFillColorCautionBrush"))
                             .VAlign(VerticalAlignment.Center),
-                        TextBlock("网络获取失败，显示上次缓存内容")
-                            .FontSize(11)
+                        Caption("网络获取失败，显示上次缓存内容")
                             .Foreground(Theme.Ref("TextFillColorSecondaryBrush"))
                             .VAlign(VerticalAlignment.Center)))
                 .Padding(new Thickness(14, 6, 14, 6))

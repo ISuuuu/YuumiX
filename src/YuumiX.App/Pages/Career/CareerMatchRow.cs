@@ -68,9 +68,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             : summary.Placement is { } rank
                 ? rank == 1 ? "#FFF59E0B" : rank <= 4 ? CareerVisuals.WinText : CareerVisuals.LoseText
                 : summary.Win ? CareerVisuals.WinText : CareerVisuals.LoseText;
-        Element resultTextBlock = TextBlock(resultText)
-            .FontSize(14)
-            .FontWeight(Microsoft.UI.Text.FontWeights.Bold);
+        Element resultTextBlock = BodyStrong(resultText);
         resultTextBlock = resultColor is null
             ? resultTextBlock.Foreground(Theme.SecondaryText)
             : resultTextBlock.Foreground(resultColor);
@@ -84,9 +82,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                     Search.SearchVisuals.ChampionIcon(summary.ChampionId),
                     ChampionSize,
                     8),
-                Border(TextBlock(summary.ChampionLevel.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .FontSize(9)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Border(Caption(summary.ChampionLevel.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
                     .Padding(3, 0)
@@ -120,12 +117,11 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         Element result = VStack(2,
                 HStack(4,
                     resultTextBlock,
-                    TextBlock(Search.SearchVisuals.PositionText(summary.Position) ?? string.Empty)
-                        .FontSize(11)
+                    Caption(Search.SearchVisuals.PositionText(summary.Position) ?? string.Empty)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)),
-                TextBlock(summary.QueueName).FontSize(11).Foreground(Theme.SecondaryText),
-                TextBlock(summary.DurationText).FontSize(11).Foreground(Theme.SecondaryText))
+                Caption(summary.QueueName).Foreground(Theme.SecondaryText),
+                Caption(summary.DurationText).Foreground(Theme.SecondaryText))
             .Width(ResultWidth)
             .VAlign(VerticalAlignment.Center);
 
@@ -133,15 +129,12 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         string kdaRatioText = summary.Deaths == 0 ? "Perfect KDA" : $"{summary.KdaText} KDA";
         string? kdaRatioColor = KdaRatioColor(summary);
         Element kdaTextRow = HStack(2,
-            TextBlock($"{summary.Kills} / ").FontSize(13).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-            TextBlock(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .FontSize(13)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            BodyStrong($"{summary.Kills} / "),
+            BodyStrong(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Foreground(palette.DeathText),
-            TextBlock($" / {summary.Assists}").FontSize(13).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold));
+            BodyStrong($" / {summary.Assists}"));
 
-        Element kdaRatioBlock = TextBlock(kdaRatioText)
-            .FontSize(11)
+        Element kdaRatioBlock = Caption(kdaRatioText)
             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold);
         kdaRatioBlock = kdaRatioColor is null
             ? kdaRatioBlock.Foreground(Theme.SecondaryText)
@@ -157,10 +150,9 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         double minutes = Math.Max(summary.DurationSeconds / 60.0, 1.0);
         double csPerMin = summary.CreepScore / minutes;
         Element cs = VStack(2,
-                TextBlock($"{summary.CreepScore} 刀")
-                    .FontSize(12)
+                Caption($"{summary.CreepScore} 刀")
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                TextBlock($"({csPerMin:F1}/分)").FontSize(10).Foreground(Theme.SecondaryText))
+                Caption($"({csPerMin:F1}/分)").Foreground(Theme.SecondaryText))
             .Width(CsWidth)
             .VAlign(VerticalAlignment.Center);
 
@@ -182,22 +174,19 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
 
         // 金币列
         Element gold = VStack(2,
-                TextBlock($"{summary.Gold:N0}")
-                    .FontSize(12)
+                Caption($"{summary.Gold:N0}")
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                TextBlock("金币").FontSize(10).Foreground(Theme.SecondaryText))
+                Caption("金币").Foreground(Theme.SecondaryText))
             .Width(GoldWidth)
             .VAlign(VerticalAlignment.Center);
 
         // 地图与时间列（自适应靠右，日期格式对齐原系统 yyyy/MM/dd HH:mm）
         string formattedTime = summary.DetailDateText;
         Element info = VStack(3,
-                TextBlock(summary.MapName)
-                    .FontSize(11)
+                Caption(summary.MapName)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Right),
-                TextBlock(formattedTime)
-                    .FontSize(11)
+                Caption(formattedTime)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Right))
             .Width(130)
@@ -313,7 +302,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         string? iconPath = detail?.IconPath;
 
         return Search.SearchVisuals.Icon(iconPath, ItemSize, 4)
-            .WithToolTip(TextBlock(name).FontSize(12))
+            .WithToolTip(Caption(name))
             .AutomationName($"海克斯强化：{name}");
     }
 }

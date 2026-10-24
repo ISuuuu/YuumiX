@@ -62,9 +62,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
 
             items.Add(
                 Border(
-                    TextBlock(key)
-                        .FontSize(13)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                    BodyStrong(key)
                         .Foreground(textCol)
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
@@ -79,8 +77,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
             if (i < mastery.Ids.Count - 1)
             {
                 items.Add(
-                    TextBlock("›")
-                        .FontSize(14)
+                    Body("›")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                 );
@@ -101,11 +98,10 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
             var (textCol, bgCol, borderCol) = OpggVisuals.GetSkillKeyColor(key);
 
             return Border(
-                TextBlock(key)
-                    .FontSize(10)
+                Caption(key)
                     .FontWeight(key.Equals("R", StringComparison.OrdinalIgnoreCase)
-                        ? Microsoft.UI.Text.FontWeights.ExtraBold
-                        : Microsoft.UI.Text.FontWeights.Bold)
+                        ? Microsoft.UI.Text.FontWeights.SemiBold
+                        : Microsoft.UI.Text.FontWeights.Normal)
                     .Foreground(textCol)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -115,7 +111,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
             .CornerRadius(3)
             .Background(bgCol)
             .WithBorder(borderCol, 1)
-            .WithToolTip(TextBlock($"Lv.{idx + 1}: {key}").FontSize(11));
+            .WithToolTip(Caption($"Lv.{idx + 1}: {key}"));
         });
 
         return HStack(2, boxes.ToArray())
@@ -128,19 +124,16 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
 
         return HStack(12,
             VStack(1,
-                TextBlock(OpggVisuals.FormatRatio(skillStats.Win, skillStats.Play))
-                    .FontSize(12)
+                Caption(OpggVisuals.FormatRatio(skillStats.Win, skillStats.Play))
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .HAlign(HorizontalAlignment.Right),
-                TextBlock($"{skillStats.Play} 场")
-                    .FontSize(10)
+                Caption($"{skillStats.Play} 场")
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Right)
             )
             .VAlign(VerticalAlignment.Center),
 
-            TextBlock(OpggVisuals.FormatPercent(skillStats.PickRate))
-                .FontSize(12)
+            Caption(OpggVisuals.FormatPercent(skillStats.PickRate))
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
         )

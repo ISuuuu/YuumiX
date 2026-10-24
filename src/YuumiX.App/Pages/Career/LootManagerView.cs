@@ -122,14 +122,12 @@ internal static class LootManagerView
         double leftHeaderWidth = TotalWidth - RightBtnWidth;
 
         Element leftHeader = HStack(12,
-            TextBlock("📦 材料")
-                .FontSize(15)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            BodyStrong("📦 材料")
                 .VAlign(VerticalAlignment.Center),
-            Button("刷新列表", onRefresh).Height(30).Padding(12, 0).FontSize(11).AutomationName("刷新材料列表"),
+            Button(Caption("刷新列表"), onRefresh).Height(30).Padding(12, 0).AutomationName("刷新材料列表"),
             Border(HStack(4,
-                    TextBlock("🔑").FontSize(11),
-                    TextBlock($"x{loot.TotalKeys}").FontSize(11).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(CareerVisuals.GoldColor))
+                    Caption("🔑"),
+                    Caption($"x{loot.TotalKeys}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.GoldColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 3)
                 .CornerRadius(4)
@@ -138,11 +136,10 @@ internal static class LootManagerView
                 .VAlign(VerticalAlignment.Center))
             .VAlign(VerticalAlignment.Center);
 
-        Element rightHeader = Button("全部开启", onOpenAll)
+        Element rightHeader = Button(Caption("全部开启"), onOpenAll)
             .Width(RightBtnWidth)
             .Height(30)
             .Padding(16, 0)
-            .FontSize(11)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center)
             .AutomationName("全部开启战利品");
@@ -176,8 +173,7 @@ internal static class LootManagerView
         if (rows.Count == 0)
         {
             rows.Add(Border(
-                TextBlock("没有可开启的宝箱、法球或钥匙碎片")
-                    .FontSize(12)
+                Caption("没有可开启的宝箱、法球或钥匙碎片")
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center))
                 .Padding(20));
@@ -196,8 +192,7 @@ internal static class LootManagerView
         Element thumb = !string.IsNullOrWhiteSpace(item.TilePath)
             ? Component<LcuImage, LcuImageProps>(new LcuImageProps(item.TilePath, 50, 8))
             : Border(
-                TextBlock(item.IsKeyFragment ? "🔑" : "📦")
-                    .FontSize(24)
+                Title(item.IsKeyFragment ? "🔑" : "📦")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))
                 .Width(50)
@@ -207,30 +202,28 @@ internal static class LootManagerView
                 .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
 
         Element badge = item.IsKeyFragment
-            ? Border(TextBlock("3合1合成").FontSize(10).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.WinText))
+            ? Border(Caption("3合1合成").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.WinText))
                 .Padding(5, 2)
                 .CornerRadius(4)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x1F))
             : item.NeedKey
-                ? Border(TextBlock("需要钥匙").FontSize(10).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.GoldColor))
+                ? Border(Caption("需要钥匙").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.GoldColor))
                     .Padding(5, 2)
                     .CornerRadius(4)
                     .Background(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x1F))
-                : Border(TextBlock("无需钥匙").FontSize(10).Foreground(Theme.SecondaryText))
+                : Border(Caption("无需钥匙").Foreground(Theme.SecondaryText))
                     .Padding(5, 2)
                     .CornerRadius(4)
                     .Background(CareerVisuals.WithAlpha(palette.Accent, 0x10));
 
         Element rightContent = VStack(6,
             HStack(0,
-                TextBlock(item.Name)
+                Caption(item.Name)
                     .Width(95)
-                    .FontSize(12)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .VAlign(VerticalAlignment.Center),
-                Border(TextBlock($"x{item.Count}")
-                        .FontSize(10)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Border(Caption($"x{item.Count}")
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(palette.Accent))
                     .Padding(5, 1)
                     .CornerRadius(3)
@@ -240,8 +233,7 @@ internal static class LootManagerView
                     .VAlign(VerticalAlignment.Center)),
             HStack(0,
                 badge.Width(75).VAlign(VerticalAlignment.Center),
-                TextBlock(item.IsKeyFragment ? "点击合成" : "点击开启")
-                    .FontSize(10)
+                Caption(item.IsKeyFragment ? "点击合成" : "点击开启")
                     .Foreground(Theme.SecondaryText)
                     .Width(55)
                     .HAlign(HorizontalAlignment.Right)
@@ -293,25 +285,23 @@ internal static class LootManagerView
 
         // 头部：标题与精粹余额左右分离
         Element leftHeader = HStack(12,
-            TextBlock("💎 碎片库存管理")
-                .FontSize(15)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            BodyStrong("💎 碎片库存管理")
                 .VAlign(VerticalAlignment.Center),
-            Button("刷新库存", onRefresh).Height(30).Padding(12, 0).FontSize(11).AutomationName("刷新碎片库存"))
+            Button(Caption("刷新库存"), onRefresh).Height(30).Padding(12, 0).AutomationName("刷新碎片库存"))
             .VAlign(VerticalAlignment.Center);
 
         Element rightCurrency = HStack(10,
             Border(HStack(6,
-                    TextBlock("🔵").FontSize(11),
-                    TextBlock(loot.BlueEssence.ToString(CultureInfo.InvariantCulture)).FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(CareerVisuals.BlueEssenceColor))
+                    Caption("🔵"),
+                    Caption(loot.BlueEssence.ToString(CultureInfo.InvariantCulture)).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.BlueEssenceColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 4)
                 .CornerRadius(6)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.BlueEssenceColor, 0x1A))
                 .WithBorder(CareerVisuals.WithAlpha(CareerVisuals.BlueEssenceColor, 0x33), 1),
             Border(HStack(6,
-                    TextBlock("🔶").FontSize(11),
-                    TextBlock(loot.OrangeEssence.ToString(CultureInfo.InvariantCulture)).FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(CareerVisuals.OrangeEssenceColor))
+                    Caption("🔶"),
+                    Caption(loot.OrangeEssence.ToString(CultureInfo.InvariantCulture)).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.OrangeEssenceColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 4)
                 .CornerRadius(6)
@@ -327,16 +317,16 @@ internal static class LootManagerView
         // 水平紧凑筛选工具栏
         Element filterBar = HStack(16,
             HStack(6,
-                TextBlock("碎片类型").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+                Caption("碎片类型").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
                 ComboBox(TypeFilters, typeFilterIndex, idx => onTypeFilterChanged?.Invoke(idx)).Width(110).AutomationName("碎片类型")),
             HStack(6,
-                TextBlock("拥有状态").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+                Caption("拥有状态").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
                 ComboBox(OwnedFilters, ownedFilterIndex, idx => onOwnedFilterChanged?.Invoke(idx)).Width(100).AutomationName("拥有状态")),
             HStack(6,
-                TextBlock("价值基准").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+                Caption("价值基准").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
                 ComboBox(ValueTypeFilters, valueTypeIndex, idx => onValueTypeChanged?.Invoke(idx)).Width(110).AutomationName("价值基准")),
             HStack(6,
-                TextBlock("价值").FontSize(11).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+                Caption("价值").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
                 ComboBox(OperatorFilters, operatorIndex, idx => onOperatorChanged?.Invoke(idx)).Width(125).AutomationName("价值运算符"),
                 TextBox(valueThreshold, text => onValueThresholdChanged?.Invoke(text), "不限").Width(80).Height(30).AutomationName("价值阈值")))
             .VAlign(VerticalAlignment.Center);
@@ -400,8 +390,8 @@ internal static class LootManagerView
             : "未选择任何碎片";
 
         Element countText = selectedCount > 0
-            ? TextBlock(selectionDesc).FontSize(12).Foreground(palette.Accent).VAlign(VerticalAlignment.Center)
-            : TextBlock(selectionDesc).FontSize(12).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center);
+            ? Caption(selectionDesc).Foreground(palette.Accent).VAlign(VerticalAlignment.Center)
+            : Caption(selectionDesc).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center);
 
         // 重铸按钮：与旧版 canReroll 同口径——存在可重随的选中项即可点；
         // 点下去却凑不齐一组时由页面给出「无法重随」提示（裁决：不再静默 return）。
@@ -410,28 +400,25 @@ internal static class LootManagerView
         // 底部工具栏
         Element footer = HStack(0,
             HStack(12,
-                Button("选择当前所有过滤项", () => onSelectAllFiltered?.Invoke()).Height(30).Padding(12, 0).FontSize(11).AutomationName("选择当前所有过滤项"),
-                Button("清空已选", () => onClearSelection?.Invoke()).Height(30).Padding(12, 0).FontSize(11).AutomationName("清空已选"),
+                Button(Caption("选择当前所有过滤项"), () => onSelectAllFiltered?.Invoke()).Height(30).Padding(12, 0).AutomationName("选择当前所有过滤项"),
+                Button(Caption("清空已选"), () => onClearSelection?.Invoke()).Height(30).Padding(12, 0).AutomationName("清空已选"),
                 countText)
                 .Width(500)
                 .VAlign(VerticalAlignment.Center),
             HStack(8,
-                Button("分解", () => onDisenchant?.Invoke())
+                Button(Caption("分解"), () => onDisenchant?.Invoke())
                     .Width(70)
                     .Height(30)
-                    .FontSize(11)
                     .IsEnabled(selectedCount > 0)
                     .AutomationName("批量分解"),
-                Button("重铸 (3合1)", () => onReroll?.Invoke())
+                Button(Caption("重铸 (3合1)"), () => onReroll?.Invoke())
                     .Width(90)
                     .Height(30)
-                    .FontSize(11)
                     .IsEnabled(canReroll)
                     .AutomationName("批量重随"),
-                Button("升级 / 解锁", () => onUpgrade?.Invoke())
+                Button(Caption("升级 / 解锁"), () => onUpgrade?.Invoke())
                     .Height(30)
                     .Padding(14, 0)
-                    .FontSize(11)
                     .IsEnabled(selectedCount > 0)
                     .AutomationName("批量升级解锁"))
                 .Width(416)
@@ -444,8 +431,7 @@ internal static class LootManagerView
         {
             progressBanner = Border(
                 HStack(12,
-                    TextBlock($"正在处理... ({progress.Current}/{progress.Total}) {progress.ItemName}: {progress.RewardDesc}")
-                        .FontSize(12)
+                    Caption($"正在处理... ({progress.Current}/{progress.Total}) {progress.ItemName}: {progress.RewardDesc}")
                         .Foreground(palette.Accent)
                         .VAlign(VerticalAlignment.Center)))
                 .Padding(10, 6)
@@ -456,8 +442,7 @@ internal static class LootManagerView
         else if (!string.IsNullOrWhiteSpace(operationNotice))
         {
             progressBanner = Border(
-                TextBlock(operationNotice)
-                    .FontSize(12)
+                Caption(operationNotice)
                     .TextWrapping()
                     .Foreground(CareerVisuals.WinText))
                 .Padding(10, 6)
@@ -488,8 +473,7 @@ internal static class LootManagerView
         else
         {
             sectionChildren.Add(Border(
-                TextBlock("没有符合当前过滤条件的碎片")
-                    .FontSize(12)
+                Caption("没有符合当前过滤条件的碎片")
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center))
                 .Padding(20));
@@ -512,8 +496,7 @@ internal static class LootManagerView
         Element thumb = !string.IsNullOrWhiteSpace(item.TilePath)
             ? Component<LcuImage, LcuImageProps>(new LcuImageProps(item.TilePath, 44, 6))
             : Border(
-                TextBlock(item.IsChampion ? "🛡️" : "🎨")
-                    .FontSize(20)
+                Subtitle(item.IsChampion ? "🛡️" : "🎨")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))
                 .Width(44)
@@ -530,14 +513,12 @@ internal static class LootManagerView
 
         Element rightContent = VStack(4,
             HStack(0,
-                TextBlock(item.ItemDesc)
+                Caption(item.ItemDesc)
                     .Width(95)
-                    .FontSize(11)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .VAlign(VerticalAlignment.Center),
-                Border(TextBlock($"x{item.Count}")
-                        .FontSize(9)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                Border(Caption($"x{item.Count}")
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(palette.Accent))
                     .Padding(4, 1)
                     .CornerRadius(3)
@@ -547,8 +528,8 @@ internal static class LootManagerView
                     .VAlign(VerticalAlignment.Center)),
             HStack(0,
                 Border((item.IsOwned
-                        ? TextBlock("已拥有").FontSize(9).Foreground(CareerVisuals.WinText)
-                        : TextBlock("未拥有").FontSize(9).Foreground(Theme.SecondaryText))
+                        ? Caption("已拥有").Foreground(CareerVisuals.WinText)
+                        : Caption("未拥有").Foreground(Theme.SecondaryText))
                         .HAlign(HorizontalAlignment.Center))
                     .Padding(4, 1)
                     .CornerRadius(3)
@@ -556,17 +537,16 @@ internal static class LootManagerView
                     .Width(50)
                     .VAlign(VerticalAlignment.Center),
                 HStack(3,
-                        TextBlock(valueIcon).FontSize(9),
-                        TextBlock(item.DisenchantValue.ToString(CultureInfo.InvariantCulture))
-                            .FontSize(11)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                        Caption(valueIcon),
+                        Caption(item.DisenchantValue.ToString(CultureInfo.InvariantCulture))
+                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .Foreground(valueColor))
                     .Width(80)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Center)));
 
         Element checkBadge = isSelected
-            ? Border(TextBlock("✓").FontSize(10).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(CareerVisuals.WinText))
+            ? Border(Caption("✓").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.WinText))
                 .Padding(4, 1)
                 .CornerRadius(3)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x33))
@@ -735,9 +715,8 @@ internal static class LootManagerView
                 // 预览图：tilePath 走 LcuImage（ADR-01）；缺失时 Icon 给占位块
                 Search.SearchVisuals.Icon(item.TilePath, 50, 8).VAlign(VerticalAlignment.Center),
                 VStack(4,
-                    TextBlock(item.Name).FontSize(14).FontWeight(Microsoft.UI.Text.FontWeights.Bold),
-                    TextBlock($"拥有: x{item.Count.ToString(CultureInfo.InvariantCulture)}")
-                        .FontSize(12)
+                    BodyStrong(item.Name),
+                    Caption($"拥有: x{item.Count.ToString(CultureInfo.InvariantCulture)}")
                         .Foreground(Theme.SecondaryText))
                     .VAlign(VerticalAlignment.Center)),
         };
@@ -745,15 +724,14 @@ internal static class LootManagerView
         if (item.NeedKey && item.KeyLootId is not null)
         {
             bodyChildren.Add(HStack(8,
-                TextBlock("需要钥匙").FontSize(12).Foreground(Theme.SecondaryText),
-                TextBlock($"{keyName} x{quantity.ToString(CultureInfo.InvariantCulture)}（拥有：{item.KeyCount.ToString(CultureInfo.InvariantCulture)}）")
-                    .FontSize(12)
+                Caption("需要钥匙").Foreground(Theme.SecondaryText),
+                Caption($"{keyName} x{quantity.ToString(CultureInfo.InvariantCulture)}（拥有：{item.KeyCount.ToString(CultureInfo.InvariantCulture)}）")
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(CareerVisuals.GoldColor)));
         }
 
         bodyChildren.Add(HStack(8,
-            TextBlock(isFragment ? "合成次数" : "开启数量").FontSize(12).Foreground(Theme.SecondaryText),
+            Caption(isFragment ? "合成次数" : "开启数量").Foreground(Theme.SecondaryText),
             NumberBox(quantity, v =>
             {
                 if (double.IsNaN(v))
@@ -773,8 +751,7 @@ internal static class LootManagerView
 
         if (maxQuantity <= 0)
         {
-            bodyChildren.Add(TextBlock(insufficientHint)
-                .FontSize(12)
+            bodyChildren.Add(Caption(insufficientHint)
                 .Foreground(CareerVisuals.LoseText));
         }
 
@@ -808,14 +785,14 @@ internal static class LootManagerView
     {
         var bodyChildren = new List<Element>
         {
-            TextBlock(dialog.Message).FontSize(13).TextWrapping(),
+            Body(dialog.Message).TextWrapping(),
         };
 
         foreach (var (label, value) in dialog.Details)
         {
             bodyChildren.Add(HStack(8,
-                TextBlock(label).FontSize(12).Foreground(Theme.SecondaryText),
-                TextBlock(value).FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).HAlign(HorizontalAlignment.Right))
+                Caption(label).Foreground(Theme.SecondaryText),
+                Caption(value).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).HAlign(HorizontalAlignment.Right))
                 .HAlign(HorizontalAlignment.Stretch));
         }
 
@@ -847,15 +824,12 @@ internal static class LootManagerView
                         .VAlign(VerticalAlignment.Stretch),
                     Border(VStack(12,
                             HStack(8,
-                                TextBlock(title)
-                                    .FontSize(15)
-                                    .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                                BodyStrong(title)
                                     .HAlign(HorizontalAlignment.Left),
-                                Button("✕", onCancel)
+                                Button(Caption("✕"), onCancel)
                                     .Width(28)
                                     .Height(28)
                                     .Padding(0)
-                                    .FontSize(11)
                                     .HAlign(HorizontalAlignment.Right)
                                     .AutomationName("关闭弹窗"))
                                 .HAlign(HorizontalAlignment.Stretch),

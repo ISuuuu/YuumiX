@@ -111,13 +111,11 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
                     // 名称与分路
                     VStack(2,
-                        TextBlock(champName)
-                            .FontSize(16)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.Bold),
+                        BodyLarge(champName)
+                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
                         string.IsNullOrWhiteSpace(Props.Position)
                             ? Empty()
-                            : TextBlock(Props.Position.ToUpperInvariant())
-                                .FontSize(11)
+                            : Caption(Props.Position.ToUpperInvariant())
                                 .Foreground(Theme.SecondaryText)
                     )
                     .Margin(new Thickness(12, 0, 0, 0))
@@ -150,13 +148,10 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
     private static Element StatCol(string label, string val) =>
         VStack(2,
-            TextBlock(label)
-                .FontSize(10.5)
+            Caption(label)
                 .Foreground(Theme.SecondaryText)
                 .HAlign(HorizontalAlignment.Center),
-            TextBlock(val)
-                .FontSize(13)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            BodyStrong(val)
                 .HAlign(HorizontalAlignment.Center)
         );
 
@@ -174,9 +169,8 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
         var label = string.IsNullOrWhiteSpace(t) ? "-" : (t == "0" ? "T1" : $"T{t}");
 
         return Border(
-            TextBlock(label)
-                .FontSize(12)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            Caption(label)
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground("#FFFFFF")
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
@@ -240,11 +234,9 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
                 // 中间胜率与场次
                 VStack(1,
-                    TextBlock(OpggVisuals.FormatRatio(s.Win, s.Play))
-                        .FontSize(12)
+                    Caption(OpggVisuals.FormatRatio(s.Win, s.Play))
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                    TextBlock($"{s.Play} 场")
-                        .FontSize(10)
+                    Caption($"{s.Play} 场")
                         .Foreground(Theme.SecondaryText)
                 )
                 .Margin(new Thickness(8, 0, 0, 0))
@@ -252,8 +244,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 .Grid(0, 1),
 
                 // 右侧登场率
-                TextBlock(OpggVisuals.FormatPercent(s.PickRate))
-                    .FontSize(12)
+                Caption(OpggVisuals.FormatPercent(s.PickRate))
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center)
                     .Grid(0, 2)
@@ -284,8 +275,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 [
                     // 左列：克制
                     VStack(6,
-                        TextBlock("对抗优势 (克制)")
-                            .FontSize(11.5)
+                        Caption("对抗优势 (克制)")
                             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .Foreground(OpggVisuals.WinGreen),
 
@@ -304,8 +294,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
                     // 右列：被克制
                     VStack(6,
-                        TextBlock("对抗劣势 (被克制)")
-                            .FontSize(11.5)
+                        Caption("对抗劣势 (被克制)")
                             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .Foreground(OpggVisuals.LossRed),
 
@@ -341,20 +330,17 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                     .VAlign(VerticalAlignment.Center)
                     .Grid(0, 0),
 
-                TextBlock(name)
-                    .FontSize(12)
+                Caption(name)
                     .TextTrimming(TextTrimming.CharacterEllipsis)
                     .Margin(new Thickness(6, 0, 0, 0))
                     .VAlign(VerticalAlignment.Center)
                     .Grid(0, 1),
 
                 HStack(8,
-                    TextBlock($"{c.Play} 场")
-                        .FontSize(10.5)
+                    Caption($"{c.Play} 场")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
-                    TextBlock(OpggVisuals.FormatRatio(c.Win, c.Play))
-                        .FontSize(11.5)
+                    Caption(OpggVisuals.FormatRatio(c.Win, c.Play))
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(rateColor)
                         .VAlign(VerticalAlignment.Center)

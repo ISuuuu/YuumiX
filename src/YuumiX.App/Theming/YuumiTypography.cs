@@ -1,7 +1,9 @@
 namespace YuumiX.App.Theming;
 
 /// <summary>
-/// 全局字体与排版体系（对齐 Fluent 规范与无衬线字体层级）。
+/// 全局字体栈定义。字号与字重不在此处维护：一律使用 Reactor 排版工厂
+/// （<c>Caption</c> / <c>Body</c> / <c>BodyStrong</c> / <c>BodyLarge</c> / <c>Subtitle</c> / <c>Title</c>），
+/// 字阶规范见 <c>AGENTS.md</c> §1。
 /// </summary>
 public static class YuumiTypography
 {
@@ -18,26 +20,4 @@ public static class YuumiTypography
 
     /// <summary>Fluent 图标字体。</summary>
     public const string IconFont = "Segoe Fluent Icons";
-
-    // ─── 统一字阶规范（Fluent Type Scale） ───
-    /// <summary>页面大标题字号（28px）。</summary>
-    public const double PageTitleSize = 28;
-
-    /// <summary>模块二级标题字号（16px）。</summary>
-    public const double SubtitleSize = 16;
-
-    /// <summary>设置分组小节标题字号（13px，SemiBold）。</summary>
-    public const double SectionHeaderSize = 13;
-
-    /// <summary>卡片主标题字号（13.5px，SemiBold）。</summary>
-    public const double CardTitleSize = 13.5;
-
-    /// <summary>常规正文与控件字号（13px）。</summary>
-    public const double BodySize = 13;
-
-    /// <summary>说明、注释与状态微标字号（12px）。</summary>
-    public const double CaptionSize = 12;
-
-    /// <summary>超微角标/状态提示字号（11px）。</summary>
-    public const double BadgeSize = 11;
 }

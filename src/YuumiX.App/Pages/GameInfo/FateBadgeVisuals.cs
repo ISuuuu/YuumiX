@@ -36,23 +36,23 @@ internal static class FateBadgeVisuals
 
         var lines = new List<Element>
         {
-            TextBlock(title).FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.Bold),
+            Caption(title).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
         };
 
         if (!string.IsNullOrEmpty(d.RecentlyChampionName))
         {
-            lines.Add(TextBlock($"使用: {d.RecentlyChampionName}").FontSize(11));
+            lines.Add(Caption($"使用: {d.RecentlyChampionName}"));
         }
 
         if (d.FateGameCreation is { } creation && creation > 0)
         {
-            lines.Add(TextBlock($"对局时间: {FormatTimestamp(creation)}").FontSize(11));
+            lines.Add(Caption($"对局时间: {FormatTimestamp(creation)}"));
         }
 
         int total = d.FateAllyCount + d.FateEnemyCount;
         if (total >= 2 && d.FateAllyCount > 0 && d.FateEnemyCount > 0)
         {
-            lines.Add(TextBlock($"近期交手 {total} 次: {d.FateAllyCount} 局队友 · {d.FateEnemyCount} 局对手").FontSize(11));
+            lines.Add(Caption($"近期交手 {total} 次: {d.FateAllyCount} 局队友 · {d.FateEnemyCount} 局对手"));
         }
 
         return VStack(2, lines.ToArray());
@@ -110,7 +110,7 @@ internal static class FateBadgeVisuals
     /// 路人集徽标元素（贴近旧版 saved-badge 样式）：有 tag 主色小圆角胶囊；
     /// 无 tag 灰「历史」。超宽 ellipsis 截断（旧版 max-width 50px）。
     /// </summary>
-    public static Element BuildSavedBadge(SavedPlayerMarker marker, double fontSize, Theming.YuumiPalette? palette = null)
+    public static Element BuildSavedBadge(SavedPlayerMarker marker, Theming.YuumiPalette? palette = null)
     {
         bool hasTag = !string.IsNullOrEmpty(marker.Tag);
         string fg = hasTag ? (palette?.Accent ?? "#FF3B82F6") : (palette?.TextSecondary ?? "#FFAAAAAA");
@@ -118,8 +118,7 @@ internal static class FateBadgeVisuals
         string border = hasTag ? (palette?.AccentAlpha40 ?? "#663B82F6") : "#00000000";
 
         return Border(
-                TextBlock(SavedBadgeText(marker))
-                    .FontSize(fontSize)
+                Caption(SavedBadgeText(marker))
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(fg)
                     .TextTrimming(TextTrimming.CharacterEllipsis))
@@ -144,12 +143,12 @@ internal static class FateBadgeVisuals
 
         var lines = new List<Element>
         {
-            TextBlock(baseTip).FontSize(12),
+            Caption(baseTip),
         };
 
         if (marker.LastMetAt is { } lastMet && lastMet > 0)
         {
-            lines.Add(TextBlock($"最近相遇: {FormatTimestamp(lastMet)}").FontSize(11));
+            lines.Add(Caption($"最近相遇: {FormatTimestamp(lastMet)}"));
         }
 
         return VStack(2, lines.ToArray());

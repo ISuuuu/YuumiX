@@ -49,57 +49,49 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                 ],
                 [GridSize.Auto],
                 [
-                    TextBlock("#")
-                        .FontSize(11)
+                    Caption("#")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 0),
 
-                    TextBlock("英雄")
-                        .FontSize(11)
+                    Caption("英雄")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .Margin(new Thickness(8, 0, 0, 0))
                         .Grid(0, 1),
 
-                    TextBlock("Tier")
-                        .FontSize(11)
+                    Caption("Tier")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 2),
 
-                    TextBlock("胜率")
-                        .FontSize(11)
+                    Caption("胜率")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 3),
 
-                    TextBlock("登场率")
-                        .FontSize(11)
+                    Caption("登场率")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 4),
 
-                    TextBlock("禁用率")
-                        .FontSize(11)
+                    Caption("禁用率")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 5),
 
-                    TextBlock("KDA")
-                        .FontSize(11)
+                    Caption("KDA")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 6),
 
-                    TextBlock("劣势对抗")
-                        .FontSize(11)
+                    Caption("劣势对抗")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
@@ -135,8 +127,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                 [GridSize.Auto],
                 [
                     // 1. 排名序号
-                    TextBlock((index + 1).ToString())
-                        .FontSize(12)
+                    Caption((index + 1).ToString())
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
@@ -146,9 +137,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                     HStack(8,
                         Component<LcuImage, LcuImageProps>(
                             new LcuImageProps($"/lol-game-data/assets/v1/champion-icons/{item.Id}.png", 34, CornerRadius: 17)),
-                        TextBlock(champName)
-                            .FontSize(13)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        BodyStrong(champName)
                             .TextTrimming(TextTrimming.CharacterEllipsis)
                             .VAlign(VerticalAlignment.Center)
                     )
@@ -159,32 +148,27 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                     RenderTierBadge(item.Tier).Grid(0, 2),
 
                     // 4. 胜率
-                    TextBlock(OpggVisuals.FormatPercent(item.WinRate))
-                        .FontSize(12.5)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    BodyStrong(OpggVisuals.FormatPercent(item.WinRate))
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(0, 3),
 
                     // 5. 登场率
-                    TextBlock(OpggVisuals.FormatPercent(item.PickRate))
-                        .FontSize(12)
+                    Caption(OpggVisuals.FormatPercent(item.PickRate))
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(0, 4),
 
                     // 6. 禁用率
-                    TextBlock(OpggVisuals.FormatPercent(item.BanRate))
-                        .FontSize(12)
+                    Caption(OpggVisuals.FormatPercent(item.BanRate))
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(0, 5),
 
                     // 7. KDA
-                    TextBlock(OpggVisuals.FormatKda(item.Kda))
-                        .FontSize(12)
+                    Caption(OpggVisuals.FormatKda(item.Kda))
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(0, 6),
@@ -228,9 +212,8 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
         var label = string.IsNullOrWhiteSpace(t) ? "-" : (t == "0" ? "1" : t);
 
         return Border(
-            TextBlock(label)
-                .FontSize(11)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            Caption(label)
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground("#FFFFFF")
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)

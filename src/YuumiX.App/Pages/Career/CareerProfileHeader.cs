@@ -45,9 +45,8 @@ internal static class CareerProfileHeader
                 AvatarSize / 2));
 
         // 环底部中心悬浮等级徽章
-        Element levelBadge = Border(TextBlock(summoner.SummonerLevel.ToString(CultureInfo.InvariantCulture))
-                .FontSize(11)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+        Element levelBadge = Border(Caption(summoner.SummonerLevel.ToString(CultureInfo.InvariantCulture))
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(Theme.PrimaryText)
                 .HAlign(HorizontalAlignment.Center))
             .Padding(8, 1)
@@ -76,39 +75,34 @@ internal static class CareerProfileHeader
 
         // 复制按钮 / 已复制提示
         Element copySlot = HStack(6,
-            Button(TextBlock("\uE8C8").FontSize(12).Foreground(palette.TextSecondary), onCopy)
+            Button(Caption("\uE8C8").Foreground(Theme.SecondaryText), onCopy)
                 .Width(28)
                 .Height(28)
                 .Padding(0)
                 .CornerRadius(6)
                 .AutomationName("复制 Riot ID"),
             copied
-                ? TextBlock("✓ 已复制")
-                    .FontSize(11)
+                ? Caption("✓ 已复制")
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(CareerVisuals.WinText)
                     .VAlign(VerticalAlignment.Center)
                 : Empty());
 
         Element nameRow = HStack(8,
-            TextBlock(mainName)
-                .FontSize(22)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            Subtitle(mainName)
                 .VAlign(VerticalAlignment.Center),
             copySlot.VAlign(VerticalAlignment.Center));
 
         var nameColumn = new List<Element> { nameRow };
         if (!string.IsNullOrEmpty(summoner.TagLine))
         {
-            nameColumn.Add(TextBlock($"# {summoner.TagLine}")
-                .FontSize(13)
+            nameColumn.Add(Body($"# {summoner.TagLine}")
                 .Foreground(Theme.SecondaryText));
         }
 
         if (string.Equals(summoner.Privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase))
         {
-            nameColumn.Add(TextBlock("🔒 对局记录已设为私密")
-                .FontSize(11)
+            nameColumn.Add(Caption("🔒 对局记录已设为私密")
                 .Foreground(Theme.SecondaryText));
         }
 
@@ -123,25 +117,24 @@ internal static class CareerProfileHeader
         var actionButtons = new List<Element>();
         if (isViewingOther && onBackToSelf is not null)
         {
-            actionButtons.Add(Button("返回我的生涯", onBackToSelf)
+            actionButtons.Add(Button(Caption("返回我的生涯"), onBackToSelf)
                 .Width(ActionWidth)
                 .Height(30)
-                .FontSize(12)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .CornerRadius(6)
                 .AutomationName("返回我的生涯"));
         }
 
-        actionButtons.Add(Button("刷新", onRefresh)
+        actionButtons.Add(Button(Caption("刷新"), onRefresh)
+            .AutomationName("刷新")
             .Width(ActionWidth)
             .Height(30)
-            .FontSize(12)
             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .CornerRadius(6));
-        actionButtons.Add(Button("历史战绩", onHistory)
+        actionButtons.Add(Button(Caption("历史战绩"), onHistory)
+            .AutomationName("历史战绩")
             .Width(ActionWidth)
             .Height(30)
-            .FontSize(12)
             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .CornerRadius(6));
 

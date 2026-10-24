@@ -623,13 +623,13 @@ public sealed class SearchPage : Component
         // 提示行放在搜索框下方而不是列表上方：出错的是"搜索"，不是"列表"
         Element body = notice is null
             ? bar
-            : VStack(6, bar, TextBlock(notice).FontSize(11).Foreground(palette.TextSecondary));
+            : VStack(6, bar, Caption(notice).Foreground(Theme.SecondaryText));
 
         return Border(body)
             .Padding(8)
             .CornerRadius(8)
             .Background(palette.CardBg)
-            .WithBorder(palette.BorderSubtle, 1)
+            .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
     }
 
@@ -652,8 +652,7 @@ public sealed class SearchPage : Component
 
         Element content = HStack(8,
                 previous,
-                TextBlock((pageIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    .FontSize(12)
+                Caption((pageIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture))
                     .VAlign(VerticalAlignment.Center),
                 next)
             .HAlign(HorizontalAlignment.Center);
@@ -662,7 +661,7 @@ public sealed class SearchPage : Component
             .Padding(4)
             .CornerRadius(8)
             .Background(palette.CardBg)
-            .WithBorder(palette.BorderSubtle, 1)
+            .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
     }
 
@@ -692,11 +691,11 @@ public sealed class SearchPage : Component
 
     /// <summary>列表区的说明块：与卡片同宽，避免右侧面板被拉宽。</summary>
     private static Element Hint(string text, YuumiPalette palette) =>
-        Border(TextBlock(text).FontSize(11).Foreground(palette.TextSecondary).TextWrapping())
+        Border(Caption(text).Foreground(Theme.SecondaryText).TextWrapping())
             .Padding(12)
             .CornerRadius(8)
             .Background(palette.CardBg)
-            .WithBorder(palette.BorderSubtle, 1)
+            .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
 
     private static Element BuildSkeletons(YuumiPalette palette)

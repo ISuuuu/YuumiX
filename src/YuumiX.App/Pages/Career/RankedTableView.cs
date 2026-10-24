@@ -24,9 +24,8 @@ internal static class RankedTableView
     private const double ColPreviousWidth = 115;
 
     private static Element HeaderCell(string text, double width) =>
-        TextBlock(text)
+        Caption(text)
             .Width(width)
-            .FontSize(12)
             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .Foreground(Theme.SecondaryText)
             .TextAlignment(TextAlignment.Center)
@@ -34,9 +33,8 @@ internal static class RankedTableView
 
     private static Element DataCell(string text, double width, ThemeRef foreground, bool bold = false)
     {
-        var tb = TextBlock(text)
+        var tb = Caption(text)
             .Width(width)
-            .FontSize(12)
             .TextAlignment(TextAlignment.Center)
             .VAlign(VerticalAlignment.Center)
             .Foreground(foreground);
@@ -51,9 +49,8 @@ internal static class RankedTableView
 
     private static Element DataCell(string text, double width, string? foreground = null, bool bold = false)
     {
-        var tb = TextBlock(text)
+        var tb = Caption(text)
             .Width(width)
-            .FontSize(12)
             .TextAlignment(TextAlignment.Center)
             .VAlign(VerticalAlignment.Center);
 
@@ -111,18 +108,16 @@ internal static class RankedTableView
 
         string? medalUri = CareerVisuals.RankedMedalUri(queue?.Tier);
         Element tierCell = medalUri is null
-            ? TextBlock(tier)
+            ? Caption(tier)
                 .Width(ColTierWidth)
-                .FontSize(12)
-                .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(palette.Accent)
                 .TextAlignment(TextAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
             : HStack(6,
                     CareerVisuals.RankedMedal(queue?.Tier, 20),
-                    TextBlock(tier)
-                        .FontSize(12)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                    Caption(tier)
+                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(palette.Accent)
                         .VAlign(VerticalAlignment.Center))
                 .Width(ColTierWidth)

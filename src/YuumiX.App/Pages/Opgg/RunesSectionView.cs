@@ -72,8 +72,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                     // 流派头
                     HStack(6,
                         Component<LcuImage, LcuImageProps>(new LcuImageProps(primaryStyle.IconPath, 24)),
-                        TextBlock(primaryStyle.Name)
-                            .FontSize(12)
+                        Caption(primaryStyle.Name)
                             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .VAlign(VerticalAlignment.Center)
                     ).HAlign(HorizontalAlignment.Center),
@@ -97,8 +96,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                 VStack(8,
                     HStack(6,
                         Component<LcuImage, LcuImageProps>(new LcuImageProps(secondaryStyle.IconPath, 24)),
-                        TextBlock(secondaryStyle.Name)
-                            .FontSize(12)
+                        Caption(secondaryStyle.Name)
                             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .VAlign(VerticalAlignment.Center)
                     ).HAlign(HorizontalAlignment.Center),
@@ -173,7 +171,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
         .Background(bg)
         .WithBorder(borderBrush, isActive ? (isKeystone ? 2 : 1.5) : 0)
         .Opacity(isActive ? 1.0 : (isShard ? 0.3 : 0.35))
-        .WithToolTip(TextBlock(tooltipText).FontSize(11).TextWrapping());
+        .WithToolTip(Caption(tooltipText).TextWrapping());
 
         return item;
     }
@@ -182,8 +180,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
     {
         return Border(
             VStack(8,
-                TextBlock("推荐符文配置")
-                    .FontSize(12)
+                Caption("推荐符文配置")
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(Theme.SecondaryText)
                     .Margin(new Thickness(4, 0, 0, 4)),
@@ -207,19 +204,16 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                                         .Grid(0, 0),
 
                                     VStack(1,
-                                        TextBlock(OpggVisuals.FormatRatio(rune.Win, rune.Play))
-                                            .FontSize(12)
+                                        Caption(OpggVisuals.FormatRatio(rune.Win, rune.Play))
                                             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
-                                        TextBlock($"{rune.Play} 场")
-                                            .FontSize(10)
+                                        Caption($"{rune.Play} 场")
                                             .Foreground(Theme.SecondaryText)
                                     )
                                     .Margin(new Thickness(6, 0, 0, 0))
                                     .VAlign(VerticalAlignment.Center)
                                     .Grid(0, 1),
 
-                                    TextBlock(OpggVisuals.FormatPercent(rune.PickRate))
-                                        .FontSize(11)
+                                    Caption(OpggVisuals.FormatPercent(rune.PickRate))
                                         .Foreground(Theme.SecondaryText)
                                         .VAlign(VerticalAlignment.Center)
                                         .Grid(0, 2)
@@ -238,10 +232,10 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                 Border(Empty()).Height(6),
 
                 Button(
-                    TextBlock("设为当前符文页")
+                    Caption("设为当前符文页")
                         .Foreground("#FFFFFF")
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                        .FontSize(12),
+                        ,
                     () => Props.OnApplyRune(activeRune))
                     .Background(OpggVisuals.ActiveTabGreen)
                     .Height(32)

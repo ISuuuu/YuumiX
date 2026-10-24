@@ -62,10 +62,10 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
     {
         return Border(
             Button(
-                TextBlock(Props.IsApplying ? "正在应用出装..." : "一键应用出装到游戏推荐页")
+                Body(Props.IsApplying ? "正在应用出装..." : "一键应用出装到游戏推荐页")
                     .Foreground(OpggVisuals.ActiveTabGreen)
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                    .FontSize(12.5),
+                    ,
                 Props.OnApplyItemSet)
                 .IsEnabled(!Props.IsApplying)
                 .Background("rgba(47, 188, 93, 0.12)")
@@ -87,8 +87,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
             [
                 // 左侧初始装备
                 VStack(6,
-                    TextBlock("初始装备")
-                        .FontSize(11.5)
+                    Caption("初始装备")
                         .Foreground(Theme.SecondaryText),
                     VStack(4,
                         (Props.StarterItems ?? []).Take(3).Select((item, idx) => RenderItemRow(item).WithKey($"starter-{idx}")).ToArray()
@@ -105,8 +104,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
                 // 右侧鞋子
                 VStack(6,
-                    TextBlock("鞋子选择")
-                        .FontSize(11.5)
+                    Caption("鞋子选择")
                         .Foreground(Theme.SecondaryText),
                     VStack(4,
                         (Props.Boots ?? []).Take(3).Select((item, idx) => RenderItemRow(item).WithKey($"boots-{idx}")).ToArray()
@@ -122,8 +120,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
         return VStack(8,
             Border(Empty()).Height(1).Background(Theme.CardStroke),
 
-            TextBlock("核心装备组合")
-                .FontSize(11.5)
+            Caption("核心装备组合")
                 .Foreground(Theme.SecondaryText),
 
             VStack(6,
@@ -142,19 +139,16 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
                             // 统计
                             HStack(12,
                                 VStack(1,
-                                    TextBlock(OpggVisuals.FormatRatio(item.Win, item.Play))
-                                        .FontSize(12)
+                                    Caption(OpggVisuals.FormatRatio(item.Win, item.Play))
                                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                                         .HAlign(HorizontalAlignment.Right),
-                                    TextBlock($"{item.Play} 场")
-                                        .FontSize(10)
+                                    Caption($"{item.Play} 场")
                                         .Foreground(Theme.SecondaryText)
                                         .HAlign(HorizontalAlignment.Right)
                                 )
                                 .VAlign(VerticalAlignment.Center),
 
-                                TextBlock(OpggVisuals.FormatPercent(item.PickRate))
-                                    .FontSize(12)
+                                Caption(OpggVisuals.FormatPercent(item.PickRate))
                                     .Foreground(Theme.SecondaryText)
                                     .VAlign(VerticalAlignment.Center)
                             )
@@ -173,8 +167,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
         return VStack(8,
             Border(Empty()).Height(1).Background(Theme.CardStroke),
 
-            TextBlock("可选与推荐装备")
-                .FontSize(11.5)
+            Caption("可选与推荐装备")
                 .Foreground(Theme.SecondaryText),
 
             HStack(6,
@@ -200,12 +193,10 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
                 .Grid(0, 0),
 
                 HStack(8,
-                    TextBlock(OpggVisuals.FormatRatio(item.Win, item.Play))
-                        .FontSize(11.5)
+                    Caption(OpggVisuals.FormatRatio(item.Win, item.Play))
                         .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .VAlign(VerticalAlignment.Center),
-                    TextBlock($"{item.Play} 场")
-                        .FontSize(10.5)
+                    Caption($"{item.Play} 场")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                 )
@@ -225,8 +216,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
             if (i < ids.Count - 1)
             {
                 elements.Add(
-                    TextBlock("›")
-                        .FontSize(14)
+                    Body("›")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                 );
