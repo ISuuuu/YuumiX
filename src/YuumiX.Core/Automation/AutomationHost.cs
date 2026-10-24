@@ -18,6 +18,8 @@ public sealed class AutomationHost : IDisposable
     private readonly AutoBanPickAgent _autoBanPickAgent;
     private readonly AutoCreateLobbyAgent _autoCreateLobbyAgent;
     private readonly AramTeamSideAgent _aramTeamSideAgent;
+    private readonly AutoEncounterRecorderAgent _autoEncounterRecorderAgent;
+    private readonly AutoTagReminderAgent _autoTagReminderAgent;
     private readonly ILogger<AutomationHost>? _logger;
 
     private IDisposable? _eventSubscription;
@@ -39,6 +41,8 @@ public sealed class AutomationHost : IDisposable
         AutoBanPickAgent autoBanPickAgent,
         AutoCreateLobbyAgent autoCreateLobbyAgent,
         AramTeamSideAgent aramTeamSideAgent,
+        AutoEncounterRecorderAgent autoEncounterRecorderAgent,
+        AutoTagReminderAgent autoTagReminderAgent,
         ILogger<AutomationHost>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -48,6 +52,8 @@ public sealed class AutomationHost : IDisposable
         ArgumentNullException.ThrowIfNull(autoBanPickAgent);
         ArgumentNullException.ThrowIfNull(autoCreateLobbyAgent);
         ArgumentNullException.ThrowIfNull(aramTeamSideAgent);
+        ArgumentNullException.ThrowIfNull(autoEncounterRecorderAgent);
+        ArgumentNullException.ThrowIfNull(autoTagReminderAgent);
 
         _connection = connection;
         _lifecycle = lifecycle;
@@ -56,6 +62,8 @@ public sealed class AutomationHost : IDisposable
         _autoBanPickAgent = autoBanPickAgent;
         _autoCreateLobbyAgent = autoCreateLobbyAgent;
         _aramTeamSideAgent = aramTeamSideAgent;
+        _autoEncounterRecorderAgent = autoEncounterRecorderAgent;
+        _autoTagReminderAgent = autoTagReminderAgent;
         _logger = logger;
     }
 
@@ -71,6 +79,8 @@ public sealed class AutomationHost : IDisposable
         _ = _autoBanPickAgent.StartAsync(cancellationToken);
         _ = _autoCreateLobbyAgent.StartAsync(cancellationToken);
         _ = _aramTeamSideAgent.StartAsync(cancellationToken);
+        _ = _autoEncounterRecorderAgent.StartAsync(cancellationToken);
+        _ = _autoTagReminderAgent.StartAsync(cancellationToken);
 
         _eventSubscription = _connection.Events.Subscribe(OnLcuEvent);
 
@@ -117,6 +127,7 @@ public sealed class AutomationHost : IDisposable
             var phase = GamePhaseExtensions.ParseGamePhase(resp.Body.Trim().Trim('"'));
             _lifecycle.UpdatePhase(phase);
             _autoCreateLobbyAgent.OnPhaseChanged(phase);
+            _autoEncounterRecorderAgent.OnPhaseChanged(phase);
             Phases.Publish(phase);
 
             _logger?.LogInformation("LCU 连接阶段对账完成: {Phase}", phase);
@@ -146,6 +157,8 @@ public sealed class AutomationHost : IDisposable
                 _autoReconnectAgent.OnPhaseChanged(phase);
                 _autoCreateLobbyAgent.OnPhaseChanged(phase);
                 _aramTeamSideAgent.OnPhaseChanged(phase);
+                _autoEncounterRecorderAgent.OnPhaseChanged(phase);
+                _autoTagReminderAgent.OnPhaseChanged(phase);
                 Phases.Publish(phase);
             }
             else if (evt.Uri.StartsWith("/lol-matchmaking/v1/ready-check", StringComparison.OrdinalIgnoreCase))
@@ -179,5 +192,7 @@ public sealed class AutomationHost : IDisposable
         _ = _autoBanPickAgent.StopAsync();
         _ = _autoCreateLobbyAgent.StopAsync();
         _ = _aramTeamSideAgent.StopAsync();
+        _ = _autoEncounterRecorderAgent.StopAsync();
+        _ = _autoTagReminderAgent.StopAsync();
     }
 }
