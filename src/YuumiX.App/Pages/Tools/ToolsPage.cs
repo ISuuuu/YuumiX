@@ -327,13 +327,20 @@ public sealed class ToolsPage : Component
                 [GridSize.Auto],
                 [
                     TextBlock(label)
+                        .FontFamily(YuumiTypography.SansFont)
                         .FontSize(13)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(row: 0, column: 0),
-                    control.Grid(row: 0, column: 1),
+                    control.VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 1),
                 ])
             .Padding(new Thickness(0, 8, 0, 8));
+
+        Element CleanToggle(bool value, Action<bool> onChange, string? automationName = null) =>
+            ToggleSwitch(value, v => onChange(v), header: null, onContent: null, offContent: null)
+                .MinWidth(0)
+                .HAlign(HorizontalAlignment.Right)
+                .AutomationName(automationName ?? string.Empty);
 
         // 单行直接操作卡片（不折叠，右侧直接展示操作按钮或状态开关）
         Element ActionCard(string title, string description, Element control) =>
@@ -344,16 +351,18 @@ public sealed class ToolsPage : Component
                     [
                         VStack(2,
                             TextBlock(title)
+                                .FontFamily(YuumiTypography.SansFont)
                                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                                 .FontSize(13.5)
                                 .Foreground(palette.TextPrimary),
                             TextBlock(description)
+                                .FontFamily(YuumiTypography.SansFont)
                                 .FontSize(12)
                                 .Foreground(palette.TextSecondary)
                                 .Margin(new Thickness(0, 3, 0, 0))
                         ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
-                        control.VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
+                        control.VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 1),
                     ]
                 ).Padding(new Thickness(16, 12, 16, 12))
             )
@@ -383,10 +392,12 @@ public sealed class ToolsPage : Component
                     // 标题与说明
                     VStack(2,
                         TextBlock(title)
+                            .FontFamily(YuumiTypography.SansFont)
                             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .FontSize(13.5)
                             .Foreground(palette.TextPrimary),
                         TextBlock(description)
+                            .FontFamily(YuumiTypography.SansFont)
                             .FontSize(12)
                             .Foreground(palette.TextSecondary)
                             .Margin(new Thickness(0, 3, 0, 0))
@@ -394,6 +405,7 @@ public sealed class ToolsPage : Component
 
                     // 右侧状态摘要
                     TextBlock(statusText)
+                        .FontFamily(YuumiTypography.SansFont)
                         .FontSize(12)
                         .FontWeight(statusWeight)
                         .Foreground(statusColor)
@@ -581,10 +593,11 @@ public sealed class ToolsPage : Component
 
         Element GroupHeader(string title) =>
             TextBlock(title)
-                .FontSize(12.5)
+                .FontFamily(YuumiTypography.SansFont)
+                .FontSize(13)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(Theme.SecondaryText)
-                .Margin(new Thickness(4, 12, 0, 4));
+                .Margin(new Thickness(4, 16, 0, 6));
 
         // 1. 自动接受对局卡片
         var autoAcceptStatus = config.Functions.EnableAutoAcceptMatching
@@ -612,12 +625,12 @@ public sealed class ToolsPage : Component
                         palette,
                         "自动接受延迟")),
                 CardRow("启用自动接受对局:",
-                    ToggleSwitch(config.Functions.EnableAutoAcceptMatching, v =>
+                    CleanToggle(config.Functions.EnableAutoAcceptMatching, v =>
                     {
                         if (v == config.Functions.EnableAutoAcceptMatching) return;
                         config.Functions.EnableAutoAcceptMatching = v;
                         Commit(nameof(FunctionsConfig.EnableAutoAcceptMatching));
-                    }, header: null, onContent: "", offContent: "").AutomationName("启用自动接受对局"))
+                    }, "启用自动接受对局"))
             ));
 
         // 2. 自动接受交换请求卡片
@@ -631,19 +644,19 @@ public sealed class ToolsPage : Component
             autoSwapStatus,
             VStack(4,
                 CardRow("自动接受楼层交换请求:",
-                    ToggleSwitch(config.Functions.AutoAcceptCeilSwap, v =>
+                    CleanToggle(config.Functions.AutoAcceptCeilSwap, v =>
                     {
                         if (v == config.Functions.AutoAcceptCeilSwap) return;
                         config.Functions.AutoAcceptCeilSwap = v;
                         Commit(nameof(FunctionsConfig.AutoAcceptCeilSwap));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动接受楼层交换")),
+                    }, "自动接受楼层交换")),
                 CardRow("自动接受英雄交换请求:",
-                    ToggleSwitch(config.Functions.AutoAcceptChampTrade, v =>
+                    CleanToggle(config.Functions.AutoAcceptChampTrade, v =>
                     {
                         if (v == config.Functions.AutoAcceptChampTrade) return;
                         config.Functions.AutoAcceptChampTrade = v;
                         Commit(nameof(FunctionsConfig.AutoAcceptChampTrade));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动接受英雄交换"))
+                    }, "自动接受英雄交换"))
             ));
 
         // 3. 自动选用/预选英雄卡片
@@ -657,33 +670,33 @@ public sealed class ToolsPage : Component
             autoHoverStatus,
             VStack(4,
                 CardRow("启用自动亮起/预选:",
-                    ToggleSwitch(config.Functions.EnableAutoHoverChampion, v =>
+                    CleanToggle(config.Functions.EnableAutoHoverChampion, v =>
                     {
                         if (v == config.Functions.EnableAutoHoverChampion) return;
                         config.Functions.EnableAutoHoverChampion = v;
                         Commit(nameof(FunctionsConfig.EnableAutoHoverChampion));
-                    }, header: null, onContent: "", offContent: "").AutomationName("启用自动预选")),
+                    }, "启用自动预选")),
                 CardRow("在结束时确认选择 (防秒退):",
-                    ToggleSwitch(config.Functions.AutoSelectConfirmOnTimeout, v =>
+                    CleanToggle(config.Functions.AutoSelectConfirmOnTimeout, v =>
                     {
                         if (v == config.Functions.AutoSelectConfirmOnTimeout) return;
                         config.Functions.AutoSelectConfirmOnTimeout = v;
                         Commit(nameof(FunctionsConfig.AutoSelectConfirmOnTimeout));
-                    }, header: null, onContent: "", offContent: "").AutomationName("超时自动确认")),
+                    }, "超时自动确认")),
                 CardRow("选人阶段自动选择英雄:",
-                    ToggleSwitch(config.Functions.EnableAutoSelectChampion, v =>
+                    CleanToggle(config.Functions.EnableAutoSelectChampion, v =>
                     {
                         if (v == config.Functions.EnableAutoSelectChampion) return;
                         config.Functions.EnableAutoSelectChampion = v;
                         Commit(nameof(FunctionsConfig.EnableAutoSelectChampion));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动选择英雄")),
+                    }, "自动选择英雄")),
                 CardRow("在对局信息中显示秒退按钮:",
-                    ToggleSwitch(config.Functions.EnableDodgeInGameInfo, v =>
+                    CleanToggle(config.Functions.EnableDodgeInGameInfo, v =>
                     {
                         if (v == config.Functions.EnableDodgeInGameInfo) return;
                         config.Functions.EnableDodgeInGameInfo = v;
                         Commit(nameof(FunctionsConfig.EnableDodgeInGameInfo));
-                    }, header: null, onContent: "", offContent: "").AutomationName("对局信息秒退按钮")),
+                    }, "对局信息秒退按钮")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
                 TextBlock("分路预选候选英雄库:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
                 LaneTabs(pickLaneIndex, idx => setPickLaneIndex(idx)),
@@ -708,19 +721,19 @@ public sealed class ToolsPage : Component
             autoBanStatus,
             VStack(4,
                 CardRow("禁用环节自动禁用设定英雄:",
-                    ToggleSwitch(config.Functions.EnableAutoBanChampion, v =>
+                    CleanToggle(config.Functions.EnableAutoBanChampion, v =>
                     {
                         if (v == config.Functions.EnableAutoBanChampion) return;
                         config.Functions.EnableAutoBanChampion = v;
                         Commit(nameof(FunctionsConfig.EnableAutoBanChampion));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动禁用开关")),
+                    }, "自动禁用开关")),
                 CardRow("避开队友已预选的英雄 (假禁用):",
-                    ToggleSwitch(config.Functions.PretendBan, v =>
+                    CleanToggle(config.Functions.PretendBan, v =>
                     {
                         if (v == config.Functions.PretendBan) return;
                         config.Functions.PretendBan = v;
                         Commit(nameof(FunctionsConfig.PretendBan));
-                    }, header: null, onContent: "", offContent: "").AutomationName("避开队友预选")),
+                    }, "避开队友预选")),
                 CardRow("自动禁用前等待延迟 (秒):",
                     CompactStepperControl.RenderDouble(
                         config.Functions.AutoBanDelay,
@@ -759,12 +772,12 @@ public sealed class ToolsPage : Component
             autoSpellsStatus,
             VStack(4,
                 CardRow("锁定英雄后自动写入配置好的技能组:",
-                    ToggleSwitch(config.Functions.EnableAutoSetSpells, v =>
+                    CleanToggle(config.Functions.EnableAutoSetSpells, v =>
                     {
                         if (v == config.Functions.EnableAutoSetSpells) return;
                         config.Functions.EnableAutoSetSpells = v;
                         Commit(nameof(FunctionsConfig.EnableAutoSetSpells));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动召唤师技能")),
+                    }, "自动召唤师技能")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
                 TextBlock("分路召唤师技能组:").FontSize(12).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
                 LaneTabs(spellLaneIndex, idx => setSpellLaneIndex(idx)),
@@ -793,47 +806,47 @@ public sealed class ToolsPage : Component
             autoFlowStatus,
             VStack(4,
                 CardRow("自动接受好友邀请:",
-                    ToggleSwitch(config.Functions.EnableAutoHandleInvite, v =>
+                    CleanToggle(config.Functions.EnableAutoHandleInvite, v =>
                     {
                         if (v == config.Functions.EnableAutoHandleInvite) return;
                         config.Functions.EnableAutoHandleInvite = v;
                         Commit(nameof(FunctionsConfig.EnableAutoHandleInvite));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动接受邀请")),
+                    }, "自动接受邀请")),
                 CardRow("对局结束后自动点赞:",
-                    ToggleSwitch(config.Functions.EnableAutoHonor, v =>
+                    CleanToggle(config.Functions.EnableAutoHonor, v =>
                     {
                         if (v == config.Functions.EnableAutoHonor) return;
                         config.Functions.EnableAutoHonor = v;
                         Commit(nameof(FunctionsConfig.EnableAutoHonor));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动点赞")),
+                    }, "自动点赞")),
                 CardRow("对局结束后自动再来一局:",
-                    ToggleSwitch(config.Functions.EnableAutoPlayAgain, v =>
+                    CleanToggle(config.Functions.EnableAutoPlayAgain, v =>
                     {
                         if (v == config.Functions.EnableAutoPlayAgain) return;
                         config.Functions.EnableAutoPlayAgain = v;
                         Commit(nameof(FunctionsConfig.EnableAutoPlayAgain));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动再来一局")),
+                    }, "自动再来一局")),
                 CardRow("ARAM 选人时自动报边:",
-                    ToggleSwitch(config.Functions.EnableAutoAramTeamSide, v =>
+                    CleanToggle(config.Functions.EnableAutoAramTeamSide, v =>
                     {
                         if (v == config.Functions.EnableAutoAramTeamSide) return;
                         config.Functions.EnableAutoAramTeamSide = v;
                         Commit(nameof(FunctionsConfig.EnableAutoAramTeamSide));
-                    }, header: null, onContent: "", offContent: "").AutomationName("ARAM报边")),
+                    }, "ARAM报边")),
                 CardRow("报边消息对队友可见:",
-                    ToggleSwitch(config.Functions.AramTeamSideVisibleToTeam, v =>
+                    CleanToggle(config.Functions.AramTeamSideVisibleToTeam, v =>
                     {
                         if (v == config.Functions.AramTeamSideVisibleToTeam) return;
                         config.Functions.AramTeamSideVisibleToTeam = v;
                         Commit(nameof(FunctionsConfig.AramTeamSideVisibleToTeam));
-                    }, header: null, onContent: "", offContent: "").AutomationName("报边队友可见")),
+                    }, "报边队友可见")),
                 CardRow("选人阶段自动提醒标记玩家:",
-                    ToggleSwitch(config.Functions.EnableAutoTagReminder, v =>
+                    CleanToggle(config.Functions.EnableAutoTagReminder, v =>
                     {
                         if (v == config.Functions.EnableAutoTagReminder) return;
                         config.Functions.EnableAutoTagReminder = v;
                         Commit(nameof(FunctionsConfig.EnableAutoTagReminder));
-                    }, header: null, onContent: "", offContent: "").AutomationName("标记玩家提醒"))
+                    }, "标记玩家提醒"))
             ));
 
         async void StartFriendScan()
@@ -998,32 +1011,32 @@ public sealed class ToolsPage : Component
 
         var benchOverlayCard = ActionCard(
             "大乱斗板凳席悬浮窗", "在大乱斗选人阶段显示半透明置顶悬浮窗，可无 CD 抢板凳席英雄",
-            ToggleSwitch(config.Functions.EnableBenchOverlay, v =>
+            CleanToggle(config.Functions.EnableBenchOverlay, v =>
             {
                 if (v == config.Functions.EnableBenchOverlay) return;
                 config.Functions.EnableBenchOverlay = v;
                 Commit(nameof(FunctionsConfig.EnableBenchOverlay));
-            }, header: null, onContent: "", offContent: "").AutomationName("大乱斗悬浮窗开关"));
+            }, "大乱斗悬浮窗开关"));
 
         var autoReconnectCard = ActionCard(
             "自动重连", "当你意外掉线退出游戏时自动重新连接",
-            ToggleSwitch(config.Functions.EnableAutoReconnect, v =>
+            CleanToggle(config.Functions.EnableAutoReconnect, v =>
             {
                 if (v == config.Functions.EnableAutoReconnect) return;
                 config.Functions.EnableAutoReconnect = v;
                 Commit(nameof(FunctionsConfig.EnableAutoReconnect));
-            }, header: null, onContent: "", offContent: "").AutomationName("自动重连开关"));
+            }, "自动重连开关"));
 
         var autoLobbyCard = ToolCard(
             "autoLobby", "自动创建大厅", "启动 LOL 客户端后自动创建默认模式的大厅", config.Functions.EnableAutoCreateLobby ? "已启用" : "未启用",
             VStack(4,
                 CardRow("客户端就绪后自动拉入指定大厅房间:",
-                    ToggleSwitch(config.Functions.EnableAutoCreateLobby, v =>
+                    CleanToggle(config.Functions.EnableAutoCreateLobby, v =>
                     {
                         if (v == config.Functions.EnableAutoCreateLobby) return;
                         config.Functions.EnableAutoCreateLobby = v;
                         Commit(nameof(FunctionsConfig.EnableAutoCreateLobby));
-                    }, header: null, onContent: "", offContent: "").AutomationName("自动创建大厅开关")),
+                    }, "自动创建大厅开关")),
                 CardRow("默认模式选择:",
                     ComboBox(LobbyModeLabels, IndexOfLobbyMode(config.Functions.DefaultGameMode), idx =>
                     {
@@ -1031,7 +1044,7 @@ public sealed class ToolsPage : Component
                         if (mode == config.Functions.DefaultGameMode) return;
                         config.Functions.DefaultGameMode = mode;
                         Commit(nameof(FunctionsConfig.DefaultGameMode));
-                    }).Width(220).IsEnabled(config.Functions.EnableAutoCreateLobby).AutomationName("默认队列选择")),
+                    }).Width(220).HAlign(HorizontalAlignment.Right).IsEnabled(config.Functions.EnableAutoCreateLobby).AutomationName("默认队列选择")),
                 HStack(8,
                     Button("立即创建该模式大厅", async () =>
                     {
@@ -1496,6 +1509,7 @@ public sealed class ToolsPage : Component
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center),
                     TextBlock("LCU 客户端未连接，绝大多数工具功能需启动并登录英雄联盟后方可生效。")
+                        .FontFamily(YuumiTypography.SansFont)
                         .FontSize(12)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center)
@@ -1512,6 +1526,7 @@ public sealed class ToolsPage : Component
         var mainScroll = ScrollView(
             VStack(8,
                 TextBlock("其他功能")
+                    .FontFamily(YuumiTypography.SansFont)
                     .FontSize(20)
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(palette.TextPrimary)

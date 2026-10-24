@@ -496,17 +496,25 @@ public sealed class SettingsPage : Component
                 [GridSize.Auto],
                 [
                     TextBlock(label)
+                        .FontFamily(YuumiTypography.SansFont)
                         .FontSize(13)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(row: 0, column: 0),
-                    control.Grid(row: 0, column: 1),
+                    control.VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 1),
                 ])
             .Padding(new Thickness(0, 8, 0, 8));
 
+        Element CleanToggle(bool value, Action<bool> onChange, string? automationName = null) =>
+            ToggleSwitch(value, v => onChange(v), header: null, onContent: null, offContent: null)
+                .MinWidth(0)
+                .HAlign(HorizontalAlignment.Right)
+                .AutomationName(automationName ?? string.Empty);
+
         Element GroupHeader(string title) =>
             TextBlock(title)
-                .FontSize(12.5)
+                .FontFamily(YuumiTypography.SansFont)
+                .FontSize(13)
                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(Theme.SecondaryText)
                 .Margin(new Thickness(4, 16, 0, 6));
@@ -520,16 +528,18 @@ public sealed class SettingsPage : Component
                     [
                         VStack(2,
                             TextBlock(title)
+                                .FontFamily(YuumiTypography.SansFont)
                                 .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                                 .FontSize(13.5)
                                 .Foreground(palette.TextPrimary),
                             TextBlock(description)
+                                .FontFamily(YuumiTypography.SansFont)
                                 .FontSize(12)
                                 .Foreground(palette.TextSecondary)
                                 .Margin(new Thickness(0, 3, 0, 0))
                         ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
-                        control.VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
+                        control.VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 1),
                     ]
                 ).Padding(new Thickness(16, 12, 16, 12))
             )
@@ -547,7 +557,10 @@ public sealed class SettingsPage : Component
                     if (v == value) return;
                     apply(v);
                     Commit(field);
-                }, header: null, onContent: "", offContent: "").AutomationName(title));
+                }, header: null, onContent: null, offContent: null)
+                .MinWidth(0)
+                .HAlign(HorizontalAlignment.Right)
+                .AutomationName(title));
 
         Element SettingNumberCard(string title, string description, int value, int min, int max, Action<int> apply, string field, string? note = null) =>
             ActionCard(
@@ -587,16 +600,19 @@ public sealed class SettingsPage : Component
                 [
                     VStack(2,
                         TextBlock(title)
+                            .FontFamily(YuumiTypography.SansFont)
                             .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .FontSize(13.5)
                             .Foreground(palette.TextPrimary),
                         TextBlock(description)
+                            .FontFamily(YuumiTypography.SansFont)
                             .FontSize(12)
                             .Foreground(palette.TextSecondary)
                             .Margin(new Thickness(0, 3, 0, 0))
                     ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
                     TextBlock(statusText)
+                        .FontFamily(YuumiTypography.SansFont)
                         .FontSize(12)
                         .FontWeight(statusWeight)
                         .Foreground(statusColor)
@@ -1177,14 +1193,14 @@ public sealed class SettingsPage : Component
                     .AutomationName("服务器 API 地址")
                     .HAlign(HorizontalAlignment.Stretch)),
             CardRow("LCU 实时查询:",
-                ToggleSwitch(config.Functions.LcuRealtimeEnabled, v =>
+                CleanToggle(config.Functions.LcuRealtimeEnabled, v =>
                 {
                     if (v == config.Functions.LcuRealtimeEnabled) return;
                     config.Functions.LcuRealtimeEnabled = v;
                     Commit(nameof(FunctionsConfig.LcuRealtimeEnabled));
                     // 即时应用：开启 → 开始连接（徽标经状态流转 connecting），关闭 → 停止
                     _ = signalr.ApplyConfigAsync();
-                }, header: null, onContent: "", offContent: "").AutomationName("LCU 实时查询开关")),
+                }, "LCU 实时查询开关")),
             // error 态附红字错误详情（对齐旧 setting-error-tip）
             signalrStatus.State == SignalrConnectionState.Error && !string.IsNullOrEmpty(signalrStatus.Error)
                 ? TextBlock($"连接异常： {signalrStatus.Error}")
@@ -1208,7 +1224,7 @@ public sealed class SettingsPage : Component
         var hideMenuCard = SettingExpandableCard("hideMenu", "隐藏菜单", "控制侧边栏云顶之弈与路人集功能入口的显隐", hideMenuEnabled ? "已启用" : "未启用",
             VStack(4,
                 CardRow("隐藏云顶之弈入口:",
-                    ToggleSwitch(config.Functions.HideTft, v =>
+                    CleanToggle(config.Functions.HideTft, v =>
                     {
                         if (v == config.Functions.HideTft) return;
                         config.Functions.HideTft = v;
@@ -1216,15 +1232,15 @@ public sealed class SettingsPage : Component
                         // 与颜色设置「先应用主题后防抖写盘」的语义一致。
                         menu.Apply(config.Functions.HideTft, config.Functions.HideSavedPlayers);
                         Commit(nameof(FunctionsConfig.HideTft));
-                    }, header: null, onContent: "", offContent: "").AutomationName("隐藏云顶之弈")),
+                    }, "隐藏云顶之弈")),
                 CardRow("隐藏路人集入口:",
-                    ToggleSwitch(config.Functions.HideSavedPlayers, v =>
+                    CleanToggle(config.Functions.HideSavedPlayers, v =>
                     {
                         if (v == config.Functions.HideSavedPlayers) return;
                         config.Functions.HideSavedPlayers = v;
                         menu.Apply(config.Functions.HideTft, config.Functions.HideSavedPlayers);
                         Commit(nameof(FunctionsConfig.HideSavedPlayers));
-                    }, header: null, onContent: "", offContent: "").AutomationName("隐藏路人集"))));
+                    }, "隐藏路人集"))));
 
         // 截图触发事件复选组：3=三杀 4=四杀 5=五杀 8=超神（写入 ScreenshotOnMultikillLevels）
         Element ScreenshotLevelCheckBox(int level, string label)
@@ -1296,12 +1312,12 @@ public sealed class SettingsPage : Component
         var screenshotCard = SettingExpandableCard("screenshot", "多杀自动截图", "对局中达成多杀或超神时自动保存精彩瞬间", config.Functions.EnableScreenshotOnMultikill ? "已启用" : "未启用",
             VStack(8,
                 CardRow("启用多杀自动截图:",
-                    ToggleSwitch(config.Functions.EnableScreenshotOnMultikill, v =>
+                    CleanToggle(config.Functions.EnableScreenshotOnMultikill, v =>
                     {
                         if (v == config.Functions.EnableScreenshotOnMultikill) return;
                         config.Functions.EnableScreenshotOnMultikill = v;
                         Commit(nameof(FunctionsConfig.EnableScreenshotOnMultikill));
-                    }, header: null, onContent: "", offContent: "").AutomationName("多杀截图开关")),
+                    }, "多杀截图开关")),
                 // 开关开启时才显示：触发事件复选组 + 保存位置（对齐旧 ScreenshotSection.vue）
                 config.Functions.EnableScreenshotOnMultikill
                     ? VStack(8,
@@ -1322,7 +1338,7 @@ public sealed class SettingsPage : Component
                 config.General.LogLevel = level;
                 services.ApplyLogLevel(level);
                 Commit(nameof(GeneralConfig.LogLevel));
-            }).Width(150).AutomationName("日志等级选择"));
+            }).Width(160).HAlign(HorizontalAlignment.Right).AutomationName("日志等级选择"));
 
         var logDirCard = ActionCard(
             "日志文件", $"存放于 {services.Paths.LogDirectory}",
@@ -1341,12 +1357,12 @@ public sealed class SettingsPage : Component
         var httpProxyCard = SettingExpandableCard("httpProxy", "软件 HTTP 代理", "软件更新、TFT 数据、OP.GG 服务访问走此 HTTP 代理通道", config.General.EnableHttpProxy ? "已启用" : "未启用",
             VStack(8,
                 CardRow("启用 HTTP 代理:",
-                    ToggleSwitch(config.General.EnableHttpProxy, v =>
+                    CleanToggle(config.General.EnableHttpProxy, v =>
                     {
                         if (v == config.General.EnableHttpProxy) return;
                         config.General.EnableHttpProxy = v;
                         Commit(nameof(GeneralConfig.EnableHttpProxy));
-                    }, header: null, onContent: "", offContent: "").AutomationName("HTTP代理开关")),
+                    }, "HTTP代理开关")),
                 ProxyAddressRow()));
 
         var themeModeCard = ActionCard(
@@ -1356,7 +1372,7 @@ public sealed class SettingsPage : Component
                 config.Personalization.ThemeMode = ThemeModeValues[index];
                 theme.Apply(config.Personalization);
                 Commit(nameof(PersonalizationConfig.ThemeMode));
-            }).Width(140).AutomationName("主题模式选择"));
+            }).Width(160).HAlign(HorizontalAlignment.Right).AutomationName("主题模式选择"));
 
         var aboutCard = SettingExpandableCard("about", "关于 YuumiX", $"当前版本 {AppVersion} · 运行环境与存储位置", AppVersion,
             VStack(10,
@@ -1437,6 +1453,7 @@ public sealed class SettingsPage : Component
         var mainScroll = ScrollView(
             VStack(8,
                 TextBlock("设置")
+                    .FontFamily(YuumiTypography.SansFont)
                     .FontSize(20)
                     .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(palette.TextPrimary)
