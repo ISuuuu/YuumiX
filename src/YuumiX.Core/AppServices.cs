@@ -7,6 +7,7 @@ using YuumiX.Core.Features.Career;
 using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.GameLifecycle;
 using YuumiX.Core.Features.Match;
+using YuumiX.Core.Features.Opgg;
 using YuumiX.Core.Features.Replay;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.Summoner;
@@ -62,6 +63,12 @@ public sealed class AppServices : IDisposable
 
     /// <summary>资源磁盘缓存。</summary>
     public YuumiX.Core.Assets.AssetCache AssetCache => Services.GetRequiredService<YuumiX.Core.Assets.AssetCache>();
+
+    /// <summary>OP.GG HTTP 客户端与缓存。</summary>
+    public OpggHttpClient OpggHttpClient => Services.GetRequiredService<OpggHttpClient>();
+
+    /// <summary>OP.GG 业务服务。</summary>
+    public IOpggService OpggService => Services.GetRequiredService<IOpggService>();
 
     /// <summary>
     /// 进程级关闭令牌。所有后台循环（LCU 轮询、WebSocket 重连）必须监听它，
@@ -227,6 +234,16 @@ public sealed class AppServices : IDisposable
         collection.AddSingleton<LolClientLauncher>(provider => new LolClientLauncher(
             WindowsProcessPathSource.Instance));
 
+        // ── OP.GG 英雄梯度与出装推荐 ──────────────────────────────
+        collection.AddSingleton(provider => new OpggHttpClient(
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetRequiredService<RuntimePaths>(),
+            provider.GetService<ILogger<OpggHttpClient>>()));
+        collection.AddSingleton<IOpggService>(provider => new OpggService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            provider.GetRequiredService<OpggHttpClient>(),
+            provider.GetService<ILogger<OpggService>>()));
+
         collection.AddSingleton<AutoAcceptAgent>(provider => new AutoAcceptAgent(
             () => provider.GetRequiredService<LcuConnection>().Transport,
             () => provider.GetRequiredService<AppConfig>(),
@@ -244,6 +261,7 @@ public sealed class AppServices : IDisposable
             () => provider.GetRequiredService<AppConfig>(),
             provider.GetRequiredService<AgentSupervisor>(),
             provider.GetRequiredService<AgentLifecycle>(),
+            provider.GetService<IOpggService>(),
             provider.GetService<ILogger<AutoBanPickAgent>>()));
         collection.AddSingleton<AutoCreateLobbyAgent>(provider => new AutoCreateLobbyAgent(
             () => provider.GetRequiredService<LcuConnection>().Transport,

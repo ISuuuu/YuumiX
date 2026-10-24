@@ -46,6 +46,8 @@
     <None Update="Assets\RankedIcons\*.png" CopyToOutputDirectory="PreserveNewest" />
     <!-- 对局详情双方资源统计图标（来自原 Yuumi 的 public/images/，kills/tower/dragon/baron/herald/inhibitor）。 -->
     <None Update="Assets\MatchDetail\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\Tier\*.svg" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\opgg.svg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

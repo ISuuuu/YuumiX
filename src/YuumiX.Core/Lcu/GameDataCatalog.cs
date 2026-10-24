@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Features.Opgg.Models;
+using YuumiX.Core.Parsers;
 
 namespace YuumiX.Core.Lcu;
 
@@ -7,7 +9,7 @@ namespace YuumiX.Core.Lcu;
 public sealed record CherryAugmentDetail(int Id, string Name, string IconPath);
 
 /// <summary>
-/// 游戏静态资源映射表（ID → iconPath / 名称），对应原 <c>GameDataAssets</c>。
+/// 游戏静态资源映射表（ID → iconPath / 名称 / 符文详情），对应原 <c>GameDataAssets</c>。
 ///
 /// 这层只保存**路径**，不保存字节：真正取图由 <c>AssetService</c> 负责（ADR-11）。
 /// 拆开的原因是两者的失效节奏不同——路径表随客户端版本变，图片则可以缓存 7 天。
@@ -22,20 +24,26 @@ public sealed class GameDataCatalog
         new Dictionary<int, string>(),
         new Dictionary<int, string>(),
         new Dictionary<int, string>(),
-        new Dictionary<int, CherryAugmentDetail>());
+        new Dictionary<int, CherryAugmentDetail>(),
+        [],
+        new Dictionary<int, PerkDetail>());
 
     public GameDataCatalog(
         IReadOnlyDictionary<int, string> items,
         IReadOnlyDictionary<int, string> spells,
         IReadOnlyDictionary<int, string> runes,
         IReadOnlyDictionary<int, string> champions,
-        IReadOnlyDictionary<int, CherryAugmentDetail> augments)
+        IReadOnlyDictionary<int, CherryAugmentDetail> augments,
+        IReadOnlyList<PerkStyle>? perkStyles = null,
+        IReadOnlyDictionary<int, PerkDetail>? perkDetails = null)
     {
         Items = items;
         Spells = spells;
         Runes = runes;
         Champions = champions;
         Augments = augments;
+        PerkStyles = perkStyles ?? [];
+        PerkDetails = perkDetails ?? new Dictionary<int, PerkDetail>();
     }
 
     /// <summary>物品 ID → 图标路径。</summary>
@@ -53,6 +61,12 @@ public sealed class GameDataCatalog
     /// <summary>海克斯强化 ID → 详情。</summary>
     public IReadOnlyDictionary<int, CherryAugmentDetail> Augments { get; }
 
+    /// <summary>符文流派系结构（含 7 层插槽结构与基石/普通/碎片分布）。</summary>
+    public IReadOnlyList<PerkStyle> PerkStyles { get; }
+
+    /// <summary>符文详细信息（名称、图标、去 HTML 纯文本描述）。</summary>
+    public IReadOnlyDictionary<int, PerkDetail> PerkDetails { get; }
+
     /// <summary>
     /// 是否拿到了核心数据。判定范围与原实现一致：**不含**海克斯强化——
     /// 该接口在部分客户端形态下不存在，把它算进就绪条件会让重试永远失败。
@@ -61,7 +75,7 @@ public sealed class GameDataCatalog
         Items.Count > 0 || Spells.Count > 0 || Runes.Count > 0 || Champions.Count > 0;
 
     public override string ToString() =>
-        $"GameData(物品={Items.Count}, 技能={Spells.Count}, 符文={Runes.Count}, 英雄={Champions.Count}, 强化={Augments.Count})";
+        $"GameData(物品={Items.Count}, 技能={Spells.Count}, 符文={Runes.Count}, 英雄={Champions.Count}, 强化={Augments.Count}, 流派={PerkStyles.Count}, 符文详情={PerkDetails.Count})";
 }
 
 /// <summary>
@@ -87,6 +101,7 @@ public sealed class GameDataLoader
     internal const string PerksPath = "/lol-game-data/assets/v1/perks.json";
     internal const string ChampionsPath = "/lol-game-data/assets/v1/champion-summary.json";
     internal const string AugmentsPath = "/lol-game-data/assets/v1/cherry-augments.json";
+    internal const string PerkStylesPath = "/lol-game-data/assets/v1/perkstyles.json";
 
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly ILogger<GameDataLoader>? _logger;
@@ -155,14 +170,16 @@ public sealed class GameDataLoader
 
     private async Task<GameDataCatalog> LoadOnceAsync(ILcuTransport transport, CancellationToken cancellationToken)
     {
-        // 五个接口并发：串行时最坏情况要等 5 × 单次超时，而它们之间没有依赖
+        // 接口并发：串行时最坏情况要等 7 × 单次超时，而它们之间没有依赖
         var itemsTask = FetchIdIconMapAsync(transport, ItemsPath, cancellationToken);
         var spellsTask = FetchIdIconMapAsync(transport, SpellsPath, cancellationToken);
         var runesTask = FetchIdIconMapAsync(transport, PerksPath, cancellationToken);
         var championsTask = FetchChampionNamesAsync(transport, cancellationToken);
         var augmentsTask = FetchAugmentsAsync(transport, cancellationToken);
+        var perkStylesTask = FetchPerkStylesAsync(transport, cancellationToken);
+        var perkDetailsTask = FetchPerkDetailsAsync(transport, cancellationToken);
 
-        await Task.WhenAll(itemsTask, spellsTask, runesTask, championsTask, augmentsTask).ConfigureAwait(false);
+        await Task.WhenAll(itemsTask, spellsTask, runesTask, championsTask, augmentsTask, perkStylesTask, perkDetailsTask).ConfigureAwait(false);
 
         var items = await EnsureNonEmptyAsync(transport, ItemsPath, itemsTask, cancellationToken).ConfigureAwait(false);
         var spells = await EnsureNonEmptyAsync(transport, SpellsPath, spellsTask, cancellationToken).ConfigureAwait(false);
@@ -173,7 +190,61 @@ public sealed class GameDataLoader
             spells,
             runes,
             await championsTask.ConfigureAwait(false),
-            await augmentsTask.ConfigureAwait(false));
+            await augmentsTask.ConfigureAwait(false),
+            await perkStylesTask.ConfigureAwait(false),
+            await perkDetailsTask.ConfigureAwait(false));
+    }
+
+    private async Task<IReadOnlyList<PerkStyle>> FetchPerkStylesAsync(
+        ILcuTransport transport,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await transport.SendAsync(LcuRequest.Get(PerkStylesPath), cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccess)
+            {
+                _logger?.LogWarning("获取 {Path} 失败: HTTP {StatusCode}", PerkStylesPath, response.StatusCode);
+                return [];
+            }
+
+            return OpggParser.ParsePerkStyles(response.Body);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "加载 {Path} 异常", PerkStylesPath);
+            return [];
+        }
+    }
+
+    private async Task<IReadOnlyDictionary<int, PerkDetail>> FetchPerkDetailsAsync(
+        ILcuTransport transport,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await transport.SendAsync(LcuRequest.Get(PerksPath), cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccess)
+            {
+                _logger?.LogWarning("获取 {Path} 失败: HTTP {StatusCode}", PerksPath, response.StatusCode);
+                return new Dictionary<int, PerkDetail>();
+            }
+
+            return OpggParser.ParsePerkDetails(response.Body);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "加载 {Path} 异常", PerksPath);
+            return new Dictionary<int, PerkDetail>();
+        }
     }
 
     /// <summary>标准解析没拿到数据时，用灵活解析再试一次同一个路径。</summary>

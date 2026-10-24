@@ -1,7 +1,10 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Automation.Models;
+using YuumiX.Core.Features.Opgg;
+using YuumiX.Core.Features.Opgg.Models;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Parsers;
 using YuumiX.Core.Persistence;
 
 namespace YuumiX.Core.Automation;
@@ -20,6 +23,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
     private readonly Func<AppConfig> _configProvider;
     private readonly AgentSupervisor _supervisor;
     private readonly AgentLifecycle _lifecycle;
+    private readonly IOpggService? _opggService;
     private readonly ILogger<AutoBanPickAgent>? _logger;
 
     private readonly object _stateLock = new();
@@ -29,6 +33,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
     private bool _isChampionPickedCompleted;
     private int? _lastPresetActionId;
     private int _lastPresetChampionId;
+    private int _lastOpggChampionId;
 
     public string Name => "AutoBanPickAgent";
     public bool IsRunning => _isRunning;
@@ -38,6 +43,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         Func<AppConfig> configProvider,
         AgentSupervisor supervisor,
         AgentLifecycle lifecycle,
+        IOpggService? opggService = null,
         ILogger<AutoBanPickAgent>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(transportProvider);
@@ -49,6 +55,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         _configProvider = configProvider;
         _supervisor = supervisor;
         _lifecycle = lifecycle;
+        _opggService = opggService;
         _logger = logger;
     }
 
@@ -88,6 +95,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         _isChampionPickedCompleted = false;
         _lastPresetActionId = null;
         _lastPresetChampionId = 0;
+        _lastOpggChampionId = 0;
     }
 
     /// <summary>
@@ -121,13 +129,14 @@ public sealed class AutoBanPickAgent : IAutomationAgent
 
         var cfg = _configProvider().Functions;
 
-        // 执行顺序：亮英雄/预选 → 禁人 → 技能 → 交换 → 交易 → 锁定
+        // 执行顺序：亮英雄/预选 → 禁人 → 技能 → 交换 → 交易 → 锁定 → OP.GG 联动
         await DoAutoPresetChampionAsync(session, cfg).ConfigureAwait(false);
         await DoAutoBanAsync(session, cfg).ConfigureAwait(false);
         await DoAutoSpellAsync(session, cfg).ConfigureAwait(false);
         await DoAutoSwapAsync(session, cfg).ConfigureAwait(false);
         await DoAutoTradeAsync(session, cfg).ConfigureAwait(false);
         await DoAutoCompleteAsync(session, cfg).ConfigureAwait(false);
+        await DoShowOpggBuildAsync(session, cfg).ConfigureAwait(false);
     }
 
     // ─── 1. 自动预选/亮英雄 ───
@@ -433,6 +442,55 @@ public sealed class AutoBanPickAgent : IAutomationAgent
                 _isChampionPickedCompleted = true;
             }
         }
+    }
+
+    // ─── 7. 选人锁定后自动触发 OP.GG 出装联动 ───
+    private Task DoShowOpggBuildAsync(ChampSelectSession session, FunctionsConfig cfg)
+    {
+        if (_opggService is null) return Task.CompletedTask;
+
+        int cellId = session.LocalPlayerCellId;
+
+        // 检查当前玩家的 pick action 是否已完成
+        foreach (var group in session.Actions)
+        {
+            foreach (var a in group)
+            {
+                if (a.ActorCellId == cellId &&
+                    string.Equals(a.ActionType, "pick", StringComparison.OrdinalIgnoreCase) &&
+                    !a.Completed)
+                {
+                    return Task.CompletedTask;
+                }
+            }
+        }
+
+        var player = session.MyTeam.FirstOrDefault(p => p.CellId == cellId);
+        if (player is null) return Task.CompletedTask;
+
+        int championId = player.ChampionId != 0 ? player.ChampionId : player.ChampionPickIntent;
+        if (championId == 0) return Task.CompletedTask;
+
+        lock (_stateLock)
+        {
+            if (championId == _lastOpggChampionId)
+            {
+                return Task.CompletedTask;
+            }
+            _lastOpggChampionId = championId;
+        }
+
+        string opggPosition = OpggPosition.FromAssignedPosition(player.AssignedPosition);
+
+        string mode = session.QueueId.HasValue
+            ? MatchQueueCatalog.ToOpggMode(session.QueueId.Value)
+            : (session.BenchEnabled ? OpggMode.Aram : (session.MyTeam.Count == 2 ? OpggMode.Arena : OpggMode.Ranked));
+
+        _logger?.LogInformation("OP.GG 选人锁定联动事件触发: ChampionId={ChampId}, Mode={Mode}, Pos={Pos}",
+            championId, mode, opggPosition);
+
+        _opggService.PublishChampSelectBuild(new OpggBuildEvent(championId, mode, opggPosition));
+        return Task.CompletedTask;
     }
 
     private static ulong ComputeLockDelayMs(ChampSelectTimer? timer)

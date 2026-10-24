@@ -28,6 +28,33 @@ public static class AppAssets
     /// <summary><see cref="LogoPath"/> 的 <c>file:///</c> 形式，供 Reactor 图片元素使用。</summary>
     public static string LogoUri { get; } = new Uri(LogoPath).AbsoluteUri;
 
+    /// <summary>OP.GG 品牌 Logo SVG 路径。</summary>
+    public static string OpggLogoPath { get; } = Path.Combine(AppContext.BaseDirectory, "Assets", "opgg.svg");
+
+    /// <summary><see cref="OpggLogoPath"/> 的 <c>file:///</c> 形式。</summary>
+    public static string OpggLogoUri { get; } = File.Exists(OpggLogoPath) ? new Uri(OpggLogoPath).AbsoluteUri : "";
+
+    /// <summary>OP.GG 梯度 T1~T4 盾牌图标 URI 字典。</summary>
+    public static IReadOnlyDictionary<string, string> TierIconUris { get; } = BuildTierIconUris();
+
+    private static Dictionary<string, string> BuildTierIconUris()
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "Assets", "Tier");
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (int i = 1; i <= 4; i++)
+        {
+            string path = Path.Combine(directory, $"tier-{i}.svg");
+            if (File.Exists(path))
+            {
+                var uri = new Uri(path).AbsoluteUri;
+                result[i.ToString()] = uri;
+                if (i == 1) result["0"] = uri;
+                if (i == 4) result["5"] = uri;
+            }
+        }
+        return result;
+    }
+
     /// <summary>
     /// 段位奖章图标（<c>Assets/RankedIcons/&lt;tier&gt;.png</c>）。
     ///

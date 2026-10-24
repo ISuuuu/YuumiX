@@ -1066,8 +1066,6 @@ public sealed class SearchPage : Component
         var config = services.Services.GetService<AppConfig>();
         if (careerService is null || lcu is null) return;
 
-        bool showTier = config?.Functions?.ShowTierInGameInfo ?? false;
-
         var allPlayers = detail.Blue.Players.Concat(detail.Red.Players).Where(p => !string.IsNullOrEmpty(p.Puuid)).ToList();
         if (allPlayers.Count == 0) return;
 

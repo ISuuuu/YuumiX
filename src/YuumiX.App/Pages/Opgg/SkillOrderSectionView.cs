@@ -1,0 +1,150 @@
+using Microsoft.UI.Reactor;
+using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Xaml;
+using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Theming;
+using YuumiX.Core.Features.Opgg.Models;
+
+namespace YuumiX.App.Pages.Opgg;
+
+public sealed class SkillOrderSectionProps
+{
+    public IReadOnlyList<OpggSkillOrder>? Skills { get; init; }
+    public IReadOnlyList<OpggSkillMastery>? SkillMasteries { get; init; }
+}
+
+/// <summary>
+/// 技能加点推荐卡片：主升技能方框 + 逐级彩色加点序列 + 胜率/场次/登场率。
+/// </summary>
+public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
+{
+    public override Element Render()
+    {
+        var hasSkills = Props.Skills is { Count: > 0 };
+        var hasMasteries = Props.SkillMasteries is { Count: > 0 };
+        if (!hasSkills && !hasMasteries) return Empty();
+
+        var skillStats = hasSkills ? Props.Skills![0] : null;
+        var mastery = hasMasteries ? Props.SkillMasteries![0] : null;
+
+        return Border(
+            Grid(
+                [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+                [GridSize.Auto],
+                [
+                    // 1. 主升技能顺序 (Q › W › E)
+                    RenderMainMasteries(mastery).Grid(0, 0),
+
+                    // 2. 逐级加点序列 (1~18级方框)
+                    RenderLevelOrder(skillStats).Grid(0, 1),
+
+                    // 3. 胜率与场次统计
+                    RenderStats(skillStats).Grid(0, 2)
+                ]
+            )
+        )
+        .Margin(new Thickness(12, 6, 12, 6))
+        .Padding(new Thickness(16, 10, 16, 10))
+        .CornerRadius(8)
+        .Background(Theme.CardBackground)
+        .WithBorder(Theme.CardStroke, 1);
+    }
+
+    private static Element RenderMainMasteries(OpggSkillMastery? mastery)
+    {
+        if (mastery is null || mastery.Ids.Count == 0) return Empty();
+
+        var items = new List<Element>();
+        for (int i = 0; i < mastery.Ids.Count; i++)
+        {
+            var key = mastery.Ids[i];
+            var (textCol, bgCol, borderCol) = OpggVisuals.GetSkillKeyColor(key);
+
+            items.Add(
+                Border(
+                    TextBlock(key)
+                        .FontSize(13)
+                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                        .Foreground(textCol)
+                        .HAlign(HorizontalAlignment.Center)
+                        .VAlign(VerticalAlignment.Center)
+                )
+                .Width(26)
+                .Height(26)
+                .CornerRadius(4)
+                .Background(bgCol)
+                .WithBorder(borderCol, 1)
+            );
+
+            if (i < mastery.Ids.Count - 1)
+            {
+                items.Add(
+                    TextBlock("›")
+                        .FontSize(14)
+                        .Foreground(Theme.SecondaryText)
+                        .VAlign(VerticalAlignment.Center)
+                );
+            }
+        }
+
+        return HStack(4, [.. items])
+            .VAlign(VerticalAlignment.Center)
+            .Margin(new Thickness(0, 0, 12, 0));
+    }
+
+    private static Element RenderLevelOrder(OpggSkillOrder? skillStats)
+    {
+        if (skillStats is null || skillStats.Order.Count == 0) return Empty();
+
+        var boxes = skillStats.Order.Select((key, idx) =>
+        {
+            var (textCol, bgCol, borderCol) = OpggVisuals.GetSkillKeyColor(key);
+
+            return Border(
+                TextBlock(key)
+                    .FontSize(10)
+                    .FontWeight(key.Equals("R", StringComparison.OrdinalIgnoreCase)
+                        ? Microsoft.UI.Text.FontWeights.ExtraBold
+                        : Microsoft.UI.Text.FontWeights.Bold)
+                    .Foreground(textCol)
+                    .HAlign(HorizontalAlignment.Center)
+                    .VAlign(VerticalAlignment.Center)
+            )
+            .Width(18)
+            .Height(18)
+            .CornerRadius(3)
+            .Background(bgCol)
+            .WithBorder(borderCol, 1)
+            .WithToolTip(TextBlock($"Lv.{idx + 1}: {key}").FontSize(11));
+        });
+
+        return HStack(2, boxes.ToArray())
+            .VAlign(VerticalAlignment.Center);
+    }
+
+    private static Element RenderStats(OpggSkillOrder? skillStats)
+    {
+        if (skillStats is null) return Empty();
+
+        return HStack(12,
+            VStack(1,
+                TextBlock(OpggVisuals.FormatRatio(skillStats.Win, skillStats.Play))
+                    .FontSize(12)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    .HAlign(HorizontalAlignment.Right),
+                TextBlock($"{skillStats.Play} 场")
+                    .FontSize(10)
+                    .Foreground(Theme.SecondaryText)
+                    .HAlign(HorizontalAlignment.Right)
+            )
+            .VAlign(VerticalAlignment.Center),
+
+            TextBlock(OpggVisuals.FormatPercent(skillStats.PickRate))
+                .FontSize(12)
+                .Foreground(Theme.SecondaryText)
+                .VAlign(VerticalAlignment.Center)
+        )
+        .VAlign(VerticalAlignment.Center)
+        .Margin(new Thickness(12, 0, 0, 0));
+    }
+}

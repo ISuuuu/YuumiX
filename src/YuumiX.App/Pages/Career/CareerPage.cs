@@ -1076,7 +1076,7 @@ public sealed class CareerPage : Component
                 target.Puuid, forceRefresh, cancellationToken);
 
             Task<MatchHistoryPage> historyTask = matchService.GetMatchHistoryAsync(
-                target.Puuid, 0, PageSize - 1, cancellationToken);
+                target.Puuid, 0, 19, cancellationToken);
 
             await Task.WhenAll(rankedTask, historyTask).ConfigureAwait(false);
 

@@ -15,6 +15,7 @@ using YuumiX.App.Pages.Search;
 using YuumiX.App.Pages.Settings;
 using YuumiX.App.Pages.Tools;
 using YuumiX.App.Theming;
+using YuumiX.App.Windowing;
 using YuumiX.Core.Automation;
 using YuumiX.Core.Lcu;
 
@@ -45,10 +46,30 @@ public sealed class AppShell : Component
         var (isClientConnected, setIsClientConnected) = UseState(
             lcu.CurrentState.Status == LcuConnectionStatus.Connected,
             threadSafe: true);
+        var (toasts, setToasts) = UseState<IReadOnlyList<ToastItem>>(Array.Empty<ToastItem>());
+
+        void ShowToast(string message, bool isError = false)
+        {
+            var item = new ToastItem(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), message, isError);
+            setToasts([.. toasts, item]);
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(3000).ConfigureAwait(false);
+                setToasts([.. toasts.Where(t => t.Id != item.Id)]);
+            });
+        }
+
         UseEffect(
             () =>
             {
-                var phaseSubscription = automationHost.Phases.Subscribe(setGamePhase);
+                var phaseSubscription = automationHost.Phases.Subscribe(phase =>
+                {
+                    setGamePhase(phase);
+                    if (phase == GamePhase.ChampSelect && services.Config.Functions.AutoShowOpgg)
+                    {
+                        OpggWindowHost.ShowOrActivate();
+                    }
+                });
                 var stateSubscription = lcu.States.Subscribe(state =>
                     setIsClientConnected(state.Status == LcuConnectionStatus.Connected));
                 return () =>
@@ -114,6 +135,7 @@ public sealed class AppShell : Component
             OpenPaneLength = 150,
             IsPaneOpen = paneOpen,
             IsPaneToggleButtonVisible = true,
+            FooterMenuItems = [NavItem("OP.GG", "\uE737", "Opgg")],
         };
 
         // 侧边栏是平级切换语义，因此用 Replace 而非 Navigate，避免堆积返回栈。
@@ -121,6 +143,19 @@ public sealed class AppShell : Component
         {
             OnSelectedTagChanged = tag =>
             {
+                if (tag == "Opgg")
+                {
+                    if (!isClientConnected)
+                    {
+                        ShowToast("请先连接英雄联盟客户端", isError: true);
+                    }
+                    else
+                    {
+                        OpggWindowHost.ShowOrActivate();
+                    }
+                    return;
+                }
+
                 if (Enum.TryParse<AppRoute>(tag, out var route) && route != nav.CurrentRoute)
                 {
                     nav.Replace(route);
@@ -163,12 +198,59 @@ public sealed class AppShell : Component
             IsBackButtonVisible = false,
         };
 
+        Element RenderToasts()
+        {
+            if (toasts.Count == 0) return Empty();
+
+            return VStack(8,
+                toasts.Select(item =>
+                {
+                    var iconGlyph = item.IsError ? "\uE783" : "\uE73E";
+                    var iconColor = item.IsError
+                        ? Theme.Ref("SystemFillColorCriticalBrush")
+                        : Theme.Ref("SystemFillColorSuccessBrush");
+
+                    return Border(
+                        HStack(10,
+                            Border(
+                                TextBlock(iconGlyph)
+                                    .FontFamily("Segoe Fluent Icons")
+                                    .FontSize(11)
+                                    .Foreground(iconColor)
+                                    .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Center)
+                                    .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
+                            )
+                            .Width(22)
+                            .Height(22)
+                            .CornerRadius(11)
+                            .Background(Theme.Ref("LayerFillColorDefaultBrush")),
+
+                            TextBlock(item.Message)
+                                .FontSize(13)
+                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                                .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
+                        )
+                    )
+                    .Padding(new Microsoft.UI.Xaml.Thickness(16, 9, 20, 9))
+                    .CornerRadius(20)
+                    .Background(Theme.CardBackground)
+                    .WithBorder(Theme.CardStroke, 1)
+                    .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Center)
+                    .WithKey(item.Id.ToString());
+                }).ToArray()
+            )
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Top)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Center)
+            .Margin(new Microsoft.UI.Xaml.Thickness(0, 48, 0, 0));
+        }
+
         return Grid(
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Star()],
             [
                 titleBar.Grid(row: 0),
                 navigationView.Grid(row: 1),
+                RenderToasts().Grid(row: 1),
             ]
         )
         .Backdrop(palette.Backdrop)
