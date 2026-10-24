@@ -13,13 +13,14 @@
 dotnet build src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64   # 必须 0 警告 0 错误
 ```
 
-并且以下四条 grep 必须为 0（新代码不得新增违规；历史欠账按批次清零）：
+并且以下五条 grep 必须为 0（新代码不得新增违规；历史欠账按批次清零）：
 
 ```bash
 grep -rn "FontSize([0-9]" --include=*.cs src/YuumiX.App | wc -l     # 目标 0
 grep -rn "FontWeights.Bold" --include=*.cs src/YuumiX.App | wc -l   # 目标 0（标题用 Heading 工厂）
 grep -rn 'statusText != "' --include=*.cs src/YuumiX.App | wc -l    # 目标 0（禁止文案反推状态）
 grep -rn "SyncWinUiAccentResources" --include=*.cs src | wc -l      # 目标 0（禁止覆盖系统强调色）
+grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0（滚动容器只允许 ScrollViewer，见 §5.5）
 ```
 
 ---
@@ -85,13 +86,15 @@ grep -rn "SyncWinUiAccentResources" --include=*.cs src | wc -l      # 目标 0�
 
 ---
 
-## 5. Reactor 使用硬约束（违反会编译通过、运行崩溃）
+## 5. Reactor 使用硬约束（违反会编译通过、运行崩溃或观感退化）
 
 1. **元素必须通过工厂创建**：`TextBlock(...)` / `SettingsCard(...)`，禁止 `new XxxElement(...)` 直接构造 record。Reactor 的 handler 注册是惰性的，直接 new 会在挂载时抛 `No handler is registered for element type`。
 2. **`with { }` 后不能直接链式修饰**：写成 `(Xxx(...) with { ... }).Modifier(...)`，或把回调写进 `with` 初始化器。
 3. **对话框一律声明式**：`ContentDialog(title, content, primary) with { IsOpen = state, ... }`，禁止 `ShowAsync()`（分析器 `REACTOR_DIALOG_001`）。
 4. **走 `IconData`/`ImageIcon` 的图标必须是位图 PNG**：`IconResolver` 解析成 `ImageIcon + BitmapImage`，不支持 SVG（静默失败）。需要 SVG 时先光栅化（如 `Assets/opgg-nav.png`）。
-5. **`ScrollView` 承载表单时必须 `.Set(sv => sv.IsTabStop = true)`**：否则点空白会把焦点下发给第一个输入框（microsoft-ui-xaml#597）。
+5. **滚动容器一律用 `ScrollViewer`，禁止 `ScrollView`**：`ScrollView` 把内容放在 `ScrollPresenter` 的独立 Composition Visual 上，靠浮点 `Visual.Offset` 驱动，**绕过 XAML 布局取整** → 内容落在亚像素位置 → DirectWrite 失去像素网格拟合 → **该滚动区内所有文字整体发虚**（笔画变胖、边缘过渡带约翻倍；实测归一化梯度 0.26 vs 0.40）。编译通过、零告警，只在观感上退化（上游同类现象：microsoft-ui-xaml#1579）。
+   - 诊断判据：同一窗口内，滚动区**外**的元素（侧边栏图标、裸 `Border` 里的按钮）明显更锐利；与字号、字重、颜色、字体、运行时版本全部无关，改这些只会空转。
+   - 焦点约定：承载表单的 `ScrollViewer` 加 **`.IsTabStop(true)` 修饰符**，**不要** `.Set(sv => sv.IsTabStop = true)`（控件走池回收，Set 写入会在重渲染时丢失，触发 `REACTOR_POOL_001`）。否则点空白会把焦点下发给第一个输入框（microsoft-ui-xaml#597）。
 6. **`NavigationView.IsPaneOpen` 初值不能在渲染期赋**，必须 `Loaded` → `DispatcherQueue.TryEnqueue(Low, ...)` 延后校正，并用 `paneInitialized` 守卫 `PaneOpenChanged`（详见 `AppShell.cs` 现有实现）。
 7. **事件钩子委托必须跨渲染保持同一实例**（`UseRef` 缓存），否则触发 `REACTOR_EVENT_001`。
 8. **`DispatcherQueue.TryEnqueue` 优先级参数在前**：`(priority, callback)`。
