@@ -1,5 +1,6 @@
 using Microsoft.UI.Reactor;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.App.Shell;
 using YuumiX.App.Theming;
 
@@ -8,6 +9,10 @@ using YuumiX.App.Theming;
 
 // 服务必须在窗口创建之前就绪：配置与日志都是 UI 的前置依赖。
 AppHost.Initialize();
+
+// 第三方 WinRT 控件的 XAML 元数据必须在窗口创建前注册，否则 SettingsCard 模板解析失败（空白）。
+ToolkitXamlMetadata.Register();
+
 try
 {
     // icon：非打包应用不会自动继承 MSIX 清单里的图标，必须显式交给 AppWindow.SetIcon；
