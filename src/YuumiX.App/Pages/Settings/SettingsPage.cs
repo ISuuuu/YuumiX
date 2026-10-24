@@ -153,6 +153,9 @@ public sealed class SettingsPage : Component
 
         // 路径条目合并写盘用的序号；每次路径文本编辑 +1，被防抖 effect 消费。
         var (pathEditTick, setPathEditTick) = UseState(0, threadSafe: true);
+
+        // 正文列宽度：跟随滚动区宽度收缩，超过上限后固定并居中（原因见 ContentColumn 注释）。
+        var (columnWidth, setColumnWidth) = UseState(ContentColumn.MaxWidth, threadSafe: true);
         UseEffect(
             () =>
             {
@@ -1358,8 +1361,9 @@ public sealed class SettingsPage : Component
                 GroupHeader("关于"),
                 aboutCard
             )
-            .MaxWidth(800)
-            .HAlign(HorizontalAlignment.Stretch)
+            // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
+            .Width(columnWidth)
+            .HAlign(HorizontalAlignment.Center)
             .Padding(24)
         )
         // 点击页面空白处时，WinUI 会把焦点下发给滚动容器内容里的「第一个可聚焦控件」，
@@ -1367,6 +1371,14 @@ public sealed class SettingsPage : Component
         // 让滚动容器自身成为可聚焦元素后，焦点停在容器上，不再下发给子控件。
         // 用修饰符而非 .Set(...)：控件走池回收，Set 写入会在重渲染时被重置（REACTOR_POOL_001）。
         .IsTabStop(true);
+        mainScroll = mainScroll.OnSizeChanged((_, e) =>
+        {
+            var target = ContentColumn.Fit(e.NewSize.Width);
+            if (Math.Abs(target - columnWidth) >= 0.5)
+            {
+                setColumnWidth(target);
+            }
+        });
 
         return Grid(
             [GridSize.Star()],

@@ -185,6 +185,9 @@ public sealed class ToolsPage : Component
         // 游戏设置锁定状态
         var (isSettingsLocked, setIsSettingsLocked) = UseState<bool?>(null, threadSafe: true);
 
+        // 正文列宽度：跟随滚动区宽度收缩，超过上限后固定并居中（原因见 ContentColumn 注释）。
+        var (columnWidth, setColumnWidth) = UseState(ContentColumn.MaxWidth, threadSafe: true);
+
         var lolPaths = config.General.LolPath;
 
         if (isSettingsLocked is null)
@@ -1553,12 +1556,22 @@ public sealed class ToolsPage : Component
                 onlineStatusCard,
                 badgesCard
             )
-            .MaxWidth(800)
-            .HAlign(HorizontalAlignment.Stretch)
+            // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
+            .Width(columnWidth)
+            .HAlign(HorizontalAlignment.Center)
             .Padding(24)
             // 离线时不再整页降透明度：0.6 叠在 Mica + 半透明卡片上会把正文压成一片灰雾，
             // 12~14px 中文几乎不可读。禁用提示改由顶部离线横幅承担，卡片保持正常对比度。
         );
+
+        mainScroll = mainScroll.OnSizeChanged((_, e) =>
+        {
+            var target = ContentColumn.Fit(e.NewSize.Width);
+            if (Math.Abs(target - columnWidth) >= 0.5)
+            {
+                setColumnWidth(target);
+            }
+        });
 
         return Grid(
             [GridSize.Star()],
