@@ -410,9 +410,7 @@ public sealed class AppShell : Component
                             .CornerRadius(11)
                             .Background(Theme.Ref("LayerFillColorDefaultBrush")),
 
-                            TextBlock(item.Message)
-                                .FontSize(13)
-                                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                            Caption(item.Message)
                                 .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
                         )
                     )

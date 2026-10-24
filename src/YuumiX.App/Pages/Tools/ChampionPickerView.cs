@@ -32,8 +32,7 @@ internal static class ChampionPickerView
         if (selectedIds.Count == 0)
         {
             selectedSection = Border(
-                TextBlock("未选择任何英雄（按下方列表点击添加；将按添加顺序优先选用）")
-                    .FontSize(12)
+                Caption("未选择任何英雄（按下方列表点击添加；将按添加顺序优先选用）")
                     .Foreground(Theme.SecondaryText)
             ).Margin(new Thickness(0, 4, 0, 8));
         }
@@ -70,8 +69,7 @@ internal static class ChampionPickerView
 
             selectedSection = VStack(4,
                 HStack(8,
-                    TextBlock($"已选英雄 ({selectedIds.Count}/{maxCount}):")
-                        .FontSize(12)
+                    Caption($"已选英雄 ({selectedIds.Count}/{maxCount}):")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
                     Button(Caption("清空全部"), onClearSelection)
@@ -91,8 +89,7 @@ internal static class ChampionPickerView
                 TextBox(searchQuery, onSearchQueryChanged, "搜索英雄名称、别名或称号...")
                     .AutomationName("英雄库搜索")
                     .Grid(row: 0, column: 0),
-                TextBlock(isLoading ? "正在加载英雄库..." : $"共 {allChampions.Count} 位英雄")
-                    .FontSize(12)
+                Caption(isLoading ? "正在加载英雄库..." : $"共 {allChampions.Count} 位英雄")
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center)
                     .Margin(new Thickness(12, 0, 0, 0))
@@ -105,7 +102,7 @@ internal static class ChampionPickerView
             return VStack(0,
                 selectedSection,
                 searchBar,
-                TextBlock("正在从客户端拉取英雄数据，请稍候...").FontSize(12).Foreground(Theme.SecondaryText).Margin(new Thickness(0, 16, 0, 16))
+                Caption("正在从客户端拉取英雄数据，请稍候...").Foreground(Theme.SecondaryText).Margin(new Thickness(0, 16, 0, 16))
             );
         }
 
@@ -132,7 +129,7 @@ internal static class ChampionPickerView
                 HStack(6,
                     Component<LcuImage, LcuImageProps>(new LcuImageProps(champ.IconPath, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                     VStack(2,
-                        TextBlock(champ.Name).FontSize(12).FontWeight(isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal),
+                        (isSelected ? BodyStrong(champ.Name) : Body(champ.Name)),
                         Caption(champ.Title).Foreground(Theme.SecondaryText)
                     ).VAlign(VerticalAlignment.Center)
                 ),

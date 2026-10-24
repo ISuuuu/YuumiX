@@ -79,8 +79,7 @@ internal static class ChallengePreferencesView
         ).Margin(new Thickness(0, 0, 0, 8));
 
         Element titleRow = HStack(8,
-            TextBlock("称号 ID:")
-                .FontSize(12)
+            Caption("称号 ID:")
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
             TextBox(titleInput, onTitleInputChanged, "输入称号 ID（如留空则卸下称号）")
@@ -90,8 +89,7 @@ internal static class ChallengePreferencesView
                 .Background(palette.Accent)
                 .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                 .AutomationName("保存装配按钮"),
-            TextBlock($"已选勋章: {selectedChallengeIds.Count}/3")
-                .FontSize(12)
+            Caption($"已选勋章: {selectedChallengeIds.Count}/3")
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
                 .Margin(new Thickness(12, 0, 0, 0))
@@ -101,8 +99,7 @@ internal static class ChallengePreferencesView
         if (filtered.Count == 0)
         {
             badgeList = Border(
-                TextBlock(allChallenges.Count == 0 ? "尚未获取勋章列表，请点击上方「重新加载」" : "没有符合条件的挑战勋章")
-                    .FontSize(12)
+                Caption(allChallenges.Count == 0 ? "尚未获取勋章列表，请点击上方「重新加载」" : "没有符合条件的挑战勋章")
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center)
                     .Margin(new Thickness(0, 20, 0, 20))
@@ -113,8 +110,7 @@ internal static class ChallengePreferencesView
             var badgeItems = filtered.Select(b =>
             {
                 bool isSelected = selectedChallengeIds.Contains(b.Id);
-                var checkText = TextBlock(isSelected ? "☑" : "☐")
-                    .FontSize(13)
+                var checkText = Caption(isSelected ? "☑" : "☐")
                     .Margin(new Thickness(0, 0, 8, 0))
                     .VAlign(VerticalAlignment.Center)
                     .Grid(row: 0, column: 0);

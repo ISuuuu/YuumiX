@@ -44,9 +44,8 @@ internal static class SkinPickerView
             return VStack(0,
                 searchBar,
                 Border(
-                    TextBlock(isLoading ? "正在从客户端加载皮肤资源..." : "输入英雄 ID 并点击「获取皮肤列表」以预览并设置背景")
+                    Caption(isLoading ? "正在从客户端加载皮肤资源..." : "输入英雄 ID 并点击「获取皮肤列表」以预览并设置背景")
                         .Foreground(Theme.SecondaryText)
-                        .FontSize(12)
                         .HAlign(HorizontalAlignment.Center)
                         .Margin(new Thickness(0, 16, 0, 16))
                 )
@@ -63,8 +62,7 @@ internal static class SkinPickerView
                 .Padding(8, 4)
                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .AutomationName("上一款皮肤"),
-            TextBlock($"{activeSkinIndex + 1} / {skins.Count}")
-                .FontSize(12)
+            Caption($"{activeSkinIndex + 1} / {skins.Count}")
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
             Button(Caption("\uE76C"), () => onSelectSkinIndex(nextIdx))
@@ -103,7 +101,7 @@ internal static class SkinPickerView
         var skinCards = skins.Select((skin, idx) =>
         {
             bool isCurrent = idx == activeSkinIndex;
-            var text = TextBlock(skin.Name).FontSize(12);
+            var text = Caption(skin.Name);
             if (isCurrent)
             {
                 text = text.Foreground(palette.Accent);

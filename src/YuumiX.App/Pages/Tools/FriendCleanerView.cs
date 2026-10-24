@@ -107,8 +107,7 @@ internal static class FriendCleanerView
                     .Foreground(selectedCount > 0 ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                     .IsEnabled(!isScanning && !isDeleting && selectedCount > 0)
                     .AutomationName("批量清理好友"),
-                TextBlock($"当前筛选显示 {filtered.Count} 位好友")
-                    .FontSize(12)
+                Caption($"当前筛选显示 {filtered.Count} 位好友")
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center)
                     .Margin(new Thickness(10, 0, 0, 0))
@@ -119,9 +118,8 @@ internal static class FriendCleanerView
         if (filtered.Count == 0)
         {
             friendList = Border(
-                TextBlock(allFriends.Count == 0 ? "尚未扫描好友，请点击上方「重新扫描好友」开始分析" : "没有符合当前筛选条件的好友")
+                Caption(allFriends.Count == 0 ? "尚未扫描好友，请点击上方「重新扫描好友」开始分析" : "没有符合当前筛选条件的好友")
                     .Foreground(Theme.SecondaryText)
-                    .FontSize(13)
                     .HAlign(HorizontalAlignment.Center)
                     .Margin(new Thickness(0, 30, 0, 30))
             );

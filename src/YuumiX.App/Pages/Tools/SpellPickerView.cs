@@ -37,7 +37,7 @@ internal static class SpellPickerView
             HStack(8,
                 Caption("D 键:").VAlign(VerticalAlignment.Center),
                 Component<LcuImage, LcuImageProps>(new LcuImageProps(dIcon, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
-                TextBlock(dName).FontSize(12).VAlign(VerticalAlignment.Center)
+                Caption(dName).VAlign(VerticalAlignment.Center)
             ),
             () => onActiveSlotChanged(0)
         )
@@ -53,7 +53,7 @@ internal static class SpellPickerView
             HStack(8,
                 Caption("F 键:").VAlign(VerticalAlignment.Center),
                 Component<LcuImage, LcuImageProps>(new LcuImageProps(fIcon, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
-                TextBlock(fName).FontSize(12).VAlign(VerticalAlignment.Center)
+                Caption(fName).VAlign(VerticalAlignment.Center)
             ),
             () => onActiveSlotChanged(1)
         )
@@ -77,7 +77,7 @@ internal static class SpellPickerView
         {
             return VStack(0,
                 slotsHeader,
-                TextBlock("正在从客户端拉取召唤师技能列表...").FontSize(12).Foreground(Theme.SecondaryText).Margin(new Thickness(0, 8, 0, 8))
+                Caption("正在从客户端拉取召唤师技能列表...").Foreground(Theme.SecondaryText).Margin(new Thickness(0, 8, 0, 8))
             );
         }
 
@@ -92,7 +92,7 @@ internal static class SpellPickerView
                 Button(
                     HStack(6,
                         Component<LcuImage, LcuImageProps>(new LcuImageProps(spell.IconPath, Size: 26, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
-                        TextBlock(spell.Name).FontSize(12).VAlign(VerticalAlignment.Center)
+                        Caption(spell.Name).VAlign(VerticalAlignment.Center)
                     ),
                     () => onSelectSpellForSlot(activeSlot, spell.Id)
                 )
