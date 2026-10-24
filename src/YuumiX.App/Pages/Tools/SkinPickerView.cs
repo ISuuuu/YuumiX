@@ -121,7 +121,7 @@ internal static class SkinPickerView
             .AutomationName($"选择皮肤_{skin.Name}");
         }).ToArray();
 
-        Element skinList = ScrollView(
+        Element skinList = ScrollViewer(
             VStack(4, skinCards)
         ).Height(180);
 

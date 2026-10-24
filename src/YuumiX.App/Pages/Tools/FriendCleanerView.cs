@@ -130,7 +130,7 @@ internal static class FriendCleanerView
         {
             var rows = filtered.Select(entry => RenderFriendRow(entry, selectedIds.Contains(entry.Friend.Id), onToggleSelect, palette)).ToArray();
             friendList = Border(
-                ScrollView(
+                ScrollViewer(
                     VStack(4, rows)
                 ).Height(320)
             )

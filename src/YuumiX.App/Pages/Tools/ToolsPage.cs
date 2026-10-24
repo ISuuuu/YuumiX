@@ -1496,7 +1496,11 @@ public sealed class ToolsPage : Component
             .Margin(new Thickness(0, 0, 0, 8));
         }
 
-        var mainScroll = ScrollView(
+        // 【A/B 实验】用传统 ScrollViewer 替代 WinUI 2.5 的 ScrollView。
+        // 依据：同一窗口内，ScrollView 之外的元素（侧边栏图标、RenderPlaceholder 里的按钮）
+        // 归一化边缘梯度 0.41~0.58，而 ScrollView 内的标题/说明只有 0.26~0.31，
+        // 且与滚动位置无关（offset=0 时同样偏软）。判定为 ScrollPresenter 内容层渲染所致。
+        var mainScroll = ScrollViewer(
             VStack(8,
                 Title("其他功能")
                     .HeadingLevel(AutomationHeadingLevel.Level1)

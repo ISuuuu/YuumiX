@@ -71,7 +71,7 @@ public sealed class PlaceholderPage : Component<PlaceholderProps>
             $"Core 已就绪：配置 v{services.Config.Version} · 日志等级 {services.Config.General.LogLevel} · " +
             $"数据目录 {services.Paths.DataDirectory}"));
 
-        return ScrollView(
+        return ScrollViewer(
             VStack(20, blocks.ToArray()).Padding(28).HAlign(HorizontalAlignment.Stretch)
         );
     }

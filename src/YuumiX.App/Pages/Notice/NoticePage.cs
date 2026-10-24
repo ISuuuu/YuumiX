@@ -167,7 +167,7 @@ public sealed class NoticePage : Component
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1));
 
-        return ScrollView(
+        return ScrollViewer(
             VStack(16, [header, .. blocks]).Padding(28).HAlign(HorizontalAlignment.Stretch));
     }
 }

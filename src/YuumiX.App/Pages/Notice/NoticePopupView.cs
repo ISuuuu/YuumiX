@@ -202,11 +202,12 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         }
 
         blocks.Add(
-            ScrollView(
+            ScrollViewer(
                     VStack(7, NoticeMarkdown.RenderBlocks(content?.Markdown ?? string.Empty))
                         .Padding(new Thickness(14, 12, 14, 12)))
-                // ScrollView 焦点约定：阻止点击正文时把焦点下发给第一个输入框（见项目记忆）。
-                .Set(sv => sv.IsTabStop = true)
+                // 滚动容器焦点约定：阻止点击正文时把焦点下发给第一个可聚焦控件（见项目记忆）。
+                // 用修饰符而非 .Set(...)：ScrollViewer 走池回收，Set 写入会在重渲染时被重置（REACTOR_POOL_001）。
+                .IsTabStop(true)
                 .MaxHeight(240));
 
         return VStack(0, blocks.ToArray());

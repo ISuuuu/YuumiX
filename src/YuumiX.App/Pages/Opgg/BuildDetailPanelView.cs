@@ -34,7 +34,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
     {
         var build = Props.Build;
 
-        return ScrollView(
+        return ScrollViewer(
             VStack(8,
                 // 模块 1：英雄概览标题栏
                 RenderTitleBar(build),

@@ -41,7 +41,7 @@ internal sealed class CapabilityLab : Component
             "YuumiX 架构验证",
             IsVisible: trayVisible));
 
-        return ScrollView(
+        return ScrollViewer(
             VStack(20,
                 VStack(4,
                     Heading("架构能力验证"),

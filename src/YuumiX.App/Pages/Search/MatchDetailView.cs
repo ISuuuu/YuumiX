@@ -183,7 +183,7 @@ internal static class MatchDetailView
         }
 
         return Border(
-                ScrollView(VStack(10, blocks.ToArray()).Padding(12))
+                ScrollViewer(VStack(10, blocks.ToArray()).Padding(12))
                     .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch))
             .CornerRadius(10)
             .Background(palette.CardBg)

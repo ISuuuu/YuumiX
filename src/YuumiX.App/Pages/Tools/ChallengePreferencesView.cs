@@ -163,7 +163,7 @@ internal static class ChallengePreferencesView
             }).ToArray();
 
             badgeList = Border(
-                ScrollView(
+                ScrollViewer(
                     VStack(4, badgeItems)
                 ).Height(240)
             )

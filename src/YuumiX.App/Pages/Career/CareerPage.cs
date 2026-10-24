@@ -827,7 +827,7 @@ public sealed class CareerPage : Component
                 [GridSize.Star()],
                 [body, overlay]);
 
-        return ScrollView(
+        return ScrollViewer(
             Border(pageBody)
                 .Padding(24)
                 .HAlign(HorizontalAlignment.Stretch));

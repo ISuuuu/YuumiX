@@ -254,7 +254,7 @@ public sealed class GameInfoPage : Component
                 [GridSize.Auto, GridSize.Star()],
                 [
                     tabHeader.Grid(row: 0),
-                    ScrollView(
+                    ScrollViewer(
                         VStack(0, cards).Padding(8)
                     ).Grid(row: 1),
                 ]

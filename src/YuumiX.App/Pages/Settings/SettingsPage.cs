@@ -1253,7 +1253,7 @@ public sealed class SettingsPage : Component
             .Margin(new Thickness(0, 16, 0, 0));
         }
 
-        var mainScroll = ScrollView(
+        var mainScroll = ScrollViewer(
             VStack(8,
                 // 页面标题比分组标题（Subtitle 20）高一级，保持视觉层级。
                 Title("设置")
@@ -1362,10 +1362,11 @@ public sealed class SettingsPage : Component
             .HAlign(HorizontalAlignment.Stretch)
             .Padding(24)
         )
-        // 点击页面空白处时，WinUI 会把焦点下发给 ScrollView 内容里的「第一个可聚焦控件」，
+        // 点击页面空白处时，WinUI 会把焦点下发给滚动容器内容里的「第一个可聚焦控件」，
         // 本页即「LCU API 并发数」的 NumberBox —— 光标会莫名其妙跳进那个输入框。
-        // 让 ScrollView 自身成为可聚焦元素后，焦点停在滚动容器上，不再下发给子控件。
-        .Set(sv => sv.IsTabStop = true);
+        // 让滚动容器自身成为可聚焦元素后，焦点停在容器上，不再下发给子控件。
+        // 用修饰符而非 .Set(...)：控件走池回收，Set 写入会在重渲染时被重置（REACTOR_POOL_001）。
+        .IsTabStop(true);
 
         return Grid(
             [GridSize.Star()],

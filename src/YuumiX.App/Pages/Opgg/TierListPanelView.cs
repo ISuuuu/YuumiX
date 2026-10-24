@@ -25,7 +25,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
     {
         return VStack(0,
             RenderHeader(),
-            ScrollView(
+            ScrollViewer(
                 VStack(3,
                     Props.Items.Select((item, index) => RenderRow(item, index).WithKey($"tier-row-{item.Id}")).ToArray()
                 )

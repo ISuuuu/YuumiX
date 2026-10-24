@@ -343,7 +343,7 @@ public sealed class SearchPage : Component
         // 每项各自重新 Provide 上下文，保证卡片内的 LcuImage 正确获取服务容器。
         Element list = visible.Count == 0
             ? SkeletonList(status, summonerResolved, summoner is not null, palette)
-            : ScrollView(VStack(0, visible.Select(summary =>
+            : ScrollViewer(VStack(0, visible.Select(summary =>
               {
                   bool isSelected = summary.GameId == currentGameId;
                   return MatchCardView.Render(
