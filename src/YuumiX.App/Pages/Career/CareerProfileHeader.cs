@@ -75,18 +75,20 @@ internal static class CareerProfileHeader
                     : summoner.RiotId));
 
         // 复制按钮 / 已复制提示
-        Element copySlot = copied
-            ? Border(HStack(4,
-                    TextBlock("✓").FontSize(11).Foreground(CareerVisuals.WinText),
-                    TextBlock("已复制").FontSize(11).Foreground(CareerVisuals.WinText)))
-                .Padding(8, 3)
-                .CornerRadius(4)
-                .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x1F))
-            : Button("复制", onCopy)
-                .Height(26)
-                .Padding(8, 0)
-                .FontSize(11)
-                .AutomationName("复制 Riot ID");
+        Element copySlot = HStack(6,
+            Button(TextBlock("\uE8C8").FontSize(12).Foreground(palette.TextSecondary), onCopy)
+                .Width(28)
+                .Height(28)
+                .Padding(0)
+                .CornerRadius(6)
+                .AutomationName("复制 Riot ID"),
+            copied
+                ? TextBlock("✓ 已复制")
+                    .FontSize(11)
+                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    .Foreground(CareerVisuals.WinText)
+                    .VAlign(VerticalAlignment.Center)
+                : Empty());
 
         Element nameRow = HStack(8,
             TextBlock(mainName)
@@ -123,31 +125,38 @@ internal static class CareerProfileHeader
         {
             actionButtons.Add(Button("返回我的生涯", onBackToSelf)
                 .Width(ActionWidth)
-                .Height(32)
-                .FontSize(11)
+                .Height(30)
+                .FontSize(12)
+                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                .CornerRadius(6)
                 .AutomationName("返回我的生涯"));
         }
 
-        actionButtons.Add(Button("刷新", onRefresh).Width(ActionWidth).Height(32));
-        actionButtons.Add(Button("历史战绩", onHistory).Width(ActionWidth).Height(32));
+        actionButtons.Add(Button("刷新", onRefresh)
+            .Width(ActionWidth)
+            .Height(30)
+            .FontSize(12)
+            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+            .CornerRadius(6));
+        actionButtons.Add(Button("历史战绩", onHistory)
+            .Width(ActionWidth)
+            .Height(30)
+            .FontSize(12)
+            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+            .CornerRadius(6));
 
         Element actions = VStack(8, actionButtons.ToArray())
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
 
-        // 左侧对称占位块（与右侧 actions 保持相同宽度，确保 centerProfile 视觉上绝对居中）
-        Element leftPlaceholder = Border(Empty())
-            .Width(ActionWidth)
-            .VAlign(VerticalAlignment.Center);
-
-        // 使用 HStack 摆放三栏，杜绝 Grid 重叠问题
-        const double TotalHeaderWidth = 920;
-        double centerWidth = TotalHeaderWidth - (ActionWidth * 2);
-
-        Element headerContent = HStack(0,
-            leftPlaceholder,
-            centerProfile.Width(centerWidth),
-            actions.Width(ActionWidth));
+        // Grid 三列自适应布局：[Star, Auto, Star]，头像+名字永远居中，按钮贴右
+        Element headerContent = Grid(
+            [GridSize.Star(), GridSize.Auto, GridSize.Star()],
+            [GridSize.Auto],
+            [
+                centerProfile.Grid(row: 0, column: 1),
+                actions.Grid(row: 0, column: 2),
+            ]);
 
         return Border(headerContent)
             .Padding(20)
