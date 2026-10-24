@@ -94,6 +94,24 @@ public sealed class CareerPage : Component
         var (refreshToken, setRefreshToken) = UseState(0, threadSafe: true);
         var (teammates, setTeammates) = UseState<RecentTeammatesResult?>(null, threadSafe: true);
         var (loadingTeammates, setLoadingTeammates) = UseState(false, threadSafe: true);
+        var (targetPuuid, setTargetPuuid) = UseState<string?>(null, threadSafe: true);
+
+        // 外部跳转（如对局信息玩家卡片点击跳转生涯）
+        UseEffect(
+            () =>
+            {
+                var (pendingPuuid, pendingProfile) = CareerNavigationPayload.Instance.Consume();
+                if (!string.IsNullOrWhiteSpace(pendingPuuid))
+                {
+                    setTargetPuuid(pendingPuuid);
+                    if (pendingProfile is not null)
+                    {
+                        setSummoner(pendingProfile);
+                    }
+                }
+                return static () => { };
+            },
+            0);
 
         // 战利品交互与过滤状态
         var (selectedLootIds, setSelectedLootIds) = UseState(EmptyLootSelection, threadSafe: true);
@@ -170,6 +188,8 @@ public sealed class CareerPage : Component
                     summonerService,
                     careerService,
                     matchService,
+                    targetPuuid,
+                    summoner,
                     refreshToken > 0,
                     setSummoner,
                     setRanked,
@@ -185,7 +205,7 @@ public sealed class CareerPage : Component
                     cancellation.Dispose();
                 };
             },
-            refreshToken);
+            string.Concat(refreshToken.ToString(), ":", targetPuuid ?? string.Empty));
 
         // "已复制"提示 1.5 秒后自动消失。
         UseEffect(
@@ -582,6 +602,8 @@ public sealed class CareerPage : Component
         ISummonerService summonerService,
         ICareerService careerService,
         IMatchService matchService,
+        string? targetPuuid,
+        SummonerProfile? preloadedProfile,
         bool forceRefresh,
         Action<SummonerProfile?> applySummoner,
         Action<RankedStats> applyRanked,
@@ -595,9 +617,47 @@ public sealed class CareerPage : Component
         {
             applyLoading(true);
 
-            SummonerProfile? profile = await summonerService
-                .GetCurrentSummonerAsync(cancellationToken)
-                .ConfigureAwait(false);
+            SummonerProfile? profile;
+            if (!string.IsNullOrWhiteSpace(targetPuuid))
+            {
+                if (preloadedProfile is not null && preloadedProfile.Puuid == targetPuuid)
+                {
+                    profile = preloadedProfile;
+                }
+                else
+                {
+                    SummonerProfile? current = await summonerService
+                        .GetCurrentSummonerAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    if (current?.Puuid == targetPuuid)
+                    {
+                        profile = current;
+                    }
+                    else
+                    {
+                        profile = preloadedProfile ?? new SummonerProfile
+                        {
+                            AccountId = 0,
+                            SummonerId = 0,
+                            Puuid = targetPuuid,
+                            DisplayName = "召唤师",
+                            GameName = "召唤师",
+                            TagLine = string.Empty,
+                            SummonerLevel = 0,
+                            ProfileIconId = 29,
+                            PercentCompleteForNextLevel = 0,
+                            XpSinceLastLevel = 0,
+                            XpUntilNextLevel = 0,
+                        };
+                    }
+                }
+            }
+            else
+            {
+                profile = await summonerService
+                    .GetCurrentSummonerAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
 
             if (cancellationToken.IsCancellationRequested)
             {
@@ -620,11 +680,14 @@ public sealed class CareerPage : Component
             Task<MatchHistoryPage> historyTask = matchService.GetMatchHistoryAsync(
                 profile.Puuid, 0, PageSize - 1, cancellationToken);
 
-            Task<PlayerLootOverview> lootTask = careerService.GetLootOverviewAsync(
-                forceRefresh, cancellationToken);
+            bool isMe = string.IsNullOrWhiteSpace(targetPuuid);
+            Task<PlayerLootOverview> lootTask = isMe
+                ? careerService.GetLootOverviewAsync(forceRefresh, cancellationToken)
+                : Task.FromResult(PlayerLootOverview.Sample);
 
-            Task<MasteryOverview> masteryTask = careerService.GetMasteryOverviewAsync(
-                forceRefresh, cancellationToken);
+            Task<MasteryOverview> masteryTask = isMe
+                ? careerService.GetMasteryOverviewAsync(forceRefresh, cancellationToken)
+                : Task.FromResult(MasteryOverview.Sample);
 
             await Task.WhenAll(rankedTask, historyTask, lootTask, masteryTask).ConfigureAwait(false);
 

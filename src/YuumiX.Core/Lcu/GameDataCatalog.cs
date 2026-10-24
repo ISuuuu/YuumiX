@@ -22,20 +22,23 @@ public sealed class GameDataCatalog
         new Dictionary<int, string>(),
         new Dictionary<int, string>(),
         new Dictionary<int, string>(),
-        new Dictionary<int, CherryAugmentDetail>());
+        new Dictionary<int, CherryAugmentDetail>(),
+        new Dictionary<string, int>());
 
     public GameDataCatalog(
         IReadOnlyDictionary<int, string> items,
         IReadOnlyDictionary<int, string> spells,
         IReadOnlyDictionary<int, string> runes,
         IReadOnlyDictionary<int, string> champions,
-        IReadOnlyDictionary<int, CherryAugmentDetail> augments)
+        IReadOnlyDictionary<int, CherryAugmentDetail> augments,
+        IReadOnlyDictionary<string, int>? championAliases = null)
     {
         Items = items;
         Spells = spells;
         Runes = runes;
         Champions = champions;
         Augments = augments;
+        ChampionAliases = championAliases ?? new Dictionary<string, int>();
     }
 
     /// <summary>物品 ID → 图标路径。</summary>
@@ -49,6 +52,9 @@ public sealed class GameDataCatalog
 
     /// <summary>英雄 ID → 英雄名称（上传/展示用）。</summary>
     public IReadOnlyDictionary<int, string> Champions { get; }
+
+    /// <summary>英雄英文别名（小写）→ 英雄 ID。</summary>
+    public IReadOnlyDictionary<string, int> ChampionAliases { get; }
 
     /// <summary>海克斯强化 ID → 详情。</summary>
     public IReadOnlyDictionary<int, CherryAugmentDetail> Augments { get; }
@@ -168,12 +174,15 @@ public sealed class GameDataLoader
         var spells = await EnsureNonEmptyAsync(transport, SpellsPath, spellsTask, cancellationToken).ConfigureAwait(false);
         var runes = await EnsureNonEmptyAsync(transport, PerksPath, runesTask, cancellationToken).ConfigureAwait(false);
 
+        var (champions, aliases) = await championsTask.ConfigureAwait(false);
+
         return new GameDataCatalog(
             items,
             spells,
             runes,
-            await championsTask.ConfigureAwait(false),
-            await augmentsTask.ConfigureAwait(false));
+            champions,
+            await augmentsTask.ConfigureAwait(false),
+            aliases);
     }
 
     /// <summary>标准解析没拿到数据时，用灵活解析再试一次同一个路径。</summary>
@@ -204,22 +213,23 @@ public sealed class GameDataLoader
         return root is null ? [] : ExtractIdIconMap(root.Value, flexible: false);
     }
 
-    private async Task<Dictionary<int, string>> FetchChampionNamesAsync(
+    private async Task<(Dictionary<int, string> Champions, Dictionary<string, int> Aliases)> FetchChampionNamesAsync(
         ILcuTransport transport,
         CancellationToken cancellationToken)
     {
         var root = await FetchJsonAsync(transport, ChampionsPath, cancellationToken).ConfigureAwait(false);
         if (root is null)
         {
-            return [];
+            return ([], []);
         }
 
         var map = new Dictionary<int, string>();
+        var aliases = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         if (root.Value.ValueKind != JsonValueKind.Array)
         {
             _logger?.LogWarning("champion-summary.json 不是数组，跳过英雄名称映射");
-            return map;
+            return (map, aliases);
         }
 
         foreach (var entry in root.Value.EnumerateArray())
@@ -239,6 +249,16 @@ public sealed class GameDataLoader
             }
 
             map[id] = name;
+
+            if (entry.TryGetProperty("alias", out var aliasElement) &&
+                aliasElement.ValueKind == JsonValueKind.String)
+            {
+                var alias = aliasElement.GetString();
+                if (!string.IsNullOrWhiteSpace(alias))
+                {
+                    aliases[alias.Trim()] = id;
+                }
+            }
         }
 
         if (map.Count == 0)
@@ -246,7 +266,7 @@ public sealed class GameDataLoader
             _logger?.LogWarning("champion-summary.json 解析后为空，上传时 championName 将退化为未知");
         }
 
-        return map;
+        return (map, aliases);
     }
 
     private async Task<Dictionary<int, CherryAugmentDetail>> FetchAugmentsAsync(

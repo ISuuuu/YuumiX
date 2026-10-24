@@ -20,6 +20,10 @@ public sealed record PremadePlayerLike
     public string? Puuid { get; init; }
     public bool Bot { get; init; }
     public bool IsBot { get; init; }
+
+    /// <summary>自定义对局中的人机（电脑）标识：LCU 把人机放在 myTeam 里并标记 isHumanoid:true。</summary>
+    public bool IsHumanoid { get; init; }
+
     public int BotChampionId { get; init; }
     public string? BotName { get; init; }
 }

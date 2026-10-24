@@ -25,7 +25,9 @@ public sealed record PlayerMatchColumnProps(
     string Side = "ally",
     string? MapSide = null,
     bool IsTeamSeparator = false,
-    bool IsLast = false);
+    bool IsLast = false,
+    IReadOnlyDictionary<string, SavedPlayerMarker>? SavedMap = null,
+    Action<string, string?>? OnNavigateSearch = null);
 
 /// <summary>
 /// 战绩列组件（对应旧版 <c>PlayerMatchColumn.vue</c>）。
@@ -56,22 +58,29 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             topBorderColor = Props.MapSide == "red" ? "#FF3B82F6" : "#FFF43F5E";
         }
 
-        // 1. 头部构建
+        // 路人集标记：列头徽标与战绩卡「同局」标记共用（§4.8）
+        var savedInfo = FateBadgeVisuals.ResolveSavedInfo(d, p, Props.SavedMap, Props.SelfPuuid);
+
+        // 构造该玩家曾同局的 gameId 集合（encounteredGameIds 全集，空则 lastEncounteredGameId 单条）
+        HashSet<long>? encounteredGameIds = null;
+        if (savedInfo?.EncounteredGameIds is { Count: > 0 })
+        {
+            encounteredGameIds = new HashSet<long>(savedInfo.EncounteredGameIds);
+        }
+        else if (savedInfo?.LastEncounteredGameId is { } lastGid && lastGid > 0)
+        {
+            encounteredGameIds = [lastGid];
+        }
+
+        // 顶部概要头部（5 列模式与 10 列模式高度和排布不同）
         var header = isTenCol
-            ? RenderTenColHeader(p, d, headerBg, services)
-            : RenderFiveColHeader(p, d, headerBg, services);
+            ? RenderTenColHeader(p, d, headerBg, services, savedInfo)
+            : RenderFiveColHeader(p, d, headerBg, services, savedInfo);
 
-        // 2. 战绩卡片列表
-        var matchesContent = RenderMatches(d, isTenCol, palette, services);
+        // 战绩列表（前 10 局）
+        var matchesList = RenderMatchesList(d, isTenCol, palette, services, encounteredGameIds);
 
-        var colContent = Grid(
-            [GridSize.Star()],
-            [GridSize.Auto, GridSize.Star()],
-            [
-                header.Grid(row: 0),
-                ScrollView(matchesContent).Grid(row: 1),
-            ]
-        );
+        var colContent = VStack(0, header, matchesList);
 
         var columnBorder = Border(colContent)
             .Background("#00000000")
@@ -100,7 +109,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         PremadePlayerLike p,
         GameInfoPlayer? d,
         string bg,
-        AppServices services)
+        AppServices services,
+        SavedPlayerMarker? savedInfo)
     {
         int champId = p.ChampionId > 0 ? p.ChampionId : (d?.ChampionId ?? 0);
         string avatarAsset = champId > 0
@@ -136,7 +146,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .Background("#FFF43F5E")
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Top)
-            .Margin(0, -2, -2, 0);
+            .Margin(0, -2, -2, 0)
+            .WithToolTip(TextBlock("练英雄/新手状态 (熟练度≤1级或点数<5000，近期少用或初次尝试)"));
 
             avatarElement = Grid([GridSize.Auto], [GridSize.Auto], [avatarCore, practiceBadge]);
         }
@@ -155,22 +166,35 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .Background("#FFF59E0B")
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Top)
-            .Margin(0, -2, -2, 0);
+            .Margin(0, -2, -2, 0)
+            .WithToolTip(TextBlock("招牌/绝活英雄 (熟练度排名前三且≥1万分，或累计≥10万分)"));
 
             avatarElement = Grid([GridSize.Auto], [GridSize.Auto], [avatarCore, starBadge]);
         }
 
-        string displayName = d?.DisplayName ?? p.DisplayName ?? p.GameName ?? p.SummonerName ?? "玩家";
+        string displayName = PlayerNameVisuals.GetDisplayName(p, d, 0);
+        string searchName = PlayerNameVisuals.GetSearchName(p, d);
+        bool hasSearchTarget = !string.IsNullOrEmpty(searchName);
+
+        var nameText = TextBlock(displayName)
+            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+            .FontSize(11.5)
+            .TextTrimming(TextTrimming.CharacterEllipsis)
+            .VAlign(VerticalAlignment.Center);
+
+        if (hasSearchTarget)
+        {
+            nameText = nameText
+                .WithToolTip(TextBlock($"搜索 {searchName}"))
+                .OnTapped((_, _) =>
+                {
+                    string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
+                    Props.OnNavigateSearch?.Invoke(searchName, puuid);
+                });
+        }
 
         // 第 1 行：玩家名 + 锁 + 徽标
-        var nameRowItems = new List<Element>
-        {
-            TextBlock(displayName)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .FontSize(11.5)
-                .TextTrimming(TextTrimming.CharacterEllipsis)
-                .VAlign(VerticalAlignment.Center)
-        };
+        var nameRowItems = new List<Element> { nameText };
 
         if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
@@ -180,13 +204,14 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .FontSize(10)
                     .Foreground("#FFD97706")
                     .Margin(3, 0, 0, 0)
-                    .VAlign(VerticalAlignment.Center));
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("战绩已隐藏")));
         }
 
         if (!string.IsNullOrEmpty(d?.FateFlag))
         {
             bool isAlly = d.FateFlag == "ally";
-            string fateText = isAlly ? "曾友" : "曾敌";
+            string fateText = FateBadgeVisuals.GetBadgeText(d);
             string fateBg = isAlly ? "#2010B981" : "#20EF4444";
             string fateFg = isAlly ? "#FF10B981" : "#FFF87171";
 
@@ -196,16 +221,17 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .Margin(3, 0, 0, 0)
-                    .VAlign(VerticalAlignment.Center));
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
         }
 
-        var savedBadge = Border(TextBlock("历史").FontSize(8.5).Foreground("#FFAAAAAA"))
-            .Background("#1AFFFFFF")
-            .CornerRadius(2)
-            .Padding(2, 0.5)
-            .Margin(3, 0, 0, 0)
-            .VAlign(VerticalAlignment.Center);
-        nameRowItems.Add(savedBadge);
+        // 路人集徽标：有 tag 显示 tag；无 tag 且无宿命徽标时显示灰「历史」（§2.3.1 / §4.8）
+        if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
+        {
+            nameRowItems.Add(
+                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8.5)
+                    .Margin(3, 0, 0, 0));
+        }
 
         var nameRow = HStack(0, nameRowItems.ToArray());
 
@@ -227,20 +253,28 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var activeRank = d?.PrimaryRank;
         if (activeRank?.HasRank == true)
         {
-            summaryItems.Add(CareerVisuals.RankedMedal(activeRank.Tier, 12).VAlign(VerticalAlignment.Center));
             string shortRank = ShortRank(activeRank.Tier, activeRank.Division);
-            summaryItems.Add(TextBlock(shortRank).FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground("#FFAAAAAA").Margin(2, 0, 4, 0).VAlign(VerticalAlignment.Center));
+            var rankBlock = HStack(2,
+                CareerVisuals.RankedMedal(activeRank.Tier, 12).VAlign(VerticalAlignment.Center),
+                TextBlock(shortRank).FontSize(9).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground("#FFAAAAAA").VAlign(VerticalAlignment.Center)
+            )
+            .Margin(0, 0, 4, 0)
+            .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail)));
+
+            summaryItems.Add(rankBlock);
         }
 
         if (masteryDetail is { Level: > 0 })
         {
+            string masteryTip = $"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)";
             summaryItems.Add(
                 Border(TextBlock($"Lv.{masteryDetail.Level}").FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFCCCCCC"))
                     .Background("#20FFFFFF")
                     .WithBorder("#20FFFFFF", 1)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
-                    .VAlign(VerticalAlignment.Center));
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock(masteryTip)));
         }
 
         var summaryRow = HStack(0, summaryItems.ToArray());
@@ -256,19 +290,28 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             ]
         );
 
-        return Border(headerContent)
+        string premadeTip = Props.PremadeIdx >= 0 ? $"组队 {Props.PremadeIdx + 1}" : string.Empty;
+        var headerBorder = Border(headerContent)
             .Height(48)
             .Background(bg)
             .BorderThickness(new Thickness(0, 0, 0, 1))
             .BorderBrush("#15FFFFFF")
             .Padding(6, 4);
+
+        if (!string.IsNullOrEmpty(premadeTip))
+        {
+            headerBorder = headerBorder.WithToolTip(TextBlock(premadeTip));
+        }
+
+        return headerBorder;
     }
 
     private Element RenderTenColHeader(
         PremadePlayerLike p,
         GameInfoPlayer? d,
         string bg,
-        AppServices services)
+        AppServices services,
+        SavedPlayerMarker? savedInfo)
     {
         int champId = p.ChampionId > 0 ? p.ChampionId : (d?.ChampionId ?? 0);
         string avatarAsset = champId > 0
@@ -277,18 +320,33 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         var masteryDetail = ChampionMasteryDetail.Create(d?.Masteries, champId);
 
-        // 头像左侧胜率竖条（26px 高，3px 宽）
+        // 头像左侧胜率竖条（动态自底向上填充，透明度渐变，§2.3.2）
         Element? wrBar = null;
         if (d?.WinRate.HasValue == true)
         {
-            string wrColor = d.WinRate.Value >= 50 ? "#FF10B981" : "#FFF43F5E";
-            wrBar = Border(Empty())
-                .Width(3)
-                .Height(24)
-                .CornerRadius(1.5)
-                .Background(wrColor)
-                .VAlign(VerticalAlignment.Center)
-                .Margin(0, 0, 2, 0);
+            double rate = d.WinRate.Value;
+            double diff = Math.Abs(rate - 50.0);
+            double strength = diff / 50.0;
+            double opacity = Math.Round(0.3 + strength * 0.7, 2);
+            double fillHeight = Math.Max(2, Math.Round(24.0 * (diff * 2.0 / 100.0)));
+            string barColor = rate >= 50 ? "#FF10B981" : "#FFF43F5E";
+
+            wrBar = Border(
+                Border(Empty())
+                    .Width(3)
+                    .Height(fillHeight)
+                    .CornerRadius(1.5)
+                    .Background(barColor)
+                    .Opacity(opacity)
+                    .VAlign(VerticalAlignment.Bottom)
+            )
+            .Width(3)
+            .Height(24)
+            .CornerRadius(1.5)
+            .Background("#1AFFFFFF")
+            .VAlign(VerticalAlignment.Center)
+            .Margin(0, 0, 3, 0)
+            .WithToolTip(TextBlock($"胜率 {rate:F0}%"));
         }
 
         // 英雄头像（26x26，圆角 5）
@@ -318,7 +376,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .Background("#FFF43F5E")
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Top)
-            .Margin(0, -2, -2, 0);
+            .Margin(0, -2, -2, 0)
+            .WithToolTip(TextBlock("练英雄/新手状态"));
 
             avatarElement = Grid([GridSize.Auto], [GridSize.Auto], [avatarCore, practiceBadge]);
         }
@@ -337,85 +396,115 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .Background("#FFF59E0B")
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Top)
-            .Margin(0, -2, -2, 0);
+            .Margin(0, -2, -2, 0)
+            .WithToolTip(TextBlock("招牌/绝活英雄"));
 
             avatarElement = Grid([GridSize.Auto], [GridSize.Auto], [avatarCore, starBadge]);
         }
 
-        // 头像区：含胜率竖条 + 头像，头像下方为胜负统计
+        // 头像区：含胜率竖条 + 头像，头像下方为胜负统计（带常玩位置分析 ToolTip，§2.3.2）
         var avatarRow = HStack(0,
             wrBar is not null ? wrBar : Empty(),
             avatarElement);
 
+        string posTooltip = BuildPosTooltip(d);
+
         Element avatarColumn;
         if (d?.WinCount.HasValue == true && d?.LossesCount.HasValue == true)
         {
-            avatarColumn = VStack(1,
-                avatarRow,
-                HStack(1,
-                    TextBlock($"{d.WinCount}胜").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FF10B981"),
-                    TextBlock($"{d.LossesCount}负").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFF43F5E")
-                ).HAlign(HorizontalAlignment.Center)
-            );
+            var countsRow = HStack(1,
+                TextBlock($"{d.WinCount}胜").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FF10B981"),
+                TextBlock($"{d.LossesCount}负").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFF43F5E")
+            ).HAlign(HorizontalAlignment.Center);
+
+            if (!string.IsNullOrEmpty(posTooltip))
+            {
+                countsRow = countsRow.WithToolTip(TextBlock(posTooltip));
+            }
+
+            avatarColumn = VStack(1, avatarRow, countsRow);
         }
         else if (d?.WinRate.HasValue == true)
         {
             int wr = (int)Math.Round(d.WinRate.Value);
             string wrColor = wr >= 50 ? "#FF10B981" : "#FFF43F5E";
-            avatarColumn = VStack(1,
-                avatarRow,
-                TextBlock($"{wr}%").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(wrColor).HAlign(HorizontalAlignment.Center)
-            );
+            var wrBlock = TextBlock($"{wr}%").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground(wrColor).HAlign(HorizontalAlignment.Center);
+            if (!string.IsNullOrEmpty(posTooltip))
+            {
+                wrBlock = wrBlock.WithToolTip(TextBlock(posTooltip));
+            }
+            avatarColumn = VStack(1, avatarRow, wrBlock);
         }
         else
         {
             avatarColumn = avatarRow;
         }
 
-        string displayName = d?.DisplayName ?? p.DisplayName ?? p.GameName ?? p.SummonerName ?? "玩家";
+        string displayName = PlayerNameVisuals.GetDisplayName(p, d, 0);
+        string searchName = PlayerNameVisuals.GetSearchName(p, d);
+        bool hasSearchTarget = !string.IsNullOrEmpty(searchName);
+
+        var nameText = TextBlock(displayName)
+            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+            .FontSize(11)
+            .TextTrimming(TextTrimming.CharacterEllipsis)
+            .VAlign(VerticalAlignment.Center);
+
+        if (hasSearchTarget)
+        {
+            nameText = nameText
+                .WithToolTip(TextBlock($"搜索 {searchName}"))
+                .OnTapped((_, _) =>
+                {
+                    string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
+                    Props.OnNavigateSearch?.Invoke(searchName, puuid);
+                });
+        }
 
         // 信息区第 1 行：玩家名 + 锁
-        var nameRowItems = new List<Element>
-        {
-            TextBlock(displayName)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                .FontSize(10.5)
-                .TextTrimming(TextTrimming.CharacterEllipsis)
-                .VAlign(VerticalAlignment.Center)
-        };
+        var nameRowItems = new List<Element> { nameText };
 
         if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
             nameRowItems.Add(
                 TextBlock("\uE72E")
                     .FontFamily("Segoe Fluent Icons")
-                    .FontSize(9.5)
+                    .FontSize(9)
                     .Foreground("#FFD97706")
                     .Margin(2, 0, 0, 0)
-                    .VAlign(VerticalAlignment.Center));
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("战绩已隐藏")));
         }
 
         var nameRow = HStack(0, nameRowItems.ToArray());
 
-        // 信息区第 2 行：熟练度 + 段位短名
+        // 信息区第 2 行：熟练度微徽章（左）+ 排位段位（右）（带详细 ToolTip，§2.3.2）
         var rankMasteryItems = new List<Element>();
         if (masteryDetail is { Level: > 0 })
         {
             rankMasteryItems.Add(
-                Border(TextBlock($"Lv.{masteryDetail.Level}").FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFCCCCCC"))
+                Border(TextBlock($"Lv.{masteryDetail.Level}").FontSize(8).FontWeight(Microsoft.UI.Text.FontWeights.Bold).Foreground("#FFCCCCCC"))
                     .Background("#20FFFFFF")
+                    .WithBorder("#20FFFFFF", 1)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
-                    .Margin(0, 0, 3, 0)
-                    .VAlign(VerticalAlignment.Center));
+                    .Margin(0, 0, 2, 0)
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock($"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)")));
         }
 
         var activeRank = d?.PrimaryRank;
         if (activeRank?.HasRank == true)
         {
-            rankMasteryItems.Add(CareerVisuals.RankedMedal(activeRank.Tier, 11).VAlign(VerticalAlignment.Center));
             string shortRank = ShortRank(activeRank.Tier, activeRank.Division);
-            rankMasteryItems.Add(TextBlock(shortRank).FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground("#FFAAAAAA").Margin(2, 0, 0, 0).VAlign(VerticalAlignment.Center));
+            var rankBlock = HStack(2,
+                CareerVisuals.RankedMedal(activeRank.Tier, 11).VAlign(VerticalAlignment.Center),
+                TextBlock(shortRank).FontSize(8.5).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground("#FFAAAAAA").VAlign(VerticalAlignment.Center)
+            )
+            .Margin(2, 0, 0, 0)
+            .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail)));
+
+            rankMasteryItems.Add(rankBlock);
         }
 
         var rankMasteryRow = HStack(0, rankMasteryItems.ToArray());
@@ -431,7 +520,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             ]
         );
 
-        // 第 3 行：常玩位置 + 标识徽标
+        // 第 3 行：常玩位置 + 标识徽标（带 ToolTip，§2.3.2）
         string posText = "";
         if (d?.Positions?.PrimaryPosition != null)
         {
@@ -448,7 +537,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (!string.IsNullOrEmpty(d?.FateFlag))
         {
             bool isAlly = d.FateFlag == "ally";
-            string fateText = isAlly ? "曾友" : "曾敌";
+            string fateText = FateBadgeVisuals.GetBadgeText(d);
             string fateBg = isAlly ? "#2010B981" : "#20EF4444";
             string fateFg = isAlly ? "#FF10B981" : "#FFF87171";
 
@@ -458,90 +547,88 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .Margin(0, 0, 2, 0)
-                    .VAlign(VerticalAlignment.Center));
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
         }
 
-        flagItems.Add(
-            Border(TextBlock("历史").FontSize(8).Foreground("#FFAAAAAA"))
-                .Background("#1AFFFFFF")
-                .CornerRadius(2)
-                .Padding(2, 0.5)
-                .VAlign(VerticalAlignment.Center));
+        // 路人集徽标：10 列第三行（有 tag 显示 tag；无 tag 且无宿命徽标时显示灰「历史」，§2.3.2 / §4.8）
+        if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
+        {
+            flagItems.Add(
+                FateBadgeVisuals.BuildSavedBadge(savedInfo, 8)
+                    .Margin(0, 0, 2, 0));
+        }
+
+        var posBlock = TextBlock(posText)
+            .FontSize(8)
+            .Foreground("#FF888888")
+            .TextTrimming(TextTrimming.CharacterEllipsis)
+            .VAlign(VerticalAlignment.Center);
+
+        if (!string.IsNullOrEmpty(posTooltip))
+        {
+            posBlock = posBlock.WithToolTip(TextBlock(posTooltip));
+        }
 
         var thirdRow = Grid(
             [GridSize.Star(), GridSize.Auto],
             [GridSize.Auto],
             [
-                TextBlock(posText)
-                    .FontSize(8)
-                    .Foreground("#FF888888")
-                    .TextTrimming(TextTrimming.CharacterEllipsis)
-                    .VAlign(VerticalAlignment.Center)
-                    .Grid(row: 0, column: 0),
-                HStack(0, flagItems.ToArray())
-                    .HAlign(HorizontalAlignment.Right)
-                    .VAlign(VerticalAlignment.Center)
-                    .Grid(row: 0, column: 1),
+                posBlock.Grid(row: 0, column: 0),
+                HStack(0, flagItems.ToArray()).Grid(row: 0, column: 1).VAlign(VerticalAlignment.Center),
             ]
         );
 
-        return Border(
-            VStack(2, topSection, thirdRow)
+        string premadeTip = Props.PremadeIdx >= 0 ? $"组队 {Props.PremadeIdx + 1}" : string.Empty;
+        var headerBorder = Border(
+            VStack(1, topSection, thirdRow)
         )
         .Height(58)
         .Background(bg)
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .BorderBrush("#15FFFFFF")
         .Padding(4, 3);
+
+        if (!string.IsNullOrEmpty(premadeTip))
+        {
+            headerBorder = headerBorder.WithToolTip(TextBlock(premadeTip));
+        }
+
+        return headerBorder;
     }
 
-    private static Element RenderMatches(
+    private static Element RenderMatchesList(
         GameInfoPlayer? d,
         bool isTenCol,
         YuumiPalette palette,
-        AppServices services)
+        AppServices services,
+        IReadOnlySet<long>? encounteredGameIds)
     {
         if (d?.Loading == true)
         {
-            return Border(
-                TextBlock("正在加载...")
-                    .FontSize(11)
-                    .Foreground("#FF888888")
-                    .HAlign(HorizontalAlignment.Center)
-            )
-            .Padding(0, 24, 0, 0);
+            return VStack(0,
+                Border(TextBlock("· · ·").FontSize(11).Foreground("#FF666666").HAlign(HorizontalAlignment.Center))
+                    .Margin(0, 32, 0, 0)
+            );
         }
 
         if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
-            return Border(
-                VStack(4,
-                    TextBlock("\uE72E")
-                        .FontFamily("Segoe Fluent Icons")
-                        .FontSize(18)
-                        .Foreground("#FFD97706")
-                        .HAlign(HorizontalAlignment.Center),
-                    TextBlock("战绩隐藏")
-                        .FontSize(10)
-                        .Foreground("#FFAAAAAA")
-                        .HAlign(HorizontalAlignment.Center)
-                )
-            )
-            .Padding(0, 28, 0, 0);
+            return Border(Empty()).Padding(0, 24, 0, 0);
         }
 
-        if (d is null || d.Matches.Count == 0)
+        if (d?.Matches == null || d.Matches.Count == 0)
         {
-            return Border(
-                TextBlock("暂无战绩")
-                    .FontSize(10.5)
-                    .Foreground("#FF888888")
-                    .HAlign(HorizontalAlignment.Center)
+            return VStack(4,
+                TextBlock("📭").FontSize(14).HAlign(HorizontalAlignment.Center),
+                TextBlock("暂无对局记录").FontSize(8.5).Foreground("#FF666666").HAlign(HorizontalAlignment.Center)
             )
             .Padding(0, 24, 0, 0);
         }
 
-        var cards = d.Matches.Take(10).Select(m => RenderMatchCard(m, isTenCol, palette, services)).ToArray();
+        var cards = d.Matches.Take(10)
+            .Select(m => RenderMatchCard(m, isTenCol, palette, services, encounteredGameIds))
+            .ToArray();
 
         return VStack(isTenCol ? 3 : 4, cards)
             .Padding(isTenCol ? 3 : 4);
@@ -551,7 +638,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         MatchSummary m,
         bool isTenCol,
         YuumiPalette palette,
-        AppServices services)
+        AppServices services,
+        IReadOnlySet<long>? encounteredGameIds)
     {
         string cardBg = m.Remake
             ? palette.RemakeCard
@@ -594,7 +682,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         string posName = SearchVisuals.PositionText(m.Position) ?? "";
 
-        // 卡片顶部：模式名称 + 位置 + 日期
+        // 卡片顶部：模式名称 + 位置 + 「同局」标记 + 日期（带 ToolTip，§2.3.3）
         var topRowElements = new List<Element>
         {
             TextBlock(m.QueueName)
@@ -605,33 +693,50 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                 .Grid(row: 0, column: 0)
         };
 
-        var topRowColumns = new List<GridSize> { GridSize.Star(), GridSize.Auto };
+        var topRowColumns = new List<GridSize> { GridSize.Star() };
+        int topCol = 1;
 
         if (!isTenCol && !string.IsNullOrEmpty(posName))
         {
-            topRowColumns = [GridSize.Star(), GridSize.Auto, GridSize.Auto];
+            topRowColumns.Add(GridSize.Auto);
             topRowElements.Add(
                 TextBlock(posName)
                     .FontSize(8.5)
                     .Foreground("#FFAAAAAA")
                     .Margin(3, 0, 3, 0)
-                    .Grid(row: 0, column: 1));
-            topRowElements.Add(
-                TextBlock(m.ShortDateText)
-                    .FontSize(8.5)
-                    .Foreground("#FF888888")
-                    .Grid(row: 0, column: 2));
-        }
-        else
-        {
-            topRowElements.Add(
-                TextBlock(m.ShortDateText)
-                    .FontSize(isTenCol ? 8 : 8.5)
-                    .Foreground("#FF888888")
-                    .Grid(row: 0, column: 1));
+                    .Grid(row: 0, column: topCol));
+            topCol++;
         }
 
-        var topRow = Grid(topRowColumns.ToArray(), [GridSize.Auto], topRowElements.ToArray());
+        // 「同局」标记：该局 gameId 在路人集相遇记录中时显示（title「你曾参与本场对局」，§4.8）
+        if (encounteredGameIds is not null && encounteredGameIds.Contains(m.GameId))
+        {
+            topRowColumns.Add(GridSize.Auto);
+            topRowElements.Add(
+                Border(TextBlock("同局")
+                        .FontSize(8)
+                        .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+                        .Foreground("#FF3B82F6"))
+                    .Background("#263B82F6")
+                    .WithBorder("#663B82F6", 1)
+                    .CornerRadius(3)
+                    .Padding(3, 0.5)
+                    .Margin(3, 0, 3, 0)
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("你曾参与本场对局"))
+                    .Grid(row: 0, column: topCol));
+            topCol++;
+        }
+
+        topRowColumns.Add(GridSize.Auto);
+        topRowElements.Add(
+            TextBlock(m.ShortDateText)
+                .FontSize(isTenCol ? 8 : 8.5)
+                .Foreground("#FF888888")
+                .Grid(row: 0, column: topCol));
+
+        var topRow = Grid(topRowColumns.ToArray(), [GridSize.Auto], topRowElements.ToArray())
+            .WithToolTip(TextBlock(GetMatchTopTooltip(m)));
 
         // KDA 行（击杀/死亡/助攻，死亡红色加粗）
         var kdaItems = new List<Element>
@@ -703,6 +808,88 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         return (text, color);
     }
 
+    private static string GetMatchTopTooltip(MatchSummary m)
+    {
+        var lines = new List<string> { $"游戏模式: {m.QueueName}" };
+        string? pos = SearchVisuals.PositionText(m.Position);
+        if (!string.IsNullOrEmpty(pos))
+        {
+            lines.Add($"位置: {pos}");
+        }
+        string date = FateBadgeVisuals.FormatTimestamp(m.GameCreation);
+        if (!string.IsNullOrEmpty(date))
+        {
+            lines.Add($"日期: {date}");
+        }
+        return string.Join("\n", lines);
+    }
+
+    private static string BuildRankDetailedTooltip(GameInfoPlayer? d, ChampionMasteryDetail? mastery)
+    {
+        var lines = new List<string>();
+        if (d?.Solo?.HasRank == true)
+        {
+            int total = d.Solo.Wins + d.Solo.Losses;
+            int wr = total > 0 ? (int)Math.Round((double)d.Solo.Wins / total * 100) : 0;
+            lines.Add($"单双排: {d.Solo.TierText} {d.Solo.LeaguePoints}LP ({d.Solo.Wins}胜{d.Solo.Losses}负 {wr}%)");
+        }
+        else
+        {
+            lines.Add("单双排: 无段位");
+        }
+
+        if (d?.Flex?.HasRank == true)
+        {
+            int total = d.Flex.Wins + d.Flex.Losses;
+            int wr = total > 0 ? (int)Math.Round((double)d.Flex.Wins / total * 100) : 0;
+            lines.Add($"灵活排: {d.Flex.TierText} {d.Flex.LeaguePoints}LP ({d.Flex.Wins}胜{d.Flex.Losses}负 {wr}%)");
+        }
+        else
+        {
+            lines.Add("灵活排: 无段位");
+        }
+
+        if (mastery is not null && mastery.Level > 0)
+        {
+            lines.Add($"熟练度: Lv.{mastery.Level} ({mastery.Points:N0}点)");
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    private static string BuildPosTooltip(GameInfoPlayer? d)
+    {
+        if (d?.Positions?.PrimaryPosition == null) return string.Empty;
+        var p = d.Positions;
+        string? name = SearchVisuals.PositionText(p.PrimaryPosition);
+        var lines = new List<string>();
+        if (p.SecondaryPosition != null && p.SecondaryPercentage > 0)
+        {
+            string? secName = SearchVisuals.PositionText(p.SecondaryPosition);
+            lines.Add($"常玩位置: 主选{name} ({p.PrimaryPercentage}%) · 次选{secName} ({p.SecondaryPercentage}%) · 近期 {p.TotalValid} 场");
+        }
+        else
+        {
+            lines.Add($"常玩位置: {name} ({p.PrimaryPercentage}%) · 近期 {p.TotalValid} 场");
+        }
+
+        foreach (var entry in p.Entries)
+        {
+            if (entry.Count > 0)
+            {
+                lines.Add($"{entry.Name}: {entry.Count}场 ({entry.Percentage}%)");
+            }
+        }
+
+        if (d.TopChampions is { Count: > 0 })
+        {
+            string champNames = string.Join("、", d.TopChampions.Take(3).Select(c => $"{c.ChampionName} ({c.Games}场 {c.WinRate}%)"));
+            lines.Add($"常用英雄: {champNames}");
+        }
+
+        return string.Join("\n", lines);
+    }
+
     private static string ShortRank(string? tier, string? division)
     {
         if (string.IsNullOrEmpty(tier) || tier is "NONE" or "UNRANKED") return "无段位";
@@ -724,13 +911,13 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         return string.IsNullOrEmpty(division) || division is "NA" ? shortTier : $"{shortTier}{division}";
     }
 
-    private static string ShortPosition(MatchPosition? position) => position switch
+    private static string ShortPosition(MatchPosition? pos) => pos switch
     {
         MatchPosition.Top => "上",
         MatchPosition.Jungle => "野",
         MatchPosition.Middle => "中",
         MatchPosition.Bottom => "下",
         MatchPosition.Utility => "辅",
-        _ => "",
+        _ => string.Empty,
     };
 }

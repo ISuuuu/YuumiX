@@ -314,4 +314,59 @@ public class GameInfoPureFunctionsTests
         Assert.Equal(5, theirBlue[0].CellId);
         Assert.True(theirBlue[0].IsEnemy);
     }
+
+    [Theory]
+    [InlineData("玩家1", true)]
+    [InlineData("召唤师10", true)]
+    [InlineData("Player 5", true)]
+    [InlineData("未知", true)]
+    [InlineData("电脑", true)]
+    [InlineData("电脑 1", true)]
+    [InlineData("狂暴电脑 bot", true)]
+    [InlineData("TheShy", false)]
+    [InlineData("提莫#1234", false)]
+    [InlineData("", true)]
+    [InlineData(null, true)]
+    public void PlayerIdentity_IsPlaceholderName_DetectsCorrectly(string? name, bool expected)
+    {
+        Assert.Equal(expected, PlayerIdentity.IsPlaceholderName(name));
+    }
+
+    [Fact]
+    public void PlayerIdentity_GetSearchName_FormatsCorrectly()
+    {
+        var player = new PremadePlayerLike
+        {
+            GameName = "Uzi",
+            TagLine = "RNG",
+        };
+
+        var searchName = PlayerIdentity.GetSearchName(player, null);
+        Assert.Equal("Uzi#RNG", searchName);
+
+        var placeholderPlayer = new PremadePlayerLike
+        {
+            DisplayName = "玩家1",
+        };
+        Assert.Equal(string.Empty, PlayerIdentity.GetSearchName(placeholderPlayer, null));
+
+        var alreadyTagged = new PremadePlayerLike
+        {
+            DisplayName = "Faker#T1",
+        };
+        Assert.Equal("Faker#T1", PlayerIdentity.GetSearchName(alreadyTagged, null));
+    }
+
+    [Fact]
+    public void PlayerIdentity_GetDisplayName_StripsTagAndFallsBack()
+    {
+        var player = new PremadePlayerLike
+        {
+            GameName = "Faker#KR1",
+        };
+        Assert.Equal("Faker", PlayerIdentity.GetDisplayName(player, null, 0));
+
+        var empty = new PremadePlayerLike();
+        Assert.Equal("玩家3", PlayerIdentity.GetDisplayName(empty, null, 2));
+    }
 }
