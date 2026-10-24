@@ -146,6 +146,22 @@ public sealed class AssetCacheTests
         Assert.Null(cache.TryGetPath(AssetPath));
     }
 
+    /// <summary>设置页的清除反馈依赖返回的统计数：2 个文件 → 2，空目录 → 0。</summary>
+    [Fact]
+    public void Clear_ReturnsRemovedFileCount()
+    {
+        using var directory = new TempDirectory();
+        var cache = new AssetCache(directory.Path);
+
+        Assert.Equal(0, cache.Clear());
+
+        cache.Store(AssetPath, "a"u8, "image/png");
+        cache.Store("/lol-game-data/assets/v1/profile-icons/29.jpg", "b"u8, "image/jpeg");
+
+        Assert.Equal(2, cache.Clear());
+        Assert.Equal(0, cache.Clear());
+    }
+
     [Fact]
     public void Constructor_RejectsEmptyDirectory()
     {

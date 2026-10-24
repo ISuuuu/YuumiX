@@ -34,12 +34,6 @@ internal enum CareerTab
 /// </summary>
 public sealed class CareerPage : Component
 {
-    /// <summary>
-    /// 一页对局数。LCU 的 <c>matches</c> 接口一次登录只缓存最近 20 局，
-    /// 与原生涯页 <c>careerGamesNumber = 20</c> 一致。
-    /// </summary>
-    private const int PageSize = 20;
-
     /// <summary>空列表共享实例（<c>UseState</c> 初值只读一次，集合表达式会每次新建，REACTOR_HOOKS_013）。</summary>
     private static readonly IReadOnlyList<MatchSummary> EmptyMatches = [];
 
@@ -170,6 +164,8 @@ public sealed class CareerPage : Component
                     summonerService,
                     careerService,
                     matchService,
+                    // 消费「默认对局数量」设置（旧版 MatchHistoryTab 的 careerGamesNumber）
+                    Math.Clamp(services.Config.Functions.CareerGamesNumber, 1, 100),
                     refreshToken > 0,
                     setSummoner,
                     setRanked,
@@ -575,13 +571,14 @@ public sealed class CareerPage : Component
     }
 
     /// <summary>
-    /// 召唤师 → 排位总览 + 最近 20 局 + 战利品 + 英雄熟练度。
+    /// 召唤师 → 排位总览 + 最近对局（数量由「默认对局数量」设置决定）+ 战利品 + 英雄熟练度。
     /// 并行拉取，失败只显示空态或降级数据，不弹框打扰。
     /// </summary>
     private static async Task LoadAsync(
         ISummonerService summonerService,
         ICareerService careerService,
         IMatchService matchService,
+        int gamesNumber,
         bool forceRefresh,
         Action<SummonerProfile?> applySummoner,
         Action<RankedStats> applyRanked,
@@ -618,7 +615,7 @@ public sealed class CareerPage : Component
                 profile.Puuid, forceRefresh, cancellationToken);
 
             Task<MatchHistoryPage> historyTask = matchService.GetMatchHistoryAsync(
-                profile.Puuid, 0, PageSize - 1, cancellationToken);
+                profile.Puuid, 0, gamesNumber - 1, cancellationToken);
 
             Task<PlayerLootOverview> lootTask = careerService.GetLootOverviewAsync(
                 forceRefresh, cancellationToken);

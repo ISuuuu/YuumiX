@@ -196,4 +196,62 @@ public class GameInfoServiceTests
             service.Dispose();
         }
     }
+
+    /// <summary>
+    /// 「对局信息过滤」开关的消费验证：开启时只保留与当前对局相同队列的战绩
+    /// （对照旧 useGamePlayerData.ts 的 filterEnabled 消费）。
+    /// </summary>
+    [Theory]
+    [InlineData(true, 430, 1)]  // 过滤开启 + 队列相同 → 保留
+    [InlineData(true, 450, 0)]  // 过滤开启 + 队列不同 → 全部滤掉
+    [InlineData(false, 450, 1)] // 过滤关闭 → 不过滤（旧行为）
+    public async Task LoadPlayerDataAsync_GameInfoFilter_FiltersByCurrentQueue(
+        bool filterEnabled,
+        int currentQueueId,
+        int expectedCount)
+    {
+        var config = new AppConfig();
+        config.Functions.GameInfoFilter = filterEnabled;
+        var (service, server) = CreateTestService(config);
+        await using (server)
+        using (service)
+        {
+            string history = MatchFixtures.ByName("top-solo").ReadText(); // queueId = 430
+            server.Handler = req =>
+            {
+                if (req.Path.EndsWith("current-summoner", StringComparison.Ordinal))
+                {
+                    return FakeResponse.Ok("""{"accountId":1,"summonerId":100,"puuid":"p-me","displayName":"Me","gameName":"Me","tagLine":"1","summonerLevel":50,"profileIconId":1,"percentCompleteForNextLevel":0,"xpSinceLastLevel":0,"xpUntilNextLevel":0}""");
+                }
+                if (req.Path.EndsWith("gameflow-phase", StringComparison.Ordinal))
+                {
+                    return FakeResponse.Ok("\"InProgress\"");
+                }
+                if (req.Path.EndsWith("session", StringComparison.Ordinal))
+                {
+                    // 会话里带当前队列 ID（写入 CurrentQueueId），teamOne 放目标玩家避免提前整队加载
+                    string session = "{\"gameData\":{\"queue\":{\"id\":" + currentQueueId +
+                        ",\"gameMode\":\"CLASSIC\"}},\"teamOne\":[{\"summonerId\":101,\"puuid\":\"p-target\",\"displayName\":\"Target\",\"cellId\":0}],\"teamTwo\":[]}";
+                    return FakeResponse.Ok(session);
+                }
+                if (req.Path.Contains("/lol-summoner/v2/summoners/puuid/", StringComparison.Ordinal))
+                {
+                    return FakeResponse.Ok("""{"accountId":2,"summonerId":101,"puuid":"p-target","displayName":"Target","gameName":"Target","tagLine":"2","summonerLevel":50,"profileIconId":2,"percentCompleteForNextLevel":0,"xpSinceLastLevel":0,"xpUntilNextLevel":0}""");
+                }
+                if (req.Path.Contains("matches", StringComparison.Ordinal))
+                {
+                    return FakeResponse.Ok(history);
+                }
+                return FakeResponse.NotFound();
+            };
+
+            await service.RefreshStateAsync();
+            Assert.Equal(currentQueueId, service.CurrentState.CurrentQueueId);
+
+            var player = await service.LoadPlayerDataAsync(0, 101, "p-target");
+
+            Assert.NotNull(player);
+            Assert.Equal(expectedCount, player.Matches.Count);
+        }
+    }
 }

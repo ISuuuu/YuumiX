@@ -187,6 +187,24 @@ public sealed class AppServices : IDisposable
             provider.GetRequiredService<LcuConnection>(),
             logger: provider.GetService<ILogger<GameLifecycleService>>()));
 
+        // ── 云端服务（requirements-settings.md S5，对应原 signalr.rs / upload.rs）────
+        // Hub 基址与上传 API 共用 General.UploadApiUrl；状态经 EventStream 推给设置页徽标。
+        collection.AddSingleton<Realtime.SignalrService>(provider => new Realtime.SignalrService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetService<ILogger<Realtime.SignalrService>>()));
+        collection.AddSingleton<Upload.UploadService>(provider => new Upload.UploadService(
+            () => provider.GetRequiredService<LcuConnection>().Transport,
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetService<ILogger<Upload.UploadService>>()));
+
+        // ── 在线更新（requirements-settings.md S6，对应原 updater.rs / portable_updater.rs）──
+        // GitHub 域名白名单 + 代理 + 24h 更新日志缓存；安装版/便携版双策略见 UpdateService。
+        collection.AddSingleton<Updates.UpdateService>(provider => new Updates.UpdateService(
+            provider.GetRequiredService<RuntimePaths>(),
+            () => provider.GetRequiredService<AppConfig>(),
+            provider.GetService<ILogger<Updates.UpdateService>>()));
+
         // ── 自动化与工具箱（阶段 7 / requirements-tools.md）─────────
         collection.AddSingleton<AgentSupervisor>(provider => new AgentSupervisor(
             logger: provider.GetService<ILogger<AgentSupervisor>>()));
@@ -200,6 +218,13 @@ public sealed class AppServices : IDisposable
         collection.AddSingleton<IFriendCleanerService>(provider => new FriendCleanerService(
             () => provider.GetRequiredService<LcuConnection>().Transport,
             provider.GetService<ILogger<FriendCleanerService>>()));
+
+        // ── 客户端路径检测与启动（requirements-settings.md S2，对应原 commands/tools.rs）──
+        collection.AddSingleton<LolPathDetector>(new LolPathDetector(
+            WindowsRegistryReader.Instance,
+            WindowsProcessPathSource.Instance));
+        collection.AddSingleton<LolClientLauncher>(provider => new LolClientLauncher(
+            WindowsProcessPathSource.Instance));
 
         collection.AddSingleton<AutoAcceptAgent>(provider => new AutoAcceptAgent(
             () => provider.GetRequiredService<LcuConnection>().Transport,
@@ -231,6 +256,13 @@ public sealed class AppServices : IDisposable
             provider.GetRequiredService<AgentSupervisor>(),
             provider.GetRequiredService<AgentLifecycle>(),
             provider.GetService<ILogger<AramTeamSideAgent>>()));
+
+        // ── 多杀自动截图（requirements-settings.md S4，对应原 agents/auto_screenshot.rs）──
+        // Live Client Data 是游戏进程的独立 HTTP 端口（127.0.0.1:2999），不走 LCU Transport。
+        collection.AddSingleton<MultiKillCaptureAgent>(provider => new MultiKillCaptureAgent(
+            () => provider.GetRequiredService<AppConfig>(),
+            () => provider.GetService<ISummonerService>(),
+            provider.GetService<ILogger<MultiKillCaptureAgent>>()));
         collection.AddSingleton<AutomationHost>();
 
         // ── 对局信息（GameInfo 模块）────────────────────────────────

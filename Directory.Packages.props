@@ -17,9 +17,12 @@
 
   <ItemGroup>
     <!-- 领域层：DI 与日志（架构文档「五、依赖选型」） -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+    <!-- 云端服务：SignalR 客户端（requirements-settings.md S5，对应旧 signalr.rs 的手写协议栈；
+         官方客户端自带协商/握手/自动重连，替代旧实现的 tokio-tungstenite 手工封装） -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup>

@@ -929,6 +929,10 @@ public sealed class SearchPage : Component
         var allPlayers = detail.Blue.Players.Concat(detail.Red.Players).Where(p => !string.IsNullOrEmpty(p.Puuid)).ToList();
         if (allPlayers.Count == 0) return;
 
+        // 「对局详情中显示段位」关闭时跳过段位拉取（Tier 为空即不渲染勋章，
+        // 对照旧 Search.vue loadRanksInBackground 的 showTier 判定）
+        bool showTier = services.Config.Functions.ShowTierInGameInfo;
+
         using var semaphore = new SemaphoreSlim(3, 3);
         var rankMap = new ConcurrentDictionary<string, (string? Tier, string? RankText)>(StringComparer.Ordinal);
         var privacyMap = new ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
@@ -939,11 +943,14 @@ public sealed class SearchPage : Component
             try
             {
                 // 1. 段位
-                var stats = await careerService.GetRankedStatsAsync(p.Puuid, cancellationToken: cancellationToken).ConfigureAwait(false);
-                var solo = stats.SoloDuo;
-                if (solo is not null && !string.IsNullOrEmpty(solo.Tier) && solo.Tier != "NONE" && solo.Tier != "UNRANKED")
+                if (showTier)
                 {
-                    rankMap[p.Puuid] = (solo.Tier, solo.TierText);
+                    var stats = await careerService.GetRankedStatsAsync(p.Puuid, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    var solo = stats.SoloDuo;
+                    if (solo is not null && !string.IsNullOrEmpty(solo.Tier) && solo.Tier != "NONE" && solo.Tier != "UNRANKED")
+                    {
+                        rankMap[p.Puuid] = (solo.Tier, solo.TierText);
+                    }
                 }
 
                 // 2. 隐私状态

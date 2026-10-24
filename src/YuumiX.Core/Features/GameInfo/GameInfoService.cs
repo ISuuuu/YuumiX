@@ -406,6 +406,14 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             IReadOnlyList<PlayerChampionMastery> masteries = await masteryTask.ConfigureAwait(false);
 
             IReadOnlyList<MatchSummary> matches = history.Games;
+
+            // 「对局信息过滤」开启时只保留与当前对局相同队列的战绩
+            // （对照旧 useGamePlayerData.ts：filterEnabled && currentQueueId 非空 → 按 queueId 过滤）
+            if (_config.Functions.GameInfoFilter && _state.CurrentQueueId != 0)
+            {
+                matches = matches.Where(m => m.QueueId == _state.CurrentQueueId).ToList();
+            }
+
             if (matches.Count == 0 && profile.SummonerLevel > PlayerIdentity.NewPlayerMaxLevel)
             {
                 isHidden = true;
