@@ -73,26 +73,117 @@ public sealed record YuumiPalette
     /// <summary>原始主题模式字符串：<c>Light</c> / <c>Dark</c> / 其它（按 Auto 处理）。</summary>
     public required string ThemeMode { get; init; }
 
-    /// <summary>
-    /// 胜利色的**实色**形态，用于文字与 1px 描边。
-    ///
-    /// <see cref="WinCard"/> 是带 alpha 的底色（<c>#33…</c>），直接当文字色会得到几乎透明的字。
-    /// 战绩页的「胜利 / 失败」标题、列表卡片描边、KDA 里的死亡数都需要同色系但不透明的取值，
-    /// 因此统一在这里由底色派生：只把 alpha 换成 <c>FF</c>，色相与配置保持一致。
-    /// </summary>
-    public string WinAccent => ToSolid(WinCard);
-
-    /// <summary>失败色的实色形态，语义同 <see cref="WinAccent"/>。</summary>
-    public string LoseAccent => ToSolid(LoseCard);
-
-    /// <summary>重开色的实色形态，语义同 <see cref="WinAccent"/>。</summary>
-    public string RemakeAccent => ToSolid(RemakeCard);
-
     public required bool MicaEnabled { get; init; }
 
+    /// <summary>当前是否呈现深色模式。</summary>
+    public bool IsDark => ThemeMode switch
+    {
+        "Dark" => true,
+        "Light" => false,
+        _ => Application.Current?.RequestedTheme == ApplicationTheme.Dark,
+    };
+
+    // ─── 1. 主色调 Alpha 阶梯（对应原版 --primary-color-alpha-10/15/20/30/40）───
+    public string AccentHover => WithAlpha(Accent, 0xD9);   // 85%
+    public string AccentPressed => WithAlpha(Accent, 0xA6); // 65%
+    public string AccentAlpha10 => WithAlpha(Accent, 0x1A); // 10%
+    public string AccentAlpha15 => WithAlpha(Accent, 0x26); // 15%
+    public string AccentAlpha20 => WithAlpha(Accent, 0x33); // 20%
+    public string AccentAlpha30 => WithAlpha(Accent, 0x4D); // 30%
+    public string AccentAlpha40 => WithAlpha(Accent, 0x66); // 40%
+
+    // ─── 2. 胜/负/平局（重开）文字色、底色、悬停色、描边色 ───
+    public bool IsDefaultWinCard => string.Equals(WinCard, YuumiTheme.WinCard, StringComparison.OrdinalIgnoreCase);
+    public bool IsDefaultLoseCard => string.Equals(LoseCard, YuumiTheme.LoseCard, StringComparison.OrdinalIgnoreCase);
+    public bool IsDefaultRemakeCard => string.Equals(RemakeCard, YuumiTheme.RemakeCard, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
-    /// 把配置翻译成运行时调色板。颜色统一归一化为 8 位 <c>#AARRGGBB</c>。
+    /// 胜利文字/主色。默认配置下走原版自适应翠绿色，自定义时走自定义 RGB 实色。
     /// </summary>
+    public string WinText => IsDefaultWinCard
+        ? (IsDark ? "#FF10B981" : "#FF065F46")
+        : ToSolid(WinCard);
+
+    /// <summary>
+    /// 失败文字/主色。默认配置下走原版自适应玫瑰红，自定义时走自定义 RGB 实色。
+    /// </summary>
+    public string LoseText => IsDefaultLoseCard
+        ? (IsDark ? "#FFF43F5E" : "#FF9F1239")
+        : ToSolid(LoseCard);
+
+    /// <summary>
+    /// 重开文字/主色。默认配置下走原版自适应中性灰，自定义时走自定义 RGB 实色。
+    /// </summary>
+    public string RemakeText => IsDefaultRemakeCard
+        ? (IsDark ? "#FF94A3B8" : "#FF64748B")
+        : ToSolid(RemakeCard);
+
+    /// <summary>兼容旧属性：胜利实色形态。</summary>
+    public string WinAccent => WinText;
+
+    /// <summary>兼容旧属性：失败实色形态。</summary>
+    public string LoseAccent => LoseText;
+
+    /// <summary>兼容旧属性：重开实色形态。</summary>
+    public string RemakeAccent => RemakeText;
+
+    /// <summary>卡片底色。</summary>
+    public string WinBg => IsDefaultWinCard
+        ? (IsDark ? "#2910B981" : "#3339B01B")
+        : WinCard;
+
+    public string LoseBg => IsDefaultLoseCard
+        ? (IsDark ? "#29F43F5E" : "#33D3190C")
+        : LoseCard;
+
+    public string RemakeBg => IsDefaultRemakeCard
+        ? "#2494A3B8"
+        : RemakeCard;
+
+    /// <summary>卡片悬停底色（Alpha 乘以 1.5）。</summary>
+    public string WinBgHover => ScaleAlpha(WinBg, 1.5);
+    public string LoseBgHover => ScaleAlpha(LoseBg, 1.5);
+    public string RemakeBgHover => ScaleAlpha(RemakeBg, 1.5);
+
+    /// <summary>卡片描边色（默认走原版描边，自定义走 Alpha * 2.0）。</summary>
+    public string WinBorder => IsDefaultWinCard
+        ? (IsDark ? "#5910B981" : "#6639B01B")
+        : ScaleAlpha(WinCard, 2.0);
+
+    public string LoseBorder => IsDefaultLoseCard
+        ? (IsDark ? "#59F43F5E" : "#66D3190C")
+        : ScaleAlpha(LoseCard, 2.0);
+
+    public string RemakeBorder => IsDefaultRemakeCard
+        ? "#4D94A3B8"
+        : ScaleAlpha(RemakeCard, 2.0);
+
+    // ─── 3. 死亡数字颜色（严格响应设置页的浅色/深色死亡数字配置）───
+    public string DeathText => IsDark ? DarkDeath : LightDeath;
+
+    // ─── 4. 全局表面与文本色（对齐原版水晶极光 / 暗黑海克斯主题）───
+    public string PageBg => IsDark ? "#FF0B0F19" : "#FFF8FAFC";
+    public string SidebarBg => IsDark
+        ? (MicaEnabled ? "#D9111827" : "#FF111827")
+        : (MicaEnabled ? "#BFFFFFFF" : "#FFFFFFFF");
+    public string CardBg => IsDark
+        ? (MicaEnabled ? "#BF1A263B" : "#FF1A263B")
+        : (MicaEnabled ? "#CCFFFFFF" : "#FFFFFFFF");
+    public string CardBgHover => IsDark
+        ? (MicaEnabled ? "#E622324D" : "#FF22324D")
+        : "#F2FFFFFF";
+    public string CardSubRowBg => IsDark ? "#0AFFFFFF" : "#73FFFFFF";
+    public string BorderSubtle => IsDark ? "#14FFFFFF" : "#0F000000";
+    public string Separator => IsDark ? "#0DFFFFFF" : "#0A000000";
+    public string HoverBg => IsDark ? "#0FFFFFFF" : "#08000000";
+    public string HoverBgStrong => IsDark ? "#1AFFFFFF" : "#0F000000";
+
+    // 三级文本色
+    public string TextPrimary => IsDark ? "#FFF8FAFC" : "#FF0F172A";
+    public string TextSecondary => IsDark ? "#FF94A3B8" : "#FF475569";
+    public string TextMuted => IsDark ? "#FF64748B" : "#FF64748B";
+
+    /// <summary>把配置翻译成运行时调色板。颜色统一归一化为 8 位 <c>#AARRGGBB</c>。</summary>
     /// <remarks>
     /// 强调色刻意**不**通过覆盖 WinUI 的 <c>AccentFillColorDefaultBrush</c> 来全局生效：
     /// 已实测（阶段 5 后半）在根元素上覆盖该资源对原生控件无效——开关、选中指示器仍用系统强调色。
@@ -133,4 +224,57 @@ public sealed record YuumiPalette
     /// </summary>
     private static string ToSolid(string argb) =>
         argb.Length == 9 && argb[0] == '#' ? string.Concat("#FF", argb.AsSpan(3)) : argb;
+
+    /// <summary>调整 ARGB 颜色的 Alpha 分量。</summary>
+    public static string WithAlpha(string color, byte alpha) =>
+        ColorHex.TryParseArgb(color, out _, out byte r, out byte g, out byte b)
+            ? ColorHex.ToArgb(alpha, r, g, b)
+            : color;
+
+    /// <summary>按倍率调整 ARGB 颜色的 Alpha 分量（上限 255）。</summary>
+    public static string ScaleAlpha(string color, double factor)
+    {
+        if (!ColorHex.TryParseArgb(color, out byte a, out byte r, out byte g, out byte b))
+        {
+            return color;
+        }
+
+        var newAlpha = (byte)Math.Clamp((int)Math.Round(a * factor), 0, 255);
+        return ColorHex.ToArgb(newAlpha, r, g, b);
+    }
+
+    /// <summary>
+    /// 同步 WinUI 原生资源字典强调色，使 ToggleSwitch、Checkbox 等原生控件跟随主题色。
+    /// </summary>
+    public static void SyncWinUiAccentResources(string accentArgb)
+    {
+        if (Application.Current?.Resources is not { } res) return;
+        if (!ColorHex.TryParseArgb(accentArgb, out _, out byte r, out byte g, out byte b)) return;
+
+        var color = Windows.UI.Color.FromArgb(0xFF, r, g, b);
+        var hoverColor = Windows.UI.Color.FromArgb(0xD9, r, g, b);
+        var pressedColor = Windows.UI.Color.FromArgb(0xA6, r, g, b);
+
+        res["SystemAccentColor"] = color;
+        res["SystemAccentColorLight1"] = color;
+        res["SystemAccentColorLight2"] = color;
+        res["SystemAccentColorDark1"] = color;
+
+        SetBrushColor(res, "AccentFillColorDefaultBrush", color);
+        SetBrushColor(res, "AccentFillColorSecondaryBrush", hoverColor);
+        SetBrushColor(res, "AccentFillColorTertiaryBrush", pressedColor);
+        SetBrushColor(res, "AccentTextFillColorPrimaryBrush", color);
+    }
+
+    private static void SetBrushColor(ResourceDictionary res, string key, Windows.UI.Color color)
+    {
+        if (res.TryGetValue(key, out var obj) && obj is Microsoft.UI.Xaml.Media.SolidColorBrush brush)
+        {
+            brush.Color = color;
+        }
+        else
+        {
+            res[key] = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
+        }
+    }
 }
