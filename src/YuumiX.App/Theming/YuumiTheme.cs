@@ -69,12 +69,24 @@ public sealed record YuumiPalette
 
     public required bool MicaEnabled { get; init; }
 
+    /// <summary>
+    /// 根元素当前实际呈现的主题（AppShell 监听 ActualThemeChanged 写回，见 <see cref="ThemeState"/>）。
+    /// 仅「跟随系统」时有意义：固定模式下深浅由 <see cref="ThemeMode"/> 直接决定，保持 null。
+    /// </summary>
+    public ElementTheme? ActualTheme { get; init; }
+
     /// <summary>当前是否呈现深色模式。</summary>
     public bool IsDark => ThemeMode switch
     {
         "Dark" => true,
         "Light" => false,
-        _ => Application.Current?.RequestedTheme == ApplicationTheme.Dark,
+        _ => ActualTheme switch
+        {
+            ElementTheme.Dark => true,
+            ElementTheme.Light => false,
+            // 首帧尚无 ActualTheme 回报：回退到应用解析的系统主题（启动时正确，运行期由事件链覆盖）。
+            _ => Application.Current?.RequestedTheme == ApplicationTheme.Dark,
+        },
     };
 
     // ─── 2. 胜/负/平局（重开）文字色、底色、悬停色、描边色 ───
@@ -173,7 +185,7 @@ public sealed record YuumiPalette
     /// 本调色板只承载**业务色**（胜负面板、死亡数字）；强调色一律走
     /// <see cref="Theme"/> 的系统语义令牌（<c>Theme.Accent</c> 等），不在此配置。
     /// </remarks>
-    public static YuumiPalette FromConfig(PersonalizationConfig personalization)
+    public static YuumiPalette FromConfig(PersonalizationConfig personalization, ElementTheme? actualTheme = null)
     {
         ArgumentNullException.ThrowIfNull(personalization);
 
@@ -186,6 +198,7 @@ public sealed record YuumiPalette
             DarkDeath = ColorHex.NormalizeArgb(personalization.DarkDeathsNumberColor, YuumiTheme.DarkDeath),
             ThemeMode = personalization.ThemeMode ?? "Auto",
             MicaEnabled = personalization.MicaEnabled,
+            ActualTheme = actualTheme,
         };
     }
 
