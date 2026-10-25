@@ -26,45 +26,27 @@ internal static class RankedTableView
     private static Element HeaderCell(string text, double width) =>
         Caption(text)
             .Width(width)
-            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .Foreground(Theme.SecondaryText)
             .TextAlignment(TextAlignment.Center)
             .VAlign(VerticalAlignment.Center);
 
-    private static Element DataCell(string text, double width, ThemeRef foreground, bool bold = false)
+    private static Element DataCell(string text, double width, ThemeRef foreground)
     {
-        var tb = Caption(text)
+        return Caption(text)
             .Width(width)
             .TextAlignment(TextAlignment.Center)
             .VAlign(VerticalAlignment.Center)
             .Foreground(foreground);
-
-        if (bold)
-        {
-            tb = tb.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold);
-        }
-
-        return tb;
     }
 
-    private static Element DataCell(string text, double width, string? foreground = null, bool bold = false)
+    private static Element DataCell(string text, double width, string? foreground = null)
     {
         var tb = Caption(text)
             .Width(width)
             .TextAlignment(TextAlignment.Center)
             .VAlign(VerticalAlignment.Center);
 
-        if (bold)
-        {
-            tb = tb.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold);
-        }
-
-        if (foreground is not null)
-        {
-            tb = tb.Foreground(foreground);
-        }
-
-        return tb;
+        return foreground is null ? tb : tb.Foreground(foreground);
     }
 
     /// <summary>分隔线：1 DIP 的浅色横线。</summary>
@@ -110,14 +92,12 @@ internal static class RankedTableView
         Element tierCell = medalUri is null
             ? Caption(tier)
                 .Width(ColTierWidth)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(palette.Accent)
                 .TextAlignment(TextAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
             : HStack(6,
                     CareerVisuals.RankedMedal(queue?.Tier, 20),
                     Caption(tier)
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(palette.Accent)
                         .VAlign(VerticalAlignment.Center))
                 .Width(ColTierWidth)
@@ -125,7 +105,7 @@ internal static class RankedTableView
                 .VAlign(VerticalAlignment.Center);
 
         return HStack(0,
-            DataCell(label, ColTypeWidth, bold: true),
+            DataCell(label, ColTypeWidth),
             DataCell(games, ColGamesWidth),
             DataCell(winRate, ColWinRateWidth, foreground: queue?.TotalGames > 0 ? CareerVisuals.WinText : null),
             DataCell(wins, ColWinsWidth),

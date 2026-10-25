@@ -73,7 +73,6 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                     HStack(6,
                         Component<LcuImage, LcuImageProps>(new LcuImageProps(primaryStyle.IconPath, 24)),
                         Caption(primaryStyle.Name)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .VAlign(VerticalAlignment.Center)
                     ).HAlign(HorizontalAlignment.Center),
 
@@ -97,7 +96,6 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                     HStack(6,
                         Component<LcuImage, LcuImageProps>(new LcuImageProps(secondaryStyle.IconPath, 24)),
                         Caption(secondaryStyle.Name)
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                             .VAlign(VerticalAlignment.Center)
                     ).HAlign(HorizontalAlignment.Center),
 
@@ -181,7 +179,6 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
         return Border(
             VStack(8,
                 Caption("推荐符文配置")
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(Theme.SecondaryText)
                     .Margin(new Thickness(4, 0, 0, 4)),
 
@@ -205,7 +202,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
 
                                     VStack(1,
                                         Caption(OpggVisuals.FormatRatio(rune.Win, rune.Play))
-                                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+                                            .SemiBold(),
                                         Caption($"{rune.Play} 场")
                                             .Foreground(Theme.SecondaryText)
                                     )
@@ -234,7 +231,6 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                 Button(
                     Caption("设为当前符文页")
                         .Foreground("#FFFFFF")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         ,
                     () => Props.OnApplyRune(activeRune))
                     .Background(OpggVisuals.ActiveTabGreen)

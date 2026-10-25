@@ -57,7 +57,6 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
         }
 
         var text = Caption(p.DisplayName)
-            .FontWeight(p.IsQueriedPlayer ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal)
             .Foreground(color);
 
         if (hasPuuid)
@@ -244,7 +243,7 @@ internal static class MatchDetailView
             Border(Empty()).Width(4).Height(34).CornerRadius(2).Background(accent),
             VStack(3,
                 BodyLarge(SearchVisuals.ResultText(summary))
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    .SemiBold()
                     .Foreground(accent),
                 Caption(meta).Foreground(Theme.SecondaryText)))
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
@@ -406,7 +405,7 @@ internal static class MatchDetailView
 
         Element levelBadge = Border(
                 Caption(player.ChampionLevel.ToString(CultureInfo.InvariantCulture))
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    .SemiBold()
                     .Foreground("#FFFFFFFF")
                     .TextAlignment(TextAlignment.Center)
                     .HAlign(HorizontalAlignment.Center)

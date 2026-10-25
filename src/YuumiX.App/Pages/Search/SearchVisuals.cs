@@ -158,8 +158,7 @@ internal static class SearchVisuals
         bool strong = false,
         string? uniformColor = null)
     {
-        TextBlockElement Weighted(TextBlockElement block) =>
-            strong ? block.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold) : block;
+        TextBlockElement Weighted(TextBlockElement block) => strong ? block.SemiBold() : block;
 
         static string Str(int value) => value.ToString(CultureInfo.InvariantCulture);
 
@@ -216,7 +215,7 @@ internal static class SearchVisuals
             .TextAlignment(alignment)
             .HAlign(hAlign);
 
-        return strong ? cell.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold) : cell;
+        return strong ? cell.SemiBold() : cell;
     }
 
     /// <summary>千分位数字（金币与输出）。InvariantCulture 保证与客户端显示一致，不受系统区域影响。</summary>

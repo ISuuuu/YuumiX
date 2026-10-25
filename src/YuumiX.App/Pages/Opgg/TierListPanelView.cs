@@ -50,49 +50,44 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                 [GridSize.Auto],
                 [
                     Caption("#")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 0),
 
                     Caption("英雄")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .Margin(new Thickness(8, 0, 0, 0))
                         .Grid(0, 1),
 
                     Caption("Tier")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 2),
 
                     Caption("胜率")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 3),
 
                     Caption("登场率")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 4),
 
                     Caption("禁用率")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 5),
 
                     Caption("KDA")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 6),
 
                     Caption("劣势对抗")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 7)
@@ -213,7 +208,6 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
 
         return Border(
             Caption(label)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground("#FFFFFF")
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)

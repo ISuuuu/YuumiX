@@ -83,7 +83,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                     ChampionSize,
                     8),
                 Border(Caption(summary.ChampionLevel.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        .SemiBold()
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
                     .Padding(3, 0)
@@ -134,8 +134,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 .Foreground(palette.DeathText),
             BodyStrong($" / {summary.Assists}"));
 
-        Element kdaRatioBlock = Caption(kdaRatioText)
-            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold);
+        Element kdaRatioBlock = Caption(kdaRatioText);
         kdaRatioBlock = kdaRatioColor is null
             ? kdaRatioBlock.Foreground(Theme.SecondaryText)
             : kdaRatioBlock.Foreground(kdaRatioColor);
@@ -150,8 +149,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         double minutes = Math.Max(summary.DurationSeconds / 60.0, 1.0);
         double csPerMin = summary.CreepScore / minutes;
         Element cs = VStack(2,
-                Caption($"{summary.CreepScore} 刀")
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+                Caption($"{summary.CreepScore} 刀"),
                 Caption($"({csPerMin:F1}/分)").Foreground(Theme.SecondaryText))
             .Width(CsWidth)
             .VAlign(VerticalAlignment.Center);
@@ -175,7 +173,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         // 金币列
         Element gold = VStack(2,
                 Caption($"{summary.Gold:N0}")
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+                    .SemiBold(),
                 Caption("金币").Foreground(Theme.SecondaryText))
             .Width(GoldWidth)
             .VAlign(VerticalAlignment.Center);

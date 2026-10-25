@@ -117,8 +117,8 @@ internal static class ChampionMasteryView
         Element card3 = StatCard(
             "最高等级英雄",
             HStack(6,
-                BodyLarge(heroName).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).VAlign(VerticalAlignment.Center),
-                Border(Caption($"Lv. {heroLevel}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.Accent))
+                BodyLarge(heroName).SemiBold().VAlign(VerticalAlignment.Center),
+                Border(Caption($"Lv. {heroLevel}").SemiBold().Foreground(palette.Accent))
                     .Padding(6, 2)
                     .CornerRadius(4)
                     .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1F))
@@ -144,7 +144,7 @@ internal static class ChampionMasteryView
     {
         return CareerVisuals.Card(
             VStack(6,
-                Caption(title).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(Theme.SecondaryText),
+                Caption(title).Foreground(Theme.SecondaryText),
                 value,
                 Caption(subtitle).Foreground(Theme.SecondaryText)),
             padding: 14);
@@ -305,7 +305,7 @@ internal static class ChampionMasteryView
                     46,
                     8),
                 Border(Caption(item.ChampionLevel.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        .SemiBold()
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
                     .Padding(4, 1)
@@ -349,7 +349,6 @@ internal static class ChampionMasteryView
             HStack(0,
                 Caption($"{item.ProgressPercentage}%")
                     .Width(70)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(Theme.SecondaryText),
                 Caption(item.ChampionPointsUntilNextLevel > 0
                         ? $"距下一级还需 {item.ChampionPointsUntilNextLevel:N0}"
@@ -372,7 +371,6 @@ internal static class ChampionMasteryView
         foreach (string grade in item.MilestoneGrades)
         {
             badges.Add(Border(Caption(grade)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(CareerVisuals.GoldColor))
                 .Padding(4, 1)
                 .CornerRadius(3)
@@ -380,7 +378,7 @@ internal static class ChampionMasteryView
         }
 
         Element chestBtn = Border(HStack(3,
-                Caption("可获宝箱").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.Accent),
+                Caption("可获宝箱").Foreground(palette.Accent),
                 Caption("📦")))
             .Padding(6, 2)
             .CornerRadius(4)

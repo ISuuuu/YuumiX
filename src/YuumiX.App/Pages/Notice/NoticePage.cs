@@ -1,7 +1,6 @@
 using System.Text;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
@@ -288,7 +287,7 @@ internal static class NoticeMarkdown
         return block.Kind switch
         {
             // 标题层级按 AGENTS.md §1 的语义工厂收敛：h1 → BodyLarge、h2/h3 → BodyStrong。
-            BlockKind.Heading1 => BodyLarge(block.Text).FontWeight(FontWeights.SemiBold).TextWrapping(),
+            BlockKind.Heading1 => BodyLarge(block.Text).SemiBold().TextWrapping(),
             BlockKind.Heading2 => BodyStrong(block.Text).TextWrapping(),
             BlockKind.Heading3 => BodyStrong(block.Text).TextWrapping(),
             BlockKind.ListItem => RenderRichText($"{block.Marker}  {block.Text}"),

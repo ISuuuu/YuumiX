@@ -70,7 +70,6 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             var practiceBadge = Border(
                 Caption("练")
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground("#FFFFFFFF")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -91,7 +90,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             var levelBadge = Border(
                 Caption($"{d.Info.SummonerLevel}")
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    .SemiBold()
                     .Foreground("#FFFFFFFF")
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -118,7 +117,6 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                        d?.Info?.Puuid == Props.SelfPuuid);
 
         var nameText = Caption(displayName)
-            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .Foreground(Theme.PrimaryText)
             .TextTrimming(TextTrimming.CharacterEllipsis)
             .VAlign(VerticalAlignment.Center);
@@ -198,7 +196,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             string streakBg = d.Streak.IsWin ? palette.WinBg : palette.LoseBg;
 
             nameRowItems.Add(
-                Border(Caption(streakText).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(streakFg))
+                Border(Caption(streakText).Foreground(streakFg))
                     .Background(streakBg)
                     .CornerRadius(2.5)
                     .Padding(2.5, 0.5)
@@ -320,7 +318,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             }
 
             var wrBlock = Caption($"{wr}%")
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                .SemiBold()
                 .Foreground(wrColor)
                 .WithToolTip(TextBlock(wrTip));
 
@@ -377,7 +375,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             if (masteryDetail?.IsTopChampion == true)
             {
                 leftItems.Add(
-                    Border(Caption("招牌").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground("#FFF59E0B"))
+                    Border(Caption("招牌").Foreground("#FFF59E0B"))
                         .Background("#25F59E0B")
                         .CornerRadius(3)
                         .Padding(3, 1)
@@ -389,7 +387,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             else if (masteryDetail?.IsPracticing == true)
             {
                 leftItems.Add(
-                    Border(Caption("练英雄").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(palette.LoseText))
+                    Border(Caption("练英雄").Foreground(palette.LoseText))
                         .Background(palette.LoseBg)
                         .CornerRadius(3)
                         .Padding(3, 1)

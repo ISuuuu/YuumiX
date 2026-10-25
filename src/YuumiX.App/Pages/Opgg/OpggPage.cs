@@ -298,8 +298,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                         // 「梯队」Tab
                         Button(
                             currentView == "tier"
-                                ? Body("梯队").Foreground("#FFFFFF").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                                : Body("梯队").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+                                ? BodyStrong("梯队").Foreground("#FFFFFF")
+                                : BodyStrong("梯队"),
                             () => onSelectView("tier"))
                             .Background(currentView == "tier" ? OpggVisuals.ActiveTabGreen : "transparent")
                             .Height(30)
@@ -309,8 +309,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                         // 「出装」Tab
                         Button(
                             currentView == "build"
-                                ? Body("出装").Foreground("#FFFFFF").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
-                                : Body("出装").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+                                ? BodyStrong("出装").Foreground("#FFFFFF")
+                                : BodyStrong("出装"),
                             () =>
                             {
                                 if (selectedChampId.HasValue) onSelectView("build");

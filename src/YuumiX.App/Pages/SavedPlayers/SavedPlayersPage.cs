@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
@@ -453,7 +452,7 @@ public sealed class SavedPlayersPage : Component
         var badge = totalCount > 0
             ? Border(
                 Caption($"{totalCount}")
-                    .FontWeight(FontWeights.SemiBold)
+                    .SemiBold()
                     .Foreground(palette.Accent)
                     .Margin(6, 1)
               )
@@ -737,7 +736,6 @@ public sealed class SavedPlayersPage : Component
                 !string.IsNullOrEmpty(player.Tag)
                     ? Border(
                         Caption(player.Tag)
-                            .FontWeight(FontWeights.SemiBold)
                             .Margin(6, 1)
                       )
                       .Background(palette.Accent)
@@ -899,7 +897,6 @@ public sealed class SavedPlayersPage : Component
                     HStack(
                         12,
                         Caption(FormatQueue(g.QueueType))
-                            .FontWeight(FontWeights.SemiBold)
                             .Width(110),
                         Caption(FormatTime(g.UpdateAt))
                             .Foreground(Theme.SecondaryText)
@@ -956,7 +953,6 @@ public sealed class SavedPlayersPage : Component
         var items = toasts.Select(t =>
             Border(
                 Caption(t.Message)
-                    .FontWeight(FontWeights.Medium)
                     .Foreground(t.IsError ? palette.LoseAccent : palette.Accent)
                     .Margin(12, 6)
             )

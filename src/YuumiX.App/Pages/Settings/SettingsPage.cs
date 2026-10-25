@@ -677,7 +677,7 @@ public sealed class SettingsPage : Component
                 rowChildren.Add(
                     Border(
                         Caption("WeGame")
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                            .SemiBold()
                             .Foreground(Theme.AccentText)
                     )
                     .Padding(new Thickness(8, 4, 8, 4))

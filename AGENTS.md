@@ -13,11 +13,12 @@
 dotnet build src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64   # 必须 0 警告 0 错误
 ```
 
-并且以下五条 grep 必须为 0（新代码不得新增违规；历史欠账按批次清零）：
+并且以下六条 grep 必须为 0（新代码不得新增违规；历史欠账按批次清零）：
 
 ```bash
 grep -rn "FontSize([0-9]" --include=*.cs src/YuumiX.App | wc -l     # 目标 0
 grep -rn "FontWeights.Bold" --include=*.cs src/YuumiX.App | wc -l   # 目标 0（标题用 Heading 工厂）
+grep -rn "FontWeights\." --include=*.cs src/YuumiX.App | wc -l      # 目标 0（字重见 §1.1，禁止手写 FontWeights 常量）
 grep -rn 'statusText != "' --include=*.cs src/YuumiX.App | wc -l    # 目标 0（禁止文案反推状态）
 grep -rn "SyncWinUiAccentResources" --include=*.cs src | wc -l      # 目标 0（禁止覆盖系统强调色）
 grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0（滚动容器只允许 ScrollViewer，见 §5.5）
@@ -46,6 +47,23 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 
 **最小字号 12px**。任何小于 12 的设计意图一律改为 12 + 降低字重/提高对比度解决，不得靠缩字号。
 **禁止删除/绕过** `docs/ui-native-fluent-plan.md` §5.1 的映射表自行发明新档位。
+
+### 1.1 字重：不许手写 `FontWeights.*`
+
+工厂里**没有 12px 加粗档位**（`BodyStrong` 是唯一带 Strong 的工厂，14px）。所以 12px 想强调只有两条合规路径：
+
+| 内容类型 | 做法 |
+|---|---|
+| 12px 中文 / 运行时多为中文的动态文本（昵称、段位、道具名、按钮文字） | **去字重**，层级改由 `Theme.PrimaryText` vs `Theme.SecondaryText` 对比度 + 既有边框/底色承担 |
+| 12px 纯数值、拉丁文、符号（KDA、等级、胜率、徽标字形） | 用官方修饰符 `.SemiBold()`（`TextBlockElement.SemiBold()`），保留强调观感 |
+| 14px 需要强调 | 换 `BodyStrong(x)` 工厂，不要再叠 `.FontWeight(...)` |
+| ≥18px 需要强调 | 保留 `BodyLarge`/`Subtitle` 尺寸，用 `.SemiBold()` |
+
+**为什么 12px 中文不能加粗**：雅黑没有 SemiBold 字重，字重 600 会被吸附到 Bold，小字号笔画粘连发糊——
+这正是今天工具页/设置页观感变好的原因（`refactor(ui): 移除自定义字体栈，工具页排版对齐原生 Fluent`）。
+
+**禁止**手写 `.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)`：字重是框架语义层的概念，
+应走工厂或 `.SemiBold()`；手写常量既绕过类型阶，也让「哪些小字该加粗」失去可审的依据。
 
 ---
 

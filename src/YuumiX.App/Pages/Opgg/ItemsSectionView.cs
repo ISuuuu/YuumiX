@@ -62,9 +62,9 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
     {
         return Border(
             Button(
-                Body(Props.IsApplying ? "正在应用出装..." : "一键应用出装到游戏推荐页")
+                BodyStrong(Props.IsApplying ? "正在应用出装..." : "一键应用出装到游戏推荐页")
                     .Foreground(OpggVisuals.ActiveTabGreen)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    
                     ,
                 Props.OnApplyItemSet)
                 .IsEnabled(!Props.IsApplying)
@@ -140,7 +140,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
                             HStack(12,
                                 VStack(1,
                                     Caption(OpggVisuals.FormatRatio(item.Win, item.Play))
-                                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                                        .SemiBold()
                                         .HAlign(HorizontalAlignment.Right),
                                     Caption($"{item.Play} 场")
                                         .Foreground(Theme.SecondaryText)
@@ -194,7 +194,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
                 HStack(8,
                     Caption(OpggVisuals.FormatRatio(item.Win, item.Play))
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        .SemiBold()
                         .VAlign(VerticalAlignment.Center),
                     Caption($"{item.Play} 场")
                         .Foreground(Theme.SecondaryText)

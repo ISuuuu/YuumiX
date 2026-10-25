@@ -36,7 +36,7 @@ internal static class FateBadgeVisuals
 
         var lines = new List<Element>
         {
-            Caption(title).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold),
+            Caption(title),
         };
 
         if (!string.IsNullOrEmpty(d.RecentlyChampionName))
@@ -119,7 +119,6 @@ internal static class FateBadgeVisuals
 
         return Border(
                 Caption(SavedBadgeText(marker))
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(fg)
                     .TextTrimming(TextTrimming.CharacterEllipsis))
             .Background(bg)

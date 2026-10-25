@@ -44,7 +44,6 @@ internal static class MatchCardView
 
         Element middle = VStack(2,
             Caption(summary.QueueName)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .Foreground(Theme.PrimaryText),
             HStack(6,
                 Caption(summary.ShortDateText).Foreground(Theme.SecondaryText),

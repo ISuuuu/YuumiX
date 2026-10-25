@@ -46,7 +46,7 @@ internal static class CareerProfileHeader
 
         // 环底部中心悬浮等级徽章
         Element levelBadge = Border(Caption(summoner.SummonerLevel.ToString(CultureInfo.InvariantCulture))
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                .SemiBold()
                 .Foreground(Theme.PrimaryText)
                 .HAlign(HorizontalAlignment.Center))
             .Padding(8, 1)
@@ -83,7 +83,6 @@ internal static class CareerProfileHeader
                 .AutomationName("复制 Riot ID"),
             copied
                 ? Caption("✓ 已复制")
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(CareerVisuals.WinText)
                     .VAlign(VerticalAlignment.Center)
                 : Empty());
@@ -120,7 +119,6 @@ internal static class CareerProfileHeader
             actionButtons.Add(Button(Caption("返回我的生涯"), onBackToSelf)
                 .Width(ActionWidth)
                 .Height(30)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                 .CornerRadius(6)
                 .AutomationName("返回我的生涯"));
         }
@@ -129,13 +127,11 @@ internal static class CareerProfileHeader
             .AutomationName("刷新")
             .Width(ActionWidth)
             .Height(30)
-            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .CornerRadius(6));
         actionButtons.Add(Button(Caption("历史战绩"), onHistory)
             .AutomationName("历史战绩")
             .Width(ActionWidth)
             .Height(30)
-            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .CornerRadius(6));
 
         Element actions = VStack(8, actionButtons.ToArray())

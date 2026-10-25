@@ -64,8 +64,8 @@ internal static class CareerVisuals
             .TextAlignment(TextAlignment.Center)
             .Foreground(header ? Theme.SecondaryText : Theme.PrimaryText);
 
-        // 表头原来靠更小字号区分，字号收敛到 Caption 后改用字重承担层级
-        return header ? cell.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold) : cell;
+        // 表头层级改由 secondary 文本色承担：12px 中文字重 600 会被雅黑吸附到 Bold，笔画粘连发糊
+        return cell;
     }
 
     /// <summary>一行「标签 : 值」，用于近期看板的统计文字。</summary>

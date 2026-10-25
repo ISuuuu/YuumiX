@@ -99,9 +99,6 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
 
             return Border(
                 Caption(key)
-                    .FontWeight(key.Equals("R", StringComparison.OrdinalIgnoreCase)
-                        ? Microsoft.UI.Text.FontWeights.SemiBold
-                        : Microsoft.UI.Text.FontWeights.Normal)
                     .Foreground(textCol)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -125,7 +122,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
         return HStack(12,
             VStack(1,
                 Caption(OpggVisuals.FormatRatio(skillStats.Win, skillStats.Play))
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    .SemiBold()
                     .HAlign(HorizontalAlignment.Right),
                 Caption($"{skillStats.Play} 场")
                     .Foreground(Theme.SecondaryText)

@@ -127,7 +127,7 @@ internal static class LootManagerView
             Button(Caption("刷新列表"), onRefresh).Height(30).Padding(12, 0).AutomationName("刷新材料列表"),
             Border(HStack(4,
                     Caption("🔑"),
-                    Caption($"x{loot.TotalKeys}").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.GoldColor))
+                    Caption($"x{loot.TotalKeys}").SemiBold().Foreground(CareerVisuals.GoldColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 3)
                 .CornerRadius(4)
@@ -202,12 +202,12 @@ internal static class LootManagerView
                 .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
 
         Element badge = item.IsKeyFragment
-            ? Border(Caption("3合1合成").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.WinText))
+            ? Border(Caption("3合1合成").Foreground(CareerVisuals.WinText))
                 .Padding(5, 2)
                 .CornerRadius(4)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x1F))
             : item.NeedKey
-                ? Border(Caption("需要钥匙").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.GoldColor))
+                ? Border(Caption("需要钥匙").Foreground(CareerVisuals.GoldColor))
                     .Padding(5, 2)
                     .CornerRadius(4)
                     .Background(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x1F))
@@ -220,10 +220,9 @@ internal static class LootManagerView
             HStack(0,
                 Caption(item.Name)
                     .Width(95)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .VAlign(VerticalAlignment.Center),
                 Border(Caption($"x{item.Count}")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        .SemiBold()
                         .Foreground(palette.Accent))
                     .Padding(5, 1)
                     .CornerRadius(3)
@@ -293,7 +292,7 @@ internal static class LootManagerView
         Element rightCurrency = HStack(10,
             Border(HStack(6,
                     Caption("🔵"),
-                    Caption(loot.BlueEssence.ToString(CultureInfo.InvariantCulture)).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.BlueEssenceColor))
+                    Caption(loot.BlueEssence.ToString(CultureInfo.InvariantCulture)).SemiBold().Foreground(CareerVisuals.BlueEssenceColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 4)
                 .CornerRadius(6)
@@ -301,7 +300,7 @@ internal static class LootManagerView
                 .WithBorder(CareerVisuals.WithAlpha(CareerVisuals.BlueEssenceColor, 0x33), 1),
             Border(HStack(6,
                     Caption("🔶"),
-                    Caption(loot.OrangeEssence.ToString(CultureInfo.InvariantCulture)).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.OrangeEssenceColor))
+                    Caption(loot.OrangeEssence.ToString(CultureInfo.InvariantCulture)).SemiBold().Foreground(CareerVisuals.OrangeEssenceColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 4)
                 .CornerRadius(6)
@@ -515,10 +514,9 @@ internal static class LootManagerView
             HStack(0,
                 Caption(item.ItemDesc)
                     .Width(95)
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .VAlign(VerticalAlignment.Center),
                 Border(Caption($"x{item.Count}")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                        .SemiBold()
                         .Foreground(palette.Accent))
                     .Padding(4, 1)
                     .CornerRadius(3)
@@ -539,14 +537,14 @@ internal static class LootManagerView
                 HStack(3,
                         Caption(valueIcon),
                         Caption(item.DisenchantValue.ToString(CultureInfo.InvariantCulture))
-                            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                            .SemiBold()
                             .Foreground(valueColor))
                     .Width(80)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Center)));
 
         Element checkBadge = isSelected
-            ? Border(Caption("✓").FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).Foreground(CareerVisuals.WinText))
+            ? Border(Caption("✓").SemiBold().Foreground(CareerVisuals.WinText))
                 .Padding(4, 1)
                 .CornerRadius(3)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x33))
@@ -726,7 +724,6 @@ internal static class LootManagerView
             bodyChildren.Add(HStack(8,
                 Caption("需要钥匙").Foreground(Theme.SecondaryText),
                 Caption($"{keyName} x{quantity.ToString(CultureInfo.InvariantCulture)}（拥有：{item.KeyCount.ToString(CultureInfo.InvariantCulture)}）")
-                    .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
                     .Foreground(CareerVisuals.GoldColor)));
         }
 
@@ -792,7 +789,7 @@ internal static class LootManagerView
         {
             bodyChildren.Add(HStack(8,
                 Caption(label).Foreground(Theme.SecondaryText),
-                Caption(value).FontWeight(Microsoft.UI.Text.FontWeights.SemiBold).HAlign(HorizontalAlignment.Right))
+                Caption(value).HAlign(HorizontalAlignment.Right))
                 .HAlign(HorizontalAlignment.Stretch));
         }
 

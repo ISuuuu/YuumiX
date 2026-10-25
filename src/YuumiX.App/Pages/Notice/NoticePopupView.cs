@@ -124,8 +124,8 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                         .FontFamily("Segoe Fluent Icons")
                         .Foreground(accent)
                         .VAlign(VerticalAlignment.Center),
-                    Body("公告")
-                        .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                    BodyStrong("公告")
+                        
                         .Foreground(Theme.Ref("TextFillColorPrimaryBrush"))
                         .VAlign(VerticalAlignment.Center),
                     // 弹性占位：把关闭按钮推到最右（旧版 justify-content: space-between）。

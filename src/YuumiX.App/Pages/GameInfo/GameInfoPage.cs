@@ -147,7 +147,7 @@ public sealed class GameInfoPage : Component
         var items = new List<Element>
         {
             BodyLarge(title)
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                .SemiBold()
                 .Foreground(Theme.PrimaryText)
                 .HAlign(HorizontalAlignment.Center),
             Caption(subtitle)
@@ -543,7 +543,6 @@ public sealed class GameInfoPage : Component
             .Margin(0, 0, 5, 0);
 
         var label = Caption(text)
-            .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
             .Foreground(fgColor)
             .VAlign(VerticalAlignment.Center);
 
@@ -573,7 +572,7 @@ public sealed class GameInfoPage : Component
     {
         return Border(
             Caption("VS")
-                .FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)
+                .SemiBold()
                 .Foreground(Theme.SecondaryText)
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
