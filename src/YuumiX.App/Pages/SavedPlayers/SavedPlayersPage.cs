@@ -495,11 +495,11 @@ public sealed class SavedPlayersPage : Component
             ? Border(
                 Caption($"{totalCount}")
                     .SemiBold()
-                    .Foreground(palette.Accent)
+                    .Foreground(Theme.Accent)
                     .Margin(6, 1)
               )
               .Background(Theme.CardBackground)
-              .WithBorder(palette.Accent, 1)
+              .WithBorder(Theme.Accent, 1)
               .CornerRadius(10)
               .VerticalAlignment(VerticalAlignment.Center)
             : null;
@@ -580,7 +580,7 @@ public sealed class SavedPlayersPage : Component
                 .Padding(14, 5);
 
             return isSelected
-                ? btn.Background(palette.Accent)
+                ? btn.Background(Theme.Accent)
                 : btn;
         }
 
@@ -780,7 +780,7 @@ public sealed class SavedPlayersPage : Component
                         Caption(player.Tag)
                             .Margin(6, 1)
                       )
-                      .Background(palette.Accent)
+                      .Background(Theme.Accent)
                       .CornerRadius(4)
                     : null,
 
@@ -798,11 +798,11 @@ public sealed class SavedPlayersPage : Component
                 player.EncounterCount >= 2
                     ? Border(
                         Caption($"相遇 {player.EncounterCount} 次")
-                            .Foreground(palette.Accent)
+                            .Foreground(Theme.Accent)
                             .Margin(6, 1)
                       )
                       .Background(Theme.CardBackground)
-                      .WithBorder(palette.Accent, 1)
+                      .WithBorder(Theme.Accent, 1)
                       .CornerRadius(4)
                     : null
             )
@@ -906,7 +906,7 @@ public sealed class SavedPlayersPage : Component
                 Button(Caption("保存"), onSaveTag)
                     .AutomationName("保存")
                     .Padding(12, 4)
-                    .Background(palette.Accent),
+                    .Background(Theme.Accent),
                 Button(Caption("取消"), () => setEditingPuuid(null))
                     .AutomationName("取消")
                     .Padding(12, 4)
@@ -995,11 +995,11 @@ public sealed class SavedPlayersPage : Component
         var items = toasts.Select(t =>
             Border(
                 Caption(t.Message)
-                    .Foreground(t.IsError ? palette.LoseAccent : palette.Accent)
+                    .Foreground(t.IsError ? Theme.SystemCritical : Theme.Accent)
                     .Margin(12, 6)
             )
             .Background(Theme.CardBackground)
-            .WithBorder(t.IsError ? palette.LoseAccent : palette.Accent, 1)
+            .WithBorder(t.IsError ? Theme.SystemCritical : Theme.Accent, 1)
             .CornerRadius(6)
         ).ToArray();
 

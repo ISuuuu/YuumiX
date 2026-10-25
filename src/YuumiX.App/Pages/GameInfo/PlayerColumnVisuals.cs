@@ -42,7 +42,8 @@ internal static class PlayerColumnVisuals
             .Width(size)
             .Height(size)
             .CornerRadius(cornerRadius)
-            .WithBorder(masteryDetail?.IsTopChampion == true ? "#FFFFD700" : "#00000000", masteryDetail?.IsTopChampion == true ? 1.5 : 0);
+            // 顶级英雄金描边；非顶级厚度为 0（描边不参与绘制，色值无意义）
+            .WithBorder(masteryDetail?.IsTopChampion == true ? AssetColors.PureGold : AssetColors.TeamBlue, masteryDetail?.IsTopChampion == true ? 1.5 : 0);
 
         var layers = new List<Element> { avatarCore };
 
@@ -50,13 +51,13 @@ internal static class PlayerColumnVisuals
         {
             layers.Add(
                 Border(Caption("练")
-                        .Foreground("#FFFFFFFF")
+                        .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center))
                     .Width(12)
                     .Height(12)
                     .CornerRadius(6)
-                    .Background("#FFF43F5E")
+                    .Background(AssetColors.LoseDark)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Top)
                     .Margin(0, -2, -2, 0)
@@ -66,13 +67,13 @@ internal static class PlayerColumnVisuals
         {
             layers.Add(
                 Border(Caption("★")
-                        .Foreground("#FFFFFFFF")
+                        .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center))
                     .Width(12)
                     .Height(12)
                     .CornerRadius(6)
-                    .Background("#FFF59E0B")
+                    .Background(AssetColors.Amber)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Top)
                     .Margin(0, -2, -2, 0)
@@ -148,7 +149,7 @@ internal static class PlayerColumnVisuals
             items.Add(
                 Caption("\uE72E")
                     .FontFamily("Segoe Fluent Icons")
-                    .Foreground("#FFD97706")
+                    .Foreground(AssetColors.AmberDeep)
                     .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("战绩已隐藏")));
@@ -170,7 +171,7 @@ internal static class PlayerColumnVisuals
 
         if (showSavedBadge && savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
-            items.Add(FateBadgeVisuals.BuildSavedBadge(savedInfo, palette).Margin(3, 0, 0, 0));
+            items.Add(FateBadgeVisuals.BuildSavedBadge(savedInfo).Margin(3, 0, 0, 0));
         }
 
         return HStack(0, items.ToArray());

@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using YuumiX.Core.Common;
 using YuumiX.Core.Persistence;
 
@@ -20,9 +21,13 @@ public sealed class ThemeState
 {
     private readonly EventStream<YuumiPalette> _changes;
 
+    private PersonalizationConfig _latest;
+    private ElementTheme? _actualTheme;
+
     public ThemeState(PersonalizationConfig initial, Action<Exception>? onObserverError = null)
     {
         ArgumentNullException.ThrowIfNull(initial);
+        _latest = initial;
         _changes = new EventStream<YuumiPalette>(onObserverError);
         Current = YuumiPalette.FromConfig(initial);
     }
@@ -39,7 +44,8 @@ public sealed class ThemeState
     /// </summary>
     public void Apply(PersonalizationConfig personalization)
     {
-        var next = YuumiPalette.FromConfig(personalization);
+        _latest = personalization;
+        var next = YuumiPalette.FromConfig(personalization, _actualTheme);
         if (next == Current)
         {
             return;
@@ -50,6 +56,31 @@ public sealed class ThemeState
         // 不在这里碰 Application.Resources：它是带 Source 的字典（themeresources.xaml），
         // 写本地值必抛 COMException 0x800F1000，点任何外观开关都会让进程崩掉（0xc000027b）。
         // 强调色本来就跟随系统（AGENTS.md §2），不需要应用侧同步。
+        _changes.Publish(next);
+    }
+
+    /// <summary>
+    /// 根元素实际主题变化时由 AppShell 调用（ActualThemeChanged → 运行中切换 Windows 深浅），
+    /// 重新派生业务调色板并发布，让 <c>palette.WinText</c> 等业务色即时跟随（AGENTS.md §8）。
+    ///
+    /// 仅在「跟随系统」时记录：固定主题模式下深浅由配置直接决定，记录下来反而会在
+    /// 之后切回跟随系统时把过期的固定值带进业务色。
+    /// </summary>
+    public void UpdateActualTheme(ElementTheme actualTheme)
+    {
+        if (_latest.ThemeMode is "Light" or "Dark")
+        {
+            return;
+        }
+
+        _actualTheme = actualTheme;
+        var next = YuumiPalette.FromConfig(_latest, actualTheme);
+        if (next == Current)
+        {
+            return;
+        }
+
+        Current = next;
         _changes.Publish(next);
     }
 }

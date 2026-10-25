@@ -65,7 +65,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         string? resultColor = summary.Remake
             ? null
             : summary.Placement is { } rank
-                ? rank == 1 ? "#FFF59E0B" : rank <= 4 ? CareerVisuals.WinText : CareerVisuals.LoseText
+                ? rank == 1 ? AssetColors.Amber : rank <= 4 ? CareerVisuals.WinText : CareerVisuals.LoseText
                 : summary.Win ? CareerVisuals.WinText : CareerVisuals.LoseText;
         Element resultTextBlock = BodyStrong(resultText);
         resultTextBlock = resultColor is null
@@ -227,18 +227,20 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         string normalBg = summary.Remake ? palette.RemakeBg : (summary.Win ? palette.WinBg : palette.LoseBg);
         string hoverBg = summary.Remake ? palette.RemakeBgHover : (summary.Win ? palette.WinBgHover : palette.LoseBgHover);
         string normalBorder = summary.Remake ? palette.RemakeBorder : (summary.Win ? palette.WinBorder : palette.LoseBorder);
-        string hoverBorder = palette.AccentAlpha30;
 
         string currentBg = isHovered ? hoverBg : normalBg;
-        string currentBorder = isHovered ? hoverBorder : normalBorder;
 
-        return Border(cardContent)
+        // 业务描边是 string、悬停描边是 ThemeRef 令牌，两种形态无法共存于同一三元，因此在元素级分支。
+        var row = Border(cardContent)
             .Height(RowHeight)
             .Padding(14, 8)
             .CornerRadius(8)
             .Background(currentBg)
-            .WithBorder(currentBorder, 1)
-            .AutomationName($"查看对局 {summary.GameId}")
+            .AutomationName($"查看对局 {summary.GameId}");
+        row = isHovered
+            ? row.WithBorder(Theme.ControlStroke, 1)
+            : row.WithBorder(normalBorder, 1);
+        return row
             // D6：悬停（含 focus 落入行内按钮）浮现回放；整行点击跳战绩详情（§4）
             .OnPointerEntered((_, _) => { setReplayRevealed(true); setIsHovered(true); })
             .OnPointerExited((_, _) => { setReplayRevealed(false); setIsHovered(false); })
@@ -276,14 +278,14 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     {
         if (summary.Deaths == 0)
         {
-            return "#FFD97706"; // Perfect → 琥珀
+            return AssetColors.AmberDeep; // Perfect → 琥珀
         }
 
         double ratio = (summary.Kills + summary.Assists) / (double)summary.Deaths;
         return ratio switch
         {
-            >= 5 => "#FFDB2777", // 玫红
-            >= 3 => "#FF2563EB", // 蓝
+            >= 5 => AssetColors.Rose, // 玫红
+            >= 3 => AssetColors.Blue, // 蓝
             _ => null,           // 次要灰（主题令牌）
         };
     }

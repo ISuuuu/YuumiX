@@ -203,7 +203,7 @@ public sealed class GameInfoPage : Component
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
                     .Height(2)
-                    .Background(isMyTab ? palette.Accent : "#00000000")
+                    .Background(isMyTab ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
                     .Margin(0, 6, 0, 0)
             ),
             () => service.SetActiveTab("my")
@@ -222,7 +222,7 @@ public sealed class GameInfoPage : Component
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
                     .Height(2)
-                    .Background(!isMyTab ? palette.Accent : "#00000000")
+                    .Background(!isMyTab ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
                     .Margin(0, 6, 0, 0)
             ),
             () => service.SetActiveTab("their")
@@ -280,7 +280,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .Width(250)
-        .Background(palette.CardBg)
+        .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
@@ -379,7 +379,7 @@ public sealed class GameInfoPage : Component
                 ]
             )
         )
-        .Background(palette.CardBg)
+        .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
@@ -526,7 +526,7 @@ public sealed class GameInfoPage : Component
                 ]
             )
         )
-        .Background(palette.CardBg)
+        .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
@@ -547,10 +547,10 @@ public sealed class GameInfoPage : Component
         Action? onClick = null,
         bool isActive = false)
     {
-        string dotColor = isBlueSide ? "#FF3B82F6" : "#FFF43F5E";
-        string bgColor = isBlueSide ? "#203B82F6" : "#20F43F5E";
-        string borderColor = isBlueSide ? "#403B82F6" : "#40F43F5E";
-        string fgColor = isBlueSide ? "#FF3B82F6" : "#FFF43F5E";
+        string dotColor = isBlueSide ? AssetColors.TeamBlue : AssetColors.TeamRed;
+        string bgColor = isBlueSide ? YuumiPalette.WithAlpha(AssetColors.TeamBlue, 0x20) : YuumiPalette.WithAlpha(AssetColors.TeamRed, 0x20);
+        string borderColor = isBlueSide ? YuumiPalette.WithAlpha(AssetColors.TeamBlue, 0x40) : YuumiPalette.WithAlpha(AssetColors.TeamRed, 0x40);
+        string fgColor = isBlueSide ? AssetColors.TeamBlue : AssetColors.TeamRed;
 
         var dot = Border(Empty())
             .Width(5)

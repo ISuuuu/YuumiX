@@ -104,23 +104,23 @@ internal static class CareerVisuals
     /// 为什么不复用 <see cref="YuumiPalette.WinCard"/>：那是卡片**底色**（带 20% alpha），
     /// 直接拿来写字会淡到看不清。胜负文字色在配置里没有对应项，因此按实际明暗取常量。
     /// </summary>
-    public static string WinText => IsDarkTheme ? "#FF10B981" : "#FF065F46";
+    public static string WinText => IsDarkTheme ? AssetColors.WinDark : AssetColors.WinLight;
 
     /// <summary>失败文字色（原 <c>--loss-color</c>：浅色 #9F1239 / 深色 #F43F5E）。</summary>
-    public static string LoseText => IsDarkTheme ? "#FFF43F5E" : "#FF9F1239";
+    public static string LoseText => IsDarkTheme ? AssetColors.LoseDark : AssetColors.LoseLight;
 
     /// <summary>当前是否为深色主题。<c>Default</c> 时取系统设置，与 WinUI 的实际绘制口径一致。</summary>
     public static bool IsDarkTheme =>
         Application.Current?.RequestedTheme == ApplicationTheme.Dark;
 
     /// <summary>蓝色精粹专属色。</summary>
-    public const string BlueEssenceColor = "#FF3B82F6";
+    public const string BlueEssenceColor = AssetColors.BlueEssence;
 
     /// <summary>橙色精粹专属色。</summary>
-    public const string OrangeEssenceColor = "#FFF97316";
+    public const string OrangeEssenceColor = AssetColors.OrangeEssence;
 
     /// <summary>钥匙/黄金专属色。</summary>
-    public const string GoldColor = "#FFEAB308";
+    public const string GoldColor = AssetColors.Gold;
 
     /// <summary>通用小胶囊标签（Pill / Chip）。</summary>
     public static Element Chip(
@@ -141,31 +141,5 @@ internal static class CareerVisuals
         return borderBrush is not null
             ? border.WithBorder(borderBrush, 1)
             : border;
-    }
-
-    /// <summary>对局卡片背景色（胜利淡翡翠、失败淡玫瑰红、重开淡灰）。</summary>
-    public static string MatchCardBg(bool win, bool remake)
-    {
-        if (remake)
-        {
-            return IsDarkTheme ? "#1AFFFFFF" : "#0A000000";
-        }
-
-        return win
-            ? (IsDarkTheme ? "#1F10B981" : "#1410B981")
-            : (IsDarkTheme ? "#1FF43F5E" : "#14F43F5E");
-    }
-
-    /// <summary>对局卡片边框色。</summary>
-    public static string MatchCardBorder(bool win, bool remake)
-    {
-        if (remake)
-        {
-            return IsDarkTheme ? "#33FFFFFF" : "#1A000000";
-        }
-
-        return win
-            ? (IsDarkTheme ? "#3310B981" : "#2E10B981")
-            : (IsDarkTheme ? "#33F43F5E" : "#2EF43F5E");
     }
 }

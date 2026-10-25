@@ -38,26 +38,25 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
         bool hasSummonerId = p.SummonerId > 0;
         bool canClick = hasPuuid || hasSummonerId;
 
-        string color;
+        // 玩家名着色：查询者走胜负面板业务色；其余按可点击/悬停走语义令牌。
+        // string 业务色与 ThemeRef 令牌无法共存于同一三元，因此按 CareerMatchRow 的既有做法在元素级分支。
+        var text = Caption(p.DisplayName);
         if (p.IsQueriedPlayer)
         {
-            color = p.TeamWin ? p.Palette.WinText : p.Palette.LoseText;
+            text = text.Foreground(p.TeamWin ? p.Palette.WinText : p.Palette.LoseText);
         }
         else if (canClick && hovered)
         {
-            color = p.Palette.Accent;
+            text = text.Foreground(Theme.Accent);
         }
         else if (canClick)
         {
-            color = p.Palette.TextPrimary;
+            text = text.Foreground(Theme.PrimaryText);
         }
         else
         {
-            color = p.Palette.TextSecondary;
+            text = text.Foreground(Theme.SecondaryText);
         }
-
-        var text = Caption(p.DisplayName)
-            .Foreground(color);
 
         if (hasPuuid)
         {
@@ -68,7 +67,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
             }
 
             return Border(text)
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .IsTabStop(true)
                 .OnPointerEntered((_, _) => setHovered(true))
                 .OnPointerExited((_, _) => setHovered(false))
@@ -90,7 +89,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
             void Trigger() => p.OnClickPlayerSummonerId?.Invoke(p.SummonerId);
 
             return Border(text)
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .IsTabStop(true)
                 .OnPointerEntered((_, _) => setHovered(true))
                 .OnPointerExited((_, _) => setHovered(false))
@@ -108,7 +107,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
         }
 
         return Caption(p.DisplayName)
-            .Foreground(p.Palette.TextSecondary)
+            .Foreground(Theme.SecondaryText)
             .WithToolTip(TextBlock("机器人（不可查看战绩）"));
     }
 }
@@ -185,7 +184,7 @@ internal static class MatchDetailView
                 ScrollViewer(VStack(10, blocks.ToArray()).Padding(12))
                     .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch))
             .CornerRadius(10)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
     }
@@ -195,7 +194,7 @@ internal static class MatchDetailView
         Border(Caption("在左侧选择一局以查看详情").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
             .Padding(24)
             .CornerRadius(10)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
@@ -203,7 +202,7 @@ internal static class MatchDetailView
     /// <summary>详情请求进行中的占位。</summary>
     private static Element PendingHint(YuumiPalette palette) =>
         Border(Caption("正在读取该局详情…").Foreground(Theme.SecondaryText)).Padding(16).CornerRadius(8)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 
@@ -317,7 +316,7 @@ internal static class MatchDetailView
         {
             if (i > 0)
             {
-                rows.Add(SearchVisuals.Divider(palette.Separator));
+                rows.Add(SearchVisuals.Divider(Theme.DividerStroke));
             }
 
             rows.Add(PlayerRow(
@@ -339,7 +338,7 @@ internal static class MatchDetailView
 
         return Border(VStack(0, header, body))
             .CornerRadius(8)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(border, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
     }
@@ -412,14 +411,14 @@ internal static class MatchDetailView
         Element levelBadge = Border(
                 Caption(player.ChampionLevel.ToString(CultureInfo.InvariantCulture))
                     .SemiBold()
-                    .Foreground("#FFFFFFFF")
+                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                     .TextAlignment(TextAlignment.Center)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))
             .Width(15)
             .Height(15)
             .CornerRadius(3)
-            .Background("#D90F172A")
+            .Background(AssetColors.BadgeDark)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom);
 
@@ -573,7 +572,7 @@ internal static class MatchDetailView
         rowBorder = isQueriedPlayer
             ? rowBorder.Background(team.Win ? palette.WinBg : palette.LoseBg)
                        .WithBorder(team.Win ? palette.WinBorder : palette.LoseBorder, 1)
-            : rowBorder.Background(palette.CardBg);
+            : rowBorder.Background(Theme.CardBackground);
 
         return rowBorder;
     }

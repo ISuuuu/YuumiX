@@ -118,10 +118,10 @@ internal static class ChampionMasteryView
             "最高等级英雄",
             HStack(6,
                 BodyLarge(heroName).SemiBold().VAlign(VerticalAlignment.Center),
-                Border(Caption($"Lv. {heroLevel}").SemiBold().Foreground(palette.Accent))
+                Border(Caption($"Lv. {heroLevel}").SemiBold().Foreground(Theme.Accent))
                     .Padding(6, 2)
                     .CornerRadius(4)
-                    .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1F))
+                    .Background(Theme.SubtleFill)
                     .VAlign(VerticalAlignment.Center)),
             $"{heroPoints:N0} 分");
 
@@ -340,7 +340,7 @@ internal static class ChampionMasteryView
                 ? Border(Empty()).Width(fillWidth).Height(6).CornerRadius(3).Background(CareerVisuals.WinText)
                 : Border(Empty()).Width(0),
             emptyWidth > 0
-                ? Border(Empty()).Width(emptyWidth).Height(6).CornerRadius(3).Background(CareerVisuals.WithAlpha(palette.Accent, 0x1A))
+                ? Border(Empty()).Width(emptyWidth).Height(6).CornerRadius(3).Background(Theme.SubtleFill)
                 : Border(Empty()).Width(0))
             .Height(6);
 
@@ -364,8 +364,8 @@ internal static class ChampionMasteryView
             Border(Caption($"里程碑 {item.ChampionSeasonMilestone}").Foreground(Theme.SecondaryText))
                 .Padding(5, 1)
                 .CornerRadius(3)
-                .Background(CareerVisuals.WithAlpha(palette.Accent, 0x10))
-                .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x22), 1),
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.CardStroke, 1),
         };
 
         foreach (string grade in item.MilestoneGrades)
@@ -378,12 +378,12 @@ internal static class ChampionMasteryView
         }
 
         Element chestBtn = Border(HStack(3,
-                Caption("可获宝箱").Foreground(palette.Accent),
+                Caption("可获宝箱").Foreground(Theme.Accent),
                 Caption("📦")))
             .Padding(6, 2)
             .CornerRadius(4)
-            .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1A))
-            .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x33), 1);
+            .Background(Theme.SubtleFill)
+            .WithBorder(Theme.CardStroke, 1);
 
         Element footer = HStack(0,
             HStack(4, badges.ToArray()).Width(110).VAlign(VerticalAlignment.Center),

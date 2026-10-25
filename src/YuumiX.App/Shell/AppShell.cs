@@ -5,6 +5,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.Foundation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Navigation;
@@ -121,6 +122,13 @@ public sealed class AppShell : Component
                 return () => subscription.Dispose();
             },
             0);
+
+        // 跟随系统模式下运行中切换 Windows 深浅：Theme.* 结构色自动跟随，
+        // 业务色（palette.WinText 等）不会——把根元素实际主题写回 ThemeState 重算调色板（AGENTS.md §8）。
+        // ActualThemeChanged 是 TypedEventHandler<FrameworkElement, object>（非通用 RoutedEventHandler）；
+        // 委托必须跨渲染保持同一实例（AGENTS.md §5.7），用 UseRef 缓存。
+        var themeChangedHandler = UseRef<TypedEventHandler<FrameworkElement, object>?>(null);
+        themeChangedHandler.Current ??= (sender, _) => AppHost.Theme.UpdateActualTheme(sender.ActualTheme);
 
         // 菜单可见性是另一个重渲染来源：设置页切「隐藏菜单」开关后，
         // MenuVisibilityState 推过来，重新计算带过滤的菜单（同主题的 threadSafe 语义）。
@@ -498,7 +506,7 @@ public sealed class AppShell : Component
             .Margin(new Microsoft.UI.Xaml.Thickness(0, 48, 0, 0));
         }
 
-        return Grid(
+        var root = Grid(
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Star()],
             [
@@ -517,6 +525,21 @@ public sealed class AppShell : Component
         .RequestedTheme(palette.ElementTheme)
         .Provide(AppHost.Context, services)
         .Provide(AppHost.ThemeContext, AppHost.Theme);
+
+        // 挂载即同步一次实际主题：首帧调色板的 IsDark 走启动时解析值兜底，
+        // 若应用运行期间系统已切过深浅，这里立即校准（挂载时 ActualTheme 已可读）。
+        // 「固定主题」模式由 UpdateActualTheme 内部守卫忽略，不会污染调色板。
+        root = root
+            .OnMountAdd(element =>
+            {
+                var fe = (FrameworkElement)element;
+                fe.ActualThemeChanged += themeChangedHandler.Current!;
+                AppHost.Theme.UpdateActualTheme(fe.ActualTheme);
+            })
+            .OnUnmountAdd(element =>
+                ((FrameworkElement)element).ActualThemeChanged -= themeChangedHandler.Current!);
+
+        return root;
     }
 
     /// <summary>

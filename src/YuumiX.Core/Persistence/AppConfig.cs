@@ -73,7 +73,6 @@ public sealed class AppConfig
         Personalization.RemakeCardColor ??= "#33a2a2a2";
         Personalization.LightDeathsNumberColor ??= "#ffb60000";
         Personalization.DarkDeathsNumberColor ??= "#ffff8d8d";
-        Personalization.ThemeColor ??= "#009faa";
 
         Functions.AutoSelectChampion ??= [];
         Functions.AutoSelectChampionTop ??= [];
@@ -161,9 +160,6 @@ public sealed class PersonalizationConfig
     public string LightDeathsNumberColor { get; set; } = "#ffb60000";
 
     public string DarkDeathsNumberColor { get; set; } = "#ffff8d8d";
-
-    /// <summary>主题色，ARGB 字符串（见 ADR-03），可直接透传给 Reactor 的 <c>Background(string)</c>。</summary>
-    public string ThemeColor { get; set; } = "#009faa";
 
     /// <summary>
     /// 侧边导航展开状态。YuumiX 自加字段，原版 Rust 侧没有（跨启动记住导航栏开合）。

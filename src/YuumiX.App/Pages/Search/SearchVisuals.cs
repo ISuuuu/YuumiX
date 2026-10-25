@@ -68,10 +68,10 @@ internal static class SearchVisuals
     }
 
     /// <summary>海克斯强化背景色（旧版 .augment-slot / .row-augment-slot: rgba(147, 51, 234, 0.12)）。</summary>
-    public const string AugmentBackgroundColor = "#1F9333EA";
+    public const string AugmentBackgroundColor = AssetColors.AugmentBackground;
 
     /// <summary>海克斯强化边框色（旧版 .augment-slot / .row-augment-slot: rgba(168, 85, 247, 0.45)）。</summary>
-    public const string AugmentBorderColor = "#73A855F7";
+    public const string AugmentBorderColor = AssetColors.AugmentBorder;
 
     /// <summary>海克斯强化图标（仅 2400/2450 队列）。带名称提示与海克斯背景边框。</summary>
     public static Element AugmentIcon(GameDataCatalog catalog, int augmentId, double size)
@@ -239,6 +239,6 @@ internal static class SearchVisuals
         value.ToString("N0", CultureInfo.InvariantCulture);
 
     /// <summary>纵向 1px 分隔线：用底色差值画线，避免给每行都套一层 Border 描边。</summary>
-    public static Element Divider(string color) =>
+    public static Element Divider(ThemeRef color) =>
         Border(Empty()).Height(1).HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch).Background(color);
 }

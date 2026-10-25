@@ -1,12 +1,6 @@
 {
   "entries": [
     {
-      "path": "Controls/CompactStepperControl.cs",
-      "rule": "Argb8",
-      "count": 4,
-      "batch": "R13"
-    },
-    {
       "path": "Controls/LcuImage.cs",
       "rule": "BareFluentFontFamily",
       "count": 1,
@@ -44,33 +38,15 @@
     },
     {
       "path": "Pages/Career/CareerMatchRow.cs",
-      "rule": "Argb8",
-      "count": 4,
-      "batch": "R13"
-    },
-    {
-      "path": "Pages/Career/CareerMatchRow.cs",
       "rule": "SpacingOff4Grid",
       "count": 2,
       "batch": "R16"
     },
     {
       "path": "Pages/Career/CareerPage.cs",
-      "rule": "Argb8",
-      "count": 1,
-      "batch": "R13"
-    },
-    {
-      "path": "Pages/Career/CareerPage.cs",
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Career/CareerProfileHeader.cs",
-      "rule": "Argb8",
-      "count": 1,
-      "batch": "R13"
     },
     {
       "path": "Pages/Career/CareerProfileHeader.cs",
@@ -85,22 +61,10 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/Career/CareerVisuals.cs",
-      "rule": "Argb8",
-      "count": 11,
-      "batch": "R13"
-    },
-    {
       "path": "Pages/Career/ChampionMasteryView.cs",
       "rule": "SpacingOff4Grid",
       "count": 7,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Career/LootManagerView.cs",
-      "rule": "Argb8",
-      "count": 1,
-      "batch": "R13"
     },
     {
       "path": "Pages/Career/LootManagerView.cs",
@@ -116,33 +80,15 @@
     },
     {
       "path": "Pages/Career/RecentSummaryView.cs",
-      "rule": "Argb8",
-      "count": 1,
-      "batch": "R13"
-    },
-    {
-      "path": "Pages/Career/RecentSummaryView.cs",
       "rule": "SpacingOff4Grid",
       "count": 4,
       "batch": "R16"
     },
     {
       "path": "Pages/GameInfo/FateBadgeVisuals.cs",
-      "rule": "Argb8",
-      "count": 3,
-      "batch": "R13"
-    },
-    {
-      "path": "Pages/GameInfo/FateBadgeVisuals.cs",
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/GameInfo/GameInfoPage.cs",
-      "rule": "Argb8",
-      "count": 6,
-      "batch": "R13"
     },
     {
       "path": "Pages/GameInfo/GameInfoPage.cs",
@@ -155,12 +101,6 @@
       "rule": "SpacingOff4Grid",
       "count": 12,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/GameInfo/PlayerCardView.cs",
-      "rule": "Argb8",
-      "count": 14,
-      "batch": "R13"
     },
     {
       "path": "Pages/GameInfo/PlayerCardView.cs",
@@ -182,12 +122,6 @@
     },
     {
       "path": "Pages/GameInfo/PlayerColumnVisuals.cs",
-      "rule": "Argb8",
-      "count": 6,
-      "batch": "R13"
-    },
-    {
-      "path": "Pages/GameInfo/PlayerColumnVisuals.cs",
       "rule": "BareFluentFontFamily",
       "count": 1,
       "batch": "R11"
@@ -197,12 +131,6 @@
       "rule": "SpacingOff4Grid",
       "count": 9,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/GameInfo/PlayerMatchColumnView.cs",
-      "rule": "Argb8",
-      "count": 7,
-      "batch": "R13"
     },
     {
       "path": "Pages/GameInfo/PlayerMatchColumnView.cs",
@@ -308,12 +236,6 @@
     },
     {
       "path": "Pages/Search/MatchDetailView.cs",
-      "rule": "Argb8",
-      "count": 4,
-      "batch": "R13"
-    },
-    {
-      "path": "Pages/Search/MatchDetailView.cs",
       "rule": "BareFluentFontFamily",
       "count": 1,
       "batch": "R11"
@@ -323,12 +245,6 @@
       "rule": "SpacingOff4Grid",
       "count": 2,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Search/SearchVisuals.cs",
-      "rule": "Argb8",
-      "count": 2,
-      "batch": "R13"
     },
     {
       "path": "Pages/Settings/SettingsPage.cs",
@@ -347,12 +263,6 @@
       "rule": "SpacingOff4Grid",
       "count": 4,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Tools/ChampionPickerView.cs",
-      "rule": "Argb8",
-      "count": 1,
-      "batch": "R13"
     },
     {
       "path": "Pages/Tools/ChampionPickerView.cs",
@@ -386,21 +296,9 @@
     },
     {
       "path": "Pages/Tools/SpellPickerView.cs",
-      "rule": "Argb8",
-      "count": 3,
-      "batch": "R13"
-    },
-    {
-      "path": "Pages/Tools/SpellPickerView.cs",
       "rule": "SpacingOff4Grid",
       "count": 3,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Tools/ToolsPage.cs",
-      "rule": "Argb8",
-      "count": 4,
-      "batch": "R13"
     },
     {
       "path": "Pages/Tools/ToolsPage.cs",

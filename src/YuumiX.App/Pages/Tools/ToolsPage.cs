@@ -539,7 +539,7 @@ public sealed class ToolsPage : Component
                 buttons.Add(
                     Button(LaneLabels[idx], () => onSelectLane(idx))
                         .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
-                        .BorderBrush(isCurrent ? palette.Accent : "#20808080")
+                        .BorderBrush(isCurrent ? Theme.Accent : Theme.ControlStroke)
                         .BorderThickness(isCurrent ? 1.5 : 1)
                         .CornerRadius(6)
                         .Padding(8, 4)
@@ -1146,7 +1146,7 @@ public sealed class ToolsPage : Component
                         }, "已向 Riot Client 发送重启指令，客户端正在重新引导...");
                     })
                     .Background(Theme.Ref("SystemFillColorCriticalBrush"))
-                    .Foreground("#FFFFFFFF")
+                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                     .Padding(8, 4)
                     .IsEnabled(isLcuConnected)
                     .AutomationName("确认重启客户端"))
@@ -1378,7 +1378,7 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"卸下勋章失败: {ex.Message}", isError: true);
                     }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").Padding(6, 2).AutomationName("确认卸下勋章"))
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下勋章"))
             : (Element)Button("卸下全部勋章", () => setIsConfirmingClearBadges(true)).AutomationName("卸下勋章");
 
         Element clearBorderAction = isConfirmingClearBorder
@@ -1397,7 +1397,7 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"卸下头像框失败: {ex.Message}", isError: true);
                     }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").Padding(6, 2).AutomationName("确认卸下头像框"))
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下头像框"))
             : (Element)Button("卸下头像框", () => setIsConfirmingClearBorder(true)).AutomationName("卸下头像框");
 
         var badgesCard = ToolCard(
@@ -1467,15 +1467,15 @@ public sealed class ToolsPage : Component
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(palette.Accent),
-                    Caption(actionFeedback).Foreground(palette.Accent).VAlign(VerticalAlignment.Center)))
+                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Accent),
+                    Caption(actionFeedback).Foreground(Theme.Accent).VAlign(VerticalAlignment.Center)))
                 .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
         else if (savedAt is { } time)
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(palette.Accent),
+                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Accent),
                     Caption($"配置已保存 · {time:HH:mm:ss}").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)))
                 .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }

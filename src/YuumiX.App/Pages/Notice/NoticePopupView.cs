@@ -48,11 +48,6 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
     public override Element Render()
     {
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
-        var themeState = UseContext(AppHost.ThemeContext);
-
-        // 主题色取「谁用谁取」约定（ADR-12）：读不到主题上下文时退回默认调色板。
-        var accent = (themeState?.Current ?? YuumiTheme.Default).Accent;
-        var accentAlpha10 = WithAlpha(accent, 0x1A); // 10% 透明度（旧版 --primary-color-alpha-10）。
 
         var (attempt, setAttempt) = UseState(0);
         var (status, setStatus) = UseState(NoticeStatus.Loading, threadSafe: true);
@@ -122,7 +117,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                 HStack(7,
                     Body("\uE7E7")
                         .FontFamily("Segoe Fluent Icons")
-                        .Foreground(accent)
+                        .Foreground(Theme.Accent)
                         .VAlign(VerticalAlignment.Center),
                     BodyStrong("公告")
                         
@@ -141,7 +136,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                     .CornerRadius(6)
                     .AutomationName("关闭公告")))
             .Padding(new Thickness(14, 10, 8, 10))
-            .Background(accentAlpha10)
+            .Background(Theme.SubtleFill)
             .WithBorder(Theme.DividerStroke, 1)
             // WinUI 的 Border 不像 CSS overflow:hidden 那样裁剪子内容，
             // 标题栏需要自己收掉上侧两个圆角，避免方角顶出 14px 圆角卡片。
@@ -150,7 +145,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         // ── 正文：加载中 / 失败 / 内容三态（旧版 notice-popup-body）──
         Element body = status switch
         {
-            NoticeStatus.Loaded => RenderContentBody(content, accent),
+            NoticeStatus.Loaded => RenderContentBody(content),
 
             NoticeStatus.Failed => VStack(10,
                     Caption("公告获取失败，请检查网络或代理设置")
@@ -182,7 +177,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
     }
 
     /// <summary>内容态正文：缓存提示条（可选）+ Markdown 滚动区（旧版 markdown-body）。</summary>
-    private static Element RenderContentBody(NoticeContent? content, string accent)
+    private static Element RenderContentBody(NoticeContent? content)
     {
         var blocks = new List<Element>();
 
@@ -218,11 +213,4 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
 
         return VStack(0, blocks.ToArray());
     }
-
-    /// <summary>
-    /// 把 8 位 <c>#AARRGGBB</c> 的 alpha 通道替换为指定值。
-    /// 输入由 <see cref="YuumiPalette"/> 归一化过，长度恒为 9。
-    /// </summary>
-    private static string WithAlpha(string argb, byte alpha) =>
-        $"#{alpha:X2}{argb.AsSpan(3)}";
 }

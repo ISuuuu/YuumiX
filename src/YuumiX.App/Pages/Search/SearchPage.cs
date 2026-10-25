@@ -737,7 +737,7 @@ public sealed class SearchPage : Component
         return Border(body)
             .Padding(8)
             .CornerRadius(8)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
     }
@@ -769,7 +769,7 @@ public sealed class SearchPage : Component
         return Border(content)
             .Padding(4)
             .CornerRadius(8)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
     }
@@ -803,7 +803,7 @@ public sealed class SearchPage : Component
         Border(Caption(text).Foreground(Theme.SecondaryText).TextWrapping())
             .Padding(12)
             .CornerRadius(8)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
 

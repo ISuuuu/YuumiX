@@ -56,7 +56,7 @@ public sealed class ConfigRoundTripTests
     /// </summary>
     [Theory]
     [InlineData(typeof(GeneralConfig), 13)]
-    [InlineData(typeof(PersonalizationConfig), 11)]
+    [InlineData(typeof(PersonalizationConfig), 10)]
     [InlineData(typeof(FunctionsConfig), 58)]
     [InlineData(typeof(OtherConfig), 2)]
     public void Model_CoversAllFieldsOfOriginalSchema(Type sectionType, int expectedCount)
@@ -86,7 +86,6 @@ public sealed class ConfigRoundTripTests
         Assert.Equal("https://lol.369900.xyz", config.General.UploadApiUrl);
         Assert.True(config.General.EnableHttpProxy);
 
-        Assert.Equal("#009faa", config.Personalization.ThemeColor);
         Assert.Equal("#3339b01b", config.Personalization.WinCardColor);
 
         Assert.Equal(0d, config.Functions.AutoBanDelay);

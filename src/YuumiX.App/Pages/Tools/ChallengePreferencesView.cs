@@ -86,7 +86,7 @@ internal static class ChallengePreferencesView
                 .Width(220)
                 .AutomationName("称号ID输入框"),
             Button("保存装配", onSavePreferences)
-                .Background(palette.Accent)
+                .Background(Theme.Accent)
                 .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                 .AutomationName("保存装配按钮"),
             Caption($"已选勋章: {selectedChallengeIds.Count}/3")
@@ -117,7 +117,7 @@ internal static class ChallengePreferencesView
 
                 if (isSelected)
                 {
-                    checkText = checkText.Foreground(palette.Accent);
+                    checkText = checkText.Foreground(Theme.Accent);
                 }
                 else
                 {
@@ -137,7 +137,7 @@ internal static class ChallengePreferencesView
                             ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 1),
                             Border(
                                 Caption(b.CurrentLevel)
-                                    .Foreground(palette.Accent)
+                                    .Foreground(Theme.Accent)
                             )
                             .Padding(6, 2)
                             .CornerRadius(4)
@@ -150,7 +150,7 @@ internal static class ChallengePreferencesView
                 )
                 .Background(isSelected ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
                 .BorderThickness(isSelected ? 1 : 0)
-                .BorderBrush(palette.Accent)
+                .BorderBrush(Theme.Accent)
                 .CornerRadius(4)
                 .Padding(8, 6)
                 .HAlign(HorizontalAlignment.Stretch)
