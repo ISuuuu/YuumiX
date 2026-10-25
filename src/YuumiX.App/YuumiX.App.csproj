@@ -73,4 +73,9 @@
     <ProjectReference Include="../YuumiX.Core/YuumiX.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- SettingsExpander 调和决策层为 internal，供 R15 回归测试直接测（tests/YuumiX.App.Tests） -->
+    <InternalsVisibleTo Include="YuumiX.App.Tests" />
+  </ItemGroup>
+
 </Project>

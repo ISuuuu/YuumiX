@@ -67,11 +67,9 @@ public partial record SettingsExpanderElement
             }).WithUnmount(UnmountExpander);
     }
 
-    private sealed record MountedItem(Element? Element, object Value);
-
     private sealed class MountedItems
     {
-        public List<MountedItem> Items { get; set; } = [];
+        public List<SettingsExpanderReconciler.MountedItem> Items { get; set; } = [];
     }
 
     private static readonly ConditionalWeakTable<SettingsExpander, MountedItems> LiveItems = new();
@@ -86,60 +84,30 @@ public partial record SettingsExpanderElement
             control.Items = new ObservableCollection<object>();
         }
 
-        var previous = state.Items;
-        var used = new HashSet<MountedItem>(ReferenceEqualityComparer.Instance);
-        var next = new List<MountedItem>(items.Count);
-
-        for (var index = 0; index < items.Count; index++)
+        // 复用/卸载/最小变更的决策逻辑在 SettingsExpanderReconciler（纯函数，可单测）。
+        var plan = SettingsExpanderReconciler.Plan(state.Items, items);
+        var next = new List<SettingsExpanderReconciler.MountedItem>(plan.Slots.Count);
+        foreach (var slot in plan.Slots)
         {
-            if (items[index] is Element element)
+            if (slot.Element is { } element)
             {
-                // 带 Key 的动态项按 Key 复用；静态项按槽位复用。
-                // 绝不把已移除项的组件状态借给另一项。
-                var existing = element.Key is { } key
-                    ? previous.FirstOrDefault(item => !used.Contains(item) && item.Element?.Key == key)
-                    : index < previous.Count && previous[index].Element is { Key: null }
-                        && !used.Contains(previous[index]) ? previous[index] : null;
-                if (existing is not null)
-                    used.Add(existing);
-
-                var mounted = context.ReconcileChild(existing?.Element, element, existing?.Value as UIElement);
+                var mounted = context.ReconcileChild(slot.Reuse?.Element, element, slot.Reuse?.Value as UIElement);
                 if (mounted is not null)
                     next.Add(new(element, mounted));
             }
-            else if (items[index] is { } value)
-            {
-                var existing = previous.FirstOrDefault(item => !used.Contains(item)
-                    && item.Element is null && ReferenceEquals(item.Value, value));
-                if (existing is not null)
-                    used.Add(existing);
-                next.Add(new(null, value));
-            }
+            else
+                next.Add(new(null, slot.RawValue!));
         }
 
         // 仅属性变更时不触碰 Items，以保留实例化状态、输入焦点、指针处理器与动画播放器。
-        for (var index = control.Items.Count - 1; index >= 0; index--)
+        var values = next.Select(item => item.Value).ToArray();
+        SettingsExpanderReconciler.RemoveStale(control.Items, values);
+        foreach (var removed in plan.Unmounts)
         {
-            if (!next.Any(item => ReferenceEquals(item.Value, control.Items[index])))
-                control.Items.RemoveAt(index);
+            if (removed.Value is UIElement child)
+                context.ReconcileChild(removed.Element!, null, child);
         }
-
-        foreach (var removed in previous.Where(item => !used.Contains(item)))
-        {
-            if (removed.Element is not null && removed.Value is UIElement child)
-                context.ReconcileChild(removed.Element, null, child);
-        }
-
-        for (var index = 0; index < next.Count; index++)
-        {
-            var value = next[index].Value;
-            if (index < control.Items.Count && ReferenceEquals(control.Items[index], value))
-                continue;
-            var oldIndex = control.Items.IndexOf(value);
-            if (oldIndex >= 0)
-                control.Items.RemoveAt(oldIndex);
-            control.Items.Insert(index, value);
-        }
+        SettingsExpanderReconciler.SyncPositions(control.Items, values);
 
         state.Items = next;
     }
