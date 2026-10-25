@@ -61,5 +61,14 @@ public sealed record GameInfoState
     /// <summary>是否应该显示对局透视内容（对局中或保留快照）</summary>
     public bool ShouldShowContent { get; init; }
 
+    /// <summary>
+    /// 当前内容是否来自 <c>LoadDemoState()</c> 注入的演示数据。
+    ///
+    /// 演示数据不经过 LCU，所以「客户端没开」时也要照常渲染；若没有这个标记，
+    /// 界面只能靠连接态判断，离线时点「预览演示对局」会被下一轮渲染的离线分支拦回去。
+    /// 除 <see cref="Empty"/> 与演示态外恒为 false——真实状态一律经 UpdateState 写入。
+    /// </summary>
+    public bool IsDemo { get; init; }
+
     public static readonly GameInfoState Empty = new();
 }

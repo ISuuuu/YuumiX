@@ -3,6 +3,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Controls;
 using YuumiX.App.Composition;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
@@ -129,6 +130,7 @@ public sealed class CareerPage : Component
         var careerService = services.Services.GetRequiredService<ICareerService>();
         var matchService = services.Services.GetRequiredService<IMatchService>();
         var lifecycle = services.Services.GetService<GameLifecycleService>();
+        var lcu = services.Services.GetRequiredService<LcuConnection>();
 
         var nav = UseNavigation<AppRoute>();
 
@@ -137,6 +139,17 @@ public sealed class CareerPage : Component
             () =>
             {
                 var subscription = theme.Subscribe(setPalette);
+                return () => subscription.Dispose();
+            },
+            0);
+
+        // 连接态走订阅值而非 lcu.CurrentState：客户端启动/退出必须让本页重渲染，
+        // 否则离线占位会停在进页那一刻的判断上（客户端启动后仍是一张空页）。
+        var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = lcu.States.Subscribe(setConnState);
                 return () => subscription.Dispose();
             },
             0);
@@ -819,6 +832,15 @@ public sealed class CareerPage : Component
                     palette,
                     onCancel: () => setConfirmDialog(null))
                 : null;
+
+        // 客户端未启动：整页替换为离线占位，与战绩查询、对局信息同一套表达
+        // （旧版 Career.vue 的 <LcuOfflineState v-if="!store.isConnected" />）。
+        // 位置必须在本方法末尾：所有 UseState/UseEffect 都得按固定顺序跑完，
+        // 提前 return 会让 hook 数量随连接态变化，Reactor 直接判状态错位。
+        if (connState.Status != LcuConnectionStatus.Connected)
+        {
+            return LcuOfflineState.Render();
+        }
 
         Element pageBody = overlay is null
             ? body

@@ -3,6 +3,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Controls;
 using YuumiX.App.Composition;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
@@ -57,6 +58,17 @@ public sealed class GameInfoPage : Component
             },
             0);
 
+        // 连接态必须用订阅值而不是 lcu.CurrentState：后者是快照，客户端启动或退出时
+        // 本页不会重渲染，离线占位会一直卡在「进入本页那一刻」的状态。
+        var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = lcu.States.Subscribe(setConnState);
+                return () => subscription.Dispose();
+            },
+            0);
+
         // 初次加载拉取一次状态
         UseEffect(
             () =>
@@ -66,14 +78,15 @@ public sealed class GameInfoPage : Component
             },
             0);
 
-        // 1. LCU 未连接
-        if (lcu.CurrentState.Status != LcuConnectionStatus.Connected)
+        // 1. LCU 未连接：与生涯、战绩查询共用同一张离线占位，
+        //    「预览演示对局」不依赖客户端，作为附加动作保留（旧系统此处没有该按钮）。
+        //
+        //    演示态必须放行：演示数据由 LoadDemoState 直接注入、不经过 LCU，
+        //    若在这里一并拦下，离线时点完按钮，下一轮渲染又被这张占位顶回去，按钮形同虚设。
+        bool isConnected = connState.Status == LcuConnectionStatus.Connected;
+        if (!isConnected && !state.IsDemo)
         {
-            return RenderPlaceholder(
-                "LCU 客户端未连接",
-                "请先启动英雄联盟客户端并登录",
-                palette,
-                () => gameInfoService.LoadDemoState());
+            return LcuOfflineState.Render(extra: DemoButton(() => gameInfoService.LoadDemoState()));
         }
 
         // 2. 云顶之弈模式
@@ -95,7 +108,7 @@ public sealed class GameInfoPage : Component
                 "等待对局开始",
                 "进入选人阶段或对局中后将自动展示双方玩家数据",
                 palette,
-                () => gameInfoService.LoadDemoState());
+                DemoButton(() => gameInfoService.LoadDemoState()));
         }
 
         // 5. 正在读取队伍
@@ -142,7 +155,18 @@ public sealed class GameInfoPage : Component
         .AutomationName("秒退对局");
     }
 
-    private static Element RenderPlaceholder(string title, string subtitle, YuumiPalette palette, Action? onDemoClick = null)
+    /// <summary>
+    /// 「预览演示对局」：读的是内置假数据，不经过 LCU，因此离线态与等待对局态都能用。
+    /// 抽成独立构件是因为离线态改由 <see cref="LcuOfflineState"/> 承载，两处需要同一个按钮。
+    /// </summary>
+    private static Element DemoButton(Action onDemoClick) =>
+        Button(Caption("预览演示对局"), onDemoClick)
+            .AutomationName("预览演示对局")
+            .CornerRadius(4)
+            .Margin(0, 12, 0, 0)
+            .HAlign(HorizontalAlignment.Center);
+
+    private static Element RenderPlaceholder(string title, string subtitle, YuumiPalette palette, Element? extra = null)
     {
         var items = new List<Element>
         {
@@ -155,15 +179,9 @@ public sealed class GameInfoPage : Component
                 .HAlign(HorizontalAlignment.Center)
         };
 
-        if (onDemoClick != null)
+        if (extra is not null)
         {
-            items.Add(
-                Button(Caption("预览演示对局"), onDemoClick)
-                    .AutomationName("预览演示对局")
-                    .CornerRadius(4)
-                    .Margin(0, 12, 0, 0)
-                    .HAlign(HorizontalAlignment.Center)
-            );
+            items.Add(extra);
         }
 
         return Border(

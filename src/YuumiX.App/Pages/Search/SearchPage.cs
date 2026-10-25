@@ -7,6 +7,7 @@ using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Windows.ApplicationModel.DataTransfer;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Controls;
 using YuumiX.App.Composition;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
@@ -523,6 +524,15 @@ public sealed class SearchPage : Component
                 CareerNavigationPayload.Instance.Set(summoner.Puuid, summoner);
                 nav.Replace(AppRoute.Career);
             }
+        }
+
+        // 客户端未启动：整页替换为离线占位，与生涯、对局信息同一套表达
+        // （旧版 Search.vue 的 <LcuOfflineState v-if="!store.isConnected" />）。
+        // 放在末尾：上面的 UseState/UseEffect 必须每次渲染按同一顺序跑完，
+        // 提前 return 会让 hook 数量随连接态变化。
+        if (connState.Status != LcuConnectionStatus.Connected)
+        {
+            return LcuOfflineState.Render();
         }
 
         return Grid(

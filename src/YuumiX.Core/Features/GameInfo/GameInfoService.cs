@@ -344,7 +344,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
     {
         lock (_gate)
         {
-            _state = GameInfoSampleFactory.CreateSample();
+            _state = GameInfoSampleFactory.CreateSample() with { IsDemo = true };
             _stateStream.Publish(_state);
         }
     }
@@ -2198,11 +2198,13 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         }
     }
 
+    // 所有来自 LCU 的状态变更都走这里，因此演示标记在此统一清除：
+    // 一旦有真实数据进来（哪怕只是断线重置），就不再算演示态。
     private void UpdateState(Func<GameInfoState, GameInfoState> updater)
     {
         lock (_gate)
         {
-            _state = updater(_state);
+            _state = updater(_state) with { IsDemo = false };
             _stateStream.Publish(_state);
         }
     }

@@ -222,6 +222,21 @@ public sealed class ToolsPage : Component
             },
             0);
 
+        // 连接态必须订阅：原来直接读 lcu.CurrentState，客户端启动或退出都不会触发重渲染，
+        // 「离线禁用」就会一直停在进页那一刻的判断上。
+        // 声明位置也刻意在下面的 CleanToggle / ActionCard / ToolCard 之前——
+        // 这些局部函数要捕获 isLcuConnected，C# 不允许捕获在其之后声明的局部变量。
+        var lcuConnection = services.Services.GetRequiredService<LcuConnection>();
+        var (connState, setConnState) = UseState(lcuConnection.CurrentState, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = lcuConnection.States.Subscribe(setConnState);
+                return () => subscription.Dispose();
+            },
+            0);
+        bool isLcuConnected = connState.Status == LcuConnectionStatus.Connected;
+
         var logger = _logger ??= services.LoggerFactory.CreateLogger<ToolsPage>();
 
         void Rerender() => setTick(++_renderTick);
@@ -338,13 +353,26 @@ public sealed class ToolsPage : Component
                 ])
             .Padding(new Thickness(0, 8, 0, 8));
 
+        // 离线守卫：客户端没开时开关一律禁用。旧系统是整页 opacity 0.5 + pointer-events:none，
+        // 本版改为按控件禁用——半透明叠在 Mica + 半透明卡片上会把 12~14px 中文压成灰雾（见 offlineBanner 注释）。
         Element CleanToggle(bool value, Action<bool> onChange, string? automationName = null) =>
             ToggleSwitch(value, v => onChange(v), header: null, onContent: null, offContent: null)
                 .MinWidth(0)
                 .HAlign(HorizontalAlignment.Right)
+                .IsEnabled(isLcuConnected)
                 .AutomationName(automationName ?? string.Empty);
 
-        // 单行直接操作卡片（不折叠，右侧直接展示操作按钮或状态开关）
+        // 离线守卫：客户端没开时右侧控件一律禁用（改了也不会生效，只会留下脏配置）。
+        //
+        // IsEnabled 的语义是「设置 Control.IsEnabled」，只对真正的控件有效；
+        // 传进来的若是一组按钮的容器（StackPanel），它没有这个属性，
+        // 这类组合控件必须由调用方逐个按钮再禁一次（见 restartClientCard / onlineStatusCard）。
+        // 旧系统对应的是 .offline-disabled 的 pointer-events:none + opacity:0.5，
+        // 本版用控件的 Disabled 视觉态，既拦住交互又不把正文压成灰雾。
+        Element Guard(Element control) =>
+            control is StackElement ? control : control.IsEnabled(isLcuConnected);
+
+        // 单行直接操作卡片（不折叠，右侧直接展示操作按钮或状态开关）。
         Element ActionCard(string title, string description, Element control) =>
             Border(
                 Grid(
@@ -358,7 +386,10 @@ public sealed class ToolsPage : Component
                                 .Margin(new Thickness(0, 3, 0, 0))
                         ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
-                        control.VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 1),
+                        Guard(control)
+                            .VAlign(VerticalAlignment.Center)
+                            .HAlign(HorizontalAlignment.Right)
+                            .Grid(row: 0, column: 1),
                     ]
                 ).Padding(new Thickness(16, 12, 16, 12))
             )
@@ -375,7 +406,11 @@ public sealed class ToolsPage : Component
             bool isStatusEnabled,
             Element innerContent)
         {
-            var isExpanded = expandedKeys.Contains(key);
+            // 离线守卫：未连接时既不展开、也不接受展开点击。
+            // 只禁按钮不够——已经展开的卡片会继续渲染里面的开关与输入框，
+            // 所以这里连展开态本身一起按连接态夹紧，展开记忆（expandedKeys）保留，
+            // 客户端连上后自动恢复原来的展开状态。
+            var isExpanded = isLcuConnected && expandedKeys.Contains(key);
 
             // 状态点颜色只由调用方给出的布尔决定。曾按 statusText 是否等于几个字面量反推，
             // 结果是改一次文案就静默翻转配色，且 "未锁定 (可写入)" 那个分支早已无人产出（见 lockStatusCard）。
@@ -416,6 +451,7 @@ public sealed class ToolsPage : Component
                 .HAlign(HorizontalAlignment.Stretch)
                 .HorizontalContentAlignment(HorizontalAlignment.Stretch)
                 .CornerRadius(8)
+                .IsEnabled(isLcuConnected)
                 .AutomationName(title);
 
             Element body;
@@ -442,9 +478,6 @@ public sealed class ToolsPage : Component
                 .WithBorder(Theme.CardStroke, 1)
                 .HAlign(HorizontalAlignment.Stretch);
         }
-
-        var lcuConnection = services.Services.GetRequiredService<LcuConnection>();
-        bool isLcuConnected = lcuConnection.CurrentState.Status == LcuConnectionStatus.Connected;
 
         async void EnsureCatalogLoaded()
         {
@@ -1098,10 +1131,12 @@ public sealed class ToolsPage : Component
 
         var restartClientCard = ActionCard(
             "快速重启客户端", "重新引导 LeagueClientUx，无需重新排队或重新输入账号密码",
+            // 这一组是 HStack 而不是单个控件，ActionCard 的 IsEnabled 对 StackPanel 无效，
+            // 因此三个按钮各自再禁一次（客户端没开时重启/取消都无从谈起）。
             isConfirmingRestartClient
                 ? HStack(8,
                     Caption("⚡ 确定重启客户端？无需重登").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                    Button(Caption("取消"), () => setIsConfirmingRestartClient(false)).Padding(8, 4).AutomationName("取消重启客户端"),
+                    Button(Caption("取消"), () => setIsConfirmingRestartClient(false)).Padding(8, 4).IsEnabled(isLcuConnected).AutomationName("取消重启客户端"),
                     Button(Caption("确认重启"), () =>
                     {
                         setIsConfirmingRestartClient(false);
@@ -1113,8 +1148,9 @@ public sealed class ToolsPage : Component
                     .Background(Theme.Ref("SystemFillColorCriticalBrush"))
                     .Foreground("#FFFFFFFF")
                     .Padding(8, 4)
+                    .IsEnabled(isLcuConnected)
                     .AutomationName("确认重启客户端"))
-                : Button("重启客户端", () => setIsConfirmingRestartClient(true)).AutomationName("快速重启客户端"));
+                : Button("重启客户端", () => setIsConfirmingRestartClient(true)).IsEnabled(isLcuConnected).AutomationName("快速重启客户端"));
 
         // ══════════════════════════════════════════════════════
         // 4. 个人主页组
@@ -1300,7 +1336,7 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"切换在线状态失败: {ex.Message}", isError: true);
                     }
-                }).AutomationName("设为在线"),
+                }).IsEnabled(isLcuConnected).AutomationName("设为在线"),
                 Button("离开", async () =>
                 {
                     try
@@ -1312,7 +1348,7 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"切换离开状态失败: {ex.Message}", isError: true);
                     }
-                }).AutomationName("设为离开"),
+                }).IsEnabled(isLcuConnected).AutomationName("设为离开"),
                 Button("隐身", async () =>
                 {
                     try
@@ -1324,7 +1360,7 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"切换隐身状态失败: {ex.Message}", isError: true);
                     }
-                }).AutomationName("设为隐身")));
+                }).IsEnabled(isLcuConnected).AutomationName("设为隐身")));
 
         Element clearBadgesAction = isConfirmingClearBadges
             ? (Element)HStack(6,
@@ -1500,7 +1536,7 @@ public sealed class ToolsPage : Component
                         .FontFamily("Segoe Fluent Icons")
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center),
-                    Caption("LCU 客户端未连接，绝大多数工具功能需启动并登录英雄联盟后方可生效。")
+                    Caption("LCU 客户端未连接，本页所有开关与操作已停用，配置不可修改；启动并登录英雄联盟后自动恢复。")
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center)
                 )
