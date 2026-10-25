@@ -118,13 +118,6 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                 ComboBox(p.FilterLabels, p.FilterIndex, p.OnFilterChanged)
                     .AutomationName("队列筛选")
                     .Width(130)
-                    .Set(cb =>
-                    {
-                        if (cb.SelectedIndex != p.FilterIndex && p.FilterIndex >= 0 && p.FilterIndex < p.FilterLabels.Length)
-                        {
-                            cb.SelectedIndex = p.FilterIndex;
-                        }
-                    })
                     .Grid(row: 0, column: 3),
                 // 上传开关只在配好服务器地址时出现（旧 Search.vue 的 v-if="General.UploadApiUrl"）
                 p.UploadConfigured
