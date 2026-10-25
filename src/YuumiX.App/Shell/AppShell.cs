@@ -62,7 +62,10 @@ public sealed class AppShell : Component
         var (isClientConnected, setIsClientConnected) = UseState(
             lcu.CurrentState.Status == LcuConnectionStatus.Connected,
             threadSafe: true);
-        var (toasts, setToasts) = UseState<IReadOnlyList<ToastItem>>(Array.Empty<ToastItem>());
+        // 全局 Toast 队列（R5）：AppShell 是组合根，读不到自己 Provide 的上下文，
+        // 因此直接持有实例——既作为 Provide 的值，也供本组件两处提示使用。
+        var toastQueueRef = UseRef<ToastQueue?>(null);
+        var toastQueue = toastQueueRef.Current ??= new ToastQueue();
         // 公告弹窗可见性：侧边栏「公告」动作项触发显示；关闭由弹窗自身（手动 × 或 8s 自动）回调。
         // threadSafe: true —— 自动关闭计时器在后台线程调用 OnClose（ADR-07）。
         var (noticeVisible, setShowNotice) = UseState(false, threadSafe: true);
@@ -78,17 +81,6 @@ public sealed class AppShell : Component
                 return () => subscription.Dispose();
             },
             0);
-
-        void ShowToast(string message, bool isError = false)
-        {
-            var item = new ToastItem(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), message, isError);
-            setToasts([.. toasts, item]);
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(3000).ConfigureAwait(false);
-                setToasts([.. toasts.Where(t => t.Id != item.Id)]);
-            });
-        }
 
         UseEffect(
             () =>
@@ -378,7 +370,7 @@ public sealed class AppShell : Component
                 {
                     if (!isClientConnected)
                     {
-                        ShowToast("请先连接英雄联盟客户端", isError: true);
+                        toastQueue.Error("请先连接英雄联盟客户端");
                     }
                     else
                     {
@@ -391,7 +383,7 @@ public sealed class AppShell : Component
                 {
                     // 旧版的「修复无限加载」是手动重连动作；新项目目前只有自动重连代理，
                     // 入口先预留在这里，点击给出明确反馈而不是静默无响应。
-                    ShowToast("「修复无限加载」待迁移：当前仅支持自动重连");
+                    toastQueue.Info("「修复无限加载」待迁移：当前仅支持自动重连");
                     return;
                 }
 
@@ -463,56 +455,14 @@ public sealed class AppShell : Component
             IsBackButtonVisible = false,
         };
 
-        Element RenderToasts()
-        {
-            if (toasts.Count == 0) return Empty();
-
-            return VStack(8,
-                toasts.Select(item =>
-                {
-                    var iconGlyph = item.IsError ? "\uE783" : "\uE73E";
-                    var iconColor = item.IsError
-                        ? Theme.Ref("SystemFillColorCriticalBrush")
-                        : Theme.Ref("SystemFillColorSuccessBrush");
-
-                    return Border(
-                        HStack(10,
-                            Border(
-                                Caption(iconGlyph)
-                                    .FontFamily("Segoe Fluent Icons")
-                                    .Foreground(iconColor)
-                                    .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Center)
-                                    .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
-                            )
-                            .Width(22)
-                            .Height(22)
-                            .CornerRadius(11)
-                            .Background(Theme.Ref("LayerFillColorDefaultBrush")),
-
-                            Caption(item.Message)
-                                .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
-                        )
-                    )
-                    .Padding(new Microsoft.UI.Xaml.Thickness(16, 9, 20, 9))
-                    .CornerRadius(20)
-                    .Background(Theme.CardBackground)
-                    .WithBorder(Theme.CardStroke, 1)
-                    .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Center)
-                    .WithKey(item.Id.ToString());
-                }).ToArray()
-            )
-            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Top)
-            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Center)
-            .Margin(new Microsoft.UI.Xaml.Thickness(0, 48, 0, 0));
-        }
-
         var root = Grid(
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Star()],
             [
                 titleBar.Grid(row: 0),
                 navigationView.Grid(row: 1),
-                RenderToasts().Grid(row: 1),
+                // 全局 Toast 宿主（R5）：压在页面内容之上，队列由 ToastContext 提供。
+                Component<ToastHost>().Grid(row: 1),
                 // 公告弹窗：右下角覆盖层（对应旧版 NoticePopup 的 position: fixed）。
                 // 挂在最外层 Grid 上，压在页面内容之上、与 Toast 同层。
                 noticeVisible
@@ -524,7 +474,8 @@ public sealed class AppShell : Component
         .Backdrop(palette.Backdrop)
         .RequestedTheme(palette.ElementTheme)
         .Provide(AppHost.Context, services)
-        .Provide(AppHost.ThemeContext, AppHost.Theme);
+        .Provide(AppHost.ThemeContext, AppHost.Theme)
+        .Provide(AppHost.ToastContext, toastQueue);
 
         // 挂载即同步一次实际主题：首帧调色板的 IsDark 走启动时解析值兜底，
         // 若应用运行期间系统已切过深浅，这里立即校准（挂载时 ActualTheme 已可读）。

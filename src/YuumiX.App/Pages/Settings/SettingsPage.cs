@@ -71,7 +71,6 @@ public sealed class SettingsPage : Component
     /// 渲染序号。用于在「改了 POCO 但 Reactor 不知道」时强制重渲染。
     /// 用实例字段而非读取 <c>UseState</c> 的当前值再加一：事件回调里捕获的旧值可能是过期的。
     /// </summary>
-    private static long _nextToastId;
     private int _renderTick;
 
     /// <summary>颜色合并写盘的序号，见 <see cref="ColorCommitDelayMs"/>。</summary>
@@ -103,8 +102,6 @@ public sealed class SettingsPage : Component
     private int _cloudTextTick;
 
     private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
-    private readonly List<Timer> _toastTimers = [];
-    private readonly List<ToastItem> _activeToasts = [];
 
     private ILogger<SettingsPage>? _logger;
 
@@ -122,9 +119,8 @@ public sealed class SettingsPage : Component
         var (backupName, setBackupName) = UseState<string?>(null, threadSafe: true);
         var (error, setError) = UseState<string?>(null, threadSafe: true);
 
-        // 多 Toast 堆叠队列（对齐旧系统 Naive UI n-message-provider :max="5"）
-        var initialToasts = UseMemo(() => (IReadOnlyList<ToastItem>)Array.Empty<ToastItem>(), 0);
-        var (toasts, setToasts) = UseState(initialToasts, threadSafe: true);
+        // 全局 Toast 服务（R5）：队列由 AppShell 提供并在其 ToastHost 呈现
+        var toast = UseContext(AppHost.ToastContext)!;
 
         // 本页自身也订阅主题状态：配色（战绩卡片/死亡数字）变化时编号步进器等
         // 消费 palette 的元素要跟着重渲染（主题模式由 AppShell 统一施加，不在此列）。
@@ -164,14 +160,6 @@ public sealed class SettingsPage : Component
                 return () =>
                 {
                     subscription.Dispose();
-                    lock (_toastTimers)
-                    {
-                        foreach (var t in _toastTimers)
-                        {
-                            t.Dispose();
-                        }
-                        _toastTimers.Clear();
-                    }
                 };
             },
             0);
@@ -179,49 +167,6 @@ public sealed class SettingsPage : Component
         var logger = _logger ??= services.LoggerFactory.CreateLogger<SettingsPage>();
 
         void Rerender() => setTick(++_renderTick);
-
-        void ShowToast(string message, bool isError = false)
-        {
-            var id = Interlocked.Increment(ref _nextToastId);
-            var item = new ToastItem(id, message, isError);
-
-            lock (_activeToasts)
-            {
-                _activeToasts.Add(item);
-                if (_activeToasts.Count > 5)
-                {
-                    _activeToasts.RemoveAt(0);
-                }
-                setToasts(_activeToasts.ToList());
-            }
-
-            _dispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-            Timer? timer = null;
-            timer = new Timer(_ =>
-            {
-                _dispatcher?.TryEnqueue(() =>
-                {
-                    lock (_activeToasts)
-                    {
-                        _activeToasts.RemoveAll(t => t.Id == id);
-                        setToasts(_activeToasts.ToList());
-                    }
-                    lock (_toastTimers)
-                    {
-                        if (timer is not null)
-                        {
-                            _toastTimers.Remove(timer);
-                            timer.Dispose();
-                        }
-                    }
-                });
-            }, null, 2500, Timeout.Infinite);
-
-            lock (_toastTimers)
-            {
-                _toastTimers.Add(timer);
-            }
-        }
 
         // 取色变化：内存与界面即时生效，写盘延后合并（见 ColorCommitDelayMs）。
         void RequestColorCommit(string field)
@@ -473,7 +418,7 @@ public sealed class SettingsPage : Component
                     setBackupName(Path.GetFileName(backup));
                 }
 
-                ShowToast("设置已自动保存");
+                toast.Success("设置已自动保存");
                 logger.LogInformation("设置已写回: {Field}", field);
             }
             catch (Exception ex)
@@ -481,7 +426,7 @@ public sealed class SettingsPage : Component
                 // 写失败必须让用户看见：静默吞掉会让人以为设置已保存（ConfigStore.Save 的约定）
                 setError(ex.Message);
                 setSavedAt(null);
-                ShowToast($"设置保存失败: {ex.Message}", isError: true);
+                toast.Error($"设置保存失败: {ex.Message}");
                 logger.LogError(ex, "设置写回失败: {Field}", field);
             }
 
@@ -767,19 +712,19 @@ public sealed class SettingsPage : Component
                         .DetectLolPath());
                     if (detected is null)
                     {
-                        ShowToast("未检测到运行中的英雄联盟客户端", isError: true);
+                        toast.Error("未检测到运行中的英雄联盟客户端");
                         return;
                     }
 
                     if (config.General.LolPath.Contains(detected, StringComparer.Ordinal))
                     {
-                        ShowToast("该路径已存在");
+                        toast.Info("该路径已存在");
                         return;
                     }
 
                     config.General.LolPath.Add(detected);
                     Commit(nameof(GeneralConfig.LolPath));
-                    ShowToast($"已添加: {detected}");
+                    toast.Success($"已添加: {detected}");
                 }).AutomationName("自动检测客户端路径"),
                 Button("浏览文件夹", async () =>
                 {
@@ -793,19 +738,19 @@ public sealed class SettingsPage : Component
                     var normalized = LolPathDetector.NormalizePath(picked);
                     if (config.General.LolPath.Contains(normalized, StringComparer.Ordinal))
                     {
-                        ShowToast("该路径已存在");
+                        toast.Info("该路径已存在");
                         return;
                     }
 
                     config.General.LolPath.Add(normalized);
                     Commit(nameof(GeneralConfig.LolPath));
-                    ShowToast($"已添加: {normalized}");
+                    toast.Success($"已添加: {normalized}");
                 }).AutomationName("浏览客户端文件夹"),
                 Button("添加 WeGame 启动项", async () =>
                 {
                     if (config.General.LolPath.Contains(AppConfig.WeGameMarker))
                     {
-                        ShowToast("WeGame 启动项已存在");
+                        toast.Info("WeGame 启动项已存在");
                         return;
                     }
 
@@ -814,14 +759,14 @@ public sealed class SettingsPage : Component
                         .DetectWeGameDirectory());
                     if (detected is null)
                     {
-                        ShowToast("未检测到 WeGame 安装路径，请先安装 WeGame", isError: true);
+                        toast.Error("未检测到 WeGame 安装路径，请先安装 WeGame");
                         return;
                     }
 
                     config.General.LolPath.Add(AppConfig.WeGameMarker);
                     config.General.WegamePath = detected;
                     Commit(nameof(GeneralConfig.LolPath));
-                    ShowToast($"已添加 WeGame 启动项 ({detected})");
+                    toast.Success($"已添加 WeGame 启动项 ({detected})");
                 }).AutomationName("添加 WeGame 启动项")).HAlign(HorizontalAlignment.Right));
 
             return VStack(4, [.. content]);
@@ -851,12 +796,12 @@ public sealed class SettingsPage : Component
             {
                 var info = await updateService.CheckForUpdateAsync(services.Paths.IsPortable);
                 setUpdateInfo(info);
-                ShowToast(info is null ? "当前已是最新版本" : $"发现新版本 v{info.Version}");
+                toast.Info(info is null ? "当前已是最新版本" : $"发现新版本 v{info.Version}");
             }
             catch (Exception ex)
             {
                 setUpdateCheckError(ex.Message);
-                ShowToast($"检查更新失败: {ex.Message}", isError: true);
+                toast.Error($"检查更新失败: {ex.Message}");
             }
             finally
             {
@@ -878,12 +823,12 @@ public sealed class SettingsPage : Component
             {
                 string path = await updateService.DownloadUpdateAsync(info, progress);
                 setDownloadedUpdatePath(path);
-                ShowToast("更新下载完成，可立即安装");
+                toast.Success("更新下载完成，可立即安装");
             }
             catch (Exception ex)
             {
                 setUpdateCheckError(ex.Message);
-                ShowToast($"下载更新失败: {ex.Message}", isError: true);
+                toast.Error($"下载更新失败: {ex.Message}");
             }
         }
 
@@ -898,7 +843,7 @@ public sealed class SettingsPage : Component
             catch (Exception ex)
             {
                 setUpdateCheckError(ex.Message);
-                ShowToast($"安装更新失败: {ex.Message}", isError: true);
+                toast.Error($"安装更新失败: {ex.Message}");
             }
         }
 
@@ -1125,7 +1070,7 @@ public sealed class SettingsPage : Component
 
                 config.Functions.ScreenshotSavePath = LolPathDetector.NormalizePath(picked);
                 Commit(nameof(FunctionsConfig.ScreenshotSavePath));
-                ShowToast("已成功更新截图保存目录");
+                toast.Success("已成功更新截图保存目录");
             }).AutomationName("浏览截图目录"),
             Button("打开目录", () =>
             {
@@ -1139,7 +1084,7 @@ public sealed class SettingsPage : Component
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex, "打开截图目录失败");
-                    ShowToast($"无法打开截图文件夹: {ex.Message}", isError: true);
+                    toast.Error($"无法打开截图文件夹: {ex.Message}");
                 }
             }).AutomationName("打开截图目录"));
 
@@ -1244,53 +1189,6 @@ public sealed class SettingsPage : Component
                         }
                     }).AutomationName("打开开源仓库"))),
             statusText: AppVersion);
-
-        Element RenderToasts()
-        {
-            if (toasts.Count == 0) return Empty();
-
-            return VStack(8,
-                toasts.Select(item =>
-                {
-                    var iconGlyph = item.IsError ? "\uE783" : "\uE73E";
-                    var iconColor = item.IsError
-                        ? Theme.Ref("SystemFillColorCriticalBrush")
-                        : Theme.Ref("SystemFillColorSuccessBrush");
-
-                    return Border(
-                        HStack(10,
-                            Border(
-                                Caption(iconGlyph)
-                                    .FontFamily("Segoe Fluent Icons")
-                                    .Foreground(iconColor)
-                                    .HAlign(HorizontalAlignment.Center)
-                                    .VAlign(VerticalAlignment.Center)
-                            )
-                            .Width(24)
-                            .Height(24)
-                            .CornerRadius(12)
-                            .Background(Theme.Ref("LayerFillColorDefaultBrush")),
-
-                            BodyStrong(item.Message)
-                                .VAlign(VerticalAlignment.Center)
-                        )
-                    )
-                    .Padding(new Thickness(16, 8, 20, 8))
-                    .CornerRadius(20)
-                    .Background(Theme.CardBackground)
-                    .WithBorder(Theme.CardStroke, 1)
-                    .HAlign(HorizontalAlignment.Center)
-                    .WithKey(item.Id.ToString());
-                }).ToArray()
-            )
-            .WithTransitions([
-                new AddDeleteThemeTransition(),
-                new RepositionThemeTransition()
-            ])
-            .VAlign(VerticalAlignment.Top)
-            .HAlign(HorizontalAlignment.Center)
-            .Margin(new Thickness(0, 16, 0, 0));
-        }
 
         var mainScroll = ScrollViewer(
             VStack(8,
@@ -1421,7 +1319,6 @@ public sealed class SettingsPage : Component
             [GridSize.Star()],
             [
                 mainScroll.Grid(row: 0, column: 0),
-                RenderToasts().Grid(row: 0, column: 0),
                 // 清除缓存确认弹窗（声明式：IsOpen 驱动显隐）
                 // 必须走 Factories.ContentDialog：Reactor 的 handler 注册是惰性的，只有工厂调用
                 // 才会把 ContentDialogElement 注册进 ControlRegistry；直接
@@ -1456,12 +1353,12 @@ public sealed class SettingsPage : Component
                         {
                         }
                         logger.LogInformation("已清空游戏资源与 OP.GG 缓存: {Count} 个文件", removed);
-                        ShowToast(removed == 0 ? "缓存目录不存在，无需清除" : $"已清除 {removed} 个缓存文件");
+                        toast.Success(removed == 0 ? "缓存目录不存在，无需清除" : $"已清除 {removed} 个缓存文件");
                     }
                     catch (Exception ex)
                     {
                         logger.LogWarning(ex, "清除游戏资源缓存失败");
-                        ShowToast($"清除缓存失败: {ex.Message}", isError: true);
+                        toast.Error($"清除缓存失败: {ex.Message}");
                     }
                 }),
             ]

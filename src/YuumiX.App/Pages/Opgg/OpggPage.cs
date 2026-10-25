@@ -44,18 +44,8 @@ public sealed class OpggPage : Component<OpggPageProps>
         var (loading, setLoading) = UseState(false);
         var (errorMessage, setErrorMessage) = UseState<string?>(null);
         var (isApplyingItemSet, setIsApplyingItemSet) = UseState(false);
-        var (toasts, setToasts) = UseState<IReadOnlyList<ToastItem>>(Array.Empty<ToastItem>());
-
-        void ShowToast(string message, bool isError = false)
-        {
-            var item = new ToastItem(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), message, isError);
-            setToasts([.. toasts, item]);
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(3000).ConfigureAwait(false);
-                setToasts([.. toasts.Where(t => t.Id != item.Id)]);
-            });
-        }
+        // 全局 Toast 服务（R5）：由 OpggWindowRoot Provide，队列渲染在其挂载的 ToastHost。
+        var toast = UseContext(AppHost.ToastContext)!;
 
         async Task FetchTierList()
         {
@@ -255,11 +245,11 @@ public sealed class OpggPage : Component<OpggPageProps>
                             var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
                             await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
                                 [.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
-                            ShowToast("符文页已应用至客户端");
+                            toast.Success("符文页已应用至客户端");
                         }
                         catch (Exception ex)
                         {
-                            ShowToast($"应用符文页失败: {ex.Message}", isError: true);
+                            toast.Error($"应用符文页失败: {ex.Message}");
                         }
                     },
                     onApplyItemSet: async () =>
@@ -270,11 +260,11 @@ public sealed class OpggPage : Component<OpggPageProps>
                         {
                             var champName = catalog.Champions.TryGetValue(selectedChampId.Value, out var cn) ? cn : "Champion";
                             var res = await opggService.ApplyItemSetAsync(selectedChampId.Value, champName, position, buildData).ConfigureAwait(false);
-                            ShowToast(res);
+                            toast.Success(res);
                         }
                         catch (Exception ex)
                         {
-                            ShowToast($"应用出装失败: {ex.Message}", isError: true);
+                            toast.Error($"应用出装失败: {ex.Message}");
                         }
                         finally
                         {
@@ -283,8 +273,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                     }
                 ).Grid(2, 0),
 
-                // 浮动 Toast 反馈层
-                RenderToasts(toasts).Grid(2, 0)
+                // 全局 Toast 宿主（R5）：本窗口队列由 OpggWindowRoot 提供
+                Component<ToastHost>().Grid(2, 0)
             ]
         );
     }
@@ -458,49 +448,6 @@ public sealed class OpggPage : Component<OpggPageProps>
         {
             // 资源表缺失只影响图标，不影响布局
         }
-    }
-
-    private static Element RenderToasts(IReadOnlyList<ToastItem> toasts)
-    {
-        if (toasts.Count == 0) return Empty();
-
-        return VStack(8,
-            toasts.Select(item =>
-            {
-                var iconGlyph = item.IsError ? "\uE783" : "\uE73E";
-                var iconColor = item.IsError
-                    ? Theme.Ref("SystemFillColorCriticalBrush")
-                    : Theme.Ref("SystemFillColorSuccessBrush");
-
-                return Border(
-                    HStack(10,
-                        Border(
-                            Caption(iconGlyph)
-                                .FontFamily("Segoe Fluent Icons")
-                                .Foreground(iconColor)
-                                .HAlign(HorizontalAlignment.Center)
-                                .VAlign(VerticalAlignment.Center)
-                        )
-                        .Width(22)
-                        .Height(22)
-                        .CornerRadius(11)
-                        .Background(Theme.Ref("LayerFillColorDefaultBrush")),
-
-                        BodyStrong(item.Message)
-                            .VAlign(VerticalAlignment.Center)
-                    )
-                )
-                .Padding(new Thickness(16, 9, 20, 9))
-                .CornerRadius(20)
-                .Background(Theme.CardBackground)
-                .WithBorder(Theme.CardStroke, 1)
-                .HAlign(HorizontalAlignment.Center)
-                .WithKey(item.Id.ToString());
-            }).ToArray()
-        )
-        .VAlign(VerticalAlignment.Top)
-        .HAlign(HorizontalAlignment.Center)
-        .Margin(new Thickness(0, 16, 0, 0));
     }
 }
 

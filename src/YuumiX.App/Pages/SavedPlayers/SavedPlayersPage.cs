@@ -25,12 +25,8 @@ public sealed class SavedPlayersPage : Component
 
     private static readonly IReadOnlyList<SavedPlayerRecord> EmptyPlayers = [];
     private static readonly IReadOnlyList<EncounteredGameRecord> EmptyGames = [];
-    private static readonly IReadOnlyList<ToastItem> EmptyToasts = [];
 
-    // Toast 与防抖定时器
-    private static long _nextToastId;
-    private readonly List<ToastItem> _activeToasts = [];
-    private readonly List<Timer> _toastTimers = [];
+    // 搜索防抖定时器
     private Timer? _searchDebounceTimer;
     private DispatcherQueue? _dispatcher;
 
@@ -52,17 +48,14 @@ public sealed class SavedPlayersPage : Component
                 return () =>
                 {
                     subscription.Dispose();
-                    lock (_toastTimers)
-                    {
-                        foreach (var t in _toastTimers) t.Dispose();
-                        _toastTimers.Clear();
-                    }
                     _searchDebounceTimer?.Dispose();
                 };
             },
             0);
 
-        var (toasts, setToasts) = UseState(EmptyToasts, threadSafe: true);
+        // 全局 Toast 服务（R5）：队列由 AppShell 提供并在其 ToastHost 呈现
+        var toast = UseContext(AppHost.ToastContext)!;
+
         var (players, setPlayers) = UseState(EmptyPlayers, threadSafe: true);
         var (totalCount, setTotalCount) = UseState(0L, threadSafe: true);
         var (currentPage, setCurrentPage) = UseState(1, threadSafe: true);
@@ -87,46 +80,6 @@ public sealed class SavedPlayersPage : Component
         var (editingPuuid, setEditingPuuid) = UseState<string?>(null, threadSafe: true);
         var (editingTag, setEditingTag) = UseState(string.Empty, threadSafe: true);
         var (pendingDeletePuuid, setPendingDeletePuuid) = UseState<string?>(null, threadSafe: true);
-
-        // Toast 提示
-        void ShowToast(string message, bool isError = false)
-        {
-            var id = Interlocked.Increment(ref _nextToastId);
-            var item = new ToastItem(id, message, isError);
-
-            lock (_activeToasts)
-            {
-                _activeToasts.Add(item);
-                if (_activeToasts.Count > 4) _activeToasts.RemoveAt(0);
-                setToasts(_activeToasts.ToList());
-            }
-
-            Timer? timer = null;
-            timer = new Timer(_ =>
-            {
-                _dispatcher?.TryEnqueue(() =>
-                {
-                    lock (_activeToasts)
-                    {
-                        _activeToasts.RemoveAll(t => t.Id == id);
-                        setToasts(_activeToasts.ToList());
-                    }
-                    lock (_toastTimers)
-                    {
-                        if (timer is not null)
-                        {
-                            _toastTimers.Remove(timer);
-                            timer.Dispose();
-                        }
-                    }
-                });
-            }, null, 2800, Timeout.Infinite);
-
-            lock (_toastTimers)
-            {
-                _toastTimers.Add(timer);
-            }
-        }
 
         // 解析当前应展示的账号：优先当前登录账号，离线或未登录则回退为最后一位登录者
         void ResolveAccount()
@@ -229,7 +182,7 @@ public sealed class SavedPlayersPage : Component
                 {
                     _dispatcher?.TryEnqueue(() =>
                     {
-                        ShowToast($"加载路人集失败: {ex.Message}", isError: true);
+                        toast.Error($"加载路人集失败: {ex.Message}");
                     });
                 }
                 finally
@@ -355,7 +308,7 @@ public sealed class SavedPlayersPage : Component
                 _dispatcher?.TryEnqueue(() =>
                 {
                     setEditingPuuid(null);
-                    ShowToast("标记已更新");
+                    toast.Success("标记已更新");
                     LoadData(1, append: false);
                 });
             });
@@ -374,7 +327,7 @@ public sealed class SavedPlayersPage : Component
                     {
                         setExpandedPuuid(null);
                     }
-                    ShowToast($"已删除玩家 {player.SummonerName}");
+                    toast.Success($"已删除玩家 {player.SummonerName}");
                     LoadData(1, append: false);
                 });
             });
@@ -395,14 +348,14 @@ public sealed class SavedPlayersPage : Component
 
                     _dispatcher?.TryEnqueue(() =>
                     {
-                        ShowToast($"已成功导出到: {System.IO.Path.GetFileName(path)}");
+                        toast.Success($"已成功导出到: {System.IO.Path.GetFileName(path)}");
                     });
                 }
                 catch (Exception ex)
                 {
                     _dispatcher?.TryEnqueue(() =>
                     {
-                        ShowToast($"导出失败: {ex.Message}", isError: true);
+                        toast.Error($"导出失败: {ex.Message}");
                     });
                 }
             });
@@ -423,7 +376,7 @@ public sealed class SavedPlayersPage : Component
 
                     _dispatcher?.TryEnqueue(() =>
                     {
-                        ShowToast($"成功导入 {count} 名标记玩家");
+                        toast.Success($"成功导入 {count} 名标记玩家");
                         LoadData(1, append: false);
                     });
                 }
@@ -431,7 +384,7 @@ public sealed class SavedPlayersPage : Component
                 {
                     _dispatcher?.TryEnqueue(() =>
                     {
-                        ShowToast($"导入失败: {ex.Message}", isError: true);
+                        toast.Error($"导入失败: {ex.Message}");
                     });
                 }
             });
@@ -478,9 +431,6 @@ public sealed class SavedPlayersPage : Component
                     HandleSaveTag,
                     HandleConfirmDelete,
                     palette).Grid(row: 2),
-
-                // 4. 浮动 Toast 反馈
-                RenderToastHost(toasts, palette).Grid(row: 0),
             ]
         )
         .Padding(20, 16, 20, 16);
@@ -983,30 +933,6 @@ public sealed class SavedPlayersPage : Component
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
-    }
-
-    /// <summary>
-    /// 浮动 Toast 呈现
-    /// </summary>
-    private static Element RenderToastHost(IReadOnlyList<ToastItem> toasts, YuumiPalette palette)
-    {
-        if (toasts.Count == 0) return Border(null);
-
-        var items = toasts.Select(t =>
-            Border(
-                Caption(t.Message)
-                    .Foreground(t.IsError ? Theme.SystemCritical : Theme.Accent)
-                    .Margin(12, 6)
-            )
-            .Background(Theme.CardBackground)
-            .WithBorder(t.IsError ? Theme.SystemCritical : Theme.Accent, 1)
-            .CornerRadius(6)
-        ).ToArray();
-
-        return VStack(6, items)
-            .HorizontalAlignment(HorizontalAlignment.Right)
-            .VerticalAlignment(VerticalAlignment.Top)
-            .Margin(0, 8, 16, 0);
     }
 
     private static string FormatQueue(string? queueType)
