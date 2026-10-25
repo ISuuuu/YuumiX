@@ -53,7 +53,6 @@ public sealed class SettingsPage : Component
         // threadSafe: true —— 保存与重渲染的调用点虽在 UI 线程，但保留统一语义，
         // 以免将来把写回挪到线程池时漏改（ADR-07 的成本是崩溃，不是降级）。
         var (savedAt, setSavedAt) = UseState<DateTime?>(null, threadSafe: true);
-        var (backupName, setBackupName) = UseState<string?>(null, threadSafe: true);
         var (error, setError) = UseState<string?>(null, threadSafe: true);
         var (clearDialogOpen, setClearDialogOpen) = UseState(false, threadSafe: true);
 
@@ -164,6 +163,8 @@ public sealed class SettingsPage : Component
             0);
 
         // 单次写回：先落盘（必要时备份），成功与失败都只改状态，不抛给渲染流程。
+        // savedAt/error 的值不参与渲染，但承担 Commit 后的重渲染触发（error 兼任首次保存
+        // 即失败时的失败路径触发器）；备份文件名只进日志，不再另设死状态。
         void Commit(string field)
         {
             try
@@ -171,13 +172,9 @@ public sealed class SettingsPage : Component
                 var backup = services.ConfigStore.SaveWithBackup(config);
                 setError(null);
                 setSavedAt(DateTime.Now);
-                if (backup is not null)
-                {
-                    setBackupName(Path.GetFileName(backup));
-                }
 
                 toast.Success("设置已自动保存");
-                logger.LogInformation("设置已写回: {Field}", field);
+                logger.LogInformation("设置已写回: {Field}（备份 {Backup}）", field, backup is null ? "无" : Path.GetFileName(backup));
             }
             catch (Exception ex)
             {

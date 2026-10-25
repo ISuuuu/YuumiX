@@ -52,7 +52,6 @@ public sealed class ToolsPage : Component
 
         var (savedAt, setSavedAt) = UseState<DateTime?>(null, threadSafe: true);
         var (error, setError) = UseState<string?>(null, threadSafe: true);
-        var (actionFeedback, setActionFeedback) = UseState<string?>(null, threadSafe: true);
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
 
         // 记录展开的卡片 key 集合（默认全部收起，对齐原版设计）
@@ -238,8 +237,9 @@ public sealed class ToolsPage : Component
             config, palette, toast, toolsService, friendCleanerService, lcuConnection, logger,
             isLcuConnected, expandedKeys, ToggleExpanded, Commit);
 
-        // 原实现的 feedbackBanner（错误/保存横幅）建而未渲染，属于死代码，本拆分保持不渲染；
-        // savedAt/error 状态保留——Commit 靠 setSavedAt 触发重渲染（替代旧 Rerender 踢法）。
+        // 原实现的 feedbackBanner（错误/保存横幅）建而未渲染、actionFeedback 从未被写入，均按死代码删除；
+        // savedAt/error 保留——值虽不参与渲染，但 Commit 靠它们变更触发重渲染（替代旧 Rerender 踢法），
+        // error 兼任"首次保存即失败"（savedAt 尚为 null）时的失败路径触发器。
         var offlineBanner = isLcuConnected ? null : ToolsVisuals.OfflineBanner();
 
         // 【A/B 实验】用传统 ScrollViewer 替代 WinUI 2.5 的 ScrollView。
