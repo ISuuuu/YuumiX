@@ -25,7 +25,7 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/Career/CareerPage.cs",
+      "path": "Pages/Career/CareerVisuals.cs",
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"

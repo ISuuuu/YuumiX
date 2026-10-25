@@ -62,7 +62,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
         {
             void Trigger()
             {
-                var placeholder = CareerPage.PlaceholderSummoner(p.Puuid!, p.FullName, p.ChampionId);
+                var placeholder = Career.CareerLoaders.PlaceholderSummoner(p.Puuid!, p.FullName, p.ChampionId);
                 p.OnClickPlayerPuuid?.Invoke(p.Puuid!, placeholder);
             }
 
