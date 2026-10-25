@@ -252,8 +252,8 @@ internal static class MatchDetailView
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         Element copyBtn = Button(
-                Caption("\uE8C8")
-                    .FontFamily("Segoe Fluent Icons")
+                Caption(Icons.Copy)
+                    .FontFamily(Icons.FontFamily)
                     .Foreground(Theme.SecondaryText),
                 () => onCopyGameId?.Invoke(summary.GameId))
             .Width(28)

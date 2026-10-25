@@ -52,7 +52,7 @@ internal static class ChampionPickerView
                             Caption($"#{order}").Foreground(Theme.Accent).VAlign(VerticalAlignment.Center),
                             Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, Size: 24, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                             Caption(name).VAlign(VerticalAlignment.Center),
-                            Button(Caption("\uE711").FontFamily("Segoe Fluent Icons"), () => onToggleChampion(id))
+                            Button(Caption(Icons.Cancel).FontFamily(Icons.FontFamily), () => onToggleChampion(id))
                                 .Padding(4, 2)
                                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                                 .Foreground(Theme.SecondaryText)

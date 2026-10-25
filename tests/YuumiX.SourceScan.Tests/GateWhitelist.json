@@ -1,18 +1,6 @@
 {
   "entries": [
     {
-      "path": "Controls/LcuImage.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
-    },
-    {
-      "path": "Controls/ReplayButton.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
-    },
-    {
       "path": "Controls/ReplayButton.cs",
       "rule": "SpacingOff4Grid",
       "count": 11,
@@ -23,12 +11,6 @@
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
-    },
-    {
-      "path": "Navigation/SummonerPaneCard.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
     },
     {
       "path": "Navigation/SummonerPaneCard.cs",
@@ -47,12 +29,6 @@
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Career/CareerProfileHeader.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
     },
     {
       "path": "Pages/Career/CareerProfileHeader.cs",
@@ -92,21 +68,9 @@
     },
     {
       "path": "Pages/GameInfo/GameInfoPage.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 2,
-      "batch": "R11"
-    },
-    {
-      "path": "Pages/GameInfo/GameInfoPage.cs",
       "rule": "SpacingOff4Grid",
       "count": 12,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/GameInfo/PlayerCardView.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
     },
     {
       "path": "Pages/GameInfo/PlayerCardView.cs",
@@ -119,12 +83,6 @@
       "rule": "SpacingOff4Grid",
       "count": 4,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/GameInfo/PlayerColumnVisuals.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
     },
     {
       "path": "Pages/GameInfo/PlayerColumnVisuals.cs",
@@ -152,21 +110,9 @@
     },
     {
       "path": "Pages/Notice/NoticePage.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 2,
-      "batch": "R11"
-    },
-    {
-      "path": "Pages/Notice/NoticePage.cs",
       "rule": "SpacingOff4Grid",
       "count": 2,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Notice/NoticePopupView.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 3,
-      "batch": "R11"
     },
     {
       "path": "Pages/Notice/NoticePopupView.cs",
@@ -194,12 +140,6 @@
     },
     {
       "path": "Pages/Opgg/OpggPage.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
-    },
-    {
-      "path": "Pages/Opgg/OpggPage.cs",
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
@@ -223,22 +163,10 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/PlaceholderPage.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
-    },
-    {
       "path": "Pages/SavedPlayers/SavedPlayersPage.cs",
       "rule": "SpacingOff4Grid",
       "count": 31,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Search/MatchDetailView.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
     },
     {
       "path": "Pages/Search/MatchDetailView.cs",
@@ -260,12 +188,6 @@
     },
     {
       "path": "Pages/Tools/ChampionPickerView.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 1,
-      "batch": "R11"
-    },
-    {
-      "path": "Pages/Tools/ChampionPickerView.cs",
       "rule": "SpacingOff4Grid",
       "count": 4,
       "batch": "R16"
@@ -278,12 +200,6 @@
     },
     {
       "path": "Pages/Tools/SkinPickerView.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 2,
-      "batch": "R11"
-    },
-    {
-      "path": "Pages/Tools/SkinPickerView.cs",
       "rule": "SpacingOff4Grid",
       "count": 3,
       "batch": "R16"
@@ -293,12 +209,6 @@
       "rule": "SpacingOff4Grid",
       "count": 3,
       "batch": "R16"
-    },
-    {
-      "path": "Pages/Tools/ToolsPage.cs",
-      "rule": "BareFluentFontFamily",
-      "count": 2,
-      "batch": "R11"
     },
     {
       "path": "Pages/Tools/ToolsPage.cs",

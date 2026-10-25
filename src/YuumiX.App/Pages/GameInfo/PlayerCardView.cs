@@ -160,8 +160,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
             nameRowItems.Add(
-                Caption("\uE72E")
-                    .FontFamily("Segoe Fluent Icons")
+                Caption(Icons.View)
+                    .FontFamily(Icons.FontFamily)
                     .Foreground(AssetColors.AmberDeep)
                     .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)

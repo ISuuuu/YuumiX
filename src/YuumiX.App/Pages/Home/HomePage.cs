@@ -89,20 +89,20 @@ public sealed class HomePage : Component
                     HStack(
                         4,
                         Body("PID = ")
-                            .FontFamily("Consolas, SF Mono, monospace")
+                            .FontFamily(Icons.MonoFontFamily)
                             .Foreground(Theme.SecondaryText),
                         BodyStrong($"{pid}")
-                            .FontFamily("Consolas, SF Mono, monospace"))
+                            .FontFamily(Icons.MonoFontFamily))
                     .HorizontalAlignment(HorizontalAlignment.Center),
 
                     // Port 行
                     HStack(
                         4,
                         Body("--app-port = ")
-                            .FontFamily("Consolas, SF Mono, monospace")
+                            .FontFamily(Icons.MonoFontFamily)
                             .Foreground(Theme.SecondaryText),
                         BodyStrong($"{port}")
-                            .FontFamily("Consolas, SF Mono, monospace"))
+                            .FontFamily(Icons.MonoFontFamily))
                     .HorizontalAlignment(HorizontalAlignment.Center)
                 )
                 .Padding(32, 22)

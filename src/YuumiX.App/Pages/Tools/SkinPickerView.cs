@@ -58,14 +58,14 @@ internal static class SkinPickerView
         int nextIdx = activeSkinIndex < skins.Count - 1 ? activeSkinIndex + 1 : 0;
 
         Element carouselControls = HStack(8,
-            Button(Caption("\uE76B").FontFamily("Segoe Fluent Icons"), () => onSelectSkinIndex(prevIdx))
+            Button(Caption(Icons.ChevronLeft).FontFamily(Icons.FontFamily), () => onSelectSkinIndex(prevIdx))
                 .Padding(8, 4)
                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .AutomationName("上一款皮肤"),
             Caption($"{activeSkinIndex + 1} / {skins.Count}")
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
-            Button(Caption("\uE76C").FontFamily("Segoe Fluent Icons"), () => onSelectSkinIndex(nextIdx))
+            Button(Caption(Icons.ChevronRight).FontFamily(Icons.FontFamily), () => onSelectSkinIndex(nextIdx))
                 .Padding(8, 4)
                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .AutomationName("下一款皮肤")

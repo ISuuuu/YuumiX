@@ -1,3 +1,5 @@
+using YuumiX.App.Theming;
+
 namespace YuumiX.App.Navigation;
 
 /// <summary>
@@ -64,13 +66,13 @@ public static class RouteCatalog
     /// </summary>
     public static readonly IReadOnlyList<RouteDescriptor> Primary =
     [
-        new(AppRoute.Home,         "主页",     "\uE80F"),
-        new(AppRoute.Career,       "生涯",     "\uE81E"),
-        new(AppRoute.Search,       "战绩查询", "\uE721"),
-        new(AppRoute.GameInfo,     "对局信息", "\uE7FC"),
-        new(AppRoute.Tft,          "云顶之弈", "\uE8B4"),
-        new(AppRoute.SavedPlayers, "路人集",   "\uE716"),
-        new(AppRoute.Tools,        "工具箱",   "\uE90F"),
+        new(AppRoute.Home,         "主页",     Icons.Home),
+        new(AppRoute.Career,       "生涯",     Icons.Career),
+        new(AppRoute.Search,       "战绩查询", Icons.Search),
+        new(AppRoute.GameInfo,     "对局信息", Icons.GameInfo),
+        new(AppRoute.Tft,          "云顶之弈", Icons.Tft),
+        new(AppRoute.SavedPlayers, "路人集",   Icons.People),
+        new(AppRoute.Tools,        "工具箱",   Icons.Tools),
     ];
 
     /// <summary>
@@ -78,7 +80,7 @@ public static class RouteCatalog
     /// </summary>
     public static readonly IReadOnlyList<RouteDescriptor> Footer =
     [
-        new(AppRoute.Settings, "设置", "\uE713"),
+        new(AppRoute.Settings, "设置", Icons.Settings),
     ];
 
     /// <summary>
@@ -87,9 +89,9 @@ public static class RouteCatalog
     /// </summary>
     public static readonly IReadOnlyList<SidebarAction> FooterActions =
     [
-        new(SidebarTags.Opgg,      "OP.GG",       "\uE737"),
-        new(SidebarTags.Reconnect, "修复无限加载", "\uE72C"),
-        new(SidebarTags.Notice,    "公告",         "\uE7E7"),
+        new(SidebarTags.Opgg,      "OP.GG",       Icons.Opgg),
+        new(SidebarTags.Reconnect, "修复无限加载", Icons.Refresh),
+        new(SidebarTags.Notice,    "公告",         Icons.Notice),
     ];
 
     /// <summary>全部路由项（主功能区 + 底部附加操作区）。</summary>

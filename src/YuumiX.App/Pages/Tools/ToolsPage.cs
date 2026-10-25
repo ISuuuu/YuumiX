@@ -380,8 +380,8 @@ public sealed class ToolsPage : Component
                         .Grid(row: 0, column: 1),
 
                     // 展开指示器（下箭头 / 右箭头）
-                    Caption(isExpanded ? "\uE70D" : "\uE76C")
-                        .FontFamily("Segoe Fluent Icons")
+                    Caption(isExpanded ? Icons.ChevronDown : Icons.ChevronRight)
+                        .FontFamily(Icons.FontFamily)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(row: 0, column: 2),
@@ -1436,8 +1436,8 @@ public sealed class ToolsPage : Component
         {
             offlineBanner = Border(
                 HStack(8,
-                    Body("\uE7BA")
-                        .FontFamily("Segoe Fluent Icons")
+                    Body(Icons.Warning)
+                        .FontFamily(Icons.FontFamily)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center),
                     Caption("LCU 客户端未连接，本页所有开关与操作已停用，配置不可修改；启动并登录英雄联盟后自动恢复。")

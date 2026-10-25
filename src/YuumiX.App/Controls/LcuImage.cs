@@ -5,6 +5,8 @@ using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.Core.Assets;
 
+using YuumiX.App.Theming;
+
 namespace YuumiX.App.Controls;
 
 /// <summary>图标组件入参。<see cref="Size"/> 为 DIP 边长（正方形图标）。</summary>
@@ -66,8 +68,8 @@ public sealed class LcuImage : Component<LcuImageProps>
 
         if (uri is null)
         {
-            return Border(TextBlock(failed ? "\uE783" : string.Empty)
-                    .FontFamily("Segoe Fluent Icons")
+            return Border(TextBlock(failed ? Icons.Error : string.Empty)
+                    .FontFamily(Icons.FontFamily)
                     .FontSize(Props.Size * 0.4)
                     .Foreground(Theme.SecondaryText))
                 .Width(Props.Size)

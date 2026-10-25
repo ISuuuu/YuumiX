@@ -606,8 +606,8 @@ public sealed class GameInfoPage : Component
         bool isFive = currentColumns == 5;
 
         var teamContent = HStack(4,
-            Caption("\uE716")
-                .FontFamily("Segoe Fluent Icons")
+            Caption(Icons.People)
+                .FontFamily(Icons.FontFamily)
                 .Foreground(isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
             Caption("按队伍")
@@ -625,8 +625,8 @@ public sealed class GameInfoPage : Component
             .Height(28);
 
         var allContent = HStack(4,
-            Caption("\uE80A")
-                .FontFamily("Segoe Fluent Icons")
+            Caption(Icons.AllMatches)
+                .FontFamily(Icons.FontFamily)
                 .Foreground(!isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
             Caption("全部战绩")

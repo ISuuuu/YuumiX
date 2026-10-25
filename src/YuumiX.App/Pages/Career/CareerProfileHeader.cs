@@ -76,8 +76,8 @@ internal static class CareerProfileHeader
         // 复制按钮 / 已复制提示
         Element copySlot = HStack(6,
             Button(
-                Caption("\uE8C8")
-                    .FontFamily("Segoe Fluent Icons")
+                Caption(Icons.Copy)
+                    .FontFamily(Icons.FontFamily)
                     .Foreground(Theme.SecondaryText),
                 onCopy)
                 .Width(28)

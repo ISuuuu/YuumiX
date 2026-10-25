@@ -376,8 +376,8 @@ public sealed class OpggPage : Component<OpggPageProps>
         if (!string.IsNullOrWhiteSpace(errorMessage))
         {
             return VStack(12,
-                TitleLarge("\uE783")
-                    .FontFamily("Segoe Fluent Icons")
+                TitleLarge(Icons.Error)
+                    .FontFamily(Icons.FontFamily)
                     .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                     .HAlign(HorizontalAlignment.Center),
                 Body(errorMessage)

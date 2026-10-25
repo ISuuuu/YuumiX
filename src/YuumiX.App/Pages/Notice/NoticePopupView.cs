@@ -115,8 +115,8 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         // ── 标题栏：铃铛 + 标题 + 关闭（旧版 notice-popup-header）──
         var header = Border(
                 HStack(7,
-                    Body("\uE7E7")
-                        .FontFamily("Segoe Fluent Icons")
+                    Body(Icons.Notice)
+                        .FontFamily(Icons.FontFamily)
                         .Foreground(Theme.Accent)
                         .VAlign(VerticalAlignment.Center),
                     BodyStrong("公告")
@@ -126,8 +126,8 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                     // 弹性占位：把关闭按钮推到最右（旧版 justify-content: space-between）。
                     (Element)Empty().HAlign(HorizontalAlignment.Stretch),
                     Button(
-                        Caption("\uE711")
-                            .FontFamily("Segoe Fluent Icons")
+                        Caption(Icons.Cancel)
+                            .FontFamily(Icons.FontFamily)
                             .Foreground(Theme.Ref("TextFillColorSecondaryBrush")),
                         () => Props.OnClose())
                     .SubtleButton()
@@ -185,8 +185,8 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         {
             blocks.Add(Border(
                     HStack(6,
-                        Caption("\uE7BA")
-                            .FontFamily("Segoe Fluent Icons")
+                        Caption(Icons.Warning)
+                            .FontFamily(Icons.FontFamily)
                             .Foreground(Theme.Ref("SystemFillColorCautionBrush"))
                             .VAlign(VerticalAlignment.Center),
                         Caption("网络获取失败，显示上次缓存内容")
