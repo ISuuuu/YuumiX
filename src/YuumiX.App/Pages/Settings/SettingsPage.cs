@@ -888,48 +888,56 @@ public sealed class SettingsPage : Component
         }
 
         var updateCardStatus = updateInfo is { } found ? $"发现新版 v{found.Version}" : "已是最新";
-        var updateCardBody = VStack(8,
+        var updateCardItems = new List<Element>
+        {
             SettingsCardKit.Card("检查更新", "手动检查并下载新版本",
                 Button(isCheckingUpdate ? "检查中..." : "检查更新", () => _ = CheckForUpdateAsync())
                     .IsEnabled(!isCheckingUpdate)
                     .AutomationName("检查更新按钮")),
-            updateCheckError is not null
-                ? Body($"检查/下载失败： {updateCheckError}")
-                    .Foreground(Theme.SystemCritical)
-                : Empty(),
-            updateInfo is not null
-                ? VStack(4,
-                    InfoRow("新版本", $"v{updateInfo.Version}"),
-                    InfoRow("当前版本", $"v{updateInfo.CurrentVersion}"),
-                    string.IsNullOrEmpty(updateInfo.Notes)
-                        ? Empty()
-                        : Caption(updateInfo.Notes).Foreground(Theme.SecondaryText).TextWrapping(),
-                    // 下载与安装区：下载中显示进度，就绪后切换为安装按钮
-                    downloadedUpdatePath is not null
-                        ? Button(services.Paths.IsPortable ? "应用更新并重启" : "立即重启安装", ApplyPendingUpdate)
-                            .AutomationName("安装更新按钮")
-                        : updateProgress is { } p
-                            ? VStack(4,
-                                Progress(p.Percent ?? 0),
-                                Caption($"已下载 {p.Downloaded / 1024.0 / 1024.0:F1} MB" + (p.Total is { } t ? $" / {t / 1024.0 / 1024.0:F1} MB" : string.Empty)))
-                            : Button("下载更新", () => _ = DownloadUpdateAsync()).AutomationName("下载更新按钮"))
-                : Empty(),
-            SettingsCardKit.Card("开源发布页", "在浏览器中打开 GitHub Releases",
-                Button("前往 GitHub Releases", () =>
+        };
+
+        if (updateCheckError is not null)
+        {
+            updateCardItems.Add(SettingsCardKit.ContentCard(
+                Body($"检查/下载失败： {updateCheckError}")
+                    .Foreground(Theme.SystemCritical)));
+        }
+
+        if (updateInfo is not null)
+        {
+            updateCardItems.Add(SettingsCardKit.ContentCard(VStack(4,
+                InfoRow("新版本", $"v{updateInfo.Version}"),
+                InfoRow("当前版本", $"v{updateInfo.CurrentVersion}"),
+                string.IsNullOrEmpty(updateInfo.Notes)
+                    ? Empty()
+                    : Caption(updateInfo.Notes).Foreground(Theme.SecondaryText).TextWrapping(),
+                // 下载与安装区：下载中显示进度，就绪后切换为安装按钮
+                downloadedUpdatePath is not null
+                    ? Button(services.Paths.IsPortable ? "应用更新并重启" : "立即重启安装", ApplyPendingUpdate)
+                        .AutomationName("安装更新按钮")
+                    : updateProgress is { } p
+                        ? VStack(4,
+                            Progress(p.Percent ?? 0),
+                            Caption($"已下载 {p.Downloaded / 1024.0 / 1024.0:F1} MB" + (p.Total is { } t ? $" / {t / 1024.0 / 1024.0:F1} MB" : string.Empty)))
+                        : Button("下载更新", () => _ = DownloadUpdateAsync()).AutomationName("下载更新按钮"))));
+        }
+
+        updateCardItems.Add(SettingsCardKit.Card("开源发布页", "在浏览器中打开 GitHub Releases",
+            Button("前往 GitHub Releases", () =>
+            {
+                try
                 {
-                    try
+                    _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                        _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases/latest",
-                            UseShellExecute = true,
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "打开 GitHub Releases 失败");
-                    }
-                }).AutomationName("前往 GitHub Releases")));
+                        FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases/latest",
+                        UseShellExecute = true,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "打开 GitHub Releases 失败");
+                }
+            }).AutomationName("前往 GitHub Releases")));
 
         var updateCard = SettingsCardKit.Expander(
             "软件更新",
@@ -938,7 +946,7 @@ public sealed class SettingsPage : Component
                 : "检查新版本并后台下载，就绪后重启安装",
             SettingsStatus.Custom,
             headerControl: null,
-            innerContent: updateCardBody,
+            innerItems: [.. updateCardItems],
             statusText: updateCardStatus);
 
         // 云端服务（对应旧 CloudServiceSection.vue）：LCU 实时开关进页头，URL / userid / 连接状态留在展开区。
@@ -968,32 +976,37 @@ public sealed class SettingsPage : Component
                 Caption(SignalrBadgeText(status)).Foreground(color));
         }
 
-        var cloudCardBody = VStack(8,
-            // SignalR 四态徽标行（仅实时开启时展示，对齐旧头部徽标）
-            config.Functions.LcuRealtimeEnabled
-                ? HStack(12,
-                    SignalrBadgeElement(signalrStatus),
-                    Caption("SignalR 连接状态").Foreground(Theme.SecondaryText))
-                : Empty(),
-            SettingsCardKit.Card("服务器 API 地址", "对局数据上传的服务端地址",
-                TextBox(
-                    _cloudUrlDraft ?? config.General.UploadApiUrl,
-                    v => RequestCloudTextCommit(v, null),
-                    "http://example.com")
-                    .Width(240)
-                    .AutomationName("服务器 API 地址")),
-            SettingsCardKit.Card("userid", "上报数据使用的用户标识",
-                TextBox(
-                    _cloudUserIdDraft ?? config.General.SignalrUserId,
-                    v => RequestCloudTextCommit(null, v),
-                    "留空默认使用 lcu_user_001")
-                    .Width(240)
-                    .AutomationName("SignalR userid")),
-            // error 态附红字错误详情（对齐旧 setting-error-tip）
-            signalrStatus.State == SignalrConnectionState.Error && !string.IsNullOrEmpty(signalrStatus.Error)
-                ? Caption($"连接异常： {signalrStatus.Error}")
-                    .Foreground(Theme.SystemCritical)
-                : Empty());
+        var cloudCardItems = new List<Element>();
+        if (config.Functions.LcuRealtimeEnabled)
+        {
+            cloudCardItems.Add(SettingsCardKit.Card(
+                "SignalR 连接状态",
+                "LCU 实时远程查询通道状态",
+                SignalrBadgeElement(signalrStatus)));
+        }
+
+        cloudCardItems.Add(SettingsCardKit.Card("服务器 API 地址", "对局数据上传的服务端地址",
+            TextBox(
+                _cloudUrlDraft ?? config.General.UploadApiUrl,
+                v => RequestCloudTextCommit(v, null),
+                "http://example.com")
+                .Width(240)
+                .AutomationName("服务器 API 地址")));
+
+        cloudCardItems.Add(SettingsCardKit.Card("userid", "上报数据使用的用户标识",
+            TextBox(
+                _cloudUserIdDraft ?? config.General.SignalrUserId,
+                v => RequestCloudTextCommit(null, v),
+                "留空默认使用 lcu_user_001")
+                .Width(240)
+                .AutomationName("SignalR userid")));
+
+        if (signalrStatus.State == SignalrConnectionState.Error && !string.IsNullOrEmpty(signalrStatus.Error))
+        {
+            cloudCardItems.Add(SettingsCardKit.ContentCard(
+                Caption($"连接异常： {signalrStatus.Error}")
+                    .Foreground(Theme.SystemCritical)));
+        }
 
         var cloudCard = SettingsCardKit.Expander(
             "云端服务",
@@ -1014,7 +1027,7 @@ public sealed class SettingsPage : Component
                 _ = signalr.ApplyConfigAsync();
             }, header: null, onContent: null, offContent: null)
                 .AutomationName("LCU 实时查询开关"),
-            innerContent: cloudCardBody);
+            innerItems: [.. cloudCardItems]);
 
         var hideMenuEnabled = config.Functions.HideTft || config.Functions.HideSavedPlayers;
         var hideMenuCard = SettingsCardKit.Expander(

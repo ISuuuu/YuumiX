@@ -101,6 +101,7 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 - 需要纯视觉容器时优先用 Reactor 自带 `Card(Element)` 工厂（已内置背景 + 1px 描边 + 8px 圆角 + 16px 内边距）。
 - 卡片状态用强类型枚举（`SettingStatus`），**禁止**从显示文案反推（`statusText != "未启用"` 这类写法一律不通过评审）。
 - 分组标题必须 `Subtitle(title).HeadingLevel(AutomationHeadingLevel.Level2)`，禁止用 `TextBlock` + 字号模拟。
+- **`SettingsExpander.Items` 内部子项必须为 `SettingsCard`**：CommunityToolkit 的 `SettingsExpanderItemStyleSelector` 返回固定 `TargetType = typeof(SettingsCard)` 的样式，传入非 `SettingsCard`（如裸 `VStack`）在展开实例化时会在原生 XAML 触发 `COMException 0x800F1000` 导致进程直接闪退（`0xc000027b`）。整块表单请用 `SettingsCardKit.ContentCard` 承载，多张子卡片必须拆为 `SettingsCard[]` 传入，严禁外层多包一层 `VStack`。
 
 ---
 
@@ -116,6 +117,7 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 6. **`NavigationView.IsPaneOpen` 初值不能在渲染期赋**，必须 `Loaded` → `DispatcherQueue.TryEnqueue(Low, ...)` 延后校正，并用 `paneInitialized` 守卫 `PaneOpenChanged`（详见 `AppShell.cs` 现有实现）。
 7. **事件钩子委托必须跨渲染保持同一实例**（`UseRef` 缓存），否则触发 `REACTOR_EVENT_001`。
 8. **`DispatcherQueue.TryEnqueue` 优先级参数在前**：`(priority, callback)`。
+9. **`SettingsExpander.Items` 子项必须为 `SettingsCard`**：WinUI Toolkit 的 `SettingsExpander` 展开时其内部 `ItemsRepeater` 会给每个 item 赋 `SettingsCard` 的默认样式，如果子项为 `StackPanel` 等非 `SettingsCard` 元素，会抛出 `COMException (0x800F1000)` 导致进程闪退崩溃。自定义表单块必须使用 `SettingsCardKit.ContentCard(...)` 承载；`SettingsCardKit.Expander` 已内置自动归一化兜底。
 
 > 包内自带 API 索引与分析器文档：`~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.16/agentkit/`。
 > 不确定某个 API 是否存在时**先查 `agentkit/plugins/reactor/skills/reactor-dsl/references/reactor.api.txt`**，不要猜。

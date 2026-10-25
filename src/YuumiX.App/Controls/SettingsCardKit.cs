@@ -1,5 +1,7 @@
+using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using static YuumiX.App.Controls.SettingsCardElement;
 using static YuumiX.App.Controls.SettingsExpanderElement;
@@ -70,6 +72,19 @@ public static class SettingsCardKit
             isActionIconVisible: false,
             content: control);
 
+    /// <summary>
+    /// 承载整块自定义布局（如取色器组、路径列表、关于信息）的无标题子卡片。
+    /// SettingsExpander 的 ItemContainerStyleSelector 要求每个 item 必须是 SettingsCard，
+    /// 否则展开实例化时会因 Style.TargetType 不匹配抛出 COMException (0x800F1000)。
+    /// </summary>
+    public static Element ContentCard(Element content) =>
+        SettingsCard(
+            contentAlignment: ContentAlignment.Left,
+            isClickEnabled: false,
+            isActionIconVisible: false,
+            content: content.HAlign(HorizontalAlignment.Stretch))
+        .HAlign(HorizontalAlignment.Stretch);
+
     /// <summary>开关卡片：<c>ToggleSwitch</c> 进 content 槽位，状态由开关本身表达，不再写状态文本。</summary>
     public static Element Toggle(
         string header,
@@ -130,9 +145,8 @@ public static class SettingsCardKit
     /// </para>
     /// <para>
     /// <paramref name="innerItems"/> 是**逐项**投递给 <c>SettingsExpander</c> 的展开区内容：
-    /// Toolkit 会给每个 item 套一层卡片样式，所以多张子卡片必须拆成多个 item 传入，
-    /// **不要**在外面包一层 <c>VStack</c>——那样会得到"卡中卡"。非卡片内容（一组表单行）
-    /// 则应作为**单个** item 传入，才能收进同一张卡片。
+    /// Toolkit 要求每个 item 必须为 <c>SettingsCard</c>，非卡片项会被自动封装进 <see cref="ContentCard"/>。
+    /// 多张子卡片应当拆成多个 item 传入；如需承载整块自定义表单，可直接传入或用 <see cref="ContentCard"/> 包裹。
     /// </para>
     /// </summary>
     public static Element Expander(
@@ -147,14 +161,13 @@ public static class SettingsCardKit
             header: header,
             description: description,
             headerIcon: headerIcon,
-            items: innerItems) with
+            items: NormalizeItems(innerItems)) with
         {
             Content = headerControl ?? StatusLabel(status, statusText),
         };
 
     /// <summary>
     /// 单块内容的简写：适合"一组表单行收进同一张卡片"的场景（如取色器组、路径列表）。
-    /// 内容是若干张子卡片时**不要**用这个重载，会得到卡中卡——请改用 <paramref name="innerItems"/> 数组重载。
     /// </summary>
     public static Element Expander(
         string header,
@@ -165,4 +178,20 @@ public static class SettingsCardKit
         Element? headerIcon = null,
         string? statusText = null) =>
         Expander(header, description, status, headerControl, [innerContent], headerIcon, statusText);
+
+    private static Element[] NormalizeItems(IEnumerable<Element> items)
+    {
+        var normalized = new List<Element>();
+        foreach (var item in items)
+        {
+            if (item is null or EmptyElement)
+            {
+                continue;
+            }
+
+            normalized.Add(item is SettingsCardElement ? item : ContentCard(item));
+        }
+
+        return [.. normalized];
+    }
 }
