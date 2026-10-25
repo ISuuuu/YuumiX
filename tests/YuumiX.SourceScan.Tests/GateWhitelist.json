@@ -205,6 +205,18 @@
       "batch": "R16"
     },
     {
+      "path": "Pages/Tools/Sections/ChampionSection.cs",
+      "rule": "SpacingOff4Grid",
+      "count": 5,
+      "batch": "R16"
+    },
+    {
+      "path": "Pages/Tools/Sections/ProfileSection.cs",
+      "rule": "SpacingOff4Grid",
+      "count": 4,
+      "batch": "R16"
+    },
+    {
       "path": "Pages/Tools/SkinPickerView.cs",
       "rule": "SpacingOff4Grid",
       "count": 3,
@@ -219,7 +231,13 @@
     {
       "path": "Pages/Tools/ToolsPage.cs",
       "rule": "SpacingOff4Grid",
-      "count": 17,
+      "count": 1,
+      "batch": "R16"
+    },
+    {
+      "path": "Pages/Tools/ToolsVisuals.cs",
+      "rule": "SpacingOff4Grid",
+      "count": 4,
       "batch": "R16"
     }
   ]
