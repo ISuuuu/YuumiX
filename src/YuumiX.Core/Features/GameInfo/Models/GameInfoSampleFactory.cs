@@ -1,4 +1,5 @@
 using YuumiX.Core.Features.Career.Models;
+using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.Summoner.Models;
@@ -41,10 +42,11 @@ public static class GameInfoSampleFactory
             int winCount,
             int lossCount,
             double kda,
+            MatchPosition position,
             StreakInfo? streak = null,
             string? fate = null)
         {
-            var matches = CreateMatches(champId, winCount, lossCount);
+            var matches = CreateMatches(champId, winCount, lossCount, position);
             var player = new GameInfoPlayer
             {
                 Info = new SummonerProfile
@@ -78,6 +80,7 @@ public static class GameInfoSampleFactory
                 AvgKda = kda,
                 Streak = streak,
                 FateFlag = fate,
+                Positions = MatchStatsCalculator.ComputeAggregatedPositions(matches),
                 Masteries = [new PlayerChampionMastery(champId, 7, 125000)],
                 MasteryFetched = true,
             };
@@ -87,17 +90,17 @@ public static class GameInfoSampleFactory
             playerData[summonerId.ToString()] = player;
         }
 
-        AddPlayer(0, "p0", 1000, 157, "疾风剑豪#国服", "MASTER", "I", 188, 7, 3, 3.8, new StreakInfo("win", 3));
-        AddPlayer(1, "p1", 1001, 64, "瞎子王#001", "DIAMOND", "I", 65, 6, 4, 3.2);
-        AddPlayer(2, "p2", 1002, 103, "九尾小狐狸#艾欧", "DIAMOND", "II", 42, 5, 5, 2.8, fate: "ally");
-        AddPlayer(3, "p3", 1003, 222, "萝莉飞弹#皮城", "EMERALD", "I", 89, 4, 6, 2.1);
-        AddPlayer(4, "p4", 1004, 412, "魂锁典狱长#暗影", "EMERALD", "II", 20, 6, 4, 3.5);
+        AddPlayer(0, "p0", 1000, 157, "疾风剑豪#国服", "MASTER", "I", 188, 7, 3, 3.8, MatchPosition.Middle, new StreakInfo("win", 3));
+        AddPlayer(1, "p1", 1001, 64, "瞎子王#001", "DIAMOND", "I", 65, 6, 4, 3.2, MatchPosition.Jungle);
+        AddPlayer(2, "p2", 1002, 103, "九尾小狐狸#艾欧", "DIAMOND", "II", 42, 5, 5, 2.8, MatchPosition.Middle, fate: "ally");
+        AddPlayer(3, "p3", 1003, 222, "萝莉飞弹#皮城", "EMERALD", "I", 89, 4, 6, 2.1, MatchPosition.Bottom);
+        AddPlayer(4, "p4", 1004, 412, "魂锁典狱长#暗影", "EMERALD", "II", 20, 6, 4, 3.5, MatchPosition.Utility);
 
-        AddPlayer(5, "p5", 2000, 54, "巨石强森#熔岩", "DIAMOND", "III", 15, 5, 5, 2.5);
-        AddPlayer(6, "p6", 2001, 59, "德玛西亚皇子#嘉文", "DIAMOND", "IV", 78, 6, 4, 3.0);
-        AddPlayer(7, "p7", 2002, 238, "影流之刃#劫", "MASTER", "I", 240, 8, 2, 4.5, new StreakInfo("win", 4), fate: "enemy");
-        AddPlayer(8, "p8", 2003, 145, "虚空之女#卡莎", "DIAMOND", "I", 50, 6, 4, 3.1);
-        AddPlayer(9, "p9", 2004, 111, "深海泰坦#诺提", "EMERALD", "I", 33, 5, 5, 2.4);
+        AddPlayer(5, "p5", 2000, 54, "巨石强森#熔岩", "DIAMOND", "III", 15, 5, 5, 2.5, MatchPosition.Top);
+        AddPlayer(6, "p6", 2001, 59, "德玛西亚皇子#嘉文", "DIAMOND", "IV", 78, 6, 4, 3.0, MatchPosition.Jungle);
+        AddPlayer(7, "p7", 2002, 238, "影流之刃#劫", "MASTER", "I", 240, 8, 2, 4.5, MatchPosition.Middle, new StreakInfo("win", 4), fate: "enemy");
+        AddPlayer(8, "p8", 2003, 145, "虚空之女#卡莎", "DIAMOND", "I", 50, 6, 4, 3.1, MatchPosition.Bottom);
+        AddPlayer(9, "p9", 2004, 111, "深海泰坦#诺提", "EMERALD", "I", 33, 5, 5, 2.4, MatchPosition.Utility);
 
         var colorsMy = new Dictionary<string, int>
         {
@@ -127,10 +130,13 @@ public static class GameInfoSampleFactory
         };
     }
 
-    private static IReadOnlyList<MatchSummary> CreateMatches(int championId, int winCount, int lossCount)
+    private static IReadOnlyList<MatchSummary> CreateMatches(int championId, int winCount, int lossCount, MatchPosition position)
     {
         var list = new List<MatchSummary>();
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        int spell1 = position == MatchPosition.Jungle ? 11 : 4; // 打野带惩戒，其余带闪现
+        int spell2 = position == MatchPosition.Utility ? 3 : 12; // 辅助带虚弱，其余带传送
 
         for (int i = 0; i < winCount; i++)
         {
@@ -145,8 +151,8 @@ public static class GameInfoSampleFactory
                 Win = true,
                 Remake = false,
                 ChampionId = championId,
-                Spell1Id = 4,
-                Spell2Id = 12,
+                Spell1Id = spell1,
+                Spell2Id = spell2,
                 ChampionLevel = 16,
                 Kills = 8 + i,
                 Deaths = 2 + (i % 2),
@@ -158,6 +164,7 @@ public static class GameInfoSampleFactory
                 DamageToChampions = 28000,
                 TotalHeal = 2000,
                 AugmentIds = [],
+                Position = position,
             });
         }
 
@@ -174,8 +181,8 @@ public static class GameInfoSampleFactory
                 Win = false,
                 Remake = false,
                 ChampionId = championId,
-                Spell1Id = 4,
-                Spell2Id = 12,
+                Spell1Id = spell1,
+                Spell2Id = spell2,
                 ChampionLevel = 13,
                 Kills = 3,
                 Deaths = 6 + i,
@@ -187,6 +194,7 @@ public static class GameInfoSampleFactory
                 DamageToChampions = 14000,
                 TotalHeal = 1000,
                 AugmentIds = [],
+                Position = position,
             });
         }
 

@@ -23,7 +23,8 @@ public sealed record PlayerCardProps(
     string? SelfPuuid = null,
     IReadOnlyDictionary<string, SavedPlayerMarker>? SavedMap = null,
     Action<string, SummonerProfile?>? OnNavigateCareer = null,
-    Action<string, string?>? OnNavigateSearch = null);
+    Action<string, string?>? OnNavigateSearch = null,
+    bool IsDemoData = false);
 
 /// <summary>
 /// 左侧玩家卡片视图（对应旧版 <c>PlayerCard.vue</c>）。
@@ -123,20 +124,23 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
 
         if (hasSearchTarget)
         {
-            nameText = nameText
-                .WithToolTip(TextBlock($"生涯 {searchName}"))
-                .OnTapped((_, _) =>
-                {
-                    string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
-                    if (!string.IsNullOrEmpty(puuid) && puuid != "00000000-0000-0000-0000-000000000000")
+            // 演示数据的 puuid 是占位值，跳转生涯/战绩查询必然查不到，直接不注册点击
+            nameText = Props.IsDemoData
+                ? nameText.WithToolTip(TextBlock("演示数据：不支持跳转生涯与战绩查询"))
+                : nameText
+                    .WithToolTip(TextBlock($"生涯 {searchName}"))
+                    .OnTapped((_, _) =>
                     {
-                        Props.OnNavigateCareer?.Invoke(puuid, d?.Info);
-                    }
-                    else
-                    {
-                        Props.OnNavigateSearch?.Invoke(searchName, null);
-                    }
-                });
+                        string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
+                        if (!string.IsNullOrEmpty(puuid) && puuid != "00000000-0000-0000-0000-000000000000")
+                        {
+                            Props.OnNavigateCareer?.Invoke(puuid, d?.Info);
+                        }
+                        else
+                        {
+                            Props.OnNavigateSearch?.Invoke(searchName, null);
+                        }
+                    });
         }
 
         var nameRowItems = new List<Element> { nameText };
@@ -204,7 +208,6 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock(d.Streak.IsWin ? $"{d.Streak.Count}连胜" : $"{d.Streak.Count}连败")));
         }
-
         var nameRow = HStack(0, nameRowItems.ToArray());
 
         // 段位展示（单双 / 灵活排位：双段位两行，单段位单行，均带 ToolTip，§2.2）
@@ -295,12 +298,14 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             string wrColor = wr >= 70 ? palette.WinText : wr >= 50 ? palette.Accent : palette.TextMuted;
             string kdaStr = d.AvgKda.HasValue ? $"KDA {d.AvgKda.Value:F2}" : string.Empty;
 
+            // 色阶对齐旧版 PlayerCard.vue：≥5 强调色 / ≥4 段位蓝 / ≥3 胜利绿 / 其余灰。
+            // 旧版最高档位用的是 --accent-color（不是纯金黄 #FFD700，那个在小字号下过于刺眼）。
             string kdaColor = d.AvgKda switch
             {
-                >= 5.0 => "#FFFFD700",
-                >= 4.0 => palette.Accent,
+                >= 5.0 => palette.Accent,
+                >= 4.0 => CareerVisuals.IsDarkTheme ? "#FF60A5FA" : "#FF3B82F6",
                 >= 3.0 => palette.WinText,
-                _ => palette.TextSecondary,
+                _ => palette.TextMuted,
             };
 
             int totalGames = (d.WinCount ?? 0) + (d.LossesCount ?? 0);

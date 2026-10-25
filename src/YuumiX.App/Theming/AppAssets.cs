@@ -1,3 +1,5 @@
+using YuumiX.Core.Features.Match.Models;
+
 namespace YuumiX.App.Theming;
 
 /// <summary>
@@ -117,6 +119,38 @@ public static class AppAssets
             }
         }
 
+        return result;
+    }
+
+    /// <summary>
+    /// 分路位置图标（<c>Assets/Positions/{top|jungle|middle|bottom|utility}.png</c>）。
+    /// </summary>
+    public static IReadOnlyDictionary<MatchPosition, string> PositionIconUris { get; } = BuildPositionIconUris();
+
+    public static string? GetPositionIconUri(MatchPosition? position) =>
+        position.HasValue && PositionIconUris.TryGetValue(position.Value, out string? uri) ? uri : null;
+
+    private static Dictionary<MatchPosition, string> BuildPositionIconUris()
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "Assets", "Positions");
+        var map = new (MatchPosition Pos, string File)[]
+        {
+            (MatchPosition.Top, "top.png"),
+            (MatchPosition.Jungle, "jungle.png"),
+            (MatchPosition.Middle, "middle.png"),
+            (MatchPosition.Bottom, "bottom.png"),
+            (MatchPosition.Utility, "utility.png"),
+        };
+
+        var result = new Dictionary<MatchPosition, string>();
+        foreach (var (pos, file) in map)
+        {
+            string path = Path.Combine(directory, file);
+            if (File.Exists(path))
+            {
+                result[pos] = new Uri(path).AbsoluteUri;
+            }
+        }
         return result;
     }
 }

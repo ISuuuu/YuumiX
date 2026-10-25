@@ -58,6 +58,22 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
     /// <summary>是否经历过本局选人阶段（未经历时进入对局需清残留防上一局污染）。</summary>
     private bool _champSelectSeenForGame;
 
+    /// <summary>
+    /// 选人阶段我方队员快照（对应旧版 <c>champSelectTeamSnapshot</c>）。
+    /// 关键用途：脱敏对局（排位）中 gameflow session 无法匹配本机玩家时，
+    /// 用它反查我方属于 teamOne 还是 teamTwo，避免双方队伍整体错位。
+    /// </summary>
+    private List<PremadePlayerLike> _champSelectTeamSnapshot = [];
+
+    /// <summary>选人阶段敌方队员快照（对应旧版 <c>champSelectTheirTeamSnapshot</c>）。</summary>
+    private List<PremadePlayerLike> _champSelectTheirTeamSnapshot = [];
+
+    /// <summary>gameflow session 推断出的友方队伍（组队 ID 回填用）。</summary>
+    private List<PremadePlayerLike> _sessionAllyTeam = [];
+
+    /// <summary>gameflow session 推断出的敌方队伍（组队 ID 回填用）。</summary>
+    private List<PremadePlayerLike> _sessionEnemyTeam = [];
+
     private GamePhase _observedPhase = GamePhase.None;
     private long _currentSessionRequestId;
     private bool _disposed;
@@ -83,6 +99,15 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
     /// <summary>Live Client 最大轮询重试次数。</summary>
     internal int LiveClientMaxRetries { get; set; } = 15;
+
+    /// <summary>gameflow session 双方队伍为空时的重试次数（旧版 10 次 × 1s）。</summary>
+    internal int EmptyTeamRetryCount { get; set; } = 10;
+
+    /// <summary>gameflow session 仅有单边队伍时的重试次数（旧版 3 次 × 1s）。</summary>
+    internal int SingleTeamRetryCount { get; set; } = 3;
+
+    /// <summary>gameflow session 队伍重试间隔（毫秒，旧版 1000ms）。</summary>
+    internal int EmptyTeamRetryDelayMs { get; set; } = 1000;
 
     public GameInfoService(
         Func<ILcuTransport?> transportProvider,
@@ -344,7 +369,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
     {
         lock (_gate)
         {
-            _state = GameInfoSampleFactory.CreateSample() with { IsDemo = true };
+            _state = GameInfoSampleFactory.CreateSample() with { IsDemo = true, IsDemoData = true };
             _stateStream.Publish(_state);
         }
     }
@@ -427,6 +452,10 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
         try
         {
+            // WebSocket 事件直连入口不经过 RefreshStateAsync（旧版 processTeamData 同款守卫）：
+            // 本机召唤师身份缺失时，teamOne/teamTwo 的成员匹配会整体失效，直接导致双方队伍错位
+            await EnsureCurrentSummonerAsync(cancellationToken).ConfigureAwait(false);
+
             LcuResponse resp = await transport.SendAsync(
                 LcuRequest.Get("/lol-gameflow/v1/session"),
                 cancellationToken).ConfigureAwait(false);
@@ -524,9 +553,81 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 }
             }
 
+            // ── 队伍空/单边空重试（对应旧版 loadFromGameflowSession 的重试分支）──
+            // LCU 在载入瞬间偶发返回空队伍或只返回单边，直接放弃会让敌方整列消失
+            bool snapshotHasBots;
+            lock (_gate)
+            {
+                snapshotHasBots = _champSelectTeamSnapshot.Any(p => p.Bot || p.IsBot) ||
+                                  _champSelectTheirTeamSnapshot.Any(p => p.Bot || p.IsBot);
+            }
+
             if (teamOne.Count == 0 && teamTwo.Count == 0)
             {
-                return;
+                for (int attempt = 0; attempt < EmptyTeamRetryCount; attempt++)
+                {
+                    await Task.Delay(EmptyTeamRetryDelayMs, cancellationToken).ConfigureAwait(false);
+                    if (reqId != Interlocked.Read(ref _currentSessionRequestId) || !IsGameActivePhaseObserved())
+                    {
+                        return;
+                    }
+
+                    var retry = await FetchGameflowTeamsAsync(transport, cancellationToken).ConfigureAwait(false);
+                    if (retry.GameId is not null) liveGameId = retry.GameId;
+                    isCustomGame = retry.IsCustomGame;
+                    if (retry.TeamOne.Count > 0 || retry.TeamTwo.Count > 0)
+                    {
+                        teamOne = retry.TeamOne;
+                        teamTwo = retry.TeamTwo;
+                        break;
+                    }
+                }
+
+                if (teamOne.Count == 0 && teamTwo.Count == 0)
+                {
+                    _logger?.LogInformation("gameflow session 双方队伍仍为空（已重试 {Count} 次），暂不渲染对局", EmptyTeamRetryCount);
+                    return;
+                }
+            }
+            else if (teamOne.Count == 0 || teamTwo.Count == 0)
+            {
+                // 自定义对局（人机）teamTwo 可能永远为空，无需重试
+                if (!isCustomGame && !snapshotHasBots)
+                {
+                    for (int attempt = 0; attempt < SingleTeamRetryCount && (teamOne.Count == 0 || teamTwo.Count == 0); attempt++)
+                    {
+                        await Task.Delay(EmptyTeamRetryDelayMs, cancellationToken).ConfigureAwait(false);
+                        if (reqId != Interlocked.Read(ref _currentSessionRequestId) || !IsGameActivePhaseObserved())
+                        {
+                            return;
+                        }
+
+                        var retry = await FetchGameflowTeamsAsync(transport, cancellationToken).ConfigureAwait(false);
+                        if (retry.GameId is not null) liveGameId = retry.GameId;
+                        isCustomGame = retry.IsCustomGame;
+                        if (retry.TeamOne.Count > 0) teamOne = retry.TeamOne;
+                        if (retry.TeamTwo.Count > 0) teamTwo = retry.TeamTwo;
+                    }
+                }
+            }
+
+            // 组队 ID 回填与 session 阵营缓存（对应旧版 fetchPremadeColors 的 teamParticipantId 回填）
+            UpdateSessionTeams(teamOne, teamTwo);
+
+            string? mapSide;
+            lock (_gate)
+            {
+                mapSide = _state.MapSide;
+            }
+
+            // 阵营未知（脱敏对局）时异步探测：pin-drop → 选人 session cellId → gameflow 队伍 → LiveClientData
+            if (string.IsNullOrEmpty(mapSide))
+            {
+                mapSide = await ResolveMapSideAsync(transport, teamOne, teamTwo, cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrEmpty(mapSide))
+                {
+                    _logger?.LogInformation("脱敏对局阵营探测结果: {Side}", mapSide);
+                }
             }
 
             TeamBuildContext ctx;
@@ -536,7 +637,11 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 {
                     CurrentSummonerId = _state.CurrentSummonerId,
                     CurrentSummonerPuuid = _state.CurrentSummonerPuuid,
-                    MapSide = _state.MapSide,
+                    MapSide = mapSide,
+                    ChampSelectTeamSnapshot = _champSelectTeamSnapshot,
+                    ChampSelectTheirTeamSnapshot = _champSelectTheirTeamSnapshot,
+                    SessionAllyTeam = _sessionAllyTeam,
+                    SessionEnemyTeam = _sessionEnemyTeam,
                     GameflowMyTeam = _state.MyTeam,
                     GameflowTheirTeam = _state.TheirTeam,
                     PlayerData = _state.PlayerData,
@@ -544,6 +649,9 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             }
 
             var (allyTeam, enemyTeam, side) = TeamBuilder.ResolveTeamSide(teamOne, teamTwo, ctx);
+            _logger?.LogInformation(
+                "对局队伍解析: teamOne={TeamOne} 人, teamTwo={TeamTwo} 人, 阵营={Side} → 我方 {My} 人 / 敌方 {Their} 人",
+                teamOne.Count, teamTwo.Count, side ?? "未知", allyTeam.Count, enemyTeam.Count);
             var (mappedMy, mappedTheir) = TeamBuilder.BuildGameflowTeams(allyTeam, enemyTeam, side, ctx);
 
             // LCU 会话偶发残缺（如 InProgress 精简到只剩自己）：新队伍更短时保留已有更全的，
@@ -566,12 +674,16 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             {
                 MyTeam = finalMy,
                 TheirTeam = finalTheir,
-                MapSide = side,
+                // 阵营仅在解析成功时写入（对应旧版 if (side) setMapSide(side)），未知时不覆盖既有值
+                MapSide = side ?? s.MapSide,
                 PlayerData = newPlayerData,
                 PremadeColorsMy = colorsMy,
                 PremadeColorsTheir = colorsTheir,
                 ShouldShowContent = true,
                 IsLoadingTeams = false,
+                // 装配出真实队伍即脱离演示态：演示数据的 puuid 是占位值，不能用于跳转查询
+                IsDemo = false,
+                IsDemoData = false,
             });
 
             _ = LoadAllPlayersAsync(cancellationToken);
@@ -584,6 +696,332 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         {
             _logger?.LogWarning(ex, "LoadFromGameflowSessionAsync 失败");
         }
+    }
+
+    /// <summary>gameflow session 拉取结果（重试分支复用）。</summary>
+    private readonly record struct GameflowTeamsFetch(
+        List<PremadePlayerLike> TeamOne,
+        List<PremadePlayerLike> TeamTwo,
+        long? GameId,
+        bool IsCustomGame);
+
+    /// <summary>重新拉取 gameflow session 的双方队伍（用于队伍缺失时重试）。</summary>
+    private static async Task<GameflowTeamsFetch> FetchGameflowTeamsAsync(
+        ILcuTransport transport,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            LcuResponse resp = await transport.SendAsync(
+                LcuRequest.Get("/lol-gameflow/v1/session"),
+                cancellationToken).ConfigureAwait(false);
+
+            if (!resp.IsSuccess || string.IsNullOrWhiteSpace(resp.Body))
+            {
+                return new GameflowTeamsFetch([], [], null, false);
+            }
+
+            using var doc = JsonDocument.Parse(resp.Body);
+            if (!doc.RootElement.TryGetProperty("gameData", out var gameData))
+            {
+                return new GameflowTeamsFetch([], [], null, false);
+            }
+
+            long? gameId = null;
+            if (gameData.TryGetProperty("gameId", out var gameIdEl) && gameIdEl.ValueKind == JsonValueKind.Number)
+            {
+                long gid = gameIdEl.GetInt64();
+                if (gid > 0)
+                {
+                    gameId = gid;
+                }
+            }
+
+            bool isCustom = false;
+            if (gameData.TryGetProperty("queue", out var queueEl) && queueEl.ValueKind == JsonValueKind.Object)
+            {
+                isCustom = JsonRead.Bool(queueEl, "isCustom", false);
+            }
+
+            return new GameflowTeamsFetch(
+                ParseParticipants(gameData, "teamOne"),
+                ParseParticipants(gameData, "teamTwo"),
+                gameId,
+                isCustom);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return new GameflowTeamsFetch([], [], null, false);
+        }
+    }
+
+    /// <summary>当前观测阶段是否仍在活跃对局（GameStart / InProgress）。</summary>
+    private bool IsGameActivePhaseObserved()
+    {
+        lock (_gate)
+        {
+            return _observedPhase is GamePhase.GameStart or GamePhase.InProgress;
+        }
+    }
+
+    /// <summary>
+    /// 缓存 gameflow session 推断出的双方队伍，并把 session 中的组队 ID 回填进选人快照
+    /// （对应旧版 <c>fetchPremadeColors</c> 的 teamParticipantId 回填）。
+    /// </summary>
+    private void UpdateSessionTeams(
+        IReadOnlyList<PremadePlayerLike> teamOne,
+        IReadOnlyList<PremadePlayerLike> teamTwo)
+    {
+        long summonerId;
+        string? puuid;
+        List<PremadePlayerLike> snapshot;
+        lock (_gate)
+        {
+            summonerId = _state.CurrentSummonerId;
+            puuid = _state.CurrentSummonerPuuid;
+            snapshot = _champSelectTeamSnapshot;
+        }
+
+        bool MatchesLocal(PremadePlayerLike p) =>
+            (summonerId != 0 && p.SummonerId == summonerId) ||
+            (!string.IsNullOrEmpty(puuid) && !string.IsNullOrEmpty(p.Puuid) &&
+             string.Equals(p.Puuid, puuid, StringComparison.OrdinalIgnoreCase)) ||
+            snapshot.Any(cs =>
+                (!string.IsNullOrEmpty(p.Puuid) && !string.IsNullOrEmpty(cs.Puuid) &&
+                 string.Equals(p.Puuid, cs.Puuid, StringComparison.OrdinalIgnoreCase)) ||
+                (p.SummonerId != 0 && cs.SummonerId != 0 && p.SummonerId == cs.SummonerId) ||
+                (!string.IsNullOrEmpty(p.GameName) && !string.IsNullOrEmpty(cs.GameName) &&
+                 string.Equals(p.GameName, cs.GameName, StringComparison.OrdinalIgnoreCase)));
+
+        bool isTeamOne = teamOne.Any(MatchesLocal);
+        var ally = isTeamOne || teamTwo.Count == 0 ? teamOne : teamTwo;
+        var enemy = isTeamOne || teamTwo.Count == 0 ? teamTwo : teamOne;
+
+        lock (_gate)
+        {
+            _sessionAllyTeam = ally.ToList();
+            _sessionEnemyTeam = enemy.ToList();
+
+            // 选人快照缺失组队 ID 时，用同身份的 session 队员补齐（供预组队着色与继承）
+            for (int i = 0; i < _champSelectTeamSnapshot.Count; i++)
+            {
+                var cs = _champSelectTeamSnapshot[i];
+                if (!string.IsNullOrEmpty(PlayerIdentity.GetValidTpid(cs)))
+                {
+                    continue;
+                }
+
+                var matched = ally.FirstOrDefault(ap =>
+                    (!string.IsNullOrEmpty(cs.Puuid) && !string.IsNullOrEmpty(ap.Puuid) && cs.Puuid == ap.Puuid) ||
+                    (cs.SummonerId != 0 && ap.SummonerId != 0 && cs.SummonerId == ap.SummonerId) ||
+                    (!string.IsNullOrEmpty(cs.GameName) && !string.IsNullOrEmpty(ap.GameName) && cs.GameName == ap.GameName));
+
+                string? tpid = PlayerIdentity.GetValidTpid(matched);
+                if (tpid is null)
+                {
+                    continue;
+                }
+
+                _champSelectTeamSnapshot[i] = cs with { TeamParticipantId = tpid, PartyId = tpid };
+            }
+        }
+    }
+
+    /// <summary>
+    /// 脱敏对局阵营探测（对应旧版 Rust <c>get_map_side</c>）：
+    /// ① pin-drop-notification.mapSide；② 选人 session myTeam 的 cellId 区间；
+    /// ③ gameflow session 中本机玩家所在队伍；④ LiveClientData 本机操作玩家的 team。
+    /// </summary>
+    private async Task<string?> ResolveMapSideAsync(
+        ILcuTransport transport,
+        IReadOnlyList<PremadePlayerLike> teamOne,
+        IReadOnlyList<PremadePlayerLike> teamTwo,
+        CancellationToken cancellationToken)
+    {
+        // ① pin-drop-notification（选人会话初始化可能延迟，短重试）
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            if (attempt > 0)
+            {
+                await Task.Delay(400, cancellationToken).ConfigureAwait(false);
+            }
+
+            try
+            {
+                LcuResponse pinResp = await transport.SendAsync(
+                    LcuRequest.Get("/lol-champ-select/v1/pin-drop-notification"),
+                    cancellationToken).ConfigureAwait(false);
+
+                if (!pinResp.IsSuccess || string.IsNullOrWhiteSpace(pinResp.Body))
+                {
+                    continue;
+                }
+
+                using var pinDoc = JsonDocument.Parse(pinResp.Body);
+                if (pinDoc.RootElement.TryGetProperty("mapSide", out var mapSideEl) &&
+                    mapSideEl.ValueKind == JsonValueKind.String)
+                {
+                    string? value = mapSideEl.GetString()?.ToLowerInvariant();
+                    if (value is "blue" or "red")
+                    {
+                        return value;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // 落入下一种探测方式
+            }
+        }
+
+        // ② 选人 session：myTeam 最小/最大 cellId 判定（蓝方 0..4，红方 5..9）
+        try
+        {
+            LcuResponse sessionResp = await transport.SendAsync(
+                LcuRequest.Get("/lol-champ-select/v1/session"),
+                cancellationToken).ConfigureAwait(false);
+
+            if (sessionResp.IsSuccess && !string.IsNullOrWhiteSpace(sessionResp.Body))
+            {
+                using var sessionDoc = JsonDocument.Parse(sessionResp.Body);
+                if (sessionDoc.RootElement.TryGetProperty("myTeam", out var myTeamEl) &&
+                    myTeamEl.ValueKind == JsonValueKind.Array)
+                {
+                    int minCell = int.MaxValue;
+                    int maxCell = -1;
+                    foreach (var m in myTeamEl.EnumerateArray())
+                    {
+                        int cellId = JsonRead.Int(m, "cellId", -1);
+                        if (cellId < 0)
+                        {
+                            continue;
+                        }
+
+                        minCell = Math.Min(minCell, cellId);
+                        maxCell = Math.Max(maxCell, cellId);
+                    }
+
+                    if (maxCell >= 0)
+                    {
+                        if (minCell >= 5)
+                        {
+                            return "red";
+                        }
+
+                        if (maxCell < 5)
+                        {
+                            return "blue";
+                        }
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // 落入下一种探测方式
+        }
+
+        // ③ gameflow session：本机玩家落在 teamOne（蓝）还是 teamTwo（红）
+        long summonerId;
+        string? puuid;
+        lock (_gate)
+        {
+            summonerId = _state.CurrentSummonerId;
+            puuid = _state.CurrentSummonerPuuid;
+        }
+
+        if (summonerId == 0 && string.IsNullOrEmpty(puuid))
+        {
+            try
+            {
+                LcuResponse meResp = await transport.SendAsync(
+                    LcuRequest.Get("/lol-summoner/v1/current-summoner"),
+                    cancellationToken).ConfigureAwait(false);
+
+                if (meResp.IsSuccess && !string.IsNullOrWhiteSpace(meResp.Body))
+                {
+                    using var meDoc = JsonDocument.Parse(meResp.Body);
+                    summonerId = JsonRead.Long(meDoc.RootElement, "summonerId", 0);
+                    puuid = JsonRead.String(meDoc.RootElement, "puuid");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // 忽略，继续下一种探测
+            }
+        }
+
+        bool InTeam(IReadOnlyList<PremadePlayerLike> team) => team.Any(p =>
+            (!string.IsNullOrEmpty(puuid) && !string.IsNullOrEmpty(p.Puuid) &&
+             string.Equals(p.Puuid, puuid, StringComparison.OrdinalIgnoreCase)) ||
+            (summonerId != 0 && p.SummonerId == summonerId));
+
+        if (InTeam(teamOne))
+        {
+            return "blue";
+        }
+
+        if (InTeam(teamTwo))
+        {
+            return "red";
+        }
+
+        // ④ LiveClientData：本机操作玩家所属 team（ORDER=蓝 / CHAOS=红）
+        if (_liveClientService is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            string? activeName = await _liveClientService.GetActivePlayerNameAsync(cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(activeName))
+            {
+                return null;
+            }
+
+            var players = await _liveClientService.GetPlayerListAsync(cancellationToken).ConfigureAwait(false);
+            var matched = players
+                .Where(p => string.Equals(p.RiotIdGameName, activeName, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(p.SummonerName, activeName, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(p.RiotId, activeName, StringComparison.OrdinalIgnoreCase))
+                .Select(p => p.Team)
+                .Where(t => !string.IsNullOrEmpty(t))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // 命中多个不同阵营（如盲选同名英雄）时不可采信
+            if (matched.Count == 1)
+            {
+                return string.Equals(matched[0], "ORDER", StringComparison.OrdinalIgnoreCase) ? "blue" : "red";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // 探测失败
+        }
+
+        return null;
     }
 
     public async Task LoadAllPlayersAsync(CancellationToken cancellationToken = default)
@@ -1080,6 +1518,16 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 IsHumanoid = m.IsHumanoid,
             }).ToList();
 
+            // 增量维护选人阶段双方快照：新帧未识别出英雄时沿用上一帧的 championId / 组队 ID，
+            // 避免过渡帧把已锁定的英雄冲成 0（对应旧版 mergeSnapshot）
+            lock (_gate)
+            {
+                _champSelectTeamSnapshot = MergeChampSelectSnapshot(myTeam, _champSelectTeamSnapshot);
+                _champSelectTheirTeamSnapshot = MergeChampSelectSnapshot(theirTeam, _champSelectTheirTeamSnapshot);
+                myTeam = _champSelectTeamSnapshot;
+                theirTeam = _champSelectTheirTeamSnapshot;
+            }
+
             var newPlayerData = new Dictionary<string, GameInfoPlayer>(_state.PlayerData);
             TeamBuilder.SeedInitialPlayerData(myTeam.Concat(theirTeam).ToList(), newPlayerData);
 
@@ -1095,6 +1543,9 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 PremadeColorsTheir = colorsTheir,
                 ShouldShowContent = true,
                 IsLoadingTeams = false,
+                // 装配出真实队伍即脱离演示态：演示数据的 puuid 是占位值，不能用于跳转查询
+                IsDemo = false,
+                IsDemoData = false,
             });
 
             if (myTeam.Count > 0)
@@ -1115,6 +1566,46 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         {
             _logger?.LogWarning(ex, "LoadFromChampSelectAsync 失败");
         }
+    }
+
+    /// <summary>
+    /// 选人阶段快照增量合并（对应旧版 <c>mergeSnapshot</c>）：
+    /// 按 puuid / summonerId / cellId 对齐上一帧，英雄 ID 与组队 ID 只增不减。
+    /// </summary>
+    private static List<PremadePlayerLike> MergeChampSelectSnapshot(
+        List<PremadePlayerLike> incoming,
+        List<PremadePlayerLike> previous)
+    {
+        if (previous.Count == 0)
+        {
+            return incoming;
+        }
+
+        var merged = new List<PremadePlayerLike>(incoming.Count);
+        foreach (var p in incoming)
+        {
+            var prev = previous.FirstOrDefault(old =>
+                (!string.IsNullOrEmpty(p.Puuid) && !string.IsNullOrEmpty(old.Puuid) && p.Puuid == old.Puuid) ||
+                (p.SummonerId != 0 && old.SummonerId != 0 && p.SummonerId == old.SummonerId) ||
+                old.CellId == p.CellId);
+
+            int champId = p.ChampionId > 0
+                ? p.ChampionId
+                : (prev is { ChampionId: > 0 } ? prev.ChampionId : 0);
+
+            string? tpid = PlayerIdentity.GetValidTpid(p) ?? PlayerIdentity.GetValidTpid(prev);
+
+            merged.Add(p with
+            {
+                ChampionId = champId,
+                TeamParticipantId = tpid ?? p.TeamParticipantId,
+                PartyId = tpid ?? p.PartyId,
+                SummonerId = p.SummonerId != 0 ? p.SummonerId : (prev?.SummonerId ?? 0),
+                Puuid = !string.IsNullOrEmpty(p.Puuid) ? p.Puuid : prev?.Puuid,
+            });
+        }
+
+        return merged;
     }
 
     private static ChampSelectSessionLike ParseChampSelectSession(JsonElement root)
@@ -1329,6 +1820,10 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 {
                     _currentGameId = null;
                     _champSelectSeenForGame = false;
+                    _champSelectTeamSnapshot = [];
+                    _champSelectTheirTeamSnapshot = [];
+                    _sessionAllyTeam = [];
+                    _sessionEnemyTeam = [];
                 }
 
                 ClearInGameMemory();
@@ -1403,8 +1898,12 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 PlayerData = new Dictionary<string, GameInfoPlayer>(),
                 PremadeColorsMy = new Dictionary<string, int>(),
                 PremadeColorsTheir = new Dictionary<string, int>(),
+                // 阵营随每局重新判定，残留值会在下一局脱敏场景下造成双方整体错位
+                MapSide = null,
                 IsLoadingTeams = false,
                 ShouldShowContent = false,
+                IsDemo = false,
+                IsDemoData = false,
             };
             _stateStream.Publish(_state);
         }

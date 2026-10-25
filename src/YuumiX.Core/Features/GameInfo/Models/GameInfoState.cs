@@ -70,5 +70,8 @@ public sealed record GameInfoState
     /// </summary>
     public bool IsDemo { get; init; }
 
+    /// <summary>当前展示的是「预览演示」的示例数据：puuid 为占位值，禁止跳转生涯/战绩查询。</summary>
+    public bool IsDemoData { get; init; }
+
     public static readonly GameInfoState Empty = new();
 }
