@@ -89,6 +89,14 @@ public sealed class SavedPlayersStore : IDisposable
                 );
                 CREATE INDEX IF NOT EXISTS idx_encountered_puuid
                     ON encountered_games (puuid, self_puuid, queue_type);
+                -- 同一局同一玩家只允许一条相遇记录。历史库里已存在重复行（断线重连会让
+                -- 同一 gameId 被缓存两次，见 AutoEncounterRecorderAgent），必须先去重再建
+                -- 唯一索引，否则 CREATE UNIQUE INDEX 会因现存重复行直接失败。
+                DELETE FROM encountered_games
+                WHERE id NOT IN (
+                    SELECT MIN(id) FROM encountered_games GROUP BY game_id, puuid, self_puuid);
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_encountered_game
+                    ON encountered_games (game_id, puuid, self_puuid);
             ";
             cmd.ExecuteNonQuery();
 
@@ -500,13 +508,16 @@ public sealed class SavedPlayersStore : IDisposable
                 await upsertCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            // Insert encountered_games
+            // Insert encountered_games —— 同一局同一玩家只保留一条。
+            // 断线重连会让同一 gameId 走两遍记录流程，且结束阶段有三个 phase 都会触发，
+            // 靠唯一索引兜底：重复写入静默丢弃，否则 COUNT(*) 得到的"相遇次数"会翻倍。
             await using (var encCmd = conn.CreateCommand())
             {
                 encCmd.Transaction = tx;
                 encCmd.CommandText = @"
                     INSERT INTO encountered_games (game_id, puuid, self_puuid, region, rso_platform_id, queue_type, update_at)
-                    VALUES (@gameId, @puuid, @selfPuuid, @region, @rsoPlatformId, @queueType, @now)";
+                    VALUES (@gameId, @puuid, @selfPuuid, @region, @rsoPlatformId, @queueType, @now)
+                    ON CONFLICT(game_id, puuid, self_puuid) DO NOTHING";
 
                 encCmd.Parameters.AddWithValue("@gameId", gameId);
                 encCmd.Parameters.AddWithValue("@puuid", player.Puuid);
@@ -516,10 +527,12 @@ public sealed class SavedPlayersStore : IDisposable
                 encCmd.Parameters.AddWithValue("@queueType", queueType ?? string.Empty);
                 encCmd.Parameters.AddWithValue("@now", now);
 
-                await encCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                int inserted = await encCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                if (inserted > 0)
+                {
+                    recorded++;
+                }
             }
-
-            recorded++;
         }
 
         await tx.CommitAsync(cancellationToken).ConfigureAwait(false);

@@ -28,6 +28,14 @@ public sealed class AutoEncounterRecorderAgent : IAutomationAgent
     private bool _isRunning;
     private CurrentGameCache? _currentCache;
 
+    /// <summary>
+    /// 最近一次已写入存储的 gameId。
+    /// 断线重连会让同一局先后推送两次 <see cref="GamePhase.InProgress"/>，第二个缓存任务可能在
+    /// 第一次写入之后才完成并把同一局塞回 <see cref="_currentCache"/>；而结束阶段有三个 phase
+    /// 都会触发记录。仅靠"取走即清空缓存"挡不住这种回填，必须记住已记录的 gameId。
+    /// </summary>
+    private long _lastRecordedGameId;
+
     public string Name => "AutoEncounterRecorderAgent";
     public bool IsRunning => _isRunning;
 
@@ -125,6 +133,11 @@ public sealed class AutoEncounterRecorderAgent : IAutomationAgent
             if (!root.TryGetProperty("gameData", out var gameData)) return;
             if (!gameData.TryGetProperty("gameId", out var gameIdProp) || !gameIdProp.TryGetInt64(out var gameId)) return;
 
+            lock (_stateLock)
+            {
+                if (gameId == _lastRecordedGameId) return;
+            }
+
             int queueId = 0;
             if (gameData.TryGetProperty("queueId", out var qidProp) && qidProp.TryGetInt32(out var qid))
             {
@@ -210,6 +223,10 @@ public sealed class AutoEncounterRecorderAgent : IAutomationAgent
         {
             cache = _currentCache;
             _currentCache = null;
+            if (cache is not null && cache.GameId == _lastRecordedGameId)
+            {
+                cache = null;
+            }
         }
 
         if (cache is null || cache.Players.Count == 0) return;
@@ -238,6 +255,11 @@ public sealed class AutoEncounterRecorderAgent : IAutomationAgent
                 cache.GameId,
                 cache.QueueId.ToString(),
                 ct).ConfigureAwait(false);
+
+            lock (_stateLock)
+            {
+                _lastRecordedGameId = cache.GameId;
+            }
 
             _logger?.LogInformation("对局相遇记录完成，共记录 {Recorded} 名同局玩家", recorded);
         }

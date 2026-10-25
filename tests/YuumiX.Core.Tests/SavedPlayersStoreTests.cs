@@ -101,6 +101,28 @@ public sealed class SavedPlayersStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RecordEncounters_SameGameRecordedTwice_KeepsSingleEncounter()
+    {
+        var players = new List<EncounterPlayerEntry>
+        {
+            new() { Puuid = "p1", SummonerName = "队友1", ProfileIconId = 1, TagLine = "111", ChampionId = 157 },
+        };
+
+        var first = await _store.RecordEncountersAsync(players, "self1", 20001, "420");
+        // 断线重连会让同一 gameId 走两遍记录流程，第二次不得再落一行
+        var second = await _store.RecordEncountersAsync(players, "self1", 20001, "420");
+
+        Assert.Equal(1, first);
+        Assert.Equal(0, second);
+
+        var query = await _store.QueryPlayersAsync("self1");
+        Assert.Equal(1, query.Items[0].EncounterCount);
+
+        var games = await _store.QueryEncounteredGamesAsync("p1", "self1");
+        Assert.Equal(1, games.TotalCount);
+    }
+
+    [Fact]
     public async Task QueryPlayers_SearchWithNameAndTagLineCombined()
     {
         var players = new List<EncounterPlayerEntry>

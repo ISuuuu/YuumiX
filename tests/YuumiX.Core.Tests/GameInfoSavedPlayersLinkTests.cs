@@ -156,8 +156,10 @@ public sealed class GameInfoSavedPlayersLinkTests
             foreach (var (gameId, updateAt) in encounteredGames)
             {
                 await using var cmd = conn.CreateCommand();
+                // OR IGNORE：同一 (game_id, puuid, self_puuid) 由唯一索引拦截，
+                // 造数据时重复写入应被丢弃（对应断线重连导致的二次记录）
                 cmd.CommandText = @"
-                    INSERT INTO encountered_games (game_id, puuid, self_puuid, region, rso_platform_id, queue_type, update_at)
+                    INSERT OR IGNORE INTO encountered_games (game_id, puuid, self_puuid, region, rso_platform_id, queue_type, update_at)
                     VALUES (@gameId, @puuid, 'p-me', '', '', 'RANKED_SOLO_5x5', @updateAt);";
                 cmd.Parameters.AddWithValue("@gameId", gameId);
                 cmd.Parameters.AddWithValue("@puuid", puuid);
@@ -348,7 +350,7 @@ public sealed class GameInfoSavedPlayersLinkTests
 
         var marker = map["p-x"];
         Assert.Equal("演员", marker.Tag);
-        Assert.Equal(3, marker.EncounterCount);
+        Assert.Equal(2, marker.EncounterCount); // 重复的 777 未落库
         Assert.Equal(777, marker.LastEncounteredGameId); // update_at 最大的一局
         Assert.Equal(1_700_000_700_000, marker.LastMetAt);
         Assert.Equal(2, marker.EncounteredGameIds.Count);
