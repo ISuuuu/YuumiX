@@ -170,63 +170,77 @@ public sealed class AppShell : Component
                 }
 
                 var cancellation = new CancellationTokenSource();
+                var token = cancellation.Token;
                 _ = Task.Run(async () =>
                 {
-                    // 连上后先立即拉取一次
                     try
                     {
-                        var profile = await summonerService
-                            .GetCurrentSummonerAsync(cancellation.Token)
-                            .ConfigureAwait(false);
-
-                        if (!cancellation.IsCancellationRequested && profile is not null)
+                        // 连上后先立即拉取一次
+                        try
                         {
-                            setSummoner(profile);
+                            var profile = await summonerService
+                                .GetCurrentSummonerAsync(token)
+                                .ConfigureAwait(false);
+
+                            if (!token.IsCancellationRequested && profile is not null)
+                            {
+                                setSummoner(profile);
+                                return;
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
                             return;
+                        }
+                        catch (Exception ex)
+                        {
+                            services.LoggerFactory
+                                .CreateLogger<AppShell>()
+                                .LogWarning(ex, "首次读取当前召唤师失败，将在后台重试探测");
+                        }
+
+                        // 客户端未登录（404 等），以 2 秒间隔持续探测直至登录
+                        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+                        while (!token.IsCancellationRequested)
+                        {
+                            try
+                            {
+                                if (!await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+                                {
+                                    break;
+                                }
+
+                                var profile = await summonerService
+                                    .GetCurrentSummonerAsync(token)
+                                    .ConfigureAwait(false);
+
+                                if (!token.IsCancellationRequested && profile is not null)
+                                {
+                                    setSummoner(profile);
+                                    break;
+                                }
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                break;
+                            }
+                            catch (Exception)
+                            {
+                                // 探测失败（例如尚未登录）为正常状态，静默等待下一次
+                            }
                         }
                     }
                     catch (OperationCanceledException)
                     {
-                        return;
+                        // 任务已取消，正常退出
                     }
                     catch (Exception ex)
                     {
                         services.LoggerFactory
                             .CreateLogger<AppShell>()
-                            .LogWarning(ex, "首次读取当前召唤师失败，将在后台重试探测");
+                            .LogWarning(ex, "召唤师后台探测任务发生未预期异常");
                     }
-
-                    // 客户端未登录（404 等），以 2 秒间隔持续探测直至登录
-                    using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
-                    while (!cancellation.IsCancellationRequested)
-                    {
-                        try
-                        {
-                            if (!await timer.WaitForNextTickAsync(cancellation.Token).ConfigureAwait(false))
-                            {
-                                break;
-                            }
-
-                            var profile = await summonerService
-                                .GetCurrentSummonerAsync(cancellation.Token)
-                                .ConfigureAwait(false);
-
-                            if (!cancellation.IsCancellationRequested && profile is not null)
-                            {
-                                setSummoner(profile);
-                                break;
-                            }
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            break;
-                        }
-                        catch (Exception)
-                        {
-                            // 探测失败（例如尚未登录）为正常状态，静默等待下一次
-                        }
-                    }
-                }, cancellation.Token);
+                }, token);
 
                 return () =>
                 {
