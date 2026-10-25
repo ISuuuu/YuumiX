@@ -97,7 +97,9 @@ public sealed class CareerPage : Component<CareerPageProps>
         var (loading, setLoading) = UseState(true, threadSafe: true);
         var (copied, setCopied) = UseState(false, threadSafe: true);
         var (refreshToken, setRefreshToken) = UseState(0, threadSafe: true);
-        var (viewTarget, setViewTarget) = UseState<CareerViewTarget?>(null, threadSafe: true);
+        var (viewTarget, setViewTarget) = UseState<CareerViewTarget?>(
+            Props.Puuid is { Length: > 0 } p ? new CareerViewTarget(p, Props.Preload) : null,
+            threadSafe: true);
 
         // 英雄熟练度筛选与排序状态
         var (masterySearch, setMasterySearch) = UseState(string.Empty, threadSafe: true);
@@ -140,13 +142,9 @@ public sealed class CareerPage : Component<CareerPageProps>
         UseEffect(
             () =>
             {
-                if (Props.Puuid is { Length: > 0 } puuid)
-                {
-                    setQueueFilter(0);
-                    setViewTarget(new CareerViewTarget(puuid, Props.Preload));
-                    setTab(CareerTab.Matches);
-                }
-
+                setQueueFilter(0);
+                setViewTarget(Props.Puuid is { Length: > 0 } puuid ? new CareerViewTarget(puuid, Props.Preload) : null);
+                setTab(CareerTab.Matches);
                 return static () => { };
             },
             Props.Puuid ?? "",

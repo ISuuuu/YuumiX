@@ -409,7 +409,8 @@ public sealed class AppShell : Component
                     return;
                 }
 
-                if (tag is not null && RouteCatalog.Resolve(tag) is { } route && route != nav.CurrentRoute)
+                // 仅在切换到不同模块时导航；已在目标模块（如带参 CareerRoute/SearchRoute）不覆盖现有路由。
+                if (tag is not null && RouteCatalog.KeyFor(nav.CurrentRoute) != tag && RouteCatalog.Resolve(tag) is { } route)
                 {
                     nav.Replace(route);
                 }
