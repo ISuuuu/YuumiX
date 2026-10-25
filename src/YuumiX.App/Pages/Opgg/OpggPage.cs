@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
+using YuumiX.Core;
 using YuumiX.Core.Features.Opgg;
 using YuumiX.Core.Features.Opgg.Models;
 using YuumiX.Core.Lcu;
@@ -22,7 +23,6 @@ public sealed class OpggPage : Component<OpggPageProps>
     {
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
         var opggService = services.Services.GetRequiredService<IOpggService>();
-        var gameDataService = services.Services.GetRequiredService<GameDataService>();
         var theme = UseContext(AppHost.ThemeContext) ?? AppHost.Theme;
         bool isDark = string.Equals(theme.Current.ThemeMode, "Dark", StringComparison.OrdinalIgnoreCase);
 
@@ -36,6 +36,10 @@ public sealed class OpggPage : Component<OpggPageProps>
         var (tierItems, setTierItems) = UseState<IReadOnlyList<TierListItem>>(Array.Empty<TierListItem>());
         var (buildData, setBuildData) = UseState<OpggBuildData?>(null);
         var (metaVersion, setMetaVersion) = UseState<string?>(null);
+
+        // 游戏资源映射表必须主动触发加载：只同步读 Current 时，本窗口从未有页面
+        // 调用过 GetAsync 的话 catalog 永远是空表，装备图标会全部落到错误兜底路径上。
+        var (catalog, setCatalog) = UseState(GameDataCatalog.Empty, threadSafe: true);
 
         var (loading, setLoading) = UseState(false);
         var (errorMessage, setErrorMessage) = UseState<string?>(null);
@@ -156,7 +160,19 @@ public sealed class OpggPage : Component<OpggPageProps>
             return () => sub.Dispose();
         }, []);
 
-        var catalog = gameDataService.Current ?? GameDataCatalog.Empty;
+        // 游戏资源映射表加载：失败不提示，客户端未启动是常态，图标占位已足够表达。
+        UseEffect(
+            () =>
+            {
+                var cancellation = new CancellationTokenSource();
+                _ = LoadCatalogAsync(services, setCatalog, cancellation.Token);
+                return () =>
+                {
+                    cancellation.Cancel();
+                    cancellation.Dispose();
+                };
+            },
+            []);
 
         return Grid(
             [GridSize.Star()],
@@ -412,6 +428,36 @@ public sealed class OpggPage : Component<OpggPageProps>
             IsDark = isDark,
             OnSelectChampion = onSelectChamp
         });
+    }
+
+    /// <summary>
+    /// 加载游戏资源映射表。失败不提示：客户端未启动是常态，图标占位已经足够表达。
+    /// </summary>
+    private static async Task LoadCatalogAsync(
+        AppServices services,
+        Action<GameDataCatalog> apply,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            GameDataCatalog loaded = await services.Services
+                .GetRequiredService<GameDataService>()
+                .GetAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                apply(loaded);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 页面已卸载
+        }
+        catch (Exception)
+        {
+            // 资源表缺失只影响图标，不影响布局
+        }
     }
 
     private static Element RenderToasts(IReadOnlyList<ToastItem> toasts)

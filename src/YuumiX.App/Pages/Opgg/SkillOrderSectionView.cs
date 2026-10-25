@@ -58,7 +58,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
         for (int i = 0; i < mastery.Ids.Count; i++)
         {
             var key = mastery.Ids[i];
-            var (textCol, bgCol, borderCol) = OpggVisuals.GetSkillKeyColor(key);
+            var (textCol, bgCol) = OpggVisuals.GetSkillKeyColor(key);
 
             items.Add(
                 Border(
@@ -71,7 +71,6 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
                 .Height(26)
                 .CornerRadius(4)
                 .Background(bgCol)
-                .WithBorder(borderCol, 1)
             );
 
             if (i < mastery.Ids.Count - 1)
@@ -95,7 +94,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
 
         var boxes = skillStats.Order.Select((key, idx) =>
         {
-            var (textCol, bgCol, borderCol) = OpggVisuals.GetSkillKeyColor(key);
+            var (textCol, bgCol) = OpggVisuals.GetSkillKeyColor(key);
 
             return Border(
                 Caption(key)
@@ -107,7 +106,6 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
             .Height(18)
             .CornerRadius(3)
             .Background(bgCol)
-            .WithBorder(borderCol, 1)
             .WithToolTip(Caption($"Lv.{idx + 1}: {key}"));
         });
 

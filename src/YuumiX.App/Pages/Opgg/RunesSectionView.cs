@@ -188,10 +188,22 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                         bool isSelected = idx == selectedIdx;
                         var styleIconPath = Props.PerkStyles.FirstOrDefault(s => s.Id == rune.PrimaryPageId)?.IconPath
                             ?? $"/lol-game-data/assets/v1/perk-images/Styles/{rune.PrimaryPageId}.png";
-                        var borderBrush = isSelected ? OpggVisuals.OpggBrandColor : "#20808080";
-                        var bgBrush = isSelected ? "rgba(99, 111, 249, 0.12)" : "transparent";
 
-                        return Border(
+                        // 选中行只做轻微提示：实心品牌蓝过于抢眼、白字对比也不足，
+                        // 选中语义由主色描边承担，底色仅 10% 透明主色。
+                        var ratioText = Caption(OpggVisuals.FormatRatio(rune.Win, rune.Play))
+                            .SemiBold()
+                            .Foreground(Theme.PrimaryText);
+
+                        var playCountText = Caption($"{rune.Play} 场")
+                            .Foreground(Theme.SecondaryText);
+
+                        var pickRateText = Caption(OpggVisuals.FormatPercent(rune.PickRate))
+                            .Foreground(Theme.SecondaryText)
+                            .VAlign(VerticalAlignment.Center)
+                            .Grid(0, 2);
+
+                        var itemBorder = Border(
                             Grid(
                                 [GridSize.Auto, GridSize.Star(), GridSize.Auto],
                                 [GridSize.Auto],
@@ -200,29 +212,23 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                                         .VAlign(VerticalAlignment.Center)
                                         .Grid(0, 0),
 
-                                    VStack(1,
-                                        Caption(OpggVisuals.FormatRatio(rune.Win, rune.Play))
-                                            .SemiBold(),
-                                        Caption($"{rune.Play} 场")
-                                            .Foreground(Theme.SecondaryText)
-                                    )
-                                    .Margin(new Thickness(6, 0, 0, 0))
-                                    .VAlign(VerticalAlignment.Center)
-                                    .Grid(0, 1),
-
-                                    Caption(OpggVisuals.FormatPercent(rune.PickRate))
-                                        .Foreground(Theme.SecondaryText)
+                                    VStack(1, ratioText, playCountText)
+                                        .Margin(new Thickness(6, 0, 0, 0))
                                         .VAlign(VerticalAlignment.Center)
-                                        .Grid(0, 2)
+                                        .Grid(0, 1),
+
+                                    pickRateText
                                 ]
                             )
                         )
                         .Padding(new Thickness(8, 6, 8, 6))
                         .CornerRadius(6)
-                        .Background(bgBrush)
-                        .WithBorder(borderBrush, 1)
                         .OnPointerPressed((_, _) => onSelect(idx))
                         .WithKey($"preset-{idx}");
+
+                        return isSelected
+                            ? itemBorder.Background("rgba(99, 111, 249, 0.10)").WithBorder(OpggVisuals.OpggBrandColor, 1)
+                            : itemBorder.Background("transparent").WithBorder(Theme.CardStroke, 1);
                     }).ToArray()
                 ),
 

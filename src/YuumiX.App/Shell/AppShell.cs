@@ -20,6 +20,7 @@ using YuumiX.App.Pages.Tools;
 using YuumiX.App.Theming;
 using YuumiX.App.Windowing;
 using YuumiX.Core.Automation;
+using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
@@ -64,6 +65,18 @@ public sealed class AppShell : Component
         // 公告弹窗可见性：侧边栏「公告」动作项触发显示；关闭由弹窗自身（手动 × 或 8s 自动）回调。
         // threadSafe: true —— 自动关闭计时器在后台线程调用 OnClose（ADR-07）。
         var (noticeVisible, setShowNotice) = UseState(false, threadSafe: true);
+
+        // 标题栏红蓝方：GameInfoService 在选人/对局阶段解析出本方阵营（blue/red）后经状态流推过来。
+        // threadSafe: true —— 推送来自 LCU 后台线程（ADR-07）。
+        var gameInfoService = services.Services.GetRequiredService<IGameInfoService>();
+        var (mapSide, setMapSide) = UseState<string?>(gameInfoService.CurrentState.MapSide, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = gameInfoService.StateStream.Subscribe(state => setMapSide(state.MapSide));
+                return () => subscription.Dispose();
+            },
+            0);
 
         void ShowToast(string message, bool isError = false)
         {
@@ -324,6 +337,7 @@ public sealed class AppShell : Component
             // 分隔线 + 召唤师信息卡片。
             // WinUI 模板把 PaneFooter 排在 FooterMenuItems 之上，所以卡片落在底部菜单项上方，
             // 而分隔线正好是底部区的顶边——与旧版 sidebar-bottom 的 border-top 同位。
+            // VStack 必须显式 Stretch：否则它会按内容宽度收紧、整体贴左（分隔线与卡片都缩在左侧）。
             PaneFooter = VStack(
                 Border(Empty())
                     .Height(1)
@@ -334,8 +348,9 @@ public sealed class AppShell : Component
                         summoner,
                         isClientConnected,
                         paneOpen,
-                        PaneCompactWidth,
-                        () => nav.Replace(AppRoute.Career)))),
+                        paneOpen ? PaneOpenWidth : PaneCompactWidth,
+                        () => nav.Replace(AppRoute.Career))))
+                .HorizontalAlignment(HorizontalAlignment.Stretch),
         };
 
         // 菜单项高度对齐旧版 nav-item 的 42px：WinUI 左栏项默认 MinHeight 36，
@@ -434,8 +449,9 @@ public sealed class AppShell : Component
             // 标题栏图标与原 CustomTitleBar.vue 的 titlebar-logo 对齐：同一个 Logo 文件。
             // 用 ImageIcon 而非 BitmapIcon —— 后者默认单色化，会把彩色 Logo 染成主题色。
             Icon = ImageIcon(new Uri(AppAssets.LogoUri)),
-            // 对应原 CustomTitleBar.vue 的 titlebar-phase：已连接且非空闲时展示阶段中文名。
-            Subtitle = GetTitleBarPhaseSubtitle(isClientConnected, gamePhase),
+            // 对应原 CustomTitleBar.vue 的 titlebar-phase：已连接且非空闲时展示阶段中文名；
+            // 活跃对局三阶段已知阵营时追加红蓝方（旧版 mapSideLabel）。
+            Subtitle = GetTitleBarPhaseSubtitle(isClientConnected, gamePhase, mapSide),
             IsBackButtonVisible = false,
         };
 
@@ -506,15 +522,18 @@ public sealed class AppShell : Component
     /// <summary>
     /// 计算标题栏副标题（游戏状态）。已连接且非空闲（None）阶段时返回阶段中文名，
     /// 否则返回空串隐藏（对齐原 CustomTitleBar.vue 的 <c>isConnected &amp;&amp; gamePhase !== 'None'</c> 规则）。
+    ///
+    /// 红蓝方（旧版 mapSideLabel）：仅选人/游戏加载/游戏中三阶段且阵营已知时拼接；
+    /// 其余阶段（Lobby/EndOfGame/Reconnect 等）只显示阶段名，与旧版 else 分支清除阵营一致。
     /// </summary>
-    private static string GetTitleBarPhaseSubtitle(bool isClientConnected, GamePhase gamePhase)
+    private static string GetTitleBarPhaseSubtitle(bool isClientConnected, GamePhase gamePhase, string? mapSide)
     {
         if (!isClientConnected || gamePhase is GamePhase.None or GamePhase.Unknown)
         {
             return string.Empty;
         }
 
-        return gamePhase switch
+        var label = gamePhase switch
         {
             GamePhase.Lobby => "房间组队中",
             GamePhase.Matchmaking => "匹配中",
@@ -529,6 +548,14 @@ public sealed class AppShell : Component
             GamePhase.WatchInProgress => "观战中",
             _ => gamePhase.ToString(),
         };
+
+        if (mapSide is "blue" or "red" &&
+            gamePhase is GamePhase.ChampSelect or GamePhase.GameStart or GamePhase.InProgress)
+        {
+            label += mapSide == "blue" ? " - 蓝色方" : " - 红色方";
+        }
+
+        return label;
     }
 
     /// <summary>

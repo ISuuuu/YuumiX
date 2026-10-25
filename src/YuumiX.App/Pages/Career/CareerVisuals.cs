@@ -68,10 +68,14 @@ internal static class CareerVisuals
         return cell;
     }
 
-    /// <summary>一行「标签 : 值」，用于近期看板的统计文字。</summary>
+    /// <summary>
+    /// 一行「标签 : 值」，用于近期看板的统计文字。
+    /// 标签与值必须同为 VAlign(Center)：看板行高被 32px 英雄头像撑高后，未居中的
+    /// TextBlock 会被拉伸并贴顶渲染，数字整体上浮约 8px（值与标签基线错位）。
+    /// </summary>
     public static Element Stat(string label, string value, string? valueColor = null)
     {
-        Element valueText = BodyStrong(value);
+        Element valueText = Caption(value).SemiBold().VAlign(VerticalAlignment.Center);
         if (valueColor is not null)
         {
             valueText = valueText.Foreground(valueColor);

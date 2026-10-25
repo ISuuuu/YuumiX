@@ -178,7 +178,7 @@ public sealed class MatchService : IMatchService
             if (state.Games.Count == 0 && !state.HasReachedEnd)
             {
                 int initialBeg = (beginIndex == 0) ? 0 : beginIndex;
-                int initialEnd = (beginIndex == 0) ? Math.Max(19, endIndex) : endIndex;
+                int initialEnd = (beginIndex == 0) ? 19 : endIndex;
 
                 var (lcuGames, totalCount) = await FetchLcuGamesAsync(puuid, initialBeg, initialEnd, cancellationToken).ConfigureAwait(false);
                 if (totalCount.HasValue)
@@ -206,11 +206,11 @@ public sealed class MatchService : IMatchService
             string? server = _credentialsProvider?.Invoke()?.Server;
             bool sgpAvailable = _sgpService is not null && _sgpService.IsSupported(server);
 
-            // 当用户点到第 2 页（beginIndex >= 10）时，触发从第 21 条（LoadedGameIndex = 20）开始拉取 30 条！
-            // 对应原项目 LOAD_MORE_COUNT = 30。仅在请求第 2 页或更后页时触发
+            // 当请求范围超出当前池子（例如生涯页 CareerGamesNumber > 20），
+            // 或用户在战绩页翻到第 2 页（beginIndex >= 10）时，触发从 LoadedGameIndex 开始按批次拉取更多对局。
             const int loadMoreBatchSize = 30;
-            while (beginIndex >= 10 && !state.HasReachedEnd &&
-                   (state.LoadedGameIndex <= 20 || beginIndex >= state.Games.Count))
+            while (!state.HasReachedEnd &&
+                   (endIndex >= state.Games.Count || (beginIndex >= 10 && state.LoadedGameIndex <= 20)))
             {
                 int fetchBeg = Math.Max(20, state.LoadedGameIndex);
                 int fetchCount = loadMoreBatchSize;

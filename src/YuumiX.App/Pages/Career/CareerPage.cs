@@ -21,7 +21,7 @@ using Windows.ApplicationModel.DataTransfer;
 
 namespace YuumiX.App.Pages.Career;
 
-/// <summary>生涯页的页签。顺序即界面顺序（生涯战绩 / 战利品 / 英雄熟练度）；查看他人时只保留生涯战绩。</summary>
+/// <summary>生涯页的页签。顺序即界面顺序（生涯战绩 / 战利品 / 英雄熟练度）；查看他人时隐藏页签栏。</summary>
 internal enum CareerTab
 {
     Matches,
@@ -51,24 +51,6 @@ public sealed class CareerPage : Component
     /// <summary>空战利品选中集合共享实例。</summary>
     private static readonly IReadOnlySet<string> EmptyLootSelection = new HashSet<string>(StringComparer.Ordinal);
 
-    /// <summary>常见模式候选名单，补齐下拉选项（覆盖常规匹配、排位、大乱斗、娱乐模式与人机）。</summary>
-    private static readonly string[] StandardQueueNames =
-    [
-        "排位单双排",
-        "排位灵活组排",
-        "匹配模式",
-        "极地大乱斗",
-        "斗魂竞技场",
-        "海克斯大乱斗",
-        "经典海斗",
-        "快速模式",
-        "人机对战",
-        "自定义模式",
-        "无限火力",
-        "克隆模式",
-        "极限闪击",
-    ];
-
     /// <summary>请求代际计数：每次加载递增，回写前校验（对应旧版 careerRequestSeq）。</summary>
     private int _requestSeq;
 
@@ -77,8 +59,7 @@ public sealed class CareerPage : Component
     private IReadOnlyList<MatchSummary>? _filterSource;
 
     /// <summary>
-    /// 解析队列筛选项：第一项为「全部 (N)」，随后将当前 20 局里实际有战绩的模式排在前面（带场数），
-    /// 随后补充其他常见模式 (0)。避免选项过少，且选中有战绩的模式绝不会查空。
+    /// 解析队列筛选项：第一项为「全部 (N)」，随后仅保留当前对局列表中实际存在的模式（按场数倒序，带场数）。
     /// </summary>
     private (string[] Labels, string[] ModeNames) ResolveFilterLabels(IReadOnlyList<MatchSummary> matches)
     {
@@ -99,21 +80,11 @@ public sealed class CareerPage : Component
         var labels = new List<string> { $"全部 ({matches.Count})" };
         var modes = new List<string> { string.Empty };
 
-        // 实际有战绩的模式优先排在前面，按场数倒序
+        // 实际有战绩的模式按场数倒序
         foreach (var kvp in counts.OrderByDescending(p => p.Value))
         {
             labels.Add($"{kvp.Key} ({kvp.Value})");
             modes.Add(kvp.Key);
-        }
-
-        // 补齐常见模式中场数为 0 的选项
-        foreach (string std in StandardQueueNames)
-        {
-            if (!counts.ContainsKey(std))
-            {
-                labels.Add($"{std} (0)");
-                modes.Add(std);
-            }
         }
 
         _filterLabels = labels.ToArray();
@@ -271,22 +242,23 @@ public sealed class CareerPage : Component
             },
             0);
 
-        // 首屏与刷新共用一条链路：查看目标或 refreshToken 变化即重新取数，
-        // token > 0 时强制绕过排位缓存；代际计数在加载入口递增、回写前校验。
-        string loadKey = $"{viewTarget?.Puuid ?? string.Empty}|{refreshToken}";
+        // 首屏与刷新共用一条链路：查看目标、refreshToken 或对局加载数量变化即重新取数，
+        // token > 0 时强制绕过排位与战绩缓存；代际计数在加载入口递增、回写前校验。
+        string loadKey = $"{viewTarget?.Puuid ?? string.Empty}|{refreshToken}|{services.Config.Functions.CareerGamesNumber}";
         UseEffect(
             () =>
             {
                 int seq = ++_requestSeq;
                 Func<bool> isStale = () => seq != _requestSeq;
                 var cancellation = new CancellationTokenSource();
-                var gamesNumber = Math.Clamp(services.Config.Functions.CareerGamesNumber, 1, 100);
+                var gamesNumber = Math.Clamp(services.Config.Functions.CareerGamesNumber, 1, 50);
                 _ = viewTarget is { } target
                     ? LoadOtherCareerAsync(
                         summonerService,
                         careerService,
                         matchService,
                         target,
+                        gamesNumber,
                         refreshToken > 0,
                         isStale,
                         setSummoner,
@@ -762,14 +734,14 @@ public sealed class CareerPage : Component
                 isViewingOther: isViewingOther,
                 onBackToSelf: BackToMyCareer);
 
-        // 页签栏：查看他人时只保留「生涯战绩」（战利品/熟练度属于当前登录账号）
-        Element tabBar = summoner is null
+        // 页签栏：仅在查看自己时显示（查看他人时直接展示战绩内容，不显示「生涯战绩」等页签）
+        Element tabBar = summoner is null || isViewingOther
             ? Empty()
             : VStack(8,
                 HStack(8,
                     TabButton("生涯战绩", CareerTab.Matches, effectiveTab, setTab, palette),
-                    isViewingOther ? Empty() : TabButton("战利品", CareerTab.Loot, effectiveTab, setTab, palette),
-                    isViewingOther ? Empty() : TabButton("英雄熟练度", CareerTab.Mastery, effectiveTab, setTab, palette)),
+                    TabButton("战利品", CareerTab.Loot, effectiveTab, setTab, palette),
+                    TabButton("英雄熟练度", CareerTab.Mastery, effectiveTab, setTab, palette)),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch));
 
         // D1：战利品/熟练度读取失败（null）给提示条；成功但为空由子视图给普通空态。
@@ -1027,6 +999,11 @@ public sealed class CareerPage : Component
                 return;
             }
 
+            if (forceRefresh)
+            {
+                matchService.InvalidateCache();
+            }
+
             Task<RankedStats> rankedTask = careerService.GetRankedStatsAsync(
                 profile.Puuid, forceRefresh, cancellationToken);
 
@@ -1079,6 +1056,7 @@ public sealed class CareerPage : Component
         ICareerService careerService,
         IMatchService matchService,
         CareerViewTarget target,
+        int gamesNumber,
         bool forceRefresh,
         Func<bool> isStale,
         Action<SummonerProfile?> applySummoner,
@@ -1114,11 +1092,16 @@ public sealed class CareerPage : Component
                 return;
             }
 
+            if (forceRefresh)
+            {
+                matchService.InvalidateCache();
+            }
+
             Task<RankedStats> rankedTask = careerService.GetRankedStatsAsync(
                 target.Puuid, forceRefresh, cancellationToken);
 
             Task<MatchHistoryPage> historyTask = matchService.GetMatchHistoryAsync(
-                target.Puuid, 0, 19, cancellationToken);
+                target.Puuid, 0, gamesNumber - 1, cancellationToken);
 
             await Task.WhenAll(rankedTask, historyTask).ConfigureAwait(false);
 

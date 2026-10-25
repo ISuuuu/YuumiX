@@ -264,7 +264,7 @@ internal static class MatchDetailView
             .AutomationName("复制游戏 ID")
             .WithToolTip(TextBlock($"复制游戏 ID: {summary.GameId}"));
 
-        Element rightGroup = HStack(8, replayBtn, copyBtn)
+        Element rightGroup = HStack(8, copyBtn, replayBtn)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         Element bannerContent = Grid(

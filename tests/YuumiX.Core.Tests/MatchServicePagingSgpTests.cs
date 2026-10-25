@@ -98,6 +98,69 @@ public sealed class MatchServicePagingSgpTests
         Assert.Equal(10, refreshed.Games.Count);
     }
 
+    [Fact]
+    public async Task GetMatchHistoryAsync_CareerLargeEndIndex_TriggersSgpAndReturnsRequestedCount()
+    {
+        // 构造 20 局 LCU 数据（id 从 101 到 120）
+        var lcuGamesJson = string.Join(",", Enumerable.Range(101, 20).Select(id =>
+            $$"""
+            {
+                "gameId": {{id}},
+                "queueId": 420,
+                "gameCreation": {{1700000000000 + id}},
+                "gameDuration": 1800,
+                "participants": [
+                    {
+                        "participantId": 1,
+                        "championId": 1,
+                        "stats": { "win": true, "kills": 1, "deaths": 0, "assists": 0, "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0 }
+                    }
+                ]
+            }
+            """));
+
+        var lcuTransport = new DelegateLcuTransport(req =>
+        {
+            if (req.Path.StartsWith($"/lol-match-history/v1/products/lol/{Puuid}/matches", StringComparison.Ordinal))
+            {
+                return new LcuResponse(200, $"{{\"games\":{{\"gameCount\":100,\"games\":[{lcuGamesJson}]}}}}");
+            }
+            return new LcuResponse(404, "");
+        });
+
+        int sgpCallCount = 0;
+        int lastSgpStartIndex = -1;
+        int lastSgpCount = -1;
+
+        var mockSgp = new MockSgpService
+        {
+            OnGetMatchHistory = (server, p, start, count) =>
+            {
+                sgpCallCount++;
+                lastSgpStartIndex = start;
+                lastSgpCount = count;
+                return Enumerable.Range(201, count).Select(id => CreateSummary(id)).ToList();
+            }
+        };
+
+        var service = new MatchService(
+            () => lcuTransport,
+            sgpService: mockSgp,
+            credentialsProvider: () => new LcuCredentials(50000, "token", 1234, "hn1"));
+
+        // 生涯页面一次性请求 30 场（0~29）
+        MatchHistoryPage page = await service.GetMatchHistoryAsync(Puuid, 0, 29);
+
+        Assert.Equal(30, page.Games.Count);
+        Assert.Equal(101, page.Games[0].GameId);
+        Assert.Equal(120, page.Games[19].GameId);
+        Assert.Equal(201, page.Games[20].GameId);
+        Assert.Equal(210, page.Games[29].GameId);
+        Assert.Equal(1, sgpCallCount);
+        Assert.Equal(20, lastSgpStartIndex);
+        Assert.Equal(30, lastSgpCount);
+    }
+
     private static MatchSummary CreateSummary(long gameId) => new()
     {
         GameId = gameId,

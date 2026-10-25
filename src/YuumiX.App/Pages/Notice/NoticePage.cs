@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.Core.Features.Notice;
@@ -166,8 +167,13 @@ public sealed class NoticePage : Component
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1));
 
-        return ScrollViewer(
-            VStack(16, [header, .. blocks]).Padding(28).HAlign(HorizontalAlignment.Stretch));
+        return (ScrollViewer(
+            VStack(16, [header, .. blocks]).Padding(28).HAlign(HorizontalAlignment.Stretch)) with
+            {
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            })
+            .HorizontalScrollMode(ScrollMode.Disabled)
+            .IsTabStop(true);
     }
 }
 
@@ -301,8 +307,11 @@ internal static class NoticeMarkdown
         // 注意：RichTextBlockElement 的 Foreground 不生效（REACTOR_MOD_003，只对
         // Control / TextBlock 生效），正文颜色交给 Run 的默认前景色继承。
         // 字号同样不写字面量：RichTextBlock 继承正文默认字号（Body 14）。
-        return RichTextBlock(
-                new[] { Paragraph(ParseInlines(text).ToArray()) })
+        return (RichTextBlock(
+                new[] { Paragraph(ParseInlines(text).ToArray()) }) with
+            {
+                TextWrapping = TextWrapping.Wrap,
+            })
             .LineHeight(22);
     }
 

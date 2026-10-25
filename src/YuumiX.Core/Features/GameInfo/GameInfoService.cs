@@ -1556,6 +1556,24 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 }
             }
 
+            // 选人阶段即判定阵营（对应旧版 ChampSelect 时 getMapSide 追加标题红蓝方）：
+            // 已有值不重复探测；探测失败（选人初期 pin-drop 未就绪）靠后续 session 事件帧自然重试
+            string? currentSide;
+            lock (_gate)
+            {
+                currentSide = _state.MapSide;
+            }
+
+            if (string.IsNullOrEmpty(currentSide))
+            {
+                string? resolved = await ResolveMapSideAsync(transport, [], [], cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrEmpty(resolved))
+                {
+                    _logger?.LogInformation("选人阶段阵营探测结果: {Side}", resolved);
+                    UpdateState(s => s with { MapSide = resolved });
+                }
+            }
+
             _ = LoadAllPlayersAsync(cancellationToken);
         }
         catch (OperationCanceledException)

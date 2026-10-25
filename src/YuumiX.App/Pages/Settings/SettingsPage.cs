@@ -44,9 +44,9 @@ public sealed class SettingsPage : Component
     private static readonly int[] LogLevelValues = [0, 1, 2];
 
     private const int CareerGamesMin = 1;
-    private const int CareerGamesMax = 100;
+    private const int CareerGamesMax = 50;
     private const int ApiConcurrencyMin = 1;
-    private const int ApiConcurrencyMax = 10;
+    private const int ApiConcurrencyMax = 8;
 
     /// <summary>开源仓库地址（工程 git remote 与 README 一致）。</summary>
     private const string RepositoryUrl = "https://github.com/ISuuuu/YuumiX";
@@ -535,13 +535,16 @@ public sealed class SettingsPage : Component
             }
 
             return VStack(8,
-                HStack(12,
-                    ColorSwatch(normalized),
-                    VStack(2,
-                        TextBlock(label),
-                        Caption(description)),
-                    TextBlock(normalized).Foreground(Theme.SecondaryText)),
-                picker.Width(320).AutomationName(label));
+                Grid(
+                    [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+                    [GridSize.Auto],
+                    [
+                        ColorSwatch(normalized).Grid(0, 0),
+                        BodyStrong(label).VAlign(VerticalAlignment.Center).Margin(left: 8).Grid(0, 1),
+                        Caption(normalized).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center).Grid(0, 2),
+                    ]),
+                Caption(description).Foreground(Theme.SecondaryText).TextWrapping(),
+                picker.MaxWidth(320).HAlign(HorizontalAlignment.Left).AutomationName(label));
         }
 
         Element CardColorEditor() =>
@@ -551,33 +554,39 @@ public sealed class SettingsPage : Component
                 SettingsStatus.Custom,
                 headerControl: null,
                 innerContent: VStack(16,
-                    ColorEditor(
-                        "胜利卡片",
-                        "战绩列表里胜利一方的底色（含透明度）",
-                        config.Personalization.WinCardColor,
-                        withAlpha: true,
-                        c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
-                        v => config.Personalization.WinCardColor = v,
-                        nameof(PersonalizationConfig.WinCardColor),
-                        YuumiTheme.WinCard),
-                    ColorEditor(
-                        "失败卡片",
-                        "失败一方的底色（含透明度）",
-                        config.Personalization.LoseCardColor,
-                        withAlpha: true,
-                        c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
-                        v => config.Personalization.LoseCardColor = v,
-                        nameof(PersonalizationConfig.LoseCardColor),
-                        YuumiTheme.LoseCard),
-                    ColorEditor(
-                        "重赛卡片",
-                        "重赛一方的底色（含透明度）",
-                        config.Personalization.RemakeCardColor,
-                        withAlpha: true,
-                        c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
-                        v => config.Personalization.RemakeCardColor = v,
-                        nameof(PersonalizationConfig.RemakeCardColor),
-                        YuumiTheme.RemakeCard),
+                    (Grid(
+                        [GridSize.Star(), GridSize.Star(), GridSize.Star()],
+                        [GridSize.Auto],
+                        [
+                            ColorEditor(
+                                "胜利卡片",
+                                "战绩列表里胜利一方的底色（含透明度）",
+                                config.Personalization.WinCardColor,
+                                withAlpha: true,
+                                c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                                v => config.Personalization.WinCardColor = v,
+                                nameof(PersonalizationConfig.WinCardColor),
+                                YuumiTheme.WinCard).Grid(0, 0),
+                            ColorEditor(
+                                "失败卡片",
+                                "失败一方的底色（含透明度）",
+                                config.Personalization.LoseCardColor,
+                                withAlpha: true,
+                                c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                                v => config.Personalization.LoseCardColor = v,
+                                nameof(PersonalizationConfig.LoseCardColor),
+                                YuumiTheme.LoseCard).Grid(0, 1),
+                            ColorEditor(
+                                "重赛卡片",
+                                "重赛一方的底色（含透明度）",
+                                config.Personalization.RemakeCardColor,
+                                withAlpha: true,
+                                c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
+                                v => config.Personalization.RemakeCardColor = v,
+                                nameof(PersonalizationConfig.RemakeCardColor),
+                                YuumiTheme.RemakeCard).Grid(0, 2),
+                        ]
+                    ) with { ColumnSpacing = 16 }),
                     Button("恢复默认", () =>
                     {
                         config.Personalization.WinCardColor = YuumiTheme.WinCard;
@@ -595,24 +604,30 @@ public sealed class SettingsPage : Component
                 SettingsStatus.Custom,
                 headerControl: null,
                 innerContent: VStack(16,
-                    ColorEditor(
-                        "浅色主题",
-                        "浅色主题下每局死亡数的颜色",
-                        config.Personalization.LightDeathsNumberColor,
-                        withAlpha: false,
-                        c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
-                        v => config.Personalization.LightDeathsNumberColor = v,
-                        nameof(PersonalizationConfig.LightDeathsNumberColor),
-                        YuumiTheme.LightDeath),
-                    ColorEditor(
-                        "深色主题",
-                        "深色主题下每局死亡数的颜色",
-                        config.Personalization.DarkDeathsNumberColor,
-                        withAlpha: false,
-                        c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
-                        v => config.Personalization.DarkDeathsNumberColor = v,
-                        nameof(PersonalizationConfig.DarkDeathsNumberColor),
-                        YuumiTheme.DarkDeath),
+                    (Grid(
+                        [GridSize.Star(), GridSize.Star()],
+                        [GridSize.Auto],
+                        [
+                            ColorEditor(
+                                "浅色主题",
+                                "浅色主题下每局死亡数的颜色",
+                                config.Personalization.LightDeathsNumberColor,
+                                withAlpha: false,
+                                c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
+                                v => config.Personalization.LightDeathsNumberColor = v,
+                                nameof(PersonalizationConfig.LightDeathsNumberColor),
+                                YuumiTheme.LightDeath).Grid(0, 0),
+                            ColorEditor(
+                                "深色主题",
+                                "深色主题下每局死亡数的颜色",
+                                config.Personalization.DarkDeathsNumberColor,
+                                withAlpha: false,
+                                c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
+                                v => config.Personalization.DarkDeathsNumberColor = v,
+                                nameof(PersonalizationConfig.DarkDeathsNumberColor),
+                                YuumiTheme.DarkDeath).Grid(0, 1),
+                        ]
+                    ) with { ColumnSpacing = 16 }),
                     Button("恢复默认", () =>
                     {
                         config.Personalization.LightDeathsNumberColor = YuumiTheme.LightDeath;
@@ -1286,12 +1301,12 @@ public sealed class SettingsPage : Component
 
                 // 1. 功能
                 GroupHeader("功能"),
-                SettingsCardKit.Stepper("LCU API 并发数", "该值越大数据加载速度越快，但越可能引起客户端闪退 · 重启后生效", config.Functions.ApiConcurrencyNumber, ApiConcurrencyMin, ApiConcurrencyMax, v =>
+                SettingsCardKit.Stepper("LCU API 并发数", "与客户端通信的并发请求数（推荐 5，范围 1–8）。过大会导致客户端闪退 · 重启后生效", Math.Clamp(config.Functions.ApiConcurrencyNumber, ApiConcurrencyMin, ApiConcurrencyMax), ApiConcurrencyMin, ApiConcurrencyMax, v =>
                 {
                     config.Functions.ApiConcurrencyNumber = v;
                     Commit(nameof(FunctionsConfig.ApiConcurrencyNumber));
                 }, palette),
-                SettingsCardKit.Stepper("默认对局数量", "调整在个人生涯界面中显示的最大对局数量", config.Functions.CareerGamesNumber, CareerGamesMin, CareerGamesMax, v =>
+                SettingsCardKit.Stepper("默认对局数量", "调整在个人生涯界面中显示的最大对局数量（范围 1–50）", Math.Clamp(config.Functions.CareerGamesNumber, CareerGamesMin, CareerGamesMax), CareerGamesMin, CareerGamesMax, v =>
                 {
                     config.Functions.CareerGamesNumber = v;
                     Commit(nameof(FunctionsConfig.CareerGamesNumber));

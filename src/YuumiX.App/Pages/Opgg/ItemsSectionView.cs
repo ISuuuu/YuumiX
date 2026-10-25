@@ -60,21 +60,17 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
     private Element RenderApplyBar()
     {
-        return Border(
-            Button(
-                BodyStrong(Props.IsApplying ? "正在应用出装..." : "一键应用出装到游戏推荐页")
-                    .Foreground(OpggVisuals.ActiveTabGreen)
-                    
-                    ,
-                Props.OnApplyItemSet)
-                .IsEnabled(!Props.IsApplying)
-                .Background("rgba(47, 188, 93, 0.12)")
-                .Height(36)
-                .HAlign(HorizontalAlignment.Stretch)
-                .AutomationName("一键应用出装按钮")
-        )
-        .CornerRadius(6)
-        .WithBorder(OpggVisuals.ActiveTabGreen, 1);
+        // 与符文区的「设为当前符文页」按钮同款观感：实心绿底白字；
+        // 原先的 12% 半透明绿底叠在卡片上会发灰，描边包裹层也显得多余。
+        return Button(
+            BodyStrong(Props.IsApplying ? "正在应用出装..." : "一键应用出装到游戏推荐页")
+                .Foreground("#FFFFFF"),
+            Props.OnApplyItemSet)
+            .IsEnabled(!Props.IsApplying)
+            .Background(OpggVisuals.ActiveTabGreen)
+            .Height(36)
+            .HAlign(HorizontalAlignment.Stretch)
+            .AutomationName("一键应用出装按钮");
     }
 
     private Element RenderStarterAndBoots(bool hasStarter, bool hasBoots)

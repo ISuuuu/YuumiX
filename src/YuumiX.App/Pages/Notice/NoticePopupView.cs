@@ -31,7 +31,7 @@ public enum NoticeStatus
 /// 右下角公告弹窗，复刻旧版 <c>NoticePopup.vue</c> 的形态与交互：
 ///
 /// <list type="bullet">
-///   <item><description>320px 宽卡片吸右下角（旧版 <c>right: 20px; bottom: 20px</c>），圆角 14；</description></item>
+///   <item><description>360px 宽卡片吸右下角（旧版 <c>right: 20px; bottom: 20px</c>），圆角 14；</description></item>
 ///   <item><description>标题栏：铃铛图标 + 「公告」，主题色 10% 透明度底（旧版 primary-color-alpha-10）；</description></item>
 ///   <item><description>正文：经 <see cref="NoticeService"/> 拉取 NOTICE.md（白名单 + 代理 + 缓存兜底），
 ///         用 <see cref="NoticeMarkdown"/> 渲染，最高 240px 后滚动（旧版 max-height: 240px）；</description></item>
@@ -170,9 +170,9 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                 .Padding(new Thickness(16, 24, 16, 24)),
         };
 
-        // ── 卡片本体：320px 宽、圆角 14，吸右下角 20px（旧版 notice-popup）──
+        // ── 卡片本体：360px 宽、圆角 14，吸右下角 20px（旧版 notice-popup）──
         return VStack(0, header, body)
-            .Width(320)
+            .Width(360)
             .CornerRadius(14)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
@@ -196,15 +196,21 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                             .VAlign(VerticalAlignment.Center),
                         Caption("网络获取失败，显示上次缓存内容")
                             .Foreground(Theme.Ref("TextFillColorSecondaryBrush"))
+                            .TextWrapping()
                             .VAlign(VerticalAlignment.Center)))
                 .Padding(new Thickness(14, 6, 14, 6))
                 .Background(Theme.Ref("SubtleFillColorSecondaryBrush")));
         }
 
         blocks.Add(
-            ScrollViewer(
+            (ScrollViewer(
                     VStack(7, NoticeMarkdown.RenderBlocks(content?.Markdown ?? string.Empty))
-                        .Padding(new Thickness(14, 12, 14, 12)))
+                        .HAlign(HorizontalAlignment.Stretch)
+                        .Padding(new Thickness(14, 12, 14, 12))) with
+                {
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                })
+                .HorizontalScrollMode(ScrollMode.Disabled)
                 // 滚动容器焦点约定：阻止点击正文时把焦点下发给第一个可聚焦控件（见项目记忆）。
                 // 用修饰符而非 .Set(...)：ScrollViewer 走池回收，Set 写入会在重渲染时被重置（REACTOR_POOL_001）。
                 .IsTabStop(true)

@@ -77,15 +77,16 @@ public static class OpggVisuals
     }
 
     /// <summary>
-    /// QWER 技能色块（文字色、背景色、边框色）。
+    /// QWER 技能色块（文字色、背景色）。实心底 + 白字：原先的 8% 半透明底
+    /// 在深色主题下几乎不可见，也与 OP.GG 官网技能色块、站内实心按钮的语言一致。
     /// </summary>
-    public static (string Text, string Bg, string Border) GetSkillKeyColor(string key) => key.ToUpperInvariant() switch
+    public static (string Text, string Bg) GetSkillKeyColor(string key) => key.ToUpperInvariant() switch
     {
-        "Q" => ("#1c7ed6", "rgba(51, 154, 240, 0.08)", "rgba(51, 154, 240, 0.15)"),
-        "W" => ("#2b8a3e", "rgba(55, 178, 77, 0.08)", "rgba(55, 178, 77, 0.15)"),
-        "E" => ("#d9480f", "rgba(247, 103, 7, 0.08)", "rgba(247, 103, 7, 0.15)"),
-        "R" => ("#c92a2a", "rgba(240, 62, 62, 0.08)", "rgba(240, 62, 62, 0.15)"),
-        _ => ("#868e96", "rgba(134, 142, 150, 0.08)", "rgba(134, 142, 150, 0.15)")
+        "Q" => ("#FFFFFF", "#339af0"),
+        "W" => ("#FFFFFF", "#37b24d"),
+        "E" => ("#FFFFFF", "#f76707"),
+        "R" => ("#FFFFFF", "#f03e3e"),
+        _ => ("#FFFFFF", "#868e96")
     };
 
     public static string FormatPercent(double? v) => v.HasValue ? (v.Value * 100).ToString("F1") + "%" : "-";

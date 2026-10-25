@@ -238,17 +238,21 @@ internal static class RecentSummaryView
 
     private static Element KdaStat(RecentFormSummary summary)
     {
+        // 与 CareerVisuals.Stat 同理：行高被 32px 头像撑高时，未居中的数字会贴顶上浮
         Element deaths = Caption(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .SemiBold()
+            .VAlign(VerticalAlignment.Center)
             .Foreground(CareerVisuals.LoseText);
 
         return HStack(4,
             Caption("KDA:").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
             Caption($"{summary.Kills} /")
-                .SemiBold(),
+                .SemiBold()
+                .VAlign(VerticalAlignment.Center),
             deaths,
             Caption($"/ {summary.Assists}")
-                .SemiBold(),
+                .SemiBold()
+                .VAlign(VerticalAlignment.Center),
             Caption($"({summary.KdaText})").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
     }
 
@@ -258,7 +262,9 @@ internal static class RecentSummaryView
             .Padding(7, 2)
             .CornerRadius(4)
             .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
-            .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
+            .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1)
+            // 行高被 32px 头像撑高时，未居中的 Border 会贴顶，徽片相对标签上浮（同 CareerVisuals.Stat）
+            .VAlign(VerticalAlignment.Center);
 
     /// <summary>低胜率徽标色（裁决 D5）：旧版用灰蓝 #94A3B8 而不是失败红——低胜率不是"失败"，只是平淡。</summary>
     private const string LowWinRateColor = "#FF94A3B8";

@@ -13,6 +13,10 @@ namespace YuumiX.App.Controls;
 /// 样式为 [ − ]  N  [ + ]（宽约 110px，高 30px）。
 /// 彻底消除 WinUI ScrollView 滚动时光标自动跳入 NumberBox 导致弹出上下箭头的焦点问题。
 /// </summary>
+/// <remarks>
+/// 两个按钮必须 <c>Padding(0)</c>：WinUI 按钮默认 Padding(8,5,8,6) 只给内容留 12px 宽，
+/// 单字符字形会在窄内容区内被裁掉右侧（加号右臂缺失、减号变短），去掉 Padding 后字形在 28px 全宽内居中渲染。
+/// </remarks>
 public static class CompactStepperControl
 {
     public static Element Render(
@@ -35,6 +39,7 @@ public static class CompactStepperControl
                 })
                 .Width(28)
                 .Height(28)
+                .Padding(new Thickness(0))
                 .Background("#00000000")
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "减少" : $"{automationName} 减少"),
@@ -53,6 +58,7 @@ public static class CompactStepperControl
                 })
                 .Width(28)
                 .Height(28)
+                .Padding(new Thickness(0))
                 .Background("#00000000")
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "增加" : $"{automationName} 增加")
@@ -85,6 +91,7 @@ public static class CompactStepperControl
                 })
                 .Width(28)
                 .Height(28)
+                .Padding(new Thickness(0))
                 .Background("#00000000")
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "减少" : $"{automationName} 减少"),
@@ -103,6 +110,7 @@ public static class CompactStepperControl
                 })
                 .Width(28)
                 .Height(28)
+                .Padding(new Thickness(0))
                 .Background("#00000000")
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "增加" : $"{automationName} 增加")

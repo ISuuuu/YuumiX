@@ -23,14 +23,22 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
 {
     public override Element Render()
     {
-        return VStack(0,
-            RenderHeader(),
-            ScrollViewer(
-                VStack(3,
-                    Props.Items.Select((item, index) => RenderRow(item, index).WithKey($"tier-row-{item.Id}")).ToArray()
+        // 根布局必须是 Grid 而非 VStack：StackPanel 会以无限高度测量子级，
+        // ScrollViewer 拿不到有界高度就永远不滚动，内容直接溢出窗口被裁掉。
+        // 注意 Reactor 的 Grid 工厂第一参数是**列**、第二参数才是行。
+        return Grid(
+            [GridSize.Star()],
+            [GridSize.Auto, GridSize.Star()],
+            [
+                RenderHeader().Grid(0, 0),
+                ScrollViewer(
+                    VStack(3,
+                        Props.Items.Select((item, index) => RenderRow(item, index).WithKey($"tier-row-{item.Id}")).ToArray()
+                    )
+                    .Padding(new Thickness(12, 6, 12, 16))
                 )
-                .Padding(new Thickness(12, 6, 12, 16))
-            )
+                .Grid(1, 0)
+            ]
         );
     }
 

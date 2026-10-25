@@ -67,6 +67,7 @@ public sealed class LcuImage : Component<LcuImageProps>
         if (uri is null)
         {
             return Border(TextBlock(failed ? "\uE783" : string.Empty)
+                    .FontFamily("Segoe Fluent Icons")
                     .FontSize(Props.Size * 0.4)
                     .Foreground(Theme.SecondaryText))
                 .Width(Props.Size)

@@ -192,7 +192,6 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         );
 
         var inferredPos = m.Position ?? MatchStatsCalculator.InferMatchPosition(m);
-        string posText = SearchVisuals.PositionText(inferredPos) ?? string.Empty;
 
         // 卡片顶部：模式名称 + 位置 + 「同局」标记 + 日期（带 ToolTip，§2.3.3）
         var topRowElements = new List<Element>
@@ -209,14 +208,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (inferredPos.HasValue)
         {
             topRowColumns.Add(GridSize.Auto);
-            Element posElement = isTenCol
-                ? PlayerColumnVisuals.BuildPositionIcon(inferredPos, 11).Margin(2, 0, 2, 0)
-                : HStack(2,
-                    PlayerColumnVisuals.BuildPositionIcon(inferredPos, 11),
-                    Caption(posText).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)
-                ).Margin(3, 0, 3, 0);
-
-            topRowElements.Add(posElement.Grid(row: 0, column: topCol));
+            topRowElements.Add(
+                PlayerColumnVisuals.BuildPositionIcon(inferredPos, 11).Margin(2, 0, 2, 0)
+                    .Grid(row: 0, column: topCol));
             topCol++;
         }
 

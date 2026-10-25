@@ -767,6 +767,63 @@ public sealed class GameInfoServiceParityTests
         Assert.False(botEntry.Loading);
     }
 
+    [Theory]
+    [InlineData(0, 4, "blue")]
+    [InlineData(5, 9, "red")]
+    public async Task ChampSelect_ResolvesMapSideFromMyTeamCellIds(int firstCell, int lastCell, string expectedSide)
+    {
+        var config = new AppConfig();
+        await using var env = new GameInfoTestEnv(config);
+        env.Phase = "ChampSelect";
+        env.GameflowSession = null;
+        env.ChampSelectSession = $$"""
+        {
+            "isCustomGame": false,
+            "actions": [],
+            "myTeam": [
+                { "cellId": {{firstCell}}, "championId": 64, "championPickIntent": 0, "puuid": "p-me", "summonerId": 100 },
+                { "cellId": {{lastCell}}, "championId": 0, "championPickIntent": 0, "puuid": "p-a", "summonerId": 101 }
+            ],
+            "theirTeam": []
+        }
+        """;
+
+        // pin-drop 未就绪（NotFound）→ 回退按 myTeam 格子位判定（0..4 蓝 / 5..9 红）
+        await env.Service.RefreshStateAsync();
+
+        Assert.Equal(expectedSide, env.Service.CurrentState.MapSide);
+    }
+
+    [Fact]
+    public async Task ChampSelect_MapSideKnownOnReentry_DoesNotReprobe()
+    {
+        var config = new AppConfig();
+        await using var env = new GameInfoTestEnv(config);
+        env.Phase = "ChampSelect";
+        env.GameflowSession = null;
+        env.ChampSelectSession = """
+        {
+            "isCustomGame": false,
+            "actions": [],
+            "myTeam": [
+                { "cellId": 0, "championId": 64, "championPickIntent": 0, "puuid": "p-me", "summonerId": 100 }
+            ],
+            "theirTeam": []
+        }
+        """;
+
+        await env.Service.RefreshStateAsync();
+        Assert.Equal("blue", env.Service.CurrentState.MapSide);
+
+        int pinDropRequests = env.Server.Requests.Count(r => r.Path.EndsWith("pin-drop-notification", StringComparison.Ordinal));
+
+        // 同阶段重入（选人事件高频触发）：阵营已知时不再探测
+        await env.Service.RefreshStateAsync();
+
+        Assert.Equal("blue", env.Service.CurrentState.MapSide);
+        Assert.Equal(pinDropRequests, env.Server.Requests.Count(r => r.Path.EndsWith("pin-drop-notification", StringComparison.Ordinal)));
+    }
+
     // ── 共用构造 ─────────────────────────────────────────────────────────
 
     private static MatchSummary NewMatch(long gameId, int queueId, bool win, long creation) => new()

@@ -190,11 +190,13 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .VAlign(VerticalAlignment.Center);
 
         // D6：回放按钮默认透明且不参与命中，整行悬停或键盘 focus 落入时浮现；
-        // 悬停期间按钮自身拦截点击，不会透传给整行的 OnTapped。
-        Element replayBtn = Component<ReplayButton, ReplayButtonProps>(
-                new ReplayButtonProps(summary.GameId, Compact: false))
+        // 包裹透明 Border 拦截点击，避免事件冒泡触发整行 OnSelect（防误跳战绩）。
+        Element replayBtn = Border(Component<ReplayButton, ReplayButtonProps>(
+                new ReplayButtonProps(summary.GameId, Compact: false)))
             .Opacity(replayRevealed ? 1 : 0)
             .IsHitTestVisible(replayRevealed)
+            .Background("Transparent")
+            .OnTapped((_, args) => args.Handled = true)
             .VAlign(VerticalAlignment.Center);
 
         Element rightGroup = HStack(8, info, replayBtn)
@@ -238,37 +240,32 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .WithBorder(currentBorder, 1)
             .AutomationName($"查看对局 {summary.GameId}")
             // D6：悬停（含 focus 落入行内按钮）浮现回放；整行点击跳战绩详情（§4）
-            .OnPointerEntered((_, _) =>
-            {
-                setReplayRevealed(true);
-                setIsHovered(true);
-            })
-            .OnPointerExited((_, _) =>
-            {
-                setReplayRevealed(false);
-                setIsHovered(false);
-            })
-            .OnGotFocus((_, _) =>
-            {
-                setReplayRevealed(true);
-                setIsHovered(true);
-            })
-            .OnLostFocus((_, _) =>
-            {
-                setReplayRevealed(false);
-                setIsHovered(false);
-            })
+            .OnPointerEntered((_, _) => { setReplayRevealed(true); setIsHovered(true); })
+            .OnPointerExited((_, _) => { setReplayRevealed(false); setIsHovered(false); })
+            .OnGotFocus((_, _) => { setReplayRevealed(true); setIsHovered(true); })
+            .OnLostFocus((_, _) => { setReplayRevealed(false); setIsHovered(false); })
             // 键盘可达（REACTOR_A11Y_004）：Tab 聚焦后 Enter/Space 等效点击
             .IsTabStop(true)
-            .OnKeyDown((_, args) =>
+            .OnKeyDown((sender, args) =>
             {
+                if (args.Handled || (args.OriginalSource is not null && args.OriginalSource != sender))
+                {
+                    return;
+                }
+
                 if (args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
                 {
                     Props.OnSelect?.Invoke();
                     args.Handled = true;
                 }
             })
-            .OnTapped((_, _) => Props.OnSelect?.Invoke());
+            .OnTapped((_, args) =>
+            {
+                if (!args.Handled)
+                {
+                    Props.OnSelect?.Invoke();
+                }
+            });
     }
 
     /// <summary>

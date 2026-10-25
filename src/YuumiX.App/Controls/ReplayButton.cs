@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using static Microsoft.UI.Reactor.Factories;
@@ -6,6 +7,7 @@ using YuumiX.App.Composition;
 using YuumiX.App.Pages.Career;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Replay;
+using YuumiX.Core.Interop;
 
 namespace YuumiX.App.Controls;
 
@@ -24,6 +26,7 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
     {
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
         var replayService = services.Services.GetRequiredService<IReplayService>();
+        var windowLogger = services.LoggerFactory.CreateLogger<ReplayButton>();
 
         var (status, setStatus) = UseState("idle", threadSafe: true);
         var (polling, setPolling) = UseState(false, threadSafe: true);
@@ -117,6 +120,8 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
             {
                 _ = Task.Run(async () =>
                 {
+                    // 客户端拉起回放进程链会闪控制台窗口（旧版同样存在），布防期间闪现即隐藏
+                    ConsoleWindowSuppressor.Arm(windowLogger);
                     await replayService.WatchReplayAsync(Props.GameId);
                 });
                 return;
@@ -132,6 +137,7 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                     if (cur == "watch" || cur == "found")
                     {
                         setStatus("watch");
+                        ConsoleWindowSuppressor.Arm(windowLogger);
                         await replayService.WatchReplayAsync(Props.GameId);
                         return;
                     }
@@ -143,6 +149,7 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                     }
 
                     setStatus("downloading");
+                    ConsoleWindowSuppressor.Arm(windowLogger);
                     await replayService.DownloadReplayAsync(Props.GameId);
                     setPolling(true);
                 }
@@ -154,15 +161,18 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
             });
         }
 
-        if (Props.Compact)
-        {
-            return RenderCompact(status, notice, HandleClick);
-        }
+        // 普通模式加最小宽度：各状态按钮宽度恒定，右对齐组（地图/时间列）不因状态切换横移闪跳
+        var element = Props.Compact
+            ? RenderCompact(status, notice, HandleClick)
+            : RenderNormal(status, notice, HandleClick).MinWidth(NormalMinWidth);
 
-        return RenderNormal(status, notice, HandleClick);
+        return element.OnTapped((_, args) => args.Handled = true);
     }
 
     private const string IconFontFamily = "Segoe Fluent Icons";
+
+    /// <summary>普通模式最小宽度，按最宽状态（进度环/图标 + 四字文案）设定，见 <see cref="Render"/>。</summary>
+    private const double NormalMinWidth = 88;
 
     private static TextBlockElement Glyph(string glyph, string? foreground = null)
     {
@@ -173,7 +183,7 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
     private static TextBlockElement Glyph(string glyph, ThemeRef themeRef) =>
         Caption(glyph).FontFamily(IconFontFamily).Foreground(themeRef);
 
-    private static Element RenderCompact(string status, string? notice, Action onClick)
+    private static ButtonElement RenderCompact(string status, string? notice, Action onClick)
     {
         return status switch
         {
@@ -216,11 +226,16 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
         };
     }
 
-    private static Element RenderNormal(string status, string? notice, Action onClick)
+    private static ButtonElement RenderNormal(string status, string? notice, Action onClick)
     {
         return status switch
         {
-            "downloading" or "checking" =>
+            "checking" =>
+                Button(HStack(6, ProgressRing().Width(14).Height(14), Caption("检查中…")), onClick)
+                    .Height(28)
+                    .Padding(10, 0)
+                    .AutomationName("回放检查中"),
+            "downloading" =>
                 Button(HStack(6, ProgressRing().Width(14).Height(14), Caption("下载中…")), onClick)
                     .Height(28)
                     .Padding(10, 0)
