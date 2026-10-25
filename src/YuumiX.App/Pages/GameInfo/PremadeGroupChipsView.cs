@@ -5,6 +5,8 @@ using YuumiX.App.Controls;
 using YuumiX.Core;
 using YuumiX.Core.Features.GameInfo.Models;
 
+using YuumiX.App.Theming;
+
 namespace YuumiX.App.Pages.GameInfo;
 
 public sealed record PremadeGroupChipsProps(IReadOnlyList<PremadeGroup> Groups);
@@ -32,7 +34,7 @@ public sealed class PremadeGroupChipsView : Component<PremadeGroupChipsProps>
         var dot = Border(Empty())
             .Width(8)
             .Height(8)
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Background(color.Dot)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
@@ -59,14 +61,13 @@ public sealed class PremadeGroupChipsView : Component<PremadeGroupChipsProps>
         var membersPanel = HStack(0, memberIcons.ToArray())
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
-        return Border(
-            HStack(4, dot, membersPanel)
-                .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
-        )
-        .Background(color.Bg)
-        .WithBorder(color.Border, 1)
-        .CornerRadius(10)
-        .Padding(6, 2)
-        .WithToolTip(TextBlock($"组队 {group.ColorIdx + 1}"));
+        return Badge.Create(
+                HStack(4, dot, membersPanel)
+                    .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center),
+                color.Bg,
+                color.Border,
+                padH: 6,
+                padV: 2)
+            .WithToolTip(TextBlock($"组队 {group.ColorIdx + 1}"));
     }
 }

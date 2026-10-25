@@ -44,7 +44,7 @@ internal static class SpellPickerView
         .Background(activeSlot == 0 ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("CardBackgroundFillColorDefaultBrush"))
         .BorderBrush(activeSlot == 0 ? Theme.Accent : Theme.ControlStroke)
         .BorderThickness(activeSlot == 0 ? 1.5 : 1)
-        .CornerRadius(6)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Padding(12, 6)
         .Margin(new Thickness(0, 0, 12, 0))
         .AutomationName("D键技能槽位");
@@ -60,7 +60,7 @@ internal static class SpellPickerView
         .Background(activeSlot == 1 ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("CardBackgroundFillColorDefaultBrush"))
         .BorderBrush(activeSlot == 1 ? Theme.Accent : Theme.ControlStroke)
         .BorderThickness(activeSlot == 1 ? 1.5 : 1)
-        .CornerRadius(6)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Padding(12, 6)
         .AutomationName("F键技能槽位");
 
@@ -99,7 +99,7 @@ internal static class SpellPickerView
                 .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
                 .BorderBrush(isCurrent ? Theme.Accent : Theme.ControlStroke)
                 .BorderThickness(isCurrent ? 1.5 : 1)
-                .CornerRadius(6)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .Padding(8, 4)
                 .Margin(new Thickness(0, 0, 6, 6))
                 .AutomationName($"选择技能_{spell.Name}")

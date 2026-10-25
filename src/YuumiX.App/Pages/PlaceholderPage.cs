@@ -4,6 +4,8 @@ using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 
+using YuumiX.App.Theming;
+
 namespace YuumiX.App.Pages;
 
 /// <summary>
@@ -38,7 +40,7 @@ public sealed class PlaceholderPage : Component<PlaceholderProps>
 
         var featureList = Props.PendingFeatures
             .Select(feature => (Element)HStack(8,
-                Caption("\uE73E").FontFamily("Segoe Fluent Icons").Foreground(Theme.SecondaryText),
+                Caption(Icons.CheckMark).FontFamily(Icons.FontFamily).Foreground(Theme.SecondaryText),
                 TextBlock(feature).Foreground(Theme.SecondaryText).TextWrapping()))
             .ToArray();
 
@@ -63,7 +65,7 @@ public sealed class PlaceholderPage : Component<PlaceholderProps>
                     SubHeading("待迁移功能"),
                     VStack(8, featureList))
             ).Padding(20)
-             .CornerRadius(8)
+             .CornerRadius(YuumiTheme.OverlayRadius)
              .Background(Theme.CardBackground)
              .WithBorder(Theme.CardStroke, 1));
 

@@ -35,15 +35,18 @@ internal enum CareerTab
 /// </summary>
 public sealed record CareerViewTarget(string Puuid, SummonerProfile? Preloaded);
 
+/// <summary>生涯页 props：路由参数（R8）。Puuid 非空 = 查看他人生涯，可带预载资料。</summary>
+public sealed record CareerPageProps(string? Puuid = null, SummonerProfile? Preload = null);
+
 /// <summary>
 /// 生涯页：资料卡 + 页签，对应原 <c>Career.vue</c> 与其三个子组件。
 ///
-/// 查看他人生涯（§2.8）：其他页面通过 <see cref="CareerNavigationPayload"/> 传入
-/// puuid（可带预载资料），本页进入"查看他人"模式——隐藏战利品/熟练度页签、
+/// 查看他人生涯（§2.8）：其他页面以 <c>AppRoute.CareerRoute(puuid, preload)</c> 路由
+/// 跳入（R8：参数跟着路由走），本页进入"查看他人"模式——隐藏战利品/熟练度页签、
 /// 显示「返回我的生涯」、刷新按钮改为刷新他人；解析失败用占位对象兜底，不阻断排位/战绩加载。
 /// 请求代际防串号：<see cref="_requestSeq"/> 递增计数，回写前校验（先点 A 再点 B，慢响应不回写）。
 /// </summary>
-public sealed class CareerPage : Component
+public sealed class CareerPage : Component<CareerPageProps>
 {
     /// <summary>空列表共享实例（<c>UseState</c> 初值只读一次，集合表达式会每次新建，REACTOR_HOOKS_013）。</summary>
     private static readonly IReadOnlyList<MatchSummary> EmptyMatches = [];
@@ -160,21 +163,22 @@ public sealed class CareerPage : Component
         var (masteryLevel, setMasteryLevel) = UseState(0, threadSafe: true);
         var (masterySort, setMasterySort) = UseState(0, threadSafe: true);
 
-        // 外部跳转（最近队友卡片、战绩详情玩家名等入口）：挂载时消费 payload 进入"查看他人"。
+        // 外部跳转（最近队友卡片、战绩详情玩家名等入口）：路由参数驱动进入"查看他人"。
+        // deps 用路由参数而不是 props 对象本身：props record 值相等时（同目标重复跳转）不重复加载。
         UseEffect(
             () =>
             {
-                var (puuid, preloaded) = CareerNavigationPayload.Instance.Consume();
-                if (!string.IsNullOrWhiteSpace(puuid))
+                if (Props.Puuid is { Length: > 0 } puuid)
                 {
                     setQueueFilter(0);
-                    setViewTarget(new CareerViewTarget(puuid, preloaded));
+                    setViewTarget(new CareerViewTarget(puuid, Props.Preload));
                     setTab(CareerTab.Matches);
                 }
 
                 return static () => { };
             },
-            0);
+            Props.Puuid ?? "",
+            Props.Preload);
 
         // 召唤师变更时清空队友缓存、重置队列筛选与战利品选中
         UseEffect(
@@ -353,8 +357,7 @@ public sealed class CareerPage : Component
                 return;
             }
 
-            SearchNavigationPayload.Instance.Set(tm.Name, tm.Puuid);
-            nav.Replace(AppRoute.Search);
+            nav.Replace(new AppRoute.SearchRoute(tm.Name, tm.Puuid));
         }
 
         // 返回我的生涯：清空查看目标走现有加载链路（召唤师走 5 分钟缓存）。
@@ -373,8 +376,7 @@ public sealed class CareerPage : Component
                 return;
             }
 
-            SearchNavigationPayload.Instance.Set(summoner.RiotId, summoner.Puuid, gameId: -1);
-            nav.Replace(AppRoute.Search);
+            nav.Replace(new AppRoute.SearchRoute(summoner.RiotId, summoner.Puuid, GameId: -1));
         }
 
         // Career → Search 跳转载荷（§4）：对局卡片点击 = 搜索本人并选中该局（gameId > 0）
@@ -385,8 +387,7 @@ public sealed class CareerPage : Component
                 return;
             }
 
-            SearchNavigationPayload.Instance.Set(summoner.RiotId, summoner.Puuid, gameId: match.GameId);
-            nav.Replace(AppRoute.Search);
+            nav.Replace(new AppRoute.SearchRoute(summoner.RiotId, summoner.Puuid, GameId: match.GameId));
         }
 
         void HandleOpenLootItem(OpenableLootItem item)
@@ -914,7 +915,7 @@ public sealed class CareerPage : Component
         })
         .Height(34)
         .Padding(16, 0)
-        .CornerRadius(8)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .AutomationName(label);
 
         return isSelected

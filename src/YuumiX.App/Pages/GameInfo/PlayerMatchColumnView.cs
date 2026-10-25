@@ -171,19 +171,18 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var champImage = Component<LcuImage, LcuImageProps>(new LcuImageProps(championAsset, Size: iconSize, CornerRadius: radius))
             .Provide(AppHost.Context, services);
 
-        var levelBadge = Border(
-            Caption($"{m.ChampionLevel}")
-                .SemiBold()
-                .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
-                .HAlign(HorizontalAlignment.Center)
-                .VAlign(VerticalAlignment.Center)
-        )
-        .Background(AssetColors.BadgeDark)
-        .CornerRadius(2)
-        .Padding(isTenCol ? 1.5 : 2, 0)
-        .HAlign(HorizontalAlignment.Right)
-        .VAlign(VerticalAlignment.Bottom)
-        .Margin(0, 0, -1, -1);
+        var levelBadge = Badge.Create(
+                Caption($"{m.ChampionLevel}")
+                    .SemiBold()
+                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
+                    .HAlign(HorizontalAlignment.Center)
+                    .VAlign(VerticalAlignment.Center),
+                AssetColors.BadgeDark,
+                padH: isTenCol ? 1.5 : 2,
+                padV: 0)
+            .HAlign(HorizontalAlignment.Right)
+            .VAlign(VerticalAlignment.Bottom)
+            .Margin(0, 0, -1, -1);
 
         var champIconWithLevel = Grid(
             [GridSize.Auto],
@@ -223,7 +222,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                         .Foreground(Theme.Accent))
                     .Background(Theme.SubtleFill)
                     .WithBorder(Theme.CardStroke, 1)
-                    .CornerRadius(3)
+                    .CornerRadius(YuumiTheme.ControlRadius)
                     .Padding(3, 0.5)
                     .Margin(3, 0, 3, 0)
                     .VAlign(VerticalAlignment.Center)

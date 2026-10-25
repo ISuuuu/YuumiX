@@ -5,6 +5,8 @@ using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.Core.Features.GameInfo.Models;
 
+using YuumiX.App.Theming;
+
 namespace YuumiX.App.Pages.GameInfo;
 
 /// <summary>
@@ -120,7 +122,7 @@ internal static class FateBadgeVisuals
                     .TextTrimming(TextTrimming.CharacterEllipsis))
             .Background(Theme.SubtleFill)
             .WithBorder(hasTag ? Theme.CardStroke : Theme.Ref("SubtleFillColorTransparentBrush"), hasTag ? 1 : 0)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Padding(4, 0.5)
             .MaxWidth(50)
             .VAlign(VerticalAlignment.Center)

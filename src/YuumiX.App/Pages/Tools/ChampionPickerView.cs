@@ -52,7 +52,7 @@ internal static class ChampionPickerView
                             Caption($"#{order}").Foreground(Theme.Accent).VAlign(VerticalAlignment.Center),
                             Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, Size: 24, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                             Caption(name).VAlign(VerticalAlignment.Center),
-                            Button(Caption("\uE711").FontFamily("Segoe Fluent Icons"), () => onToggleChampion(id))
+                            Button(Caption(Icons.Cancel).FontFamily(Icons.FontFamily), () => onToggleChampion(id))
                                 .Padding(4, 2)
                                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                                 .Foreground(Theme.SecondaryText)
@@ -62,7 +62,7 @@ internal static class ChampionPickerView
                     .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
                     .BorderBrush(Theme.Ref("CardStrokeColorDefaultBrush"))
                     .BorderThickness(1)
-                    .CornerRadius(6)
+                    .CornerRadius(YuumiTheme.OverlayRadius)
                     .Padding(8, 4)
                 );
             }
@@ -140,7 +140,7 @@ internal static class ChampionPickerView
             .Background(isSelected ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
             .BorderBrush(isSelected ? Theme.Accent : Theme.ControlStroke)
             .BorderThickness(isSelected ? 1.5 : 1)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Margin(new Thickness(0, 0, 6, 6))
             .AutomationName($"选择英雄_{champ.Name}");
 

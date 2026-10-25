@@ -46,6 +46,12 @@ public static class AppHost
     /// </summary>
     public static readonly Context<MenuVisibilityState> MenuContext = new(null!, "MenuVisibilityState");
 
+    /// <summary>
+    /// 全局 Toast 服务上下文（R5）。由窗口根各持一份 <see cref="ToastQueue"/> 并 Provide
+    /// （AppShell / OpggWindowRoot 互不串扰）；页面组件经 UseContext 取用发起提示。
+    /// </summary>
+    public static readonly Context<IToastService> ToastContext = new(null!, "ToastService");
+
     private static AppServices? _services;
     private static ThemeState? _theme;
     private static MenuVisibilityState? _menu;

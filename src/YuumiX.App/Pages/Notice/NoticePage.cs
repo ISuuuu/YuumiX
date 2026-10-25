@@ -7,6 +7,8 @@ using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.Core.Features.Notice;
 
+using YuumiX.App.Theming;
+
 namespace YuumiX.App.Pages.Notice;
 
 /// <summary>
@@ -106,8 +108,8 @@ public sealed class NoticePage : Component
     {
         return VStack(
             12,
-            Subtitle("\uE783")
-                .FontFamily("Segoe Fluent Icons")
+            Subtitle(Icons.Error)
+                .FontFamily(Icons.FontFamily)
                 .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                 .HAlign(HorizontalAlignment.Center),
             BodyStrong("公告获取失败")
@@ -148,22 +150,22 @@ public sealed class NoticePage : Component
             blocks.Add(Border(
                     HStack(
                         8,
-                        Caption("\uE7BA")
-                            .FontFamily("Segoe Fluent Icons")
+                        Caption(Icons.Warning)
+                            .FontFamily(Icons.FontFamily)
                             .Foreground(Theme.Ref("SystemFillColorCautionBrush"))
                             .VAlign(VerticalAlignment.Center),
                         Caption("网络获取失败，当前显示上次缓存的公告内容")
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)))
                 .Padding(12, 8)
-                .CornerRadius(6)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(Theme.Ref("SubtleFillColorSecondaryBrush")));
         }
 
         blocks.Add(Border(
                 VStack(12, NoticeMarkdown.RenderBlocks(view.Markdown ?? string.Empty)))
             .Padding(24)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1));
 

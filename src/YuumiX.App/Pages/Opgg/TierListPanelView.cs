@@ -191,7 +191,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
             )
         )
         .Padding(new Thickness(12, 6, 12, 6))
-        .CornerRadius(6)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(bg)
         .WithBorder(border, 1)
         .OnPointerPressed((_, _) => Props.OnSelectChampion(item.Id))
@@ -222,7 +222,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
         )
         .Width(24)
         .Height(20)
-        .CornerRadius(4)
+        .CornerRadius(YuumiTheme.ControlRadius)
         .Background(badgeColor)
         .HAlign(HorizontalAlignment.Center)
         .VAlign(VerticalAlignment.Center);

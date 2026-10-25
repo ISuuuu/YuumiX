@@ -141,7 +141,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
         )
         .Margin(new Thickness(12, 6, 12, 6))
         .Padding(new Thickness(16, 12, 16, 12))
-        .CornerRadius(8)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(bg)
         .WithBorder(border, 1);
     }
@@ -175,7 +175,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 .VAlign(VerticalAlignment.Center)
         )
         .Padding(new Thickness(8, 4, 8, 4))
-        .CornerRadius(4)
+        .CornerRadius(YuumiTheme.ControlRadius)
         .Background(badgeColor)
         .VAlign(VerticalAlignment.Center);
     }
@@ -205,7 +205,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
         )
         .Margin(new Thickness(12, 6, 12, 6))
         .Padding(new Thickness(16, 10, 16, 10))
-        .CornerRadius(8)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1);
     }
@@ -305,7 +305,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
         )
         .Margin(new Thickness(12, 6, 12, 6))
         .Padding(new Thickness(16, 12, 16, 12))
-        .CornerRadius(8)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1);
     }

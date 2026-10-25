@@ -10,50 +10,50 @@ namespace YuumiX.App.Pages;
 /// </summary>
 public static class PageCatalog
 {
-    private static readonly Dictionary<AppRoute, (string Title, string SourceView, string[] Pending)> Entries = new()
+    private static readonly Dictionary<string, (string Title, string SourceView, string[] Pending)> Entries = new()
     {
-        [AppRoute.Home] = ("主页", "src/views/Home.vue",
+        ["Home"] = ("主页", "src/views/Home.vue",
         [
             "快捷入口与最近搜索",
             "公告与更新提示",
         ]),
-        [AppRoute.Career] = ("生涯", "src/views/Career.vue",
+        ["Career"] = ("生涯", "src/views/Career.vue",
         [
             "挑战勋章装配",
             "资产统计",
             "战利品进度面板完整化（线形进度条+逐条结果列表，P2）",
             "战利品 LCU 真实图标替换 emoji 缩略（P2）",
         ]),
-        [AppRoute.Search] = ("战绩查询", "src/views/Search.vue",
+        ["Search"] = ("战绩查询", "src/views/Search.vue",
         [
             "战绩上传（可选云端同步）",
         ]),
-        [AppRoute.GameInfo] = ("对局信息", "src/views/GameInfo.vue",
+        ["GameInfo"] = ("对局信息", "src/views/GameInfo.vue",
         [
         ]),
-        [AppRoute.SavedPlayers] = ("路人集", "src/views/SavedPlayers.vue",
+        ["SavedPlayers"] = ("路人集", "src/views/SavedPlayers.vue",
         [
             "选人/对局聊天室自动提醒",
             "JSON 导入导出",
         ]),
-        [AppRoute.Tft] = ("云顶之弈", "src/views/TFT.vue",
+        ["Tft"] = ("云顶之弈", "src/views/TFT.vue",
         [
             "战绩解析与详情弹窗",
             "段位近况",
             "OP.GG 热门阵容与站位图",
             "海克斯强化百科",
         ]),
-        [AppRoute.Tools] = ("工具箱", "src/views/Tools.vue",
+        ["Tools"] = ("工具箱", "src/views/Tools.vue",
         [
             "大乱斗板凳席独立悬浮窗（阶段 8）",
         ]),
-        [AppRoute.Settings] = ("设置", "src/views/Settings.vue",
+        ["Settings"] = ("设置", "src/views/Settings.vue",
         [
         ]),
-        [AppRoute.Notice] = ("公告", "src/components/NoticePopup.vue",
+        ["Notice"] = ("公告", "src/components/NoticePopup.vue",
         [
         ]),
     };
 
-    public static (string Title, string SourceView, string[] Pending) For(AppRoute route) => Entries[route];
+    public static (string Title, string SourceView, string[] Pending) For(string key) => Entries[key];
 }

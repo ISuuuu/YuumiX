@@ -115,8 +115,8 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         // ── 标题栏：铃铛 + 标题 + 关闭（旧版 notice-popup-header）──
         var header = Border(
                 HStack(7,
-                    Body("\uE7E7")
-                        .FontFamily("Segoe Fluent Icons")
+                    Body(Icons.Notice)
+                        .FontFamily(Icons.FontFamily)
                         .Foreground(Theme.Accent)
                         .VAlign(VerticalAlignment.Center),
                     BodyStrong("公告")
@@ -126,21 +126,21 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                     // 弹性占位：把关闭按钮推到最右（旧版 justify-content: space-between）。
                     (Element)Empty().HAlign(HorizontalAlignment.Stretch),
                     Button(
-                        Caption("\uE711")
-                            .FontFamily("Segoe Fluent Icons")
+                        Caption(Icons.Cancel)
+                            .FontFamily(Icons.FontFamily)
                             .Foreground(Theme.Ref("TextFillColorSecondaryBrush")),
                         () => Props.OnClose())
                     .SubtleButton()
                     .Width(22)
                     .Height(22)
-                    .CornerRadius(6)
+                    .CornerRadius(YuumiTheme.OverlayRadius)
                     .AutomationName("关闭公告")))
             .Padding(new Thickness(14, 10, 8, 10))
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.DividerStroke, 1)
             // WinUI 的 Border 不像 CSS overflow:hidden 那样裁剪子内容，
             // 标题栏需要自己收掉上侧两个圆角，避免方角顶出 14px 圆角卡片。
-            .CornerRadius(14, 14, 0, 0);
+            .CornerRadius(YuumiTheme.OverlayRadius, YuumiTheme.OverlayRadius, 0, 0);
 
         // ── 正文：加载中 / 失败 / 内容三态（旧版 notice-popup-body）──
         Element body = status switch
@@ -152,7 +152,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                         .Foreground(Theme.Ref("TextFillColorSecondaryBrush"))
                         .TextWrapping(),
                     Button("重试", () => setAttempt(attempt + 1))
-                        .CornerRadius(6)
+                        .CornerRadius(YuumiTheme.OverlayRadius)
                         .Padding(new Thickness(16, 4, 16, 4)))
                 .HAlign(HorizontalAlignment.Center)
                 .Padding(new Thickness(16, 24, 16, 24)),
@@ -168,7 +168,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         // ── 卡片本体：360px 宽、圆角 14，吸右下角 20px（旧版 notice-popup）──
         return VStack(0, header, body)
             .Width(360)
-            .CornerRadius(14)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Right)
@@ -185,8 +185,8 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         {
             blocks.Add(Border(
                     HStack(6,
-                        Caption("\uE7BA")
-                            .FontFamily("Segoe Fluent Icons")
+                        Caption(Icons.Warning)
+                            .FontFamily(Icons.FontFamily)
                             .Foreground(Theme.Ref("SystemFillColorCautionBrush"))
                             .VAlign(VerticalAlignment.Center),
                         Caption("网络获取失败，显示上次缓存内容")

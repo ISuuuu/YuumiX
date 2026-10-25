@@ -145,6 +145,10 @@ internal sealed class OpggWindowRoot(int? initialChampionId) : Component
 {
     public override Element Render()
     {
+        // 本窗口独立的 Toast 队列（R5）：与主窗口互不串扰；UseRef 缓存保证跨渲染同实例。
+        var toastQueueRef = UseRef<ToastQueue?>(null);
+        var toastQueue = toastQueueRef.Current ??= new ToastQueue();
+
         UseEffect(() =>
         {
             return () =>
@@ -155,6 +159,7 @@ internal sealed class OpggWindowRoot(int? initialChampionId) : Component
 
         return Component<OpggPage, OpggPageProps>(new OpggPageProps(initialChampionId))
             .Provide(AppHost.Context, AppHost.Services)
-            .Provide(AppHost.ThemeContext, AppHost.Theme);
+            .Provide(AppHost.ThemeContext, AppHost.Theme)
+            .Provide(AppHost.ToastContext, toastQueue);
     }
 }

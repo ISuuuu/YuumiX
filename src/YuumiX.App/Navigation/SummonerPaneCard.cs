@@ -7,6 +7,8 @@ using YuumiX.App.Controls;
 using YuumiX.App.Pages.Career;
 using YuumiX.Core.Features.Summoner.Models;
 
+using YuumiX.App.Theming;
+
 namespace YuumiX.App.Navigation;
 
 /// <summary>召唤师信息卡片入参。</summary>
@@ -45,8 +47,8 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
         var profile = Props.Profile;
 
         Element avatar = profile is null
-            ? Border(Body("\uE77B")
-                    .FontFamily("Segoe Fluent Icons")
+            ? Border(Body(Icons.PersonPlaceholder)
+                    .FontFamily(Icons.FontFamily)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))
@@ -85,7 +87,7 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
                 .Width(Props.PaneWidth)
                 .Height(CardHeight)
                 .Padding(new Thickness(10, 0, 10, 0))
-                .CornerRadius(4)
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(hovered ? Theme.SubtleFill : Theme.CardBackground)
                 .WithBorder(hovered ? Theme.ControlStroke : Theme.CardStroke, 1)
                 .VerticalContentAlignment(VerticalAlignment.Center)

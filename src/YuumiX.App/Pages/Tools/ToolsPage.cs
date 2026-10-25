@@ -98,12 +98,8 @@ public sealed class ToolsPage : Component
         return 0;
     }
 
-    private static long _nextToastId;
     private int _renderTick;
     private ILogger<ToolsPage>? _logger;
-    private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
-    private readonly List<Timer> _toastTimers = [];
-    private readonly List<ToastItem> _activeToasts = [];
 
     public override Element Render()
     {
@@ -119,9 +115,8 @@ public sealed class ToolsPage : Component
         var (actionFeedback, setActionFeedback) = UseState<string?>(null, threadSafe: true);
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
 
-        // 多 Toast 堆叠队列（对齐旧系统 Naive UI n-message-provider :max="5"）
-        var initialToasts = UseMemo(() => (IReadOnlyList<ToastItem>)Array.Empty<ToastItem>(), 0);
-        var (toasts, setToasts) = UseState(initialToasts, threadSafe: true);
+        // 全局 Toast 服务（R5）：队列由 AppShell 提供并在其 ToastHost 呈现
+        var toast = UseContext(AppHost.ToastContext)!;
 
         // 记录展开的卡片 key 集合（默认全部收起，对齐原版设计）
         var initialExpanded = UseMemo(() => new HashSet<string>(), 0);
@@ -210,14 +205,6 @@ public sealed class ToolsPage : Component
                 return () =>
                 {
                     subscription.Dispose();
-                    lock (_toastTimers)
-                    {
-                        foreach (var t in _toastTimers)
-                        {
-                            t.Dispose();
-                        }
-                        _toastTimers.Clear();
-                    }
                 };
             },
             0);
@@ -241,49 +228,6 @@ public sealed class ToolsPage : Component
 
         void Rerender() => setTick(++_renderTick);
 
-        void ShowToast(string message, bool isError = false)
-        {
-            var id = Interlocked.Increment(ref _nextToastId);
-            var item = new ToastItem(id, message, isError);
-
-            lock (_activeToasts)
-            {
-                _activeToasts.Add(item);
-                if (_activeToasts.Count > 5)
-                {
-                    _activeToasts.RemoveAt(0);
-                }
-                setToasts(_activeToasts.ToList());
-            }
-
-            _dispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-            Timer? timer = null;
-            timer = new Timer(_ =>
-            {
-                _dispatcher?.TryEnqueue(() =>
-                {
-                    lock (_activeToasts)
-                    {
-                        _activeToasts.RemoveAll(t => t.Id == id);
-                        setToasts(_activeToasts.ToList());
-                    }
-                    lock (_toastTimers)
-                    {
-                        if (timer is not null)
-                        {
-                            _toastTimers.Remove(timer);
-                            timer.Dispose();
-                        }
-                    }
-                });
-            }, null, 2500, Timeout.Infinite);
-
-            lock (_toastTimers)
-            {
-                _toastTimers.Add(timer);
-            }
-        }
-
         void Commit(string field)
         {
             try
@@ -291,14 +235,14 @@ public sealed class ToolsPage : Component
                 services.ConfigStore.SaveWithBackup(config);
                 setError(null);
                 setSavedAt(DateTime.Now);
-                ShowToast("设置已自动保存");
+                toast.Success("设置已自动保存");
                 logger.LogInformation("功能配置已写回: {Field}", field);
             }
             catch (Exception ex)
             {
                 setError(ex.Message);
                 setSavedAt(null);
-                ShowToast($"设置保存失败: {ex.Message}", isError: true);
+                toast.Error($"设置保存失败: {ex.Message}");
                 logger.LogError(ex, "功能配置写回失败: {Field}", field);
             }
 
@@ -312,18 +256,18 @@ public sealed class ToolsPage : Component
                 var transport = services.Services.GetService<LcuConnection>()?.Transport;
                 if (transport is null)
                 {
-                    ShowToast("LCU 客户端未连接，请先启动英雄联盟客户端", isError: true);
+                    toast.Error("LCU 客户端未连接，请先启动英雄联盟客户端");
                     Rerender();
                     return;
                 }
 
                 await action(transport);
-                ShowToast(successMessage);
+                toast.Success(successMessage);
                 logger.LogInformation("LCU 操作成功: {Message}", successMessage);
             }
             catch (Exception ex)
             {
-                ShowToast($"操作失败: {ex.Message}", isError: true);
+                toast.Error($"操作失败: {ex.Message}");
                 logger.LogError(ex, "LCU 操作异常");
             }
 
@@ -393,7 +337,7 @@ public sealed class ToolsPage : Component
                     ]
                 ).Padding(new Thickness(16, 12, 16, 12))
             )
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
@@ -436,8 +380,8 @@ public sealed class ToolsPage : Component
                         .Grid(row: 0, column: 1),
 
                     // 展开指示器（下箭头 / 右箭头）
-                    Caption(isExpanded ? "\uE70D" : "\uE76C")
-                        .FontFamily("Segoe Fluent Icons")
+                    Caption(isExpanded ? Icons.ChevronDown : Icons.ChevronRight)
+                        .FontFamily(Icons.FontFamily)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(row: 0, column: 2),
@@ -450,7 +394,7 @@ public sealed class ToolsPage : Component
                 .Padding(new Thickness(16, 12, 16, 12))
                 .HAlign(HorizontalAlignment.Stretch)
                 .HorizontalContentAlignment(HorizontalAlignment.Stretch)
-                .CornerRadius(8)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .IsEnabled(isLcuConnected)
                 .AutomationName(title);
 
@@ -473,7 +417,7 @@ public sealed class ToolsPage : Component
             }
 
             return Border(body)
-                .CornerRadius(8)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(Theme.CardBackground)
                 .WithBorder(Theme.CardStroke, 1)
                 .HAlign(HorizontalAlignment.Stretch);
@@ -541,7 +485,7 @@ public sealed class ToolsPage : Component
                         .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
                         .BorderBrush(isCurrent ? Theme.Accent : Theme.ControlStroke)
                         .BorderThickness(isCurrent ? 1.5 : 1)
-                        .CornerRadius(6)
+                        .CornerRadius(YuumiTheme.OverlayRadius)
                         .Padding(8, 4)
                         .Margin(new Thickness(0, 0, 6, 0))
                         .AutomationName($"分路_{LaneLabels[idx]}")
@@ -561,7 +505,7 @@ public sealed class ToolsPage : Component
             {
                 if (list.Count >= 5)
                 {
-                    ShowToast("每个分路最多选用 5 位候选英雄", isError: true);
+                    toast.Error("每个分路最多选用 5 位候选英雄");
                     return;
                 }
                 list.Add(champId);
@@ -587,7 +531,7 @@ public sealed class ToolsPage : Component
             {
                 if (list.Count >= 5)
                 {
-                    ShowToast("每个分路最多禁用 5 位候选英雄", isError: true);
+                    toast.Error("每个分路最多禁用 5 位候选英雄");
                     return;
                 }
                 list.Add(champId);
@@ -886,11 +830,11 @@ public sealed class ToolsPage : Component
                     setFriendScanTotal(total);
                 });
                 setAllFriends(list);
-                ShowToast($"好友扫描完成，共找到 {list.Count} 位好友");
+                toast.Success($"好友扫描完成，共找到 {list.Count} 位好友");
             }
             catch (Exception ex)
             {
-                ShowToast($"好友扫描失败: {ex.Message}", isError: true);
+                toast.Error($"好友扫描失败: {ex.Message}");
             }
             finally
             {
@@ -905,11 +849,11 @@ public sealed class ToolsPage : Component
             {
                 var list = await toolsService.GetPlayerChallengesAsync();
                 setChallengesList(list);
-                ShowToast($"已加载 {list.Count} 个挑战勋章");
+                toast.Success($"已加载 {list.Count} 个挑战勋章");
             }
             catch (Exception ex)
             {
-                ShowToast($"加载挑战勋章失败: {ex.Message}", isError: true);
+                toast.Error($"加载挑战勋章失败: {ex.Message}");
             }
             finally
             {
@@ -943,27 +887,34 @@ public sealed class ToolsPage : Component
                         {
                             if (string.IsNullOrWhiteSpace(spectateName))
                             {
-                                ShowToast("请输入有效的召唤师名称", isError: true);
+                                toast.Error("请输入有效的召唤师名称");
                                 return;
                             }
 
                             // 清洗 LTR/RTL 特殊控制字符并去除首尾空白
                             var target = spectateName.Replace("\u2066", "").Replace("\u2069", "").Trim();
                             var method = spectateMethodIndex == 0 ? SpectateMethod.Lcu : SpectateMethod.Cmd;
-                            ShowToast($"正在发起对「{target}」的观战请求...");
+                            toast.Info($"正在发起对「{target}」的观战请求...");
                             try
                             {
                                 var res = await toolsService.LaunchSpectateAsync(target, method);
                                 if (!res.Success && method == SpectateMethod.Lcu)
                                 {
-                                    ShowToast("LCU 内置观战通道未就绪，正在自动切换至 CMD 方式重试...");
+                                    toast.Info("LCU 内置观战通道未就绪，正在自动切换至 CMD 方式重试...");
                                     res = await toolsService.LaunchSpectateAsync(target, SpectateMethod.Cmd);
                                 }
-                                ShowToast(res.Message, isError: !res.Success);
+                                if (res.Success)
+                                {
+                                    toast.Success(res.Message);
+                                }
+                                else
+                                {
+                                    toast.Error(res.Message);
+                                }
                             }
                             catch (Exception ex)
                             {
-                                ShowToast($"观战异常: {ex.Message}", isError: true);
+                                toast.Error($"观战异常: {ex.Message}");
                             }
                         }).AutomationName("启动观战按钮").Grid(row: 0, column: 1),
                     ])
@@ -1016,14 +967,14 @@ public sealed class ToolsPage : Component
                     try
                     {
                         var count = await friendCleanerService.BatchDeleteFriendsAsync(selectedFriendIds.ToList());
-                        ShowToast($"成功清理 {count} 位离线好友");
+                        toast.Success($"成功清理 {count} 位离线好友");
                         setSelectedFriendIds([]);
                         setIsConfirmingDeleteFriends(false);
                         StartFriendScan();
                     }
                     catch (Exception ex)
                     {
-                        ShowToast($"删除好友失败: {ex.Message}", isError: true);
+                        toast.Error($"删除好友失败: {ex.Message}");
                     }
                     finally
                     {
@@ -1077,11 +1028,11 @@ public sealed class ToolsPage : Component
                         try
                         {
                             await toolsService.CreateLobbyAsync(config.Functions.DefaultGameMode);
-                            ShowToast($"已创建模式 [{config.Functions.DefaultGameMode}] 大厅");
+                            toast.Success($"已创建模式 [{config.Functions.DefaultGameMode}] 大厅");
                         }
                         catch (Exception ex)
                         {
-                            ShowToast($"创建大厅失败: {ex.Message}", isError: true);
+                            toast.Error($"创建大厅失败: {ex.Message}");
                         }
                     }).AutomationName("立即创建大厅按钮")
                 ).Margin(new Thickness(0, 4, 0, 4))
@@ -1103,11 +1054,11 @@ public sealed class ToolsPage : Component
                 {
                     toolsService.SetGameSettingsReadonly(lolPaths, nextState);
                     setIsSettingsLocked(nextState);
-                    ShowToast(nextState ? "已锁定游戏配置文件 (只读保护生效)" : "已解除锁定 (配置恢复可写)");
+                    toast.Success(nextState ? "已锁定游戏配置文件 (只读保护生效)" : "已解除锁定 (配置恢复可写)");
                 }
                 catch (Exception ex)
                 {
-                    ShowToast($"设置锁定失败: {ex.Message}", isError: true);
+                    toast.Error($"设置锁定失败: {ex.Message}");
                 }
             }).AutomationName("锁定游戏配置"));
 
@@ -1121,11 +1072,11 @@ public sealed class ToolsPage : Component
                 try
                 {
                     var msg = await toolsService.FixClientWindowAsync();
-                    ShowToast(msg);
+                    toast.Success(msg);
                 }
                 catch (Exception ex)
                 {
-                    ShowToast($"窗口修复失败: {ex.Message}", isError: true);
+                    toast.Error($"窗口修复失败: {ex.Message}");
                 }
             }).AutomationName("修复客户端窗口"));
 
@@ -1173,18 +1124,18 @@ public sealed class ToolsPage : Component
                         {
                             if (string.IsNullOrWhiteSpace(signatureDraft))
                             {
-                                ShowToast("请输入有效的签名内容", isError: true);
+                                toast.Error("请输入有效的签名内容");
                                 return;
                             }
                             try
                             {
                                 await toolsService.SetStatusMessageAsync(signatureDraft.Trim());
                                 setSignatureDraft(string.Empty);
-                                ShowToast("个性签名已成功更新");
+                                toast.Success("个性签名已成功更新");
                             }
                             catch (Exception ex)
                             {
-                                ShowToast($"更新个性签名失败: {ex.Message}", isError: true);
+                                toast.Error($"更新个性签名失败: {ex.Message}");
                             }
                         }).AutomationName("更新签名按钮").Grid(row: 0, column: 1),
                     ])
@@ -1208,11 +1159,11 @@ public sealed class ToolsPage : Component
                         try
                         {
                             await toolsService.SetProfileBackgroundAsync(skinId);
-                            ShowToast($"已成功将生涯背景设置为皮肤 [{skinId}]");
+                            toast.Success($"已成功将生涯背景设置为皮肤 [{skinId}]");
                         }
                         catch (Exception ex)
                         {
-                            ShowToast($"设置背景失败: {ex.Message}", isError: true);
+                            toast.Error($"设置背景失败: {ex.Message}");
                         }
                     },
                     async () =>
@@ -1233,7 +1184,7 @@ public sealed class ToolsPage : Component
 
                         if (champId <= 0)
                         {
-                            ShowToast("未匹配到英雄，请输入有效英雄名称（如「安妮」）或数字 ID", isError: true);
+                            toast.Error("未匹配到英雄，请输入有效英雄名称（如「安妮」）或数字 ID");
                             return;
                         }
                         setBgLoading(true);
@@ -1242,11 +1193,11 @@ public sealed class ToolsPage : Component
                             var skins = await toolsService.GetChampionSkinsAsync(champId);
                             setBgSkins(skins);
                             setBgSkinIndex(0);
-                            ShowToast($"获取到 {skins.Count} 款皮肤");
+                            toast.Success($"获取到 {skins.Count} 款皮肤");
                         }
                         catch (Exception ex)
                         {
-                            ShowToast($"获取皮肤列表失败: {ex.Message}", isError: true);
+                            toast.Error($"获取皮肤列表失败: {ex.Message}");
                         }
                         finally
                         {
@@ -1268,17 +1219,17 @@ public sealed class ToolsPage : Component
                         {
                             if (!int.TryParse(skinIdDraft.Trim(), out var skinId))
                             {
-                                ShowToast("请输入有效的数字皮肤 ID", isError: true);
+                                toast.Error("请输入有效的数字皮肤 ID");
                                 return;
                             }
                             try
                             {
                                 await toolsService.SetProfileBackgroundAsync(skinId);
-                                ShowToast($"已设置个人生涯背景为皮肤 [{skinId}]");
+                                toast.Success($"已设置个人生涯背景为皮肤 [{skinId}]");
                             }
                             catch (Exception ex)
                             {
-                                ShowToast($"设置背景失败: {ex.Message}", isError: true);
+                                toast.Error($"设置背景失败: {ex.Message}");
                             }
                         }).AutomationName("直接应用皮肤ID").Grid(row: 0, column: 1),
                     ])
@@ -1312,11 +1263,11 @@ public sealed class ToolsPage : Component
                             try
                             {
                                 await toolsService.SetRankSpoofAsync(q, t, d);
-                                ShowToast($"段位伪装已生效: {SpoofTierLabels[spoofTierIndex]} {d}");
+                                toast.Success($"段位伪装已生效: {SpoofTierLabels[spoofTierIndex]} {d}");
                             }
                             catch (Exception ex)
                             {
-                                ShowToast($"应用段位伪装失败: {ex.Message}", isError: true);
+                                toast.Error($"应用段位伪装失败: {ex.Message}");
                             }
                         }).AutomationName("应用段位伪装").Grid(row: 0, column: 1),
                     ])
@@ -1330,11 +1281,11 @@ public sealed class ToolsPage : Component
                     try
                     {
                         await toolsService.SetOnlineStatusAsync("chat");
-                        ShowToast("已切换为在线状态");
+                        toast.Success("已切换为在线状态");
                     }
                     catch (Exception ex)
                     {
-                        ShowToast($"切换在线状态失败: {ex.Message}", isError: true);
+                        toast.Error($"切换在线状态失败: {ex.Message}");
                     }
                 }).IsEnabled(isLcuConnected).AutomationName("设为在线"),
                 Button("离开", async () =>
@@ -1342,11 +1293,11 @@ public sealed class ToolsPage : Component
                     try
                     {
                         await toolsService.SetOnlineStatusAsync("away");
-                        ShowToast("已切换为离开状态");
+                        toast.Success("已切换为离开状态");
                     }
                     catch (Exception ex)
                     {
-                        ShowToast($"切换离开状态失败: {ex.Message}", isError: true);
+                        toast.Error($"切换离开状态失败: {ex.Message}");
                     }
                 }).IsEnabled(isLcuConnected).AutomationName("设为离开"),
                 Button("隐身", async () =>
@@ -1354,11 +1305,11 @@ public sealed class ToolsPage : Component
                     try
                     {
                         await toolsService.SetOnlineStatusAsync("offline");
-                        ShowToast("已切换为隐身离线状态");
+                        toast.Success("已切换为隐身离线状态");
                     }
                     catch (Exception ex)
                     {
-                        ShowToast($"切换隐身状态失败: {ex.Message}", isError: true);
+                        toast.Error($"切换隐身状态失败: {ex.Message}");
                     }
                 }).IsEnabled(isLcuConnected).AutomationName("设为隐身")));
 
@@ -1372,11 +1323,11 @@ public sealed class ToolsPage : Component
                     try
                     {
                         await toolsService.ClearChallengeBadgesAsync();
-                        ShowToast("已卸下展示的全部挑战勋章");
+                        toast.Success("已卸下展示的全部挑战勋章");
                     }
                     catch (Exception ex)
                     {
-                        ShowToast($"卸下勋章失败: {ex.Message}", isError: true);
+                        toast.Error($"卸下勋章失败: {ex.Message}");
                     }
                 }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下勋章"))
             : (Element)Button("卸下全部勋章", () => setIsConfirmingClearBadges(true)).AutomationName("卸下勋章");
@@ -1391,11 +1342,11 @@ public sealed class ToolsPage : Component
                     try
                     {
                         await toolsService.ClearProfileTokensAsync();
-                        ShowToast("已卸下生涯头像框");
+                        toast.Success("已卸下生涯头像框");
                     }
                     catch (Exception ex)
                     {
-                        ShowToast($"卸下头像框失败: {ex.Message}", isError: true);
+                        toast.Error($"卸下头像框失败: {ex.Message}");
                     }
                 }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下头像框"))
             : (Element)Button("卸下头像框", () => setIsConfirmingClearBorder(true)).AutomationName("卸下头像框");
@@ -1430,7 +1381,7 @@ public sealed class ToolsPage : Component
                         {
                             if (next.Count >= 3)
                             {
-                                ShowToast("最多只能同时佩戴 3 枚挑战勋章", isError: true);
+                                toast.Error("最多只能同时佩戴 3 枚挑战勋章");
                                 return;
                             }
                             next.Add(id);
@@ -1442,11 +1393,11 @@ public sealed class ToolsPage : Component
                         try
                         {
                             await toolsService.UpdatePlayerPreferencesAsync(badgeTitleInput.Trim(), selectedBadgeIds);
-                            ShowToast("已成功更新挑战称号与勋章配置");
+                            toast.Success("已成功更新挑战称号与勋章配置");
                         }
                         catch (Exception ex)
                         {
-                            ShowToast($"保存挑战配置失败: {ex.Message}", isError: true);
+                            toast.Error($"保存挑战配置失败: {ex.Message}");
                         }
                     },
                     LoadChallenges,
@@ -1459,72 +1410,25 @@ public sealed class ToolsPage : Component
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Ref("SystemFillColorCriticalBrush")),
+                    Border(Empty()).Width(3).Height(26).CornerRadius(YuumiTheme.PillRadius).Background(Theme.Ref("SystemFillColorCriticalBrush")),
                     Caption($"配置错误: {error}").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center)))
-                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
+                .Padding(10).CornerRadius(YuumiTheme.OverlayRadius).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
         else if (actionFeedback is not null)
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Accent),
+                    Border(Empty()).Width(3).Height(26).CornerRadius(YuumiTheme.PillRadius).Background(Theme.Accent),
                     Caption(actionFeedback).Foreground(Theme.Accent).VAlign(VerticalAlignment.Center)))
-                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
+                .Padding(10).CornerRadius(YuumiTheme.OverlayRadius).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
         else if (savedAt is { } time)
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Accent),
+                    Border(Empty()).Width(3).Height(26).CornerRadius(YuumiTheme.PillRadius).Background(Theme.Accent),
                     Caption($"配置已保存 · {time:HH:mm:ss}").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)))
-                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
-        }
-
-        Element RenderToasts()
-        {
-            if (toasts.Count == 0) return Empty();
-
-            return VStack(8,
-                toasts.Select(item =>
-                {
-                    var iconGlyph = item.IsError ? "\uE783" : "\uE73E";
-                    var iconColor = item.IsError
-                        ? Theme.Ref("SystemFillColorCriticalBrush")
-                        : Theme.Ref("SystemFillColorSuccessBrush");
-
-                    return Border(
-                        HStack(10,
-                            Border(
-                                Caption(iconGlyph)
-                                    .FontFamily("Segoe Fluent Icons")
-                                    .Foreground(iconColor)
-                                    .HAlign(HorizontalAlignment.Center)
-                                    .VAlign(VerticalAlignment.Center)
-                            )
-                            .Width(22)
-                            .Height(22)
-                            .CornerRadius(11)
-                            .Background(Theme.Ref("LayerFillColorDefaultBrush")),
-
-                            Body(item.Message)
-                                .VAlign(VerticalAlignment.Center)
-                        )
-                    )
-                    .Padding(new Thickness(16, 9, 20, 9))
-                    .CornerRadius(20)
-                    .Background(Theme.CardBackground)
-                    .WithBorder(Theme.CardStroke, 1)
-                    .HAlign(HorizontalAlignment.Center)
-                    .WithKey(item.Id.ToString());
-                }).ToArray()
-            )
-            .WithTransitions([
-                new AddDeleteThemeTransition(),
-                new RepositionThemeTransition()
-            ])
-            .VAlign(VerticalAlignment.Top)
-            .HAlign(HorizontalAlignment.Center)
-            .Margin(new Thickness(0, 16, 0, 0));
+                .Padding(10).CornerRadius(YuumiTheme.OverlayRadius).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
 
         Element? offlineBanner = null;
@@ -1532,8 +1436,8 @@ public sealed class ToolsPage : Component
         {
             offlineBanner = Border(
                 HStack(8,
-                    Body("\uE7BA")
-                        .FontFamily("Segoe Fluent Icons")
+                    Body(Icons.Warning)
+                        .FontFamily(Icons.FontFamily)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center),
                     Caption("LCU 客户端未连接，本页所有开关与操作已停用，配置不可修改；启动并登录英雄联盟后自动恢复。")
@@ -1544,7 +1448,7 @@ public sealed class ToolsPage : Component
             .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
             .BorderBrush(Theme.Ref("SystemFillColorCriticalBrush"))
             .BorderThickness(1)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Padding(12, 8)
             .Margin(new Thickness(0, 0, 0, 8));
         }
@@ -1614,7 +1518,6 @@ public sealed class ToolsPage : Component
             [GridSize.Star()],
             [
                 mainScroll.Grid(row: 0, column: 0),
-                RenderToasts().Grid(row: 0, column: 0),
             ]
         );
     }

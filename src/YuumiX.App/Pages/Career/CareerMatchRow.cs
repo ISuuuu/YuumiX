@@ -86,7 +86,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
                     .Padding(3, 0)
-                    .CornerRadius(3)
+                    .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.CardBackground)
                     .WithBorder(Theme.CardStroke, 1)
                     .HAlign(HorizontalAlignment.Right)
@@ -234,7 +234,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         var row = Border(cardContent)
             .Height(RowHeight)
             .Padding(14, 8)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(currentBg)
             .AutomationName($"查看对局 {summary.GameId}");
         row = isHovered

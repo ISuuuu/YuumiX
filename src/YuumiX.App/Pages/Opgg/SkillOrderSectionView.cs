@@ -45,7 +45,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
         )
         .Margin(new Thickness(12, 6, 12, 6))
         .Padding(new Thickness(16, 10, 16, 10))
-        .CornerRadius(8)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1);
     }
@@ -69,7 +69,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
                 )
                 .Width(26)
                 .Height(26)
-                .CornerRadius(4)
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(bgCol)
             );
 
@@ -104,7 +104,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
             )
             .Width(18)
             .Height(18)
-            .CornerRadius(3)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Background(bgCol)
             .WithToolTip(Caption($"Lv.{idx + 1}: {key}"));
         });

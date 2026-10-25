@@ -36,14 +36,12 @@ public sealed class GameInfoPage : Component
         {
             // 演示数据的 puuid 是占位值，跳过去只会查到一个不存在的召唤师
             if (gameInfoService.CurrentState.IsDemoData) return;
-            CareerNavigationPayload.Instance.Set(puuid, profile);
-            nav.Replace(AppRoute.Career);
+            nav.Replace(new AppRoute.CareerRoute(puuid, profile));
         };
         Action<string, string?> onNavigateSearch = (query, puuid) =>
         {
             if (gameInfoService.CurrentState.IsDemoData) return;
-            SearchNavigationPayload.Instance.Set(query, puuid);
-            nav.Replace(AppRoute.Search);
+            nav.Replace(new AppRoute.SearchRoute(query, puuid));
         };
 
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
@@ -153,7 +151,7 @@ public sealed class GameInfoPage : Component
     private static Element DemoButton(Action onDemoClick) =>
         Button(Caption("预览演示对局"), onDemoClick)
             .AutomationName("预览演示对局")
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Margin(0, 12, 0, 0)
             .HAlign(HorizontalAlignment.Center);
 
@@ -211,7 +209,7 @@ public sealed class GameInfoPage : Component
         .AutomationName($"友方队伍 ({state.MyTeam.Count})")
         .Background(isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
-        .CornerRadius(0)
+        .CornerRadius(YuumiTheme.SquareRadius)
         .Padding(0, 8, 0, 0)
         .HAlign(HorizontalAlignment.Stretch);
 
@@ -230,7 +228,7 @@ public sealed class GameInfoPage : Component
         .AutomationName($"敌方队伍 ({state.TheirTeam.Count})")
         .Background(!isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
-        .CornerRadius(0)
+        .CornerRadius(YuumiTheme.SquareRadius)
         .Padding(0, 8, 0, 0)
         .HAlign(HorizontalAlignment.Stretch);
 
@@ -282,7 +280,7 @@ public sealed class GameInfoPage : Component
         .Width(250)
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
-        .CornerRadius(8);
+        .CornerRadius(YuumiTheme.OverlayRadius);
 
         // 右侧工具栏：• 友方 (N) + 组队芯片 + VS + 组队芯片 + • 敌方 (N) + 视图切换器
         bool mySideIsBlue = state.MapSide != "red";
@@ -381,7 +379,7 @@ public sealed class GameInfoPage : Component
         )
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
-        .CornerRadius(8);
+        .CornerRadius(YuumiTheme.OverlayRadius);
 
         return Grid(
             [GridSize.Auto, GridSize.Star()],
@@ -528,7 +526,7 @@ public sealed class GameInfoPage : Component
         )
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
-        .CornerRadius(8);
+        .CornerRadius(YuumiTheme.OverlayRadius);
 
         return Grid(
             [GridSize.Star()],
@@ -555,7 +553,7 @@ public sealed class GameInfoPage : Component
         var dot = Border(Empty())
             .Width(5)
             .Height(5)
-            .CornerRadius(2.5)
+            .CornerRadius(YuumiTheme.PillRadius)
             .Background(dotColor)
             .VAlign(VerticalAlignment.Center)
             .Margin(0, 0, 5, 0);
@@ -573,7 +571,7 @@ public sealed class GameInfoPage : Component
                 .Background(bgColor)
                 .BorderBrush(borderColor)
                 .BorderThickness(new Thickness(1))
-                .CornerRadius(12)
+                .CornerRadius(YuumiTheme.PillRadius)
                 .Padding(8, 3)
                 .Height(26);
         }
@@ -582,23 +580,22 @@ public sealed class GameInfoPage : Component
             .Background(bgColor)
             .BorderBrush(borderColor)
             .BorderThickness(new Thickness(1))
-            .CornerRadius(12)
+            .CornerRadius(YuumiTheme.PillRadius)
             .Padding(8, 3);
     }
 
     private static Element RenderVsBadge(YuumiPalette palette)
     {
-        return Border(
-            Caption("VS")
-                .SemiBold()
-                .Foreground(Theme.SecondaryText)
-                .HAlign(HorizontalAlignment.Center)
-                .VAlign(VerticalAlignment.Center)
-        )
-        .Background(Theme.SubtleFill)
-        .WithBorder(Theme.CardStroke, 1)
-        .CornerRadius(10)
-        .Padding(7, 2);
+        return Badge.Create(
+                Caption("VS")
+                    .SemiBold()
+                    .Foreground(Theme.SecondaryText)
+                    .HAlign(HorizontalAlignment.Center)
+                    .VAlign(VerticalAlignment.Center),
+                Theme.SubtleFill,
+                Theme.CardStroke,
+                padH: 7,
+                padV: 2);
     }
 
     private static Element RenderSegmentedControl(int currentColumns, Action<int> onSelect, YuumiPalette palette)
@@ -606,8 +603,8 @@ public sealed class GameInfoPage : Component
         bool isFive = currentColumns == 5;
 
         var teamContent = HStack(4,
-            Caption("\uE716")
-                .FontFamily("Segoe Fluent Icons")
+            Caption(Icons.People)
+                .FontFamily(Icons.FontFamily)
                 .Foreground(isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
             Caption("按队伍")
@@ -620,13 +617,13 @@ public sealed class GameInfoPage : Component
             : Button(teamContent, () => onSelect(5)).SubtleButton())
             .AutomationName("按队伍模式")
             .BorderThickness(new Thickness(0))
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Padding(8, 4)
             .Height(28);
 
         var allContent = HStack(4,
-            Caption("\uE80A")
-                .FontFamily("Segoe Fluent Icons")
+            Caption(Icons.AllMatches)
+                .FontFamily(Icons.FontFamily)
                 .Foreground(!isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
             Caption("全部战绩")
@@ -639,7 +636,7 @@ public sealed class GameInfoPage : Component
             : Button(allContent, () => onSelect(10)).SubtleButton())
             .AutomationName("全部战绩模式")
             .BorderThickness(new Thickness(0))
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Padding(8, 4)
             .Height(28);
 
@@ -649,7 +646,7 @@ public sealed class GameInfoPage : Component
         .Background(Theme.SubtleFill)
         .BorderBrush(Theme.CardStroke)
         .BorderThickness(new Thickness(1))
-        .CornerRadius(6)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Padding(2);
     }
 

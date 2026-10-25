@@ -45,7 +45,10 @@ namespace YuumiX.App.Pages.Search;
 /// <b>线程</b>：服务在后台线程发布状态、异步返回结果，所有 <c>UseState</c> 都必须带
 /// <c>threadSafe: true</c>（ADR-07）。
 /// </summary>
-public sealed class SearchPage : Component
+/// <summary>战绩查询页 props：路由参数（R8）。Query/Puuid 非空 = 自动发起查询；GameId &gt; 0 时选中该局。</summary>
+public sealed record SearchPageProps(string? Query = null, string? Puuid = null, long? GameId = null);
+
+public sealed class SearchPage : Component<SearchPageProps>
 {
     /// <summary>
     /// 左列表宽度（DIP）。卡片 172 + <c>ListView</c> 项容器与滚动条的余量：
@@ -247,11 +250,14 @@ public sealed class SearchPage : Component
             },
             0);
 
-        // 外部跳转（如生涯页点击最近队友、生涯资料卡点击战绩查询）传入的待查询目标
+        // 外部跳转（如生涯页点击最近队友、生涯资料卡点击战绩查询）传入的待查询目标：
+        // 路由参数驱动（R8），deps 用参数值，同目标重复跳转不重复查询。
         UseEffect(
             () =>
             {
-                var (pendingQuery, pendingPuuid, pendingGameId) = SearchNavigationPayload.Instance.Consume();
+                var pendingQuery = Props.Query;
+                var pendingPuuid = Props.Puuid;
+                var pendingGameId = Props.GameId;
                 if (!string.IsNullOrWhiteSpace(pendingQuery) || !string.IsNullOrWhiteSpace(pendingPuuid))
                 {
                     if (!string.IsNullOrWhiteSpace(pendingQuery))
@@ -288,7 +294,9 @@ public sealed class SearchPage : Component
                 }
                 return static () => { };
             },
-            0);
+            Props.Query ?? "",
+            Props.Puuid ?? "",
+            Props.GameId ?? 0L);
 
         // 首屏 / 搜索 / 翻页 / 刷新 共用一个入口：
         // 有 puuid 就拉这一页战绩；还没有召唤师就先解析当前登录账号，
@@ -454,8 +462,7 @@ public sealed class SearchPage : Component
 
         void OnClickPlayerPuuid(string puuid, SummonerProfile? preloaded)
         {
-            CareerNavigationPayload.Instance.Set(puuid, preloaded);
-            nav.Replace(AppRoute.Career);
+            nav.Replace(new AppRoute.CareerRoute(puuid, preloaded));
         }
 
         void OnClickPlayerSummonerId(long id)
@@ -521,8 +528,7 @@ public sealed class SearchPage : Component
         {
             if (summoner is not null)
             {
-                CareerNavigationPayload.Instance.Set(summoner.Puuid, summoner);
-                nav.Replace(AppRoute.Career);
+                nav.Replace(new AppRoute.CareerRoute(summoner.Puuid, summoner));
             }
         }
 
@@ -736,7 +742,7 @@ public sealed class SearchPage : Component
 
         return Border(body)
             .Padding(8)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
@@ -768,7 +774,7 @@ public sealed class SearchPage : Component
 
         return Border(content)
             .Padding(4)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
@@ -802,7 +808,7 @@ public sealed class SearchPage : Component
     private static Element Hint(string text, YuumiPalette palette) =>
         Border(Caption(text).Foreground(Theme.SecondaryText).TextWrapping())
             .Padding(12)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
