@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
@@ -52,6 +53,104 @@ public sealed class AppShell : Component
     public override Element Render()
     {
         var services = AppHost.Services;
+
+        // —— 托盘与「关闭到托盘」（对齐旧版 App.vue 的 handleClose 与 Tauri 主窗托盘）——
+        // 托盘图标常驻：窗口被隐藏后它就是唯一的恢复入口，因此不能只在开关打开时才创建
+        // （UseTrayIcon 只在渲染期生效，配置改动不会重渲染本组件，图标会来不及出现）。
+        var window = UseWindow();
+        var exitRequested = UseRef(false);
+        var tray = UseTrayIcon(new TrayIconSpec(
+            WindowIcon.FromPath(AppAssets.AppIconPath),
+            "YuumiX",
+            IsVisible: true));
+
+        // 关闭拦截：EnableCloseToTray 为 true 时把窗口藏起来而不是结束进程，
+        // 后台服务（LCU 监听 / 自动化 / 上传队列）继续运行——这就是「关闭到托盘」的产品语义。
+        // 配置在每次关闭时实时读取，所以设置页改完立即生效，不依赖重渲染。
+        // 依赖固定为 0：ReactorWindow 与 ReactorTrayIcon 的实例跨渲染稳定，
+        // 事件只能挂一次，重复订阅会让关闭被拦截多次（AGENTS.md §5.7）。
+        UseEffect(
+            () =>
+            {
+                if (window is null)
+                {
+                    return static () => { };
+                }
+
+                void OnClosing(object? sender, WindowClosingEventArgs e)
+                {
+                    // 托盘菜单的「退出」必须放行，否则窗口永远关不掉。
+                    if (exitRequested.Current ||
+                        !services.Config.General.EnableCloseToTray.GetValueOrDefault())
+                    {
+                        return;
+                    }
+
+                    // 托盘不可用（创建失败/测试环境）时宁可正常退出：
+                    // 藏起来的窗口没有恢复入口，比直接退出更糟。
+                    if (tray is null)
+                    {
+                        return;
+                    }
+
+                    e.Cancel = true;
+                    window.Hide();
+                }
+
+                window.Closing += OnClosing;
+                return () => window.Closing -= OnClosing;
+            },
+            0);
+
+        // 托盘交互：左键/双击恢复窗口，右键给出「显示主窗口 / 退出」菜单（Windows 托盘惯例）。
+        UseEffect(
+            () =>
+            {
+                if (tray is null)
+                {
+                    return static () => { };
+                }
+
+                void Restore(object? sender, EventArgs e) => ShowMainWindow();
+
+                // 托盘右键走系统原生弹出菜单（TrayMenu），不用 ShowFlyout：
+                // 后者的宿主窗口尺寸不受控，单按钮会被居中在大片空白里；
+                // MenuItems/MenuItem 产出的是 MenuFlyoutContentElement，又不能独立挂载（会抛异常）。
+                void OpenMenu(object? sender, EventArgs e)
+                {
+                    var logger = services.LoggerFactory.CreateLogger("YuumiX.Tray");
+                    try
+                    {
+                        var hwnd = window is null
+                            ? IntPtr.Zero
+                            : Win32Interop.GetWindowFromWindowId(window.AppWindow.Id);
+
+                        // 诊断信息走 Debug：默认 Info 级别下不产生噪音，排查时把 LogLevel 调到 0 即可。
+                        logger.LogDebug("托盘右键：window={HasWindow} hwnd={Hwnd}", window is not null, hwnd);
+
+                        if (TrayMenu.ShowExitMenu(hwnd, message => logger.LogDebug("托盘菜单: {Message}", message)))
+                        {
+                            RequestExit();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "托盘右键菜单失败");
+                    }
+                }
+
+                tray.Click += Restore;
+                tray.DoubleClick += Restore;
+                tray.RightClick += OpenMenu;
+                return () =>
+                {
+                    tray.Click -= Restore;
+                    tray.DoubleClick -= Restore;
+                    tray.RightClick -= OpenMenu;
+                };
+            },
+            0);
+
         var nav = UseNavigation<AppRoute>(new AppRoute.HomeRoute());
 
         // 标题栏游戏状态：LCU 连接态 + 游戏阶段是本页的重渲染来源。
@@ -504,6 +603,35 @@ public sealed class AppShell : Component
             })
             .OnUnmountAdd(element =>
                 ((FrameworkElement)element).ActualThemeChanged -= themeChangedHandler.Current!);
+
+        // 托盘菜单动作。定义在 Render 内以捕获当次渲染的 window 实例；
+        // 传给 UseEffect 的委托本身只挂一次，捕获的 window 实例跨渲染稳定。
+        void ShowMainWindow()
+        {
+            if (window is null)
+            {
+                return;
+            }
+
+            // Hide 会把窗口连同任务栏按钮一起移除；Show 之后不会自动获得焦点，必须显式 Activate。
+            window.Show();
+            window.Activate();
+        }
+
+        void RequestExit()
+        {
+            // 先置位再关闭：Closing 里靠它放行，避免"退出"被自己的守卫取消。
+            exitRequested.Current = true;
+
+            // 窗口已被隐藏（关闭到托盘）时不再"复活"它：直接请求进程退出，避免闪一帧窗口。
+            if (window is null || !window.IsVisible)
+            {
+                ReactorApp.Exit();
+                return;
+            }
+
+            window.Close();
+        }
 
         return root;
     }
