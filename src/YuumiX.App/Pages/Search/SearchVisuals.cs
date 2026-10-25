@@ -67,7 +67,13 @@ internal static class SearchVisuals
         return Icon(path, size, size / 2);
     }
 
-    /// <summary>海克斯强化图标（仅 2400/2450 队列）。带名称提示。</summary>
+    /// <summary>海克斯强化背景色（旧版 .augment-slot / .row-augment-slot: rgba(147, 51, 234, 0.12)）。</summary>
+    public const string AugmentBackgroundColor = "#1F9333EA";
+
+    /// <summary>海克斯强化边框色（旧版 .augment-slot / .row-augment-slot: rgba(168, 85, 247, 0.45)）。</summary>
+    public const string AugmentBorderColor = "#73A855F7";
+
+    /// <summary>海克斯强化图标（仅 2400/2450 队列）。带名称提示与海克斯背景边框。</summary>
     public static Element AugmentIcon(GameDataCatalog catalog, int augmentId, double size)
     {
         string? iconPath = null;
@@ -78,8 +84,18 @@ internal static class SearchVisuals
             name = aug.Name;
         }
 
-        return Icon(iconPath, size, 4)
-            .WithToolTip(TextBlock(name));
+        Element image = string.IsNullOrEmpty(iconPath)
+            ? Border(Empty())
+            : Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, size, 4));
+
+        return Border(image)
+            .Width(size)
+            .Height(size)
+            .CornerRadius(4)
+            .Background(AugmentBackgroundColor)
+            .WithBorder(AugmentBorderColor, 1)
+            .WithToolTip(Caption(name))
+            .AutomationName($"海克斯强化：{name}");
     }
 
     /// <summary>是否为带海克斯强化的队列（2400 海克斯大乱斗 / 2450 经典海斗）。</summary>

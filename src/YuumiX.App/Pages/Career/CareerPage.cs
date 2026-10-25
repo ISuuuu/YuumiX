@@ -216,6 +216,21 @@ public sealed class CareerPage : Component
             },
             summoner?.Puuid ?? string.Empty);
 
+        // 召唤师状态流变化（如客户端从未登录变为登录）时自动拉取刷新
+        UseEffect(
+            () =>
+            {
+                var sub = summonerService.CurrentChanged.Subscribe(profile =>
+                {
+                    if (viewTarget is null && profile is not null)
+                    {
+                        setRefreshToken(Environment.TickCount);
+                    }
+                });
+                return () => sub.Dispose();
+            },
+            viewTarget?.Puuid ?? string.Empty);
+
         // 对局结束与新对局开始自动刷新
         UseEffect(
             () =>

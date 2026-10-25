@@ -248,17 +248,23 @@ internal static class MatchDetailView
                 Caption(meta).Foreground(Theme.SecondaryText)))
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
-        Element copyBtn = Button(Caption("复制 ID"), () => onCopyGameId?.Invoke(summary.GameId))
-            .Height(30)
-            .Padding(8, 0)
-            .AutomationName("复制游戏 ID")
-            .WithToolTip(TextBlock($"复制游戏 ID: {summary.GameId} 到剪贴板"));
-
         Element replayBtn = Component<ReplayButton, ReplayButtonProps>(
             new ReplayButtonProps(summary.GameId, Compact: false))
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
-        Element rightGroup = HStack(8, copyBtn, replayBtn)
+        Element copyBtn = Button(
+                Caption("\uE8C8")
+                    .FontFamily("Segoe Fluent Icons")
+                    .Foreground(Theme.SecondaryText),
+                () => onCopyGameId?.Invoke(summary.GameId))
+            .Width(28)
+            .Height(28)
+            .Padding(0)
+            .CornerRadius(6)
+            .AutomationName("复制游戏 ID")
+            .WithToolTip(TextBlock($"复制游戏 ID: {summary.GameId}"));
+
+        Element rightGroup = HStack(8, replayBtn, copyBtn)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         Element bannerContent = Grid(

@@ -1,3 +1,4 @@
+using YuumiX.Core.Common;
 using YuumiX.Core.Features.Summoner.Models;
 
 namespace YuumiX.Core.Features.Summoner;
@@ -11,6 +12,11 @@ namespace YuumiX.Core.Features.Summoner;
 /// </summary>
 public interface ISummonerService
 {
+    /// <summary>
+    /// 当前登录召唤师状态变更流（从未登录变登录、切换账号或断开连接时发布）。
+    /// </summary>
+    EventStream<SummonerProfile?> CurrentChanged { get; }
+
     /// <summary>
     /// 获取当前登录召唤师。
     /// </summary>

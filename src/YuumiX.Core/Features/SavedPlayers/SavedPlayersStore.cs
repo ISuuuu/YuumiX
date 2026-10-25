@@ -105,6 +105,67 @@ public sealed class SavedPlayersStore : IDisposable
     }
 
     /// <summary>
+    /// 获取最近一次活跃/相遇对局的登录者 selfPuuid（最后一位登录者）。
+    /// 当客户端离线或未获取到当前账号时，用于回退展示该账号对应的路人集。
+    /// </summary>
+    public async Task<string?> GetLatestSelfPuuidAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT self_puuid
+            FROM saved_players
+            WHERE self_puuid != ''
+            ORDER BY COALESCE(last_met_at, 0) DESC, update_at DESC
+            LIMIT 1";
+
+        var result = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (result is string puuid && !string.IsNullOrWhiteSpace(puuid))
+        {
+            return puuid;
+        }
+
+        // 兜底查 encountered_games
+        cmd.CommandText = @"
+            SELECT self_puuid
+            FROM encountered_games
+            WHERE self_puuid != ''
+            ORDER BY update_at DESC
+            LIMIT 1";
+        var fallback = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return fallback as string;
+    }
+
+    /// <summary>
+    /// 获取历史存储中出现过的所有登录者账号标识列表（self_puuid 列表，按最近活跃时间倒序）。
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetAllSelfPuuidsAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT self_puuid
+            FROM saved_players
+            WHERE self_puuid != ''
+            GROUP BY self_puuid
+            ORDER BY MAX(COALESCE(last_met_at, update_at)) DESC";
+
+        var list = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            list.Add(reader.GetString(0));
+        }
+        return list;
+    }
+
+    /// <summary>
     /// 查询全部保存玩家（支持分页、筛选、搜索）。
     /// </summary>
     public async Task<PagedResult<SavedPlayerRecord>> QueryPlayersAsync(

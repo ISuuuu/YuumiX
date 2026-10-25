@@ -572,13 +572,6 @@ public sealed class SearchPage : Component
                                     setSearching,
                                     () => setRequestVersion(requestVersion + 1));
                             },
-                            () =>
-                            {
-                                setNotice(null);
-                                setSelectedGameId(0);
-                                setPageIndex(0);
-                                setRequestVersion(requestVersion + 1);
-                            },
                             notice,
                             searching,
                             summoner,
@@ -639,7 +632,6 @@ public sealed class SearchPage : Component
         int filterIndex,
         Action<int> onFilterChanged,
         Action onSearch,
-        Action onRefresh,
         string? notice,
         bool searching,
         SummonerProfile? currentSummoner,
@@ -712,7 +704,7 @@ public sealed class SearchPage : Component
             });
 
         Element bar = Grid(
-            [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto, GridSize.Auto, GridSize.Auto],
+            [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto, GridSize.Auto],
             [GridSize.Auto],
             [
                 searchBox.Grid(row: 0, column: 0),
@@ -735,7 +727,6 @@ public sealed class SearchPage : Component
                         .AutomationName("上传对局开关")
                         .Grid(row: 0, column: 4)
                     : Empty().Grid(row: 0, column: 4),
-                Button("刷新", onRefresh).Grid(row: 0, column: 5),
             ]);
 
         // 提示行放在搜索框下方而不是列表上方：出错的是"搜索"，不是"列表"

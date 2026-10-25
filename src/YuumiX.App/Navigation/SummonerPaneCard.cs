@@ -45,6 +45,7 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
 
         Element avatar = profile is null
             ? Border(Body("\uE77B")
+                    .FontFamily("Segoe Fluent Icons")
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))

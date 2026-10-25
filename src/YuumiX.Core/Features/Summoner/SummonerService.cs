@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Common;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Parsers;
@@ -35,10 +36,14 @@ public sealed class SummonerService : ISummonerService
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly TimeSpan _cacheTtl;
     private readonly ILogger<SummonerService>? _logger;
+    private readonly EventStream<SummonerProfile?> _currentChanged;
     private readonly object _gate = new();
 
     private SummonerProfile? _cached;
     private long _cachedAt;
+
+    /// <summary>当前登录召唤师变更流。</summary>
+    public EventStream<SummonerProfile?> CurrentChanged => _currentChanged;
 
     /// <param name="transportProvider">当前传输层（来自 <c>LcuConnection.Transport</c>）；未连接时返回 <c>null</c>。</param>
     /// <param name="cacheTtl">缓存时长；传 <see cref="TimeSpan.Zero"/> 关闭缓存。</param>
@@ -53,6 +58,8 @@ public sealed class SummonerService : ISummonerService
         _transportProvider = transportProvider;
         _cacheTtl = cacheTtl ?? DefaultCacheTtl;
         _logger = logger;
+        _currentChanged = new EventStream<SummonerProfile?>(ex =>
+            _logger?.LogWarning(ex, "当前召唤师变更观察者异常"));
     }
 
     public async Task<SummonerProfile?> GetCurrentSummonerAsync(CancellationToken cancellationToken = default)
@@ -69,10 +76,25 @@ public sealed class SummonerService : ISummonerService
 
         if (profile is not null)
         {
+            bool changed = false;
             lock (_gate)
             {
+                if (_cached is null ||
+                    !string.Equals(_cached.Puuid, profile.Puuid, StringComparison.Ordinal) ||
+                    _cached.ProfileIconId != profile.ProfileIconId ||
+                    _cached.SummonerLevel != profile.SummonerLevel ||
+                    !string.Equals(_cached.RiotId, profile.RiotId, StringComparison.Ordinal))
+                {
+                    changed = true;
+                }
+
                 _cached = profile;
                 _cachedAt = Environment.TickCount64;
+            }
+
+            if (changed)
+            {
+                _currentChanged.Publish(profile);
             }
         }
 
@@ -252,10 +274,17 @@ public sealed class SummonerService : ISummonerService
 
     public void InvalidateCache()
     {
+        bool hadCache;
         lock (_gate)
         {
+            hadCache = _cached is not null;
             _cached = null;
             _cachedAt = 0;
+        }
+
+        if (hadCache)
+        {
+            _currentChanged.Publish(null);
         }
     }
 

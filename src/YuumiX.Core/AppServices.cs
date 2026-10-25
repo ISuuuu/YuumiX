@@ -167,9 +167,21 @@ public sealed class AppServices : IAsyncDisposable
             sgpService: provider.GetRequiredService<ISgpService>(),
             credentialsProvider: () => provider.GetRequiredService<LcuConnection>().Credentials,
             logger: provider.GetRequiredService<ILogger<MatchService>>()));
-        collection.AddSingleton<ISummonerService>(provider => new SummonerService(
-            () => provider.GetRequiredService<LcuConnection>().Transport,
-            logger: provider.GetRequiredService<ILogger<SummonerService>>()));
+        collection.AddSingleton<ISummonerService>(provider =>
+        {
+            var lcu = provider.GetRequiredService<LcuConnection>();
+            var service = new SummonerService(
+                () => lcu.Transport,
+                logger: provider.GetRequiredService<ILogger<SummonerService>>());
+            lcu.States.Subscribe(state =>
+            {
+                if (state.Status == LcuConnectionStatus.Disconnected)
+                {
+                    service.InvalidateCache();
+                }
+            });
+            return service;
+        });
 
         // ── 路人集 SQLite 存储（阶段 7）────────────────────────────
         collection.AddSingleton(provider => new SavedPlayersStore(

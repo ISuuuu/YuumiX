@@ -162,6 +162,17 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
         return RenderNormal(status, notice, HandleClick);
     }
 
+    private const string IconFontFamily = "Segoe Fluent Icons";
+
+    private static TextBlockElement Glyph(string glyph, string? foreground = null)
+    {
+        var text = Caption(glyph).FontFamily(IconFontFamily);
+        return foreground is null ? text : text.Foreground(foreground);
+    }
+
+    private static TextBlockElement Glyph(string glyph, ThemeRef themeRef) =>
+        Caption(glyph).FontFamily(IconFontFamily).Foreground(themeRef);
+
     private static Element RenderCompact(string status, string? notice, Action onClick)
     {
         return status switch
@@ -174,14 +185,14 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                     .AutomationName("回放下载中")
                     .WithToolTip(TextBlock("回放下载中…")),
             "watch" =>
-                Button(Caption("\uE768").Foreground(CareerVisuals.WinText), onClick)
+                Button(Glyph("\uE768", CareerVisuals.WinText), onClick)
                     .Width(28)
                     .Height(28)
                     .Padding(2, 0)
                     .AutomationName("观看回放")
                     .WithToolTip(TextBlock("点击启动对局回放")),
             "unsupported" =>
-                Button(Caption("\uE711").Foreground(Theme.SecondaryText), onClick)
+                Button(Glyph("\uE711", Theme.SecondaryText), onClick)
                     .Width(28)
                     .Height(28)
                     .Padding(2, 0)
@@ -189,19 +200,19 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                     .AutomationName("回放不可用")
                     .WithToolTip(TextBlock(notice ?? "该对局回放不可用")),
             "error" =>
-                Button(Caption("\uE783").Foreground(CareerVisuals.LoseText), onClick)
+                Button(Glyph("\uE783", CareerVisuals.LoseText), onClick)
                     .Width(28)
                     .Height(28)
                     .Padding(2, 0)
                     .AutomationName("下载失败重试")
                     .WithToolTip(TextBlock(notice ?? "下载失败，点击重试")),
             _ =>
-                Button(Caption("\uE896").Foreground(Theme.SecondaryText), onClick)
+                Button(Glyph("\uE896", Theme.SecondaryText), onClick)
                     .Width(28)
                     .Height(28)
                     .Padding(2, 0)
-                    .AutomationName("下载回放")
-                    .WithToolTip(TextBlock("下载对局回放")),
+                    .AutomationName("回放")
+                    .WithToolTip(TextBlock("回放")),
         };
     }
 
@@ -215,28 +226,29 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                     .Padding(10, 0)
                     .AutomationName("回放下载中"),
             "watch" =>
-                Button(HStack(6, Caption("\uE768").Foreground(CareerVisuals.WinText), Caption("观看回放")), onClick)
+                Button(HStack(6, Glyph("\uE768", CareerVisuals.WinText), Caption("观看回放")), onClick)
                     .Height(28)
                     .Padding(10, 0)
                     .AutomationName("观看回放"),
             "unsupported" =>
-                Button(HStack(6, Caption("\uE711"), Caption("不可用")), onClick)
+                Button(HStack(6, Glyph("\uE711"), Caption("不可用")), onClick)
                     .Height(28)
                     .Padding(10, 0)
                     .IsEnabled(false)
                     .AutomationName("回放不可用")
                     .WithToolTip(TextBlock(notice ?? "该对局回放不可用")),
             "error" =>
-                Button(HStack(6, Caption("\uE783").Foreground(CareerVisuals.LoseText), Caption("重试")), onClick)
+                Button(HStack(6, Glyph("\uE783", CareerVisuals.LoseText), Caption("重试")), onClick)
                     .Height(28)
                     .Padding(10, 0)
                     .AutomationName("重试")
                     .WithToolTip(TextBlock(notice ?? "下载失败，点击重试")),
             _ =>
-                Button(HStack(6, Caption("\uE896"), Caption("下载回放")), onClick)
+                Button(HStack(6, Glyph("\uE896"), Caption("回放")), onClick)
                     .Height(28)
                     .Padding(10, 0)
-                    .AutomationName("下载回放"),
+                    .AutomationName("回放")
+                    .WithToolTip(TextBlock("回放")),
         };
     }
 }

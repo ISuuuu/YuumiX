@@ -10,6 +10,7 @@ using YuumiX.App.Theming;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Features.Summoner;
+using YuumiX.Core.Lcu;
 using YuumiX.Core.Parsers;
 
 namespace YuumiX.App.Pages.SavedPlayers;
@@ -39,6 +40,7 @@ public sealed class SavedPlayersPage : Component
         var theme = UseContext(AppHost.ThemeContext);
         var store = services.Services.GetRequiredService<SavedPlayersStore>();
         var summonerService = services.Services.GetService<ISummonerService>();
+        var lcu = services.Services.GetService<LcuConnection>();
 
         _dispatcher ??= DispatcherQueue.GetForCurrentThread();
 
@@ -72,6 +74,7 @@ public sealed class SavedPlayersPage : Component
         var (searchDraft, setSearchDraft) = UseState(string.Empty, threadSafe: true);
         var (committedSearch, setCommittedSearch) = UseState(string.Empty, threadSafe: true);
         var (selfPuuid, setSelfPuuid) = UseState<string?>(null, threadSafe: true);
+        var (isResolved, setIsResolved) = UseState(false, threadSafe: true);
 
         // 展开与编辑状态
         var (expandedPuuid, setExpandedPuuid) = UseState<string?>(null, threadSafe: true);
@@ -125,27 +128,66 @@ public sealed class SavedPlayersPage : Component
             }
         }
 
-        // 获取当前账号 selfPuuid
+        // 解析当前应展示的账号：优先当前登录账号，离线或未登录则回退为最后一位登录者
+        void ResolveAccount()
+        {
+            _ = Task.Run(async () =>
+            {
+                string? resolved = null;
+                if (lcu?.CurrentState.Status == LcuConnectionStatus.Connected && summonerService is not null)
+                {
+                    try
+                    {
+                        var me = await summonerService.GetCurrentSummonerAsync();
+                        if (me is not null && !string.IsNullOrWhiteSpace(me.Puuid))
+                        {
+                            resolved = me.Puuid;
+                        }
+                    }
+                    catch
+                    {
+                        // 忽略异常，降级到数据库回退
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(resolved))
+                {
+                    resolved = await store.GetLatestSelfPuuidAsync();
+                }
+
+                _dispatcher?.TryEnqueue(() =>
+                {
+                    setSelfPuuid(resolved);
+                    setIsResolved(true);
+                });
+            });
+        }
+
         UseEffect(
             () =>
             {
-                if (summonerService is not null)
-                {
-                    _ = summonerService.GetCurrentSummonerAsync().ContinueWith(t =>
-                    {
-                        if (t.IsCompletedSuccessfully && t.Result is not null)
-                        {
-                            setSelfPuuid(t.Result.Puuid);
-                        }
-                    }, TaskScheduler.Default);
-                }
-                return () => { };
+                ResolveAccount();
+                var sub = lcu?.States.Subscribe(_ => ResolveAccount());
+                return () => sub?.Dispose();
             },
             0);
 
         // 分页与数据加载
         void LoadData(int page, bool append)
         {
+            if (!isResolved) return;
+
+            if (string.IsNullOrWhiteSpace(selfPuuid))
+            {
+                // 库中没有任何历史记录且未连客户端，直接置空
+                setPlayers(EmptyPlayers);
+                setTotalCount(0);
+                setCurrentPage(1);
+                setLoading(false);
+                setLoadingMore(false);
+                return;
+            }
+
             if (append)
             {
                 setLoadingMore(true);
@@ -202,7 +244,7 @@ public sealed class SavedPlayersPage : Component
         }
 
         // 依赖改变时重置为第一页加载
-        var depsKey = $"filter={filter}&search={committedSearch}&self={selfPuuid}";
+        var depsKey = $"resolved={isResolved}&filter={filter}&search={committedSearch}&self={selfPuuid}";
         UseEffect(
             () =>
             {
@@ -264,7 +306,7 @@ public sealed class SavedPlayersPage : Component
             {
                 try
                 {
-                    var res = await store.QueryEncounteredGamesAsync(player.Puuid, selfPuuid, 1, GamesPageSize);
+                    var res = await store.QueryEncounteredGamesAsync(player.Puuid, player.SelfPuuid, 1, GamesPageSize);
                     _dispatcher?.TryEnqueue(() =>
                     {
                         setEncounteredGames(res.Items);
@@ -288,7 +330,7 @@ public sealed class SavedPlayersPage : Component
             {
                 try
                 {
-                    var res = await store.QueryEncounteredGamesAsync(player.Puuid, selfPuuid, nextPage, GamesPageSize);
+                    var res = await store.QueryEncounteredGamesAsync(player.Puuid, player.SelfPuuid, nextPage, GamesPageSize);
                     _dispatcher?.TryEnqueue(() =>
                     {
                         setEncounteredGames(encounteredGames.Concat(res.Items).ToList());

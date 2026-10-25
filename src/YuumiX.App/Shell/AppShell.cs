@@ -122,10 +122,26 @@ public sealed class AppShell : Component
             1);
 
         // 侧边栏召唤师信息卡片的数据源（对应旧版 sidebar-bottom 的 user-card）。
-        // 客户端连上后拉一次当前召唤师；断线即清空，卡片退回到占位态。
+        // 客户端连上后拉取当前召唤师；未登录时在后台持续探测，一旦登录或状态变更立即响应；断线即清空。
         // threadSafe: true —— 拉取在后台线程完成，回调直接封送回 UI 线程（ADR-07）。
         var summonerService = services.Services.GetRequiredService<ISummonerService>();
         var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
+
+        // 订阅召唤师服务变更流（生涯页读取、对局信息读取或后台探测成功时统一通知）
+        UseEffect(
+            () =>
+            {
+                var subscription = summonerService.CurrentChanged.Subscribe(profile =>
+                {
+                    setSummoner(profile);
+                });
+                return () => subscription.Dispose();
+            },
+            0);
+
+        // 连接建立后探测召唤师：已获取到时无需轮询；未登录时每 2 秒探测一次直至登录成功或断开连接。
+        // key 为标量整数，避免元组分配触发 REACTOR_HOOKS_004。
+        var summonerPollKey = (isClientConnected ? 1 : 0) | (summoner is null ? 2 : 0);
         UseEffect(
             () =>
             {
@@ -135,30 +151,69 @@ public sealed class AppShell : Component
                     return static () => { };
                 }
 
+                if (summoner is not null)
+                {
+                    return static () => { };
+                }
+
                 var cancellation = new CancellationTokenSource();
                 _ = Task.Run(async () =>
                 {
+                    // 连上后先立即拉取一次
                     try
                     {
                         var profile = await summonerService
                             .GetCurrentSummonerAsync(cancellation.Token)
                             .ConfigureAwait(false);
 
-                        if (!cancellation.IsCancellationRequested)
+                        if (!cancellation.IsCancellationRequested && profile is not null)
                         {
                             setSummoner(profile);
+                            return;
                         }
                     }
                     catch (OperationCanceledException)
                     {
+                        return;
                     }
                     catch (Exception ex)
                     {
                         services.LoggerFactory
                             .CreateLogger<AppShell>()
-                            .LogWarning(ex, "读取当前召唤师失败，侧边栏信息卡片保持为空");
+                            .LogWarning(ex, "首次读取当前召唤师失败，将在后台重试探测");
                     }
-                });
+
+                    // 客户端未登录（404 等），以 2 秒间隔持续探测直至登录
+                    using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+                    while (!cancellation.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            if (!await timer.WaitForNextTickAsync(cancellation.Token).ConfigureAwait(false))
+                            {
+                                break;
+                            }
+
+                            var profile = await summonerService
+                                .GetCurrentSummonerAsync(cancellation.Token)
+                                .ConfigureAwait(false);
+
+                            if (!cancellation.IsCancellationRequested && profile is not null)
+                            {
+                                setSummoner(profile);
+                                break;
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                        catch (Exception)
+                        {
+                            // 探测失败（例如尚未登录）为正常状态，静默等待下一次
+                        }
+                    }
+                }, cancellation.Token);
 
                 return () =>
                 {
@@ -166,7 +221,7 @@ public sealed class AppShell : Component
                     cancellation.Dispose();
                 };
             },
-            isClientConnected);
+            summonerPollKey);
 
         // 菜单项必须跨渲染保持同一批实例：每次渲染新建数组会让 NavigationView 重建菜单，
         // 选中项被重置为第一项并触发 OnSelectedTagChanged，表现为「界面重渲染后莫名跳回主页」。

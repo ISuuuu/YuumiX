@@ -34,9 +34,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
 
     private const double ResultWidth = 115;
     private const double KdaWidth = 105;
-    private const double CsWidth = 70;
-    private const double ItemsWidth = 175;
-    private const double GoldWidth = 75;
+    private const double CsWidth = 56;
+    private const double GoldWidth = 64;
 
     /// <summary>海克斯大乱斗两个队列：强化列只在这里显示、基石符文在这里隐藏（旧版 MatchCard.vue 同规则）。</summary>
     private static bool IsAugmentQueue(int queueId) => queueId is 2400 or 2450;
@@ -167,7 +166,6 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         itemChildren.Add(HStack(3, items));
 
         Element itemSlots = HStack(4, itemChildren.ToArray())
-            .Width(ItemsWidth)
             .VAlign(VerticalAlignment.Center);
 
         // 金币列
@@ -187,14 +185,14 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 Caption(formattedTime)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Right))
-            .Width(130)
+            .Width(116)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
 
         // D6：回放按钮默认透明且不参与命中，整行悬停或键盘 focus 落入时浮现；
         // 悬停期间按钮自身拦截点击，不会透传给整行的 OnTapped。
         Element replayBtn = Component<ReplayButton, ReplayButtonProps>(
-                new ReplayButtonProps(summary.GameId, Compact: true))
+                new ReplayButtonProps(summary.GameId, Compact: false))
             .Opacity(replayRevealed ? 1 : 0)
             .IsHitTestVisible(replayRevealed)
             .VAlign(VerticalAlignment.Center);
@@ -204,7 +202,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .VAlign(VerticalAlignment.Center);
 
         // 左侧主体组合
-        Element leftGroup = HStack(12,
+        Element leftGroup = HStack(8,
             avatar,
             spells,
             result,
@@ -294,13 +292,6 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     }
 
     /// <summary>海克斯强化图标：紫色边框小格，悬停 tooltip 显示名称（旧版 .augment-slot 样式）。</summary>
-    private static Element AugmentIcon(GameDataCatalog catalog, int augmentId)
-    {
-        string name = catalog.Augments.TryGetValue(augmentId, out CherryAugmentDetail? detail) ? detail.Name : "海克斯强化";
-        string? iconPath = detail?.IconPath;
-
-        return Search.SearchVisuals.Icon(iconPath, ItemSize, 4)
-            .WithToolTip(Caption(name))
-            .AutomationName($"海克斯强化：{name}");
-    }
+    private static Element AugmentIcon(GameDataCatalog catalog, int augmentId) =>
+        Search.SearchVisuals.AugmentIcon(catalog, augmentId, ItemSize);
 }

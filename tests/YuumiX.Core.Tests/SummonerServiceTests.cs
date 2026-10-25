@@ -293,6 +293,33 @@ public sealed class SummonerServiceTests
         Assert.Null(await service.FindBySummonerIdAsync(123L));
     }
 
+    [Fact]
+    public async Task CurrentChanged_PublishesWhenProfileLoadedAndInvalidated()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok(Payload);
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new SummonerService(() => transport);
+
+        var events = new List<SummonerProfile?>();
+        using var subscription = service.CurrentChanged.Subscribe(events.Add);
+
+        // 首次读取成功，发布 profile
+        SummonerProfile? profile = await service.GetCurrentSummonerAsync();
+        Assert.NotNull(profile);
+        Assert.Single(events);
+        Assert.Equal("测试玩家#HN1", events[0]?.RiotId);
+
+        // 命中缓存未变更，不重复发布
+        await service.GetCurrentSummonerAsync();
+        Assert.Single(events);
+
+        // 清空缓存，发布 null
+        service.InvalidateCache();
+        Assert.Equal(2, events.Count);
+        Assert.Null(events[1]);
+    }
+
     private static LcuHttpTransport NewTransport(FakeLcuServer server) => new(
         server.BaseAddress,
         server.AuthorizationHeader,

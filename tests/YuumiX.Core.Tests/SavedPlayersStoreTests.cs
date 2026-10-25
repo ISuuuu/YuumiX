@@ -218,6 +218,51 @@ public sealed class SavedPlayersStoreTests : IDisposable
         Assert.Equal(501, item.ProfileIconId);
     }
 
+    [Fact]
+    public async Task GetLatestSelfPuuid_MultiAccount_ReturnsMostRecentActiveSelf()
+    {
+        // 初始为空库
+        var emptyLatest = await _store.GetLatestSelfPuuidAsync();
+        Assert.Null(emptyLatest);
+
+        // 账号 self_A 在 1000 时间记录相遇
+        var playersA = new List<EncounterPlayerEntry>
+        {
+            new() { Puuid = "pA", SummonerName = "玩家A", ProfileIconId = 1, TagLine = "A", ChampionId = 1 },
+        };
+        await _store.RecordEncountersAsync(playersA, "self_A", 1001, "420");
+
+        // 此时最新应为 self_A
+        var latestAfterA = await _store.GetLatestSelfPuuidAsync();
+        Assert.Equal("self_A", latestAfterA);
+
+        // 账号 self_B 在之后记录相遇
+        var playersB = new List<EncounterPlayerEntry>
+        {
+            new() { Puuid = "pB", SummonerName = "玩家B", ProfileIconId = 2, TagLine = "B", ChampionId = 2 },
+        };
+        await _store.RecordEncountersAsync(playersB, "self_B", 1002, "420");
+
+        // 此时最新应为 self_B
+        var latestAfterB = await _store.GetLatestSelfPuuidAsync();
+        Assert.Equal("self_B", latestAfterB);
+
+        // 各自查询时不混杂
+        var queryA = await _store.QueryPlayersAsync("self_A");
+        Assert.Equal(1, queryA.TotalCount);
+        Assert.Equal("玩家A", queryA.Items[0].SummonerName);
+
+        var queryB = await _store.QueryPlayersAsync("self_B");
+        Assert.Equal(1, queryB.TotalCount);
+        Assert.Equal("玩家B", queryB.Items[0].SummonerName);
+
+        // 检查所有账号列表
+        var allSelfs = await _store.GetAllSelfPuuidsAsync();
+        Assert.Equal(2, allSelfs.Count);
+        Assert.Equal("self_B", allSelfs[0]); // 最近活跃排在第一位
+        Assert.Equal("self_A", allSelfs[1]);
+    }
+
     public void Dispose()
     {
         _store.Dispose();
