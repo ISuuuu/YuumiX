@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>YuumiX.SourceScan.Tests</RootNamespace>
+    <Platforms>x64</Platforms>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 存量白名单：模式级违规的清单（文件 × 规则 × 行数），见该文件结构与 SourceScanTests 头注释 -->
+    <None Update="GateWhitelist.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

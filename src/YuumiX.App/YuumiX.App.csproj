@@ -27,6 +27,9 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <NoWarn>$(NoWarn);REACTOR_THEME_001</NoWarn>
+    <!-- 门禁终态（AGENTS.md §0 / R17）：BannedApiAnalyzers 的 RS0030 随警告转错误，
+         引用 BannedSymbols.txt 中禁用 API 的代码直接构建失败，取代"记得去跑"的人工 grep。 -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,6 +38,13 @@
     <!-- 设置项容器（SettingsCard/SettingsExpander）。控件模板在包内 .pri 中，
          裁剪/AOT 时必须保留该程序集，见 Controls/ToolkitXamlMetadata.cs。 -->
     <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
+    <!-- 纯分析器包：只进编译，不进运行时输出 -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- BannedSymbols.txt 的条目格式与文档注释 ID 一致（T:/M:/P:），条目含义见文件内注释 -->
+    <AdditionalFiles Include="BannedSymbols.txt" />
   </ItemGroup>
 
   <ItemGroup>
