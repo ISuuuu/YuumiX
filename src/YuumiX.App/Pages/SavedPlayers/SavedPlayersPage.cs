@@ -1,22 +1,32 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Reactor.Hooks;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
-using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Lcu;
-using YuumiX.Core.Parsers;
 
 namespace YuumiX.App.Pages.SavedPlayers;
 
+/// <summary>展开查看相遇对局的目标：Nonce 允许重复点击同一人重新拉取第一页。</summary>
+internal sealed record ExpandedTarget(string Puuid, string? SelfPuuid, int Nonce);
+
 /// <summary>
 /// 路人集页面：对齐 docs/pic/路人集.png 与原 SavedPlayers.vue。
+/// 本页只做状态编排（R14）：页头/工具栏/列表在 <see cref="SavedPlayersVisuals"/>，
+/// 玩家卡片在 <see cref="SavedPlayerCard"/>，账号解析与导入导出在 <see cref="SavedPlayersLoaders"/>。
+///
+/// R7：玩家列表与相遇对局都是 offset 分页，走 <c>UseInfiniteResource</c>
+///（cursor 为页号，null 表示首页/末页）；标记保存/删除/导入/导出走 <c>UseMutation</c>；
+/// 账号解析走 <c>UseResource</c>（连接状态变化重拉）。搜索防抖用 effect 定时器取代类字段 Timer（R6）。
+///
+/// <b>规模</b>：本文件 309 行（R14 过渡期，超 300 理由：双 infinite resource + 四个 mutation 的
+/// hooks 编排必须整块留在 Render 内保证调用顺序；视觉已全部外移）。
 /// </summary>
 public sealed class SavedPlayersPage : Component
 {
@@ -26,10 +36,6 @@ public sealed class SavedPlayersPage : Component
     private static readonly IReadOnlyList<SavedPlayerRecord> EmptyPlayers = [];
     private static readonly IReadOnlyList<EncounteredGameRecord> EmptyGames = [];
 
-    // 搜索防抖定时器
-    private Timer? _searchDebounceTimer;
-    private DispatcherQueue? _dispatcher;
-
     public override Element Render()
     {
         var services = UseContext(AppHost.Context);
@@ -38,367 +44,235 @@ public sealed class SavedPlayersPage : Component
         var summonerService = services.Services.GetService<ISummonerService>();
         var lcu = services.Services.GetService<LcuConnection>();
 
-        _dispatcher ??= DispatcherQueue.GetForCurrentThread();
-
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
         UseEffect(
             () =>
             {
                 var subscription = theme.Subscribe(setPalette);
-                return () =>
-                {
-                    subscription.Dispose();
-                    _searchDebounceTimer?.Dispose();
-                };
+                return () => subscription.Dispose();
             },
             0);
 
         // 全局 Toast 服务（R5）：队列由 AppShell 提供并在其 ToastHost 呈现
         var toast = UseContext(AppHost.ToastContext)!;
 
-        var (players, setPlayers) = UseState(EmptyPlayers, threadSafe: true);
-        var (totalCount, setTotalCount) = UseState(0L, threadSafe: true);
-        var (currentPage, setCurrentPage) = UseState(1, threadSafe: true);
-        var (loading, setLoading) = UseState(true, threadSafe: true);
-        var (loadingMore, setLoadingMore) = UseState(false, threadSafe: true);
         var (filter, setFilter) = UseState("all", threadSafe: true); // "all", "tagged", "multiple"
 
         // 搜索框状态：草稿（及时响应键入）与生效词（防抖触发）
         var (searchDraft, setSearchDraft) = UseState(string.Empty, threadSafe: true);
         var (committedSearch, setCommittedSearch) = UseState(string.Empty, threadSafe: true);
-        var (selfPuuid, setSelfPuuid) = UseState<string?>(null, threadSafe: true);
-        var (isResolved, setIsResolved) = UseState(false, threadSafe: true);
-
-        // 展开与编辑状态
-        var (expandedPuuid, setExpandedPuuid) = UseState<string?>(null, threadSafe: true);
-        var (encounteredGames, setEncounteredGames) = UseState(EmptyGames, threadSafe: true);
-        var (encounteredTotal, setEncounteredTotal) = UseState(0L, threadSafe: true);
-        var (encounteredPage, setEncounteredPage) = UseState(1, threadSafe: true);
-        var (gamesLoading, setGamesLoading) = UseState(false, threadSafe: true);
 
         // 内联编辑与安全删除状态
         var (editingPuuid, setEditingPuuid) = UseState<string?>(null, threadSafe: true);
         var (editingTag, setEditingTag) = UseState(string.Empty, threadSafe: true);
         var (pendingDeletePuuid, setPendingDeletePuuid) = UseState<string?>(null, threadSafe: true);
 
-        // 解析当前应展示的账号：优先当前登录账号，离线或未登录则回退为最后一位登录者
-        void ResolveAccount()
-        {
-            _ = Task.Run(async () =>
-            {
-                string? resolved = null;
-                if (lcu?.CurrentState.Status == LcuConnectionStatus.Connected && summonerService is not null)
-                {
-                    try
-                    {
-                        var me = await summonerService.GetCurrentSummonerAsync();
-                        if (me is not null && !string.IsNullOrWhiteSpace(me.Puuid))
-                        {
-                            resolved = me.Puuid;
-                        }
-                    }
-                    catch
-                    {
-                        // 忽略异常，降级到数据库回退
-                    }
-                }
+        // 展开与收起相遇对局
+        var (expanded, setExpanded) = UseState<ExpandedTarget?>(null, threadSafe: true);
+        var expandNonceRef = UseRef(0);
 
-                if (string.IsNullOrWhiteSpace(resolved))
-                {
-                    resolved = await store.GetLatestSelfPuuidAsync();
-                }
-
-                _dispatcher?.TryEnqueue(() =>
-                {
-                    setSelfPuuid(resolved);
-                    setIsResolved(true);
-                });
-            });
-        }
-
+        // 连接态订阅 → 账号解析（UseResource）：连接状态变化即重拉当前登录账号
+        var (connStatus, setConnStatus) = UseState(
+            lcu?.CurrentState.Status ?? LcuConnectionStatus.Disconnected,
+            threadSafe: true);
         UseEffect(
             () =>
             {
-                ResolveAccount();
-                var sub = lcu?.States.Subscribe(_ => ResolveAccount());
-                return () => sub?.Dispose();
+                if (lcu is null) return static () => { };
+                var subscription = lcu.States.Subscribe(state => setConnStatus(state.Status));
+                return () => subscription.Dispose();
             },
             0);
 
-        // 分页与数据加载
-        void LoadData(int page, bool append)
+        var selfPuuidResource = UseResource(
+            ct => SavedPlayersLoaders.ResolveSelfPuuidAsync(lcu, summonerService, store, ct),
+            deps: new object[] { connStatus },
+            options: new ResourceOptions(CacheKey: "savedplayers/self-puuid"));
+        string? selfPuuid = selfPuuidResource switch
         {
-            if (!isResolved) return;
+            AsyncValue<string?>.Data d => d.Value,
+            _ => null,
+        };
+        bool accountLoading = selfPuuidResource is AsyncValue<string?>.Loading;
 
-            if (string.IsNullOrWhiteSpace(selfPuuid))
-            {
-                // 库中没有任何历史记录且未连客户端，直接置空
-                setPlayers(EmptyPlayers);
-                setTotalCount(0);
-                setCurrentPage(1);
-                setLoading(false);
-                setLoadingMore(false);
-                return;
-            }
-
-            if (append)
-            {
-                setLoadingMore(true);
-            }
-            else
-            {
-                setLoading(true);
-            }
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var result = await store.QueryPlayersAsync(
-                        selfPuuid: selfPuuid,
-                        page: page,
-                        pageSize: PageSize,
-                        filter: filter,
-                        search: committedSearch);
-
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        if (append)
-                        {
-                            // 合并并去重
-                            var existingKeys = new HashSet<string>(players.Select(p => $"{p.Puuid}_{p.SelfPuuid}"));
-                            var newItems = result.Items.Where(p => !existingKeys.Contains($"{p.Puuid}_{p.SelfPuuid}")).ToList();
-                            setPlayers(players.Concat(newItems).ToList());
-                        }
-                        else
-                        {
-                            setPlayers(result.Items);
-                        }
-                        setTotalCount(result.TotalCount);
-                        setCurrentPage(page);
-                    });
-                }
-                catch (Exception ex)
-                {
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        toast.Error($"加载路人集失败: {ex.Message}");
-                    });
-                }
-                finally
-                {
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        if (append) setLoadingMore(false);
-                        else setLoading(false);
-                    });
-                }
-            });
-        }
-
-        // 依赖改变时重置为第一页加载
-        var depsKey = $"resolved={isResolved}&filter={filter}&search={committedSearch}&self={selfPuuid}";
+        // 搜索防抖（R6：effect 定时器取代类字段 Timer）：输入停顿 300ms 后把草稿提交为生效词
         UseEffect(
             () =>
             {
-                LoadData(1, append: false);
-                return () => { };
-            },
-            depsKey);
-
-        // 搜索框防抖处理
-        void OnSearchInputChanged(string text)
-        {
-            setSearchDraft(text);
-            _searchDebounceTimer?.Dispose();
-            _searchDebounceTimer = new Timer(_ =>
-            {
-                _dispatcher?.TryEnqueue(() =>
+                if (searchDraft.Trim() == committedSearch)
                 {
-                    setCommittedSearch(text.Trim());
-                });
-            }, null, 300, Timeout.Infinite);
-        }
+                    return static () => { };
+                }
 
-        void OnSearchSubmitted()
-        {
-            _searchDebounceTimer?.Dispose();
-            setCommittedSearch(searchDraft.Trim());
-        }
+                var cancellation = new CancellationTokenSource();
+                _ = SavedPlayersLoaders.CommitSearchDebouncedAsync(searchDraft, setCommittedSearch, cancellation.Token);
+                return () =>
+                {
+                    cancellation.Cancel();
+                    cancellation.Dispose();
+                };
+            },
+            searchDraft);
+
+        // 玩家列表（offset 分页 → UseInfiniteResource）：账号/筛选/生效词变化重置第一页；
+        // 账号未解析或库无记录时返回空页，与旧行为一致（不查询直接置空）。
+        var playersResource = UseInfiniteResource<SavedPlayerRecord, int?>(
+            async (cursor, ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(selfPuuid))
+                {
+                    return new Page<SavedPlayerRecord, int?>(EmptyPlayers, null, 0);
+                }
+
+                int page = cursor ?? 1;
+                var result = await store.QueryPlayersAsync(selfPuuid, page, PageSize, filter, committedSearch, ct);
+                bool hasMore = (long)page * PageSize < result.TotalCount;
+                return new Page<SavedPlayerRecord, int?>(
+                    result.Items,
+                    hasMore ? page + 1 : null,
+                    (int)result.TotalCount);
+            },
+            deps: new object[] { selfPuuid ?? string.Empty, filter, committedSearch });
+
+        List<SavedPlayerRecord> players = [.. playersResource.Items.OfType<SavedPlayerRecord>()];
+        long totalCount = playersResource.TotalCount ?? 0;
+        bool loading = accountLoading
+            || (selfPuuid is not null && players.Count == 0 && playersResource.LoadState is LoadState.Loading);
+        bool loadingMore = players.Count > 0 && playersResource.LoadState is LoadState.Loading;
+
+        // 列表加载失败：一次性 toast（LoadState 值相等，同一失败不重复弹）
+        UseEffect(
+            () =>
+            {
+                if (playersResource.LoadState is LoadState.Error e)
+                {
+                    toast.Error($"加载路人集失败: {e.Exception.Message}");
+                }
+
+                return static () => { };
+            },
+            playersResource.LoadState);
+
+        // 相遇对局（第二个 infinite）：展开某人时拉第一页，「加载更多」翻页；收起返回空页
+        var gamesResource = UseInfiniteResource<EncounteredGameRecord, int?>(
+            async (cursor, ct) =>
+            {
+                if (expanded is not { } target)
+                {
+                    return new Page<EncounteredGameRecord, int?>(EmptyGames, null, 0);
+                }
+
+                int page = cursor ?? 1;
+                var result = await store.QueryEncounteredGamesAsync(target.Puuid, target.SelfPuuid, page, GamesPageSize, ct);
+                bool hasMore = (long)page * GamesPageSize < result.TotalCount;
+                return new Page<EncounteredGameRecord, int?>(
+                    result.Items,
+                    hasMore ? page + 1 : null,
+                    (int)result.TotalCount);
+            },
+            deps: new object[] { expanded?.Puuid ?? string.Empty, expanded?.SelfPuuid ?? string.Empty, expanded?.Nonce ?? 0 });
+
+        List<EncounteredGameRecord> encounteredGames = [.. gamesResource.Items.OfType<EncounteredGameRecord>()];
+        long encounteredTotal = gamesResource.TotalCount ?? 0;
+        bool gamesLoading = gamesResource.LoadState is LoadState.Loading;
+
+        // 标记保存 / 删除 / 导入 / 导出（UseMutation）：成功后 toast + Refresh 回第一页
+        var saveTagMutation = UseMutation<(SavedPlayerRecord Player, string Tag), object?>(
+            mutator: async (input, ct) =>
+            {
+                string tag = input.Tag.Trim();
+                await store.SaveTagAsync(input.Player.Puuid, input.Player.SelfPuuid, string.IsNullOrEmpty(tag) ? null : tag, ct);
+                return null;
+            },
+            options: new MutationOptions<(SavedPlayerRecord Player, string Tag), object?>(
+                OnSuccess: (_, _) =>
+                {
+                    setEditingPuuid(null);
+                    toast.Success("标记已更新");
+                    playersResource.Refresh();
+                }));
+
+        var deleteMutation = UseMutation<SavedPlayerRecord, object?>(
+            mutator: async (player, ct) =>
+            {
+                await store.DeletePlayerAsync(player.Puuid, player.SelfPuuid, ct);
+                return null;
+            },
+            options: new MutationOptions<SavedPlayerRecord, object?>(
+                OnSuccess: (_, player) =>
+                {
+                    setPendingDeletePuuid(null);
+                    if (expanded?.Puuid == player.Puuid)
+                    {
+                        setExpanded(null);
+                    }
+
+                    toast.Success($"已删除玩家 {player.SummonerName}");
+                    playersResource.Refresh();
+                }));
+
+        var exportMutation = UseMutation<string?, string>(
+            mutator: (puuid, ct) => SavedPlayersLoaders.ExportAsync(store, puuid, ct),
+            options: new MutationOptions<string?, string>(
+                OnSuccess: (path, _) =>
+                {
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        toast.Success($"已成功导出到: {path}");
+                    }
+                },
+                OnError: (ex, _) => toast.Error($"导出失败: {ex.Message}")));
+
+        var importMutation = UseMutation<string?, int?>(
+            mutator: (puuid, ct) => SavedPlayersLoaders.ImportAsync(store, puuid, ct),
+            options: new MutationOptions<string?, int?>(
+                OnSuccess: (count, _) =>
+                {
+                    if (count is > 0)
+                    {
+                        toast.Success($"成功导入 {count} 名标记玩家");
+                        playersResource.Refresh();
+                    }
+                },
+                OnError: (ex, _) => toast.Error($"导入失败: {ex.Message}")));
+
+        void OnSearchInputChanged(string text) => setSearchDraft(text);
+
+        void OnSearchSubmitted() => setCommittedSearch(searchDraft.Trim());
 
         void OnClearSearch()
         {
-            _searchDebounceTimer?.Dispose();
             setSearchDraft(string.Empty);
             setCommittedSearch(string.Empty);
         }
 
-        // 加载更多列表数据
-        void HandleLoadMorePlayers()
-        {
-            if (loading || loadingMore || players.Count >= totalCount) return;
-            LoadData(currentPage + 1, append: true);
-        }
-
-        // 展开与收起相遇对局
         void ToggleExpand(SavedPlayerRecord player)
         {
-            if (expandedPuuid == player.Puuid)
-            {
-                setExpandedPuuid(null);
-                setEncounteredGames(EmptyGames);
-                setEncounteredTotal(0);
-                setEncounteredPage(1);
-                return;
-            }
-
-            setExpandedPuuid(player.Puuid);
-            setGamesLoading(true);
-            setEncounteredPage(1);
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var res = await store.QueryEncounteredGamesAsync(player.Puuid, player.SelfPuuid, 1, GamesPageSize);
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        setEncounteredGames(res.Items);
-                        setEncounteredTotal(res.TotalCount);
-                    });
-                }
-                finally
-                {
-                    _dispatcher?.TryEnqueue(() => setGamesLoading(false));
-                }
-            });
+            expandNonceRef.Current += 1;
+            setExpanded(expanded?.Puuid == player.Puuid
+                ? null
+                : new ExpandedTarget(player.Puuid, player.SelfPuuid, expandNonceRef.Current));
         }
 
-        // 加载更多相遇对局
-        void HandleLoadMoreGames(SavedPlayerRecord player)
-        {
-            if (gamesLoading || encounteredGames.Count >= encounteredTotal) return;
-            var nextPage = encounteredPage + 1;
-            setGamesLoading(true);
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var res = await store.QueryEncounteredGamesAsync(player.Puuid, player.SelfPuuid, nextPage, GamesPageSize);
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        setEncounteredGames(encounteredGames.Concat(res.Items).ToList());
-                        setEncounteredPage(nextPage);
-                        setEncounteredTotal(res.TotalCount);
-                    });
-                }
-                finally
-                {
-                    _dispatcher?.TryEnqueue(() => setGamesLoading(false));
-                }
-            });
-        }
+        void HandleSaveTag(SavedPlayerRecord player) =>
+            _ = saveTagMutation.RunAsync((player, editingTag));
 
-        // 保存标记
-        void HandleSaveTag(SavedPlayerRecord player)
-        {
-            var targetTag = editingTag.Trim();
-            _ = Task.Run(async () =>
-            {
-                await store.SaveTagAsync(player.Puuid, player.SelfPuuid, string.IsNullOrEmpty(targetTag) ? null : targetTag);
-                _dispatcher?.TryEnqueue(() =>
-                {
-                    setEditingPuuid(null);
-                    toast.Success("标记已更新");
-                    LoadData(1, append: false);
-                });
-            });
-        }
+        void HandleConfirmDelete(SavedPlayerRecord player) =>
+            _ = deleteMutation.RunAsync(player);
 
-        // 删除玩家确认
-        void HandleConfirmDelete(SavedPlayerRecord player)
-        {
-            _ = Task.Run(async () =>
-            {
-                await store.DeletePlayerAsync(player.Puuid, player.SelfPuuid);
-                _dispatcher?.TryEnqueue(() =>
-                {
-                    setPendingDeletePuuid(null);
-                    if (expandedPuuid == player.Puuid)
-                    {
-                        setExpandedPuuid(null);
-                    }
-                    toast.Success($"已删除玩家 {player.SummonerName}");
-                    LoadData(1, append: false);
-                });
-            });
-        }
+        void HandleExport() => _ = exportMutation.RunAsync(selfPuuid);
 
-        // 导出标记
-        void HandleExport()
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var path = Win32FileDialog.ShowSaveFileDialog("导出标记玩家", "tagged_players.json");
-                    if (string.IsNullOrEmpty(path)) return;
-
-                    var json = await store.ExportTaggedPlayersJsonAsync(selfPuuid);
-                    await System.IO.File.WriteAllTextAsync(path, json);
-
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        toast.Success($"已成功导出到: {System.IO.Path.GetFileName(path)}");
-                    });
-                }
-                catch (Exception ex)
-                {
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        toast.Error($"导出失败: {ex.Message}");
-                    });
-                }
-            });
-        }
-
-        // 导入标记
-        void HandleImport()
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var path = Win32FileDialog.ShowOpenFileDialog("导入标记玩家");
-                    if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path)) return;
-
-                    var json = await System.IO.File.ReadAllTextAsync(path);
-                    var count = await store.ImportTaggedPlayersJsonAsync(json, selfPuuid);
-
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        toast.Success($"成功导入 {count} 名标记玩家");
-                        LoadData(1, append: false);
-                    });
-                }
-                catch (Exception ex)
-                {
-                    _dispatcher?.TryEnqueue(() =>
-                    {
-                        toast.Error($"导入失败: {ex.Message}");
-                    });
-                }
-            });
-        }
+        void HandleImport() => _ = importMutation.RunAsync(selfPuuid);
 
         return Grid(
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Auto, GridSize.Star()],
             [
                 // 1. 页头 Header（带导入导出）
-                RenderHeader(totalCount, HandleImport, HandleExport, palette).Grid(row: 0),
+                SavedPlayersVisuals.RenderHeader(totalCount, HandleImport, HandleExport, palette).Grid(row: 0),
 
                 // 2. 工具栏 Toolbar（防抖搜索与清空、分类筛选）
-                RenderToolbar(
+                SavedPlayersVisuals.RenderToolbar(
                     searchDraft,
                     OnSearchInputChanged,
                     OnSearchSubmitted,
@@ -408,19 +282,19 @@ public sealed class SavedPlayersPage : Component
                     palette).Grid(row: 1),
 
                 // 3. 列表区域（带无限滚动与相遇历史）
-                RenderList(
+                SavedPlayersVisuals.RenderList(
                     players,
                     totalCount,
                     loading,
                     loadingMore,
-                    HandleLoadMorePlayers,
+                    playersResource.FetchNext,
                     committedSearch,
                     OnClearSearch,
-                    expandedPuuid,
+                    expanded?.Puuid,
                     encounteredGames,
                     encounteredTotal,
                     gamesLoading,
-                    HandleLoadMoreGames,
+                    _ => gamesResource.FetchNext(),
                     editingPuuid,
                     editingTag,
                     setEditingTag,
@@ -434,519 +308,5 @@ public sealed class SavedPlayersPage : Component
             ]
         )
         .Padding(20, 16, 20, 16);
-    }
-
-    /// <summary>
-    /// 顶部标题、胶囊 Badge 与导入/导出按钮组
-    /// </summary>
-    private static Element RenderHeader(long totalCount, Action onImport, Action onExport, YuumiPalette palette)
-    {
-        var badge = totalCount > 0
-            ? Badge.Create(
-                Caption($"{totalCount}")
-                    .SemiBold()
-                    .Foreground(Theme.Accent)
-                    .Margin(6, 1),
-                Theme.CardBackground,
-                Theme.Accent)
-              .VerticalAlignment(VerticalAlignment.Center)
-            : null;
-
-        return Grid(
-            [GridSize.Star(), GridSize.Auto],
-            [GridSize.Auto],
-            [
-                // 左侧标题与说明
-                HStack(
-                    8,
-                    Subtitle("路人集"),
-                    badge,
-                    Body("·")
-                        .Foreground(Theme.SecondaryText),
-                    Caption("对局结束后自动记录同局的队友与对手，可添加标记以便选人阶段提醒")
-                        .Foreground(Theme.SecondaryText)
-                        .VerticalAlignment(VerticalAlignment.Center)
-                )
-                .VerticalAlignment(VerticalAlignment.Center)
-                .Grid(column: 0),
-
-                // 右侧导入/导出操作
-                HStack(
-                    8,
-                    Button(Caption("导入标记"), onImport)
-                        .AutomationName("导入标记")
-                        .Padding(12, 5),
-                    Button(Caption("导出标记"), onExport)
-                        .AutomationName("导出标记")
-                        .Padding(12, 5)
-                )
-                .VerticalAlignment(VerticalAlignment.Center)
-                .Grid(column: 1),
-            ]
-        )
-        .Margin(0, 0, 0, 14);
-    }
-
-    /// <summary>
-    /// 搜索框与筛选 Tabs
-    /// </summary>
-    private static Element RenderToolbar(
-        string searchDraft,
-        Action<string> onSearchInput,
-        Action onSearchSubmit,
-        Action onClearSearch,
-        string filter,
-        Action<string> setFilter,
-        YuumiPalette palette)
-    {
-        var clearBtn = !string.IsNullOrEmpty(searchDraft)
-            ? Button(Caption("✕"), onClearSearch)
-                .AutomationName("清空搜索")
-                .Padding(6, 2)
-                .VerticalAlignment(VerticalAlignment.Center)
-            : null;
-
-        var searchBox = HStack(
-            6,
-            TextBox(
-                searchDraft,
-                onSearchInput,
-                "搜索召唤师名称、TagLine 或标记..."
-            )
-            .AutomationName("搜索召唤师名称、TagLine 或标记")
-            .Width(280)
-            .Height(32),
-            clearBtn
-        )
-        .VerticalAlignment(VerticalAlignment.Center);
-
-        Element FilterButton(string label, string key)
-        {
-            var isSelected = filter == key;
-            var btn = Button(Caption(label), () => setFilter(key))
-                .AutomationName(label)
-                .Padding(14, 5);
-
-            return isSelected
-                ? btn.Background(Theme.Accent)
-                : btn;
-        }
-
-        var filterGroup = HStack(
-            6,
-            FilterButton("全部", "all"),
-            FilterButton("标记玩家", "tagged"),
-            FilterButton("多次相遇", "multiple")
-        );
-
-        return Grid(
-            [GridSize.Auto, GridSize.Star()],
-            [GridSize.Auto],
-            [
-                searchBox.Grid(column: 0),
-                filterGroup.HorizontalAlignment(HorizontalAlignment.Right).Grid(column: 1),
-            ]
-        )
-        .Margin(0, 0, 0, 14);
-    }
-
-    /// <summary>
-    /// 卡片列表视图与分页
-    /// </summary>
-    private static Element RenderList(
-        IReadOnlyList<SavedPlayerRecord> players,
-        long totalCount,
-        bool loading,
-        bool loadingMore,
-        Action onLoadMorePlayers,
-        string committedSearch,
-        Action onClearSearch,
-        string? expandedPuuid,
-        IReadOnlyList<EncounteredGameRecord> encounteredGames,
-        long encounteredTotal,
-        bool gamesLoading,
-        Action<SavedPlayerRecord> onLoadMoreGames,
-        string? editingPuuid,
-        string editingTag,
-        Action<string> setEditingTag,
-        Action<string?> setEditingPuuid,
-        string? pendingDeletePuuid,
-        Action<string?> setPendingDeletePuuid,
-        Action<SavedPlayerRecord> onToggleExpand,
-        Action<SavedPlayerRecord> onSaveTag,
-        Action<SavedPlayerRecord> onConfirmDelete,
-        YuumiPalette palette)
-    {
-        if (loading && players.Count == 0)
-        {
-            return VStack(
-                12,
-                ProgressRing().Width(32).Height(32).IsActive(true),
-                TextBlock("正在加载路人集数据...").Foreground(Theme.SecondaryText)
-            )
-            .HorizontalAlignment(HorizontalAlignment.Center)
-            .VerticalAlignment(VerticalAlignment.Center);
-        }
-
-        if (players.Count == 0)
-        {
-            if (!string.IsNullOrEmpty(committedSearch))
-            {
-                return VStack(
-                    8,
-                    BodyStrong($"未找到与 “{committedSearch}” 相关的玩家")
-                        .Foreground(Theme.SecondaryText)
-                        .HorizontalAlignment(HorizontalAlignment.Center),
-                    Button(Caption("清空搜索条件"), onClearSearch)
-                        .Padding(14, 5)
-                        .HorizontalAlignment(HorizontalAlignment.Center)
-                        .AutomationName("清空搜索条件")
-                )
-                .HorizontalAlignment(HorizontalAlignment.Center)
-                .VerticalAlignment(VerticalAlignment.Center);
-            }
-
-            return VStack(
-                6,
-                BodyStrong("暂无路人玩家记录")
-                    .Foreground(Theme.SecondaryText)
-                    .HorizontalAlignment(HorizontalAlignment.Center),
-                Caption("对局结束后同局的队友与对手会自动出现在这里")
-                    .Foreground(Theme.SecondaryText)
-                    .HorizontalAlignment(HorizontalAlignment.Center)
-            )
-            .HorizontalAlignment(HorizontalAlignment.Center)
-            .VerticalAlignment(VerticalAlignment.Center);
-        }
-
-        var cards = players.Select(p => RenderPlayerCard(
-            p,
-            expandedPuuid == p.Puuid,
-            encounteredGames,
-            encounteredTotal,
-            gamesLoading,
-            () => onLoadMoreGames(p),
-            editingPuuid == p.Puuid,
-            editingTag,
-            setEditingTag,
-            setEditingPuuid,
-            pendingDeletePuuid == p.Puuid,
-            setPendingDeletePuuid,
-            () => onToggleExpand(p),
-            () => onSaveTag(p),
-            () => onConfirmDelete(p),
-            palette
-        )).ToList();
-
-        // 列表底部加载状态或按钮
-        Element? footerSentinel = null;
-        if (loadingMore)
-        {
-            footerSentinel = HStack(
-                8,
-                ProgressRing().Width(16).Height(16).IsActive(true),
-                Caption("正在加载更多玩家...").Foreground(Theme.SecondaryText)
-            )
-            .HorizontalAlignment(HorizontalAlignment.Center)
-            .Margin(0, 10, 0, 16);
-        }
-        else if (players.Count < totalCount)
-        {
-            footerSentinel = Button(Caption("加载更多玩家"), onLoadMorePlayers)
-                .AutomationName("加载更多玩家")
-                .Padding(18, 5)
-                .HorizontalAlignment(HorizontalAlignment.Center)
-                .Margin(0, 8, 0, 16);
-        }
-        else if (players.Count >= totalCount && totalCount > 0)
-        {
-            footerSentinel = Caption("已加载全部玩家记录")
-                .Foreground(Theme.SecondaryText)
-                .HorizontalAlignment(HorizontalAlignment.Center)
-                .Margin(0, 10, 0, 16);
-        }
-
-        if (footerSentinel is not null)
-        {
-            cards.Add(footerSentinel);
-        }
-
-        return ScrollViewer(
-            VStack(cards.ToArray()).Spacing(8)
-        );
-    }
-
-    /// <summary>
-    /// 单个玩家卡片
-    /// </summary>
-    private static Element RenderPlayerCard(
-        SavedPlayerRecord player,
-        bool isExpanded,
-        IReadOnlyList<EncounteredGameRecord> encounteredGames,
-        long encounteredTotal,
-        bool gamesLoading,
-        Action onLoadMoreGames,
-        bool isEditing,
-        string editingTag,
-        Action<string> setEditingTag,
-        Action<string?> setEditingPuuid,
-        bool isPendingDelete,
-        Action<string?> setPendingDeletePuuid,
-        Action onToggle,
-        Action onSaveTag,
-        Action onConfirmDelete,
-        YuumiPalette palette)
-    {
-        // 1. 头像区（召唤师头像 + 英雄头像并列）
-        var avatarRow = HStack(
-            6,
-            Component<LcuImage, LcuImageProps>(
-                new LcuImageProps($"/lol-game-data/assets/v1/profile-icons/{player.ProfileIconId}.jpg", 40, 20)),
-            player.ChampionId > 0
-                ? Component<LcuImage, LcuImageProps>(
-                    new LcuImageProps($"/lol-game-data/assets/v1/champion-icons/{player.ChampionId}.png", 32, 16))
-                : null
-        )
-        .VerticalAlignment(VerticalAlignment.Center)
-        .Margin(0, 0, 12, 0);
-
-        // 2. 玩家名称与徽章
-        var modeName = FormatQueue(player.LastQueueType);
-        var infoStack = VStack(
-            4,
-            HStack(
-                6,
-                BodyStrong(player.SummonerName),
-                Caption(string.IsNullOrEmpty(player.TagLine) ? "#—" : $"#{player.TagLine}")
-                    .Foreground(Theme.SecondaryText)
-                    .VerticalAlignment(VerticalAlignment.Center)
-            ),
-            HStack(
-                6,
-                !string.IsNullOrEmpty(player.Tag)
-                    ? Border(
-                        Caption(player.Tag)
-                            .Margin(6, 1)
-                      )
-                      .Background(Theme.Accent)
-                      .CornerRadius(YuumiTheme.ControlRadius)
-                    : null,
-
-                !string.IsNullOrEmpty(modeName)
-                    ? Border(
-                        Caption(modeName)
-                            .Foreground(Theme.SecondaryText)
-                            .Margin(6, 1)
-                      )
-                      .Background(Theme.CardBackground)
-                      .WithBorder(Theme.CardStroke, 1)
-                      .CornerRadius(YuumiTheme.ControlRadius)
-                    : null,
-
-                player.EncounterCount >= 2
-                    ? Border(
-                        Caption($"相遇 {player.EncounterCount} 次")
-                            .Foreground(Theme.Accent)
-                            .Margin(6, 1)
-                      )
-                      .Background(Theme.CardBackground)
-                      .WithBorder(Theme.Accent, 1)
-                      .CornerRadius(YuumiTheme.ControlRadius)
-                    : null
-            )
-        )
-        .VerticalAlignment(VerticalAlignment.Center);
-
-        // 3. 右侧时间与操作
-        var timeText = FormatTime(player.LastMetAt);
-        var rightStack = HStack(
-            6,
-            Caption(timeText)
-                .Foreground(Theme.SecondaryText)
-                .VerticalAlignment(VerticalAlignment.Center)
-                .Margin(0, 0, 12, 0),
-
-            Button(Caption("编辑标记"), () =>
-            {
-                setEditingTag(player.Tag ?? string.Empty);
-                setEditingPuuid(player.Puuid);
-            })
-            .AutomationName("编辑标记")
-            .Padding(8, 3),
-
-            Button(Caption("删除"), () => setPendingDeletePuuid(player.Puuid))
-                .AutomationName("删除")
-                .Padding(8, 3)
-                .Foreground(palette.LoseAccent),
-
-            Button(Caption(isExpanded ? "▾" : "▸"), onToggle)
-                .AutomationName("展开或折叠对局历史")
-                .Padding(8, 3)
-        )
-        .VerticalAlignment(VerticalAlignment.Center);
-
-        // 可点击主体行（头像 + 名字 + 徽章，点击整块直接展开/折叠对局历史）
-        var clickableBody = Button(
-            HStack(
-                avatarRow,
-                infoStack
-            )
-            .VerticalAlignment(VerticalAlignment.Center),
-            onToggle
-        )
-        .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-        .BorderThickness(0)
-        .Padding(4, 2)
-        .HorizontalAlignment(HorizontalAlignment.Stretch)
-        .HorizontalContentAlignment(HorizontalAlignment.Left)
-        .AutomationName($"查看 {player.SummonerName} 的相遇对局历史");
-
-        // 卡片主行
-        var mainRow = Grid(
-            [GridSize.Star(), GridSize.Auto],
-            [GridSize.Auto],
-            [
-                clickableBody.Grid(column: 0),
-                rightStack.Grid(column: 1),
-            ]
-        );
-
-        // 安全删除确认条（防误触）
-        Element? deleteConfirmRow = null;
-        if (isPendingDelete)
-        {
-            deleteConfirmRow = Border(
-                HStack(
-                    10,
-                    Caption("⚠️ 确定要删除该玩家及其所有相遇记录吗？")
-                        .Foreground(palette.LoseAccent)
-                        .VerticalAlignment(VerticalAlignment.Center),
-                    Button(Caption("确认删除"), onConfirmDelete)
-                        .Padding(10, 3)
-                        .Background(palette.LoseAccent)
-                        .AutomationName("确认删除"),
-                    Button(Caption("取消"), () => setPendingDeletePuuid(null))
-                        .Padding(10, 3)
-                        .AutomationName("取消")
-                )
-                .Padding(10, 6)
-            )
-            .Background(Theme.CardBackground)
-            .WithBorder(palette.LoseAccent, 1)
-            .CornerRadius(YuumiTheme.OverlayRadius)
-            .Margin(0, 8, 0, 0);
-        }
-
-        // 编辑行
-        Element? editRow = null;
-        if (isEditing)
-        {
-            editRow = HStack(
-                6,
-                TextBox(
-                    editingTag,
-                    setEditingTag,
-                    "添加标记..."
-                )
-                .AutomationName("编辑玩家标记")
-                .Width(260)
-                .Height(30),
-                Button(Caption("保存"), onSaveTag)
-                    .AutomationName("保存")
-                    .Padding(12, 4)
-                    .Background(Theme.Accent),
-                Button(Caption("取消"), () => setEditingPuuid(null))
-                    .AutomationName("取消")
-                    .Padding(12, 4)
-            )
-            .Margin(0, 10, 0, 0);
-        }
-
-        // 展开对局列表
-        Element? historySection = null;
-        if (isExpanded)
-        {
-            if (gamesLoading && encounteredGames.Count == 0)
-            {
-                historySection = HStack(
-                    8,
-                    ProgressRing().Width(18).Height(18).IsActive(true),
-                    Caption("加载相遇对局...").Foreground(Theme.SecondaryText)
-                )
-                .Margin(0, 10, 0, 4);
-            }
-            else if (encounteredGames.Count == 0)
-            {
-                historySection = Caption("暂无相遇对局记录")
-                    .Foreground(Theme.SecondaryText)
-                    .Margin(0, 10, 0, 4);
-            }
-            else
-            {
-                var gameRows = encounteredGames.Select(g =>
-                    HStack(
-                        12,
-                        Caption(FormatQueue(g.QueueType))
-                            .Width(110),
-                        Caption(FormatTime(g.UpdateAt))
-                            .Foreground(Theme.SecondaryText)
-                    )
-                    .Margin(0, 2, 0, 2)
-                ).ToList();
-
-                if (encounteredGames.Count < encounteredTotal)
-                {
-                    gameRows.Add(
-                        HStack(
-                            8,
-                            Button(Caption("加载更多对局记录"), onLoadMoreGames)
-                                .Padding(10, 3)
-                                .AutomationName("加载更多对局记录")
-                        )
-                        .Margin(0, 4, 0, 2)
-                    );
-                }
-
-                historySection = VStack(
-                    4,
-                    Caption("相遇对局历史：")
-                        .Foreground(Theme.SecondaryText)
-                        .Margin(0, 8, 0, 2),
-                    VStack(gameRows.ToArray()).Spacing(2)
-                )
-                .Margin(0, 6, 0, 0);
-            }
-        }
-
-        return Border(
-            VStack(
-                4,
-                mainRow,
-                deleteConfirmRow,
-                editRow,
-                historySection
-            )
-            .Padding(14, 10)
-        )
-        .Background(Theme.CardBackground)
-        .WithBorder(Theme.CardStroke, 1)
-        .CornerRadius(YuumiTheme.OverlayRadius);
-    }
-
-    private static string FormatQueue(string? queueType)
-    {
-        if (string.IsNullOrEmpty(queueType)) return "未知模式";
-        if (int.TryParse(queueType, out var qid))
-        {
-            return MatchQueueCatalog.Resolve(qid).Name;
-        }
-        return queueType;
-    }
-
-    private static string FormatTime(long? unixMs)
-    {
-        if (!unixMs.HasValue || unixMs.Value <= 0) return "尚未相遇";
-        var dt = DateTimeOffset.FromUnixTimeMilliseconds(unixMs.Value).ToLocalTime();
-        return dt.ToString("yyyy-MM-dd HH:mm");
     }
 }
