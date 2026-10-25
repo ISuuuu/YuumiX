@@ -40,7 +40,7 @@ public static class CompactStepperControl
                 .Width(28)
                 .Height(28)
                 .Padding(new Thickness(0))
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "减少" : $"{automationName} 减少"),
 
@@ -59,7 +59,7 @@ public static class CompactStepperControl
                 .Width(28)
                 .Height(28)
                 .Padding(new Thickness(0))
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "增加" : $"{automationName} 增加")
             )
@@ -92,7 +92,7 @@ public static class CompactStepperControl
                 .Width(28)
                 .Height(28)
                 .Padding(new Thickness(0))
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "减少" : $"{automationName} 减少"),
 
@@ -111,7 +111,7 @@ public static class CompactStepperControl
                 .Width(28)
                 .Height(28)
                 .Padding(new Thickness(0))
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "增加" : $"{automationName} 增加")
             )

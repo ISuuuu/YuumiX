@@ -816,7 +816,7 @@ internal static class LootManagerView
                 [GridSize.Star()],
                 [
                     Border(Empty())
-                        .Background("#88000000")
+                        .Background(Theme.SmokeFill)
                         .HAlign(HorizontalAlignment.Stretch)
                         .VAlign(VerticalAlignment.Stretch),
                     Border(VStack(12,

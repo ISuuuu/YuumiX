@@ -547,10 +547,10 @@ public sealed class GameInfoPage : Component
         Action? onClick = null,
         bool isActive = false)
     {
-        string dotColor = isBlueSide ? "#FF3B82F6" : "#FFF43F5E";
-        string bgColor = isBlueSide ? "#203B82F6" : "#20F43F5E";
-        string borderColor = isBlueSide ? "#403B82F6" : "#40F43F5E";
-        string fgColor = isBlueSide ? "#FF3B82F6" : "#FFF43F5E";
+        string dotColor = isBlueSide ? AssetColors.TeamBlue : AssetColors.TeamRed;
+        string bgColor = isBlueSide ? YuumiPalette.WithAlpha(AssetColors.TeamBlue, 0x20) : YuumiPalette.WithAlpha(AssetColors.TeamRed, 0x20);
+        string borderColor = isBlueSide ? YuumiPalette.WithAlpha(AssetColors.TeamBlue, 0x40) : YuumiPalette.WithAlpha(AssetColors.TeamRed, 0x40);
+        string fgColor = isBlueSide ? AssetColors.TeamBlue : AssetColors.TeamRed;
 
         var dot = Border(Empty())
             .Width(5)

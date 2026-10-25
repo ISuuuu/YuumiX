@@ -38,7 +38,7 @@ public sealed record PlayerMatchColumnProps(
 public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 {
     /// <summary>KDA 比例最高档位色（旧版 <c>.kda-gold</c> 的 #f59e0b，非纯金黄。</summary>
-    private const string KdaGold = "#FFF59E0B";
+    private const string KdaGold = AssetColors.Amber;
 
     /// <summary>战绩卡之间的间距（旧版 5 列为 6px，此处收紧）。</summary>
     private const double MatchCardGap = 2;
@@ -57,11 +57,11 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         string topBorderColor;
         if (Props.Side == "ally")
         {
-            topBorderColor = Props.MapSide == "red" ? "#FFF43F5E" : "#FF3B82F6";
+            topBorderColor = Props.MapSide == "red" ? AssetColors.TeamRed : AssetColors.TeamBlue;
         }
         else
         {
-            topBorderColor = Props.MapSide == "red" ? "#FF3B82F6" : "#FFF43F5E";
+            topBorderColor = Props.MapSide == "red" ? AssetColors.TeamBlue : AssetColors.TeamRed;
         }
 
         // 路人集标记：列头徽标与战绩卡「同局」标记共用（§4.8）
@@ -101,7 +101,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         int rightBorder = Props.IsTeamSeparator ? 2 : (Props.IsLast ? 0 : 1);
         var columnBorder = Border(colContent)
-            .Background("#00000000")
+            .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
             .BorderThickness(new Thickness(0, 0, rightBorder, 0))
             .BorderBrush(Theme.CardStroke);
 
@@ -174,11 +174,11 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var levelBadge = Border(
             Caption($"{m.ChampionLevel}")
                 .SemiBold()
-                .Foreground("#FFFFFFFF")
+                .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
         )
-        .Background("#E00F172A")
+        .Background(AssetColors.BadgeDark)
         .CornerRadius(2)
         .Padding(isTenCol ? 1.5 : 2, 0)
         .HAlign(HorizontalAlignment.Right)
@@ -305,7 +305,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         string? color = ratio switch
         {
             >= 5.0 => KdaGold,
-            >= 3.0 => CareerVisuals.IsDarkTheme ? "#FF60A5FA" : "#FF3B82F6",
+            >= 3.0 => CareerVisuals.IsDarkTheme ? AssetColors.BlueSoft : AssetColors.BlueEssence,
             >= 2.0 => palette.WinText,
             _ => null,
         };

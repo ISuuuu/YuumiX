@@ -267,7 +267,7 @@ internal static class RecentSummaryView
             .VAlign(VerticalAlignment.Center);
 
     /// <summary>低胜率徽标色（裁决 D5）：旧版用灰蓝 #94A3B8 而不是失败红——低胜率不是"失败"，只是平淡。</summary>
-    private const string LowWinRateColor = "#FF94A3B8";
+    private const string LowWinRateColor = AssetColors.LowWinRate;
 
     private static Element ChampionCell(RecentChampionStat champion, GameDataCatalog catalog, YuumiPalette palette)
     {

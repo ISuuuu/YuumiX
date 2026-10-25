@@ -65,7 +65,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         string? resultColor = summary.Remake
             ? null
             : summary.Placement is { } rank
-                ? rank == 1 ? "#FFF59E0B" : rank <= 4 ? CareerVisuals.WinText : CareerVisuals.LoseText
+                ? rank == 1 ? AssetColors.Amber : rank <= 4 ? CareerVisuals.WinText : CareerVisuals.LoseText
                 : summary.Win ? CareerVisuals.WinText : CareerVisuals.LoseText;
         Element resultTextBlock = BodyStrong(resultText);
         resultTextBlock = resultColor is null
@@ -278,14 +278,14 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     {
         if (summary.Deaths == 0)
         {
-            return "#FFD97706"; // Perfect → 琥珀
+            return AssetColors.AmberDeep; // Perfect → 琥珀
         }
 
         double ratio = (summary.Kills + summary.Assists) / (double)summary.Deaths;
         return ratio switch
         {
-            >= 5 => "#FFDB2777", // 玫红
-            >= 3 => "#FF2563EB", // 蓝
+            >= 5 => AssetColors.Rose, // 玫红
+            >= 3 => AssetColors.Blue, // 蓝
             _ => null,           // 次要灰（主题令牌）
         };
     }

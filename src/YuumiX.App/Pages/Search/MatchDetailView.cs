@@ -67,7 +67,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
             }
 
             return Border(text)
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .IsTabStop(true)
                 .OnPointerEntered((_, _) => setHovered(true))
                 .OnPointerExited((_, _) => setHovered(false))
@@ -89,7 +89,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
             void Trigger() => p.OnClickPlayerSummonerId?.Invoke(p.SummonerId);
 
             return Border(text)
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .IsTabStop(true)
                 .OnPointerEntered((_, _) => setHovered(true))
                 .OnPointerExited((_, _) => setHovered(false))
@@ -411,14 +411,14 @@ internal static class MatchDetailView
         Element levelBadge = Border(
                 Caption(player.ChampionLevel.ToString(CultureInfo.InvariantCulture))
                     .SemiBold()
-                    .Foreground("#FFFFFFFF")
+                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                     .TextAlignment(TextAlignment.Center)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))
             .Width(15)
             .Height(15)
             .CornerRadius(3)
-            .Background("#D90F172A")
+            .Background(AssetColors.BadgeDark)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom);
 

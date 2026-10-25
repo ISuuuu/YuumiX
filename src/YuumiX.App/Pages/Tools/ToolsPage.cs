@@ -1146,7 +1146,7 @@ public sealed class ToolsPage : Component
                         }, "已向 Riot Client 发送重启指令，客户端正在重新引导...");
                     })
                     .Background(Theme.Ref("SystemFillColorCriticalBrush"))
-                    .Foreground("#FFFFFFFF")
+                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                     .Padding(8, 4)
                     .IsEnabled(isLcuConnected)
                     .AutomationName("确认重启客户端"))
@@ -1378,7 +1378,7 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"卸下勋章失败: {ex.Message}", isError: true);
                     }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").Padding(6, 2).AutomationName("确认卸下勋章"))
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下勋章"))
             : (Element)Button("卸下全部勋章", () => setIsConfirmingClearBadges(true)).AutomationName("卸下勋章");
 
         Element clearBorderAction = isConfirmingClearBorder
@@ -1397,7 +1397,7 @@ public sealed class ToolsPage : Component
                     {
                         ShowToast($"卸下头像框失败: {ex.Message}", isError: true);
                     }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground("#FFFFFFFF").Padding(6, 2).AutomationName("确认卸下头像框"))
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下头像框"))
             : (Element)Button("卸下头像框", () => setIsConfirmingClearBorder(true)).AutomationName("卸下头像框");
 
         var badgesCard = ToolCard(

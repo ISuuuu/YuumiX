@@ -51,9 +51,10 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
 
         // 头像区（42x42，圆形）
         int xpProgress = d?.Info?.PercentCompleteForNextLevel ?? 0;
+        // 顶级英雄金描边；其余场景厚度 0 或 1.5 淡蓝（厚度为 0 时描边不参与绘制，色值无意义）
         string ringBorderColor = masteryDetail?.IsTopChampion == true
-            ? "#FFFFD700"
-            : (xpProgress > 0 ? "#443B82F6" : "#00000000");
+            ? AssetColors.PureGold
+            : YuumiPalette.WithAlpha(AssetColors.TeamBlue, 0x44);
         double ringBorderThickness = masteryDetail?.IsTopChampion == true ? 2.0 : (xpProgress > 0 ? 1.5 : 0.0);
 
         var avatarCore = Border(
@@ -71,14 +72,14 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             var practiceBadge = Border(
                 Caption("练")
-                    .Foreground("#FFFFFFFF")
+                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
             )
             .Width(13)
             .Height(13)
             .CornerRadius(6.5)
-            .Background("#E0E06B6B")
+            .Background(AssetColors.BadgeRose)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom)
             .WithToolTip(TextBlock("练英雄/新手状态 (熟练度≤1级或点数<5000，近期少用或初次尝试)"));
@@ -92,11 +93,11 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             var levelBadge = Border(
                 Caption($"{d.Info.SummonerLevel}")
                     .SemiBold()
-                    .Foreground("#FFFFFFFF")
+                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
             )
-            .Background("#D00F172A")
+            .Background(AssetColors.BadgeDark)
             .CornerRadius(3)
             .Padding(3, 0.5)
             .HAlign(HorizontalAlignment.Center)
@@ -161,7 +162,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             nameRowItems.Add(
                 Caption("\uE72E")
                     .FontFamily("Segoe Fluent Icons")
-                    .Foreground("#FFD97706")
+                    .Foreground(AssetColors.AmberDeep)
                     .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("战绩已隐藏")));
@@ -219,8 +220,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             var soloElement = HStack(3,
                 CareerVisuals.RankedMedal(d!.Solo!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(Caption("单双").Foreground("#FF3B82F6"))
-                    .Background("#203B82F6")
+                Border(Caption("单双").Foreground(AssetColors.BlueEssence))
+                    .Background(AssetColors.BlueFaint)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .VAlign(VerticalAlignment.Center),
@@ -249,8 +250,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             rankRow = HStack(3,
                 CareerVisuals.RankedMedal(d!.Solo!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(Caption("单双").Foreground("#FF3B82F6"))
-                    .Background("#203B82F6")
+                Border(Caption("单双").Foreground(AssetColors.BlueEssence))
+                    .Background(AssetColors.BlueFaint)
                     .CornerRadius(2)
                     .Padding(2, 0.5)
                     .VAlign(VerticalAlignment.Center),
@@ -326,7 +327,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                 kdaBlock = avgKda switch
                 {
                     >= 5.0 => kdaBlock.Foreground(Theme.Accent),
-                    >= 4.0 => kdaBlock.Foreground(BrushHelper.Parse(CareerVisuals.IsDarkTheme ? "#FF60A5FA" : "#FF3B82F6")),
+                    >= 4.0 => kdaBlock.Foreground(BrushHelper.Parse(CareerVisuals.IsDarkTheme ? AssetColors.BlueSoft : AssetColors.BlueEssence)),
                     >= 3.0 => kdaBlock.Foreground(BrushHelper.Parse(palette.WinText)),
                     _ => kdaBlock.Foreground(Theme.TertiaryText),
                 };
@@ -388,8 +389,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             if (masteryDetail?.IsTopChampion == true)
             {
                 leftItems.Add(
-                    Border(Caption("招牌").Foreground("#FFF59E0B"))
-                        .Background("#25F59E0B")
+                    Border(Caption("招牌").Foreground(AssetColors.Amber))
+                        .Background(AssetColors.AmberFaint)
                         .CornerRadius(3)
                         .Padding(3, 1)
                         .Margin(3, 0, 0, 0)
