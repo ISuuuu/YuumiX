@@ -21,6 +21,7 @@ using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Parsers;
 using YuumiX.Core.Persistence;
+using YuumiX.Core.Upload;
 
 namespace YuumiX.App.Pages.Search;
 
@@ -105,6 +106,12 @@ public sealed class SearchPage : Component
     /// <summary>搜索框草稿。不做成 state：受控文本框在重渲染时会重置光标位置。</summary>
     private string? _searchDraft;
 
+    /// <summary>
+    /// 本轮已提交过上传的对局（对齐旧 Search.vue 的 <c>uploadedGameIds</c>）。
+    /// 换人时清空：新召唤师的对局与上一人无关，不清空会误判为"已上传过"而整页跳过。
+    /// </summary>
+    private readonly HashSet<long> _uploadedGameIds = [];
+
     public override Element Render()
     {
         var services = UseContext(AppHost.Context);
@@ -138,6 +145,32 @@ public sealed class SearchPage : Component
         var (notice, setNotice) = UseState<string?>(null, threadSafe: true);
         var (historyList, setHistoryList) = UseState(EmptyHistory, threadSafe: true);
         var (searching, setSearching) = UseState(false, threadSafe: true);
+        var (uploadOn, setUploadOn) = UseState(services.Config.Functions.UploadEnabled, threadSafe: true);
+
+        // 没配服务器地址时整个上传入口都不出现（对齐旧 Search.vue 的 v-if）：
+        // 给了开关却没有地址，点了只会得到一串"未配置"的报错。
+        bool uploadConfigured = !string.IsNullOrWhiteSpace(services.Config.General.UploadApiUrl);
+        var uploadQueue = services.Services.GetRequiredService<UploadQueueService>();
+
+        void OnUploadToggle(bool enabled)
+        {
+            setUploadOn(enabled);
+            services.Config.Functions.UploadEnabled = enabled;
+            try
+            {
+                services.ConfigStore.SaveWithBackup(services.Config);
+            }
+            catch (Exception)
+            {
+                setNotice("上传开关保存失败");
+            }
+
+            // 打开开关时把以前没传完的一起重试（对齐旧 config.rs 里配置变更触发重试的副作用）
+            if (enabled)
+            {
+                _ = Task.Run(() => uploadQueue.TriggerPendingRetry());
+            }
+        }
 
         // 加载历史搜索
         UseEffect(
@@ -338,6 +371,30 @@ public sealed class SearchPage : Component
             },
             currentGameId);
 
+        // 载入一页后补传本页对局（对齐旧 Search.vue：翻页即补传，服务端已有会返回 exists）。
+        // 依赖键取 matches 引用：换页或刷新会拿到新引用，纯筛选不会（筛选不改变要传的集合）。
+        UseEffect(
+            () =>
+            {
+                if (!uploadOn || !uploadConfigured)
+                {
+                    return static () => { };
+                }
+
+                long[] pending = matches.Select(m => m.GameId)
+                    .Where(id => _uploadedGameIds.Add(id))
+                    .ToArray();
+                if (pending.Length == 0)
+                {
+                    return static () => { };
+                }
+
+                _ = UploadMatchesAsync(services, pending, summoner?.Puuid, setNotice);
+                return static () => { };
+            },
+            matches,
+            uploadOn);
+
         // 列表卡片：使用 ScrollView 自适应滚动并支持完全自定义的选中边框与胜负色，
         // 彻底消除 ListView 原生控件的蓝色选中矩形和焦点边框干扰。
         // 每项各自重新 Provide 上下文，保证卡片内的 LcuImage 正确获取服务容器。
@@ -488,18 +545,23 @@ public sealed class SearchPage : Component
                                     setFilterIndex(value);
                                 }
                             },
-                            () => SubmitSearch(
-                                summonerService,
-                                historyStore,
-                                setHistoryList,
-                                setSummoner,
-                                setSummonerResolved,
-                                setMatches,
-                                setSelectedGameId,
-                                setPageIndex,
-                                setNotice,
-                                setSearching,
-                                () => setRequestVersion(requestVersion + 1)),
+                            () =>
+                            {
+                                // 换人即重置上传去重集合：新召唤师的对局与上一人无关
+                                _uploadedGameIds.Clear();
+                                SubmitSearch(
+                                    summonerService,
+                                    historyStore,
+                                    setHistoryList,
+                                    setSummoner,
+                                    setSummonerResolved,
+                                    setMatches,
+                                    setSelectedGameId,
+                                    setPageIndex,
+                                    setNotice,
+                                    setSearching,
+                                    () => setRequestVersion(requestVersion + 1));
+                            },
                             () =>
                             {
                                 setNotice(null);
@@ -510,12 +572,49 @@ public sealed class SearchPage : Component
                             notice,
                             searching,
                             summoner,
-                            palette)
+                            palette,
+                            uploadConfigured,
+                            uploadOn,
+                            OnUploadToggle)
                         .Grid(row: 0, column: 0),
                     content.Grid(row: 1, column: 0),
                 ])
             .Padding(12)
             .HAlign(HorizontalAlignment.Stretch);
+    }
+
+    /// <summary>
+    /// 补传一页对局（对齐旧 Search.vue 调 batch_upload_matches 后的三档提示）。
+    ///
+    /// 无论成败都给一次提示：静默失败会让人误以为传过了，静默成功又无从确认。
+    /// </summary>
+    private static async Task UploadMatchesAsync(
+        AppServices services,
+        long[] gameIds,
+        string? currentSummonerPuuid,
+        Action<string?> setNotice)
+    {
+        try
+        {
+            var batch = services.Services.GetRequiredService<UploadBatchService>();
+            BatchUploadResult result = await batch
+                .UploadAsync(gameIds, currentSummonerPuuid)
+                .ConfigureAwait(false);
+
+            setNotice(result switch
+            {
+                { Error: not null, SuccessCount: 0 } => $"上传失败: {result.Error}",
+                { SuccessCount: > 0 } => $"已上传 {result.SuccessCount} 场对局",
+                _ => "所有对局已存在，无需上传",
+            });
+
+            await Task.Delay(2500).ConfigureAwait(false);
+            setNotice(null);
+        }
+        catch (Exception ex)
+        {
+            setNotice($"上传异常: {ex.Message}");
+        }
     }
 
     /// <summary>顶部工具栏：搜索框带历史建议吃满剩余宽度，右侧为定宽功能按钮与筛选下拉。</summary>
@@ -534,7 +633,10 @@ public sealed class SearchPage : Component
         string? notice,
         bool searching,
         SummonerProfile? currentSummoner,
-        YuumiPalette palette)
+        YuumiPalette palette,
+        bool uploadConfigured,
+        bool uploadEnabled,
+        Action<bool> onUploadToggle)
     {
         // 如果输入框内容为空、或与当前已展示的召唤师姓名一致（代表未输入新内容，仅仅是点击聚焦），则展示全部历史记录（对齐旧版 Search.vue）
         bool isDefaultQuery = string.IsNullOrWhiteSpace(query)
@@ -600,7 +702,7 @@ public sealed class SearchPage : Component
             });
 
         Element bar = Grid(
-            [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto, GridSize.Auto],
+            [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto, GridSize.Auto, GridSize.Auto],
             [GridSize.Auto],
             [
                 searchBox.Grid(row: 0, column: 0),
@@ -617,7 +719,13 @@ public sealed class SearchPage : Component
                         }
                     })
                     .Grid(row: 0, column: 3),
-                Button("刷新", onRefresh).Grid(row: 0, column: 4),
+                // 上传开关只在配好服务器地址时出现（旧 Search.vue 的 v-if="General.UploadApiUrl"）
+                uploadConfigured
+                    ? CheckBox(uploadEnabled, onUploadToggle, "上传对局")
+                        .AutomationName("上传对局开关")
+                        .Grid(row: 0, column: 4)
+                    : Empty().Grid(row: 0, column: 4),
+                Button("刷新", onRefresh).Grid(row: 0, column: 5),
             ]);
 
         // 提示行放在搜索框下方而不是列表上方：出错的是"搜索"，不是"列表"

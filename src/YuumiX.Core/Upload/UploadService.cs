@@ -42,8 +42,9 @@ public sealed class UploadService
     private readonly Func<AppConfig> _configProvider;
     private readonly ILogger<UploadService>? _logger;
 
-    /// <summary>独立 HTTP 客户端（外网 API，走系统代理；旧实现同款 external_http_client 语义）。</summary>
-    private static readonly Lazy<HttpClient> ExternalClient = new(() =>
+    /// <summary>独立 HTTP 客户端（外网 API，走系统代理；旧实现同款 external_http_client 语义）。
+    /// 批量上传复用同一个实例：否则每次批量都要重新建连接池。</summary>
+    internal static readonly Lazy<HttpClient> ExternalClient = new(() =>
     {
         var handler = new SocketsHttpHandler
         {
@@ -84,10 +85,32 @@ public sealed class UploadService
             return (UploadOutcome.Failed, "未配置服务器 API 地址");
         }
 
+        var (payload, error) = await TryBuildPayloadAsync(
+            gameId, currentSummonerPuuid, championNameResolver, cancellationToken).ConfigureAwait(false);
+        if (payload is null)
+        {
+            return (UploadOutcome.Failed, error ?? "对局详情为空");
+        }
+
+        string url = UploadUrlBuilder.BuildUploadUrl(config.General.UploadApiUrl);
+        return await PostPayloadAsync(payload, url, gameId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 拉取对局详情并构建上传载荷。单局与批量两条链路共用同一份实现：
+    /// 载荷字段集是上传契约里最容易漂移的部分，复制第二份迟早会对不上。
+    /// </summary>
+    /// <returns>成功返回载荷；失败返回原因（调用方据此决定是否落盘重试）。</returns>
+    internal async Task<(UploadPayload? Payload, string? Error)> TryBuildPayloadAsync(
+        long gameId,
+        string? currentSummonerPuuid,
+        Func<int, string>? championNameResolver,
+        CancellationToken cancellationToken)
+    {
         ILcuTransport? transport = _transportProvider();
         if (transport is null)
         {
-            return (UploadOutcome.Failed, "LCU 未连接");
+            return (null, "LCU 未连接");
         }
 
         LcuResponse resp = await transport.SendAsync(
@@ -95,7 +118,7 @@ public sealed class UploadService
             cancellationToken).ConfigureAwait(false);
         if (!resp.IsSuccess || string.IsNullOrWhiteSpace(resp.Body))
         {
-            return (UploadOutcome.Failed, $"拉取对局详情失败: HTTP {resp.StatusCode}");
+            return (null, $"拉取对局详情失败: HTTP {resp.StatusCode}");
         }
 
         JsonElement detail;
@@ -106,18 +129,12 @@ public sealed class UploadService
         }
         catch (JsonException ex)
         {
-            return (UploadOutcome.Failed, $"解析对局详情失败: {ex.Message}");
+            return (null, $"解析对局详情失败: {ex.Message}");
         }
 
         UploadPayload? payload = UploadPayloadBuilder.FromGameDetail(
             detail, currentSummonerPuuid, championNameResolver);
-        if (payload is null)
-        {
-            return (UploadOutcome.Failed, "对局详情为空");
-        }
-
-        string url = UploadUrlBuilder.BuildUploadUrl(config.General.UploadApiUrl);
-        return await PostPayloadAsync(payload, url, gameId, cancellationToken).ConfigureAwait(false);
+        return payload is null ? (null, "对局详情为空") : (payload, null);
     }
 
     /// <summary>POST 载荷：5 次重试 + 4xx 不重试 + success/isNewMatch 判定（对齐旧 post_payload_to_api）。</summary>
@@ -231,6 +248,19 @@ public static class UploadUrlBuilder
         }
 
         return url;
+    }
+
+    /// <summary>拼接批量上传 URL（旧 build_batch_upload_url）：先剥掉单局后缀再拼批量后缀。</summary>
+    public static string BuildBatchUploadUrl(string baseUrl)
+    {
+        const string UploadSuffix = "/api/lol/upload";
+        string url = EnsureScheme(baseUrl.TrimEnd('/'));
+        if (url.EndsWith(UploadSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            url = url[..^UploadSuffix.Length];
+        }
+
+        return url + "/api/lol/upload-batch";
     }
 
     /// <summary>

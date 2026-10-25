@@ -125,13 +125,15 @@ public static class AppHost
             });
         }
 
-        // 对局结束后的云端上传（旧 upload.rs：EndOfGame → 拉最新对局 → POST 上传 API）。
-        // UploadEnabled 开关由 UploadService 内部消费（旧版该开关在战绩查询页，本版不新增 UI）。
+        // 对局结束后的云端上传（旧 upload.rs：EndOfGame → 拉最新对局 → 入队 → POST 上传 API）。
+        // 走队列而不是直接调 UploadService：去重、串行、失败落盘重试这三件事只在队列里有一份实现，
+        // 直接调用等于丢掉断网期间的对局（旧版 upload_single_task 的落盘分支）。
+        // UploadEnabled 开关由 UploadService 内部消费，UI 放在战绩查询页工具栏（同旧 Search.vue）。
         var lifecycle = _services.Services.GetRequiredService<YuumiX.Core.Features.GameLifecycle.GameLifecycleService>();
-        var uploadService = _services.Services.GetRequiredService<YuumiX.Core.Upload.UploadService>();
+        var uploadQueue = _services.Services.GetRequiredService<YuumiX.Core.Upload.UploadQueueService>();
         var summonerService = _services.Services.GetRequiredService<YuumiX.Core.Features.Summoner.ISummonerService>();
         var matchService = _services.Services.GetRequiredService<YuumiX.Core.Features.Match.IMatchService>();
-        var uploadLogger = _services.LoggerFactory.CreateLogger<YuumiX.Core.Upload.UploadService>();
+        var uploadLogger = _services.LoggerFactory.CreateLogger<YuumiX.Core.Upload.UploadQueueService>();
         _ = lifecycle.GameEnded.Subscribe(_timestamp =>
         {
             _ = Task.Run(async () =>
@@ -150,16 +152,34 @@ public static class AppHost
                         return;
                     }
 
-                    var (outcome, message) = await uploadService
-                        .UploadMatchAsync(page.Games[0].GameId, profile.Puuid)
-                        .ConfigureAwait(false);
-                    uploadLogger.LogInformation("对局 {GameId} 上传结束: {Outcome} {Message}", page.Games[0].GameId, outcome, message);
+                    uploadQueue.Enqueue(page.Games[0].GameId);
+                    // 顺带把以前没传完的一起重试（旧 UploadTrigger 收尾动作）
+                    uploadQueue.TriggerPendingRetry();
                 }
                 catch (Exception ex)
                 {
                     uploadLogger.LogWarning(ex, "对局结束后的自动上传失败");
                 }
             });
+        });
+
+        // 启动恢复：上次没传完的对局重新入队（旧 UploadQueue::new 里启动 5s 后触发一次）。
+        // 延后是刻意的——此时客户端可能还没起来，立刻重试只会全部失败并白白累加重试次数。
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                int pending = uploadQueue.TriggerPendingRetry();
+                if (pending > 0)
+                {
+                    uploadLogger.LogInformation("启动恢复：{Count} 场对局重新进入上传队列", pending);
+                }
+            }
+            catch (Exception ex)
+            {
+                uploadLogger.LogWarning(ex, "启动恢复暂存上传失败");
+            }
         });
     }
 
