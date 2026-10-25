@@ -54,6 +54,8 @@
     <!-- 侧边栏 OP.GG 菜单项专用 18px 品牌图标（由 opgg.svg 光栅化；Reactor 的
          ImageIcon 走 BitmapImage，不支持 SVG，故必须用 PNG）。 -->
     <None Update="Assets\opgg-nav.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 召唤师峡谷分路位置图标（上/野/中/下/辅 5 张 PNG）。 -->
+    <None Update="Assets\Positions\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -20,6 +20,9 @@ namespace YuumiX.App.Pages.GameInfo;
 /// </summary>
 public sealed class GameInfoPage : Component
 {
+    /// <summary>按队伍模式左侧玩家卡片之间的缝隙（卡片下间距，末张靠外层内边距补齐）。</summary>
+    private const double CardGap = 4;
+
     public override Element Render()
     {
         var services = UseContext(AppHost.Context);
@@ -30,11 +33,14 @@ public sealed class GameInfoPage : Component
         var nav = UseNavigation<AppRoute>();
         Action<string, SummonerProfile?> onNavigateCareer = (puuid, profile) =>
         {
+            // 演示数据的 puuid 是占位值，跳过去只会查到一个不存在的召唤师
+            if (gameInfoService.CurrentState.IsDemoData) return;
             CareerNavigationPayload.Instance.Set(puuid, profile);
             nav.Replace(AppRoute.Career);
         };
         Action<string, string?> onNavigateSearch = (query, puuid) =>
         {
+            if (gameInfoService.CurrentState.IsDemoData) return;
             SearchNavigationPayload.Instance.Set(query, puuid);
             nav.Replace(AppRoute.Search);
         };
@@ -105,42 +111,28 @@ public sealed class GameInfoPage : Component
         }
 
         // 6. 正常对局渲染
-        return state.ViewColumns == 10
+        Element content = state.ViewColumns == 10
             ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch)
             : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch);
-    }
 
-    private static Element? RenderDodgeButton(AppServices services)
-    {
-        if (!services.Config.Functions.EnableDodgeInGameInfo)
+        if (!state.IsDemoData)
         {
-            return null;
+            return content;
         }
 
-        var toolsService = services.Services.GetService<YuumiX.Core.Features.Tools.IToolsService>();
-        if (toolsService is null)
-        {
-            return null;
-        }
-
-        return Button(Caption("秒退"), async () =>
-        {
-            try
-            {
-                await toolsService.DodgeChampSelectAsync();
-            }
-            catch
-            {
-                // 静默隔离
-            }
-        })
-        .Background("#FFE53935")
-        .Foreground("#FFFFFFFF")
-        .Padding(12, 4)
-        .CornerRadius(6)
-        .Margin(new Thickness(0, 0, 8, 0))
-        .AutomationName("秒退对局");
+        // 演示数据：顶部明示，避免用户以为示例召唤师可以查到真实战绩
+        return Grid(
+            [GridSize.Star()],
+            [GridSize.Auto, GridSize.Star()],
+            [
+                InfoBar("演示数据", "以上十位召唤师为示例，点击不会跳转生涯与战绩查询")
+                    .Informational()
+                    .Margin(10, 10, 10, 0)
+                    .Grid(row: 0),
+                content.Grid(row: 1),
+            ]);
     }
+
 
     private static Element RenderPlaceholder(string title, string subtitle, YuumiPalette palette, Action? onDemoClick = null)
     {
@@ -245,8 +237,20 @@ public sealed class GameInfoPage : Component
             int premadeIdx = PremadeAnalyzer.GetPlayerColorIdx(p, isMyTab ? state.PremadeColorsMy : state.PremadeColorsTheir);
 
             return Component<PlayerCardView, PlayerCardProps>(
-                new PlayerCardProps(p, pData, premadeIdx, idx, palette, state.CurrentSummonerPuuid, state.SavedPlayerMap, onNavigateCareer, onNavigateSearch));
+                new PlayerCardProps(p, pData, premadeIdx, idx, palette, state.CurrentSummonerPuuid, state.SavedPlayerMap, onNavigateCareer, onNavigateSearch, state.IsDemoData))
+                .WithKey(p.Puuid ?? idx.ToString());
         }).ToArray();
+
+        // 5 张卡片垂直均分面板高度：原先按内容高度堆叠，卡片总高小于面板时下方留白；
+        // 改为 Grid 等分行后每张卡片铺满一格（空队时占位，不建 0 行 Grid）。
+        int cardCount = Math.Max(1, cards.Length);
+        var cardRowDefs = Enumerable.Range(0, cardCount).Select(_ => GridSize.Star()).ToArray();
+
+        Element cardsPanel = cards.Length == 0
+            ? Border(Empty())
+            : Grid([GridSize.Star()], cardRowDefs, cards.Select((c, i) => c.Margin(0, 0, 0, CardGap).Grid(row: i, column: 0).WithKey(i.ToString())).ToArray());
+        // 卡片下间距形成缝隙；外层底部内边距取 0，与卡片下间距相加后顶/中/底间距一致
+        cardsPanel = cardsPanel.Padding(CardGap, CardGap, CardGap, 0);
 
         var leftPanel = Border(
             Grid(
@@ -254,9 +258,7 @@ public sealed class GameInfoPage : Component
                 [GridSize.Auto, GridSize.Star()],
                 [
                     tabHeader.Grid(row: 0),
-                    ScrollViewer(
-                        VStack(0, cards).Padding(8)
-                    ).Grid(row: 1),
+                    cardsPanel.Grid(row: 1),
                 ]
             )
         )
@@ -291,7 +293,6 @@ public sealed class GameInfoPage : Component
         var vsBadge = RenderVsBadge(palette);
 
         var segmentedControl = RenderSegmentedControl(5, cols => service.SetViewColumns(cols), palette);
-        var dodgeBtn = RenderDodgeButton(services);
 
         var toolbarLeft = HStack(8,
             allyPill,
@@ -303,7 +304,6 @@ public sealed class GameInfoPage : Component
         .VAlign(VerticalAlignment.Center);
 
         var toolbarRight = HStack(0,
-            dodgeBtn ?? Empty(),
             segmentedControl
         ).VAlign(VerticalAlignment.Center);
 
@@ -341,7 +341,8 @@ public sealed class GameInfoPage : Component
                     false,
                     idx == currentTeam.Count - 1,
                     state.SavedPlayerMap,
-                    onNavigateSearch))
+                    onNavigateSearch,
+                    state.IsDemoData))
                 .Grid(row: 0, column: idx);
         }).ToArray();
 
@@ -405,7 +406,6 @@ public sealed class GameInfoPage : Component
         var vsBadge = RenderVsBadge(palette);
 
         var segmentedControl = RenderSegmentedControl(10, cols => service.SetViewColumns(cols), palette);
-        var dodgeBtn = RenderDodgeButton(services);
 
         var toolbar = Border(
             Grid(
@@ -421,7 +421,6 @@ public sealed class GameInfoPage : Component
                     HStack(8,
                         theirChips,
                         enemyPill,
-                        dodgeBtn ?? Empty(),
                         segmentedControl
                     )
                     .HAlign(HorizontalAlignment.Right)
@@ -458,7 +457,8 @@ public sealed class GameInfoPage : Component
                     isTeamSeparator,
                     false,
                     state.SavedPlayerMap,
-                    onNavigateSearch))
+                    onNavigateSearch,
+                    state.IsDemoData))
                 .Grid(row: 0, column: i);
 
             colElements.Add(col);
@@ -485,7 +485,8 @@ public sealed class GameInfoPage : Component
                     false,
                     isLast,
                     state.SavedPlayerMap,
-                    onNavigateSearch))
+                    onNavigateSearch,
+                    state.IsDemoData))
                 .Grid(row: 0, column: offset + i);
 
             colElements.Add(col);
@@ -598,9 +599,10 @@ public sealed class GameInfoPage : Component
                 .VAlign(VerticalAlignment.Center)
         );
 
-        var teamBtn = Button(teamContent, () => onSelect(5))
+        var teamBtn = (isFive
+            ? Button(teamContent, () => onSelect(5)).AccentButton()
+            : Button(teamContent, () => onSelect(5)).SubtleButton())
             .AutomationName("按队伍模式")
-            .Background(isFive ? palette.Accent : "#00000000")
             .BorderThickness(new Thickness(0))
             .CornerRadius(4)
             .Padding(8, 4)
@@ -616,9 +618,10 @@ public sealed class GameInfoPage : Component
                 .VAlign(VerticalAlignment.Center)
         );
 
-        var allBtn = Button(allContent, () => onSelect(10))
+        var allBtn = (!isFive
+            ? Button(allContent, () => onSelect(10)).AccentButton()
+            : Button(allContent, () => onSelect(10)).SubtleButton())
             .AutomationName("全部战绩模式")
-            .Background(!isFive ? palette.Accent : "#00000000")
             .BorderThickness(new Thickness(0))
             .CornerRadius(4)
             .Padding(8, 4)

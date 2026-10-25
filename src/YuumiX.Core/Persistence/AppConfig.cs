@@ -310,7 +310,7 @@ public sealed class FunctionsConfig
 
     public bool EnableFriendRadar { get; set; }
 
-    /// <summary>在对局信息中显示秒退按钮（默认关闭）。</summary>
+    /// <summary>在对局信息中显示秒退按钮（默认关闭；当前不在对局信息页接线，见 docs/requirements-gameinfo.md §19）。</summary>
     public bool EnableDodgeInGameInfo { get; set; }
 
     [JsonExtensionData]
