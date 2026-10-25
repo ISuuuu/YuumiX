@@ -67,8 +67,8 @@ public static class CompactStepperControl
         .Width(110)
         .Height(30)
         .CornerRadius(6)
-        .Background(palette.HoverBg)
-        .WithBorder(palette.BorderSubtle, 1);
+        .Background(Theme.SubtleFill)
+        .WithBorder(Theme.ControlStroke, 1);
     }
 
     public static Element RenderDouble(
@@ -119,8 +119,8 @@ public static class CompactStepperControl
         .Width(110)
         .Height(30)
         .CornerRadius(6)
-        .Background(palette.HoverBg)
-        .WithBorder(palette.BorderSubtle, 1);
+        .Background(Theme.SubtleFill)
+        .WithBorder(Theme.ControlStroke, 1);
     }
 }
 

@@ -158,28 +158,6 @@ public sealed record YuumiPalette
     // ─── 3. 死亡数字颜色（严格响应设置页的浅色/深色死亡数字配置）───
     public string DeathText => IsDark ? DarkDeath : LightDeath;
 
-    // ─── 4. 全局表面与文本色（对齐原版水晶极光 / 暗黑海克斯主题）───
-    public string PageBg => IsDark ? "#FF0B0F19" : "#FFF8FAFC";
-    public string SidebarBg => IsDark
-        ? (MicaEnabled ? "#D9111827" : "#FF111827")
-        : (MicaEnabled ? "#BFFFFFFF" : "#FFFFFFFF");
-    public string CardBg => IsDark
-        ? (MicaEnabled ? "#BF1A263B" : "#FF1A263B")
-        : (MicaEnabled ? "#CCFFFFFF" : "#FFFFFFFF");
-    public string CardBgHover => IsDark
-        ? (MicaEnabled ? "#E622324D" : "#FF22324D")
-        : "#F2FFFFFF";
-    public string CardSubRowBg => IsDark ? "#0AFFFFFF" : "#73FFFFFF";
-    public string BorderSubtle => IsDark ? "#14FFFFFF" : "#0F000000";
-    public string Separator => IsDark ? "#0DFFFFFF" : "#0A000000";
-    public string HoverBg => IsDark ? "#0FFFFFFF" : "#08000000";
-    public string HoverBgStrong => IsDark ? "#1AFFFFFF" : "#0F000000";
-
-    // 三级文本色
-    public string TextPrimary => IsDark ? "#FFF8FAFC" : "#FF0F172A";
-    public string TextSecondary => IsDark ? "#FF94A3B8" : "#FF475569";
-    public string TextMuted => IsDark ? "#FF64748B" : "#FF64748B";
-
     /// <summary>把配置翻译成运行时调色板。颜色统一归一化为 8 位 <c>#AARRGGBB</c>。</summary>
     /// <remarks>
     /// 本调色板只承载**业务色**（胜负面板、死亡数字）；强调色一律走

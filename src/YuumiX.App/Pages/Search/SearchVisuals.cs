@@ -239,6 +239,6 @@ internal static class SearchVisuals
         value.ToString("N0", CultureInfo.InvariantCulture);
 
     /// <summary>纵向 1px 分隔线：用底色差值画线，避免给每行都套一层 Border 描边。</summary>
-    public static Element Divider(string color) =>
+    public static Element Divider(ThemeRef color) =>
         Border(Empty()).Height(1).HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch).Background(color);
 }

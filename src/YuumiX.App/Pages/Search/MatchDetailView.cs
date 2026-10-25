@@ -107,7 +107,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
         }
 
         return Caption(p.DisplayName)
-            .Foreground(p.Palette.TextSecondary)
+            .Foreground(Theme.SecondaryText)
             .WithToolTip(TextBlock("机器人（不可查看战绩）"));
     }
 }
@@ -184,7 +184,7 @@ internal static class MatchDetailView
                 ScrollViewer(VStack(10, blocks.ToArray()).Padding(12))
                     .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch))
             .CornerRadius(10)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
     }
@@ -194,7 +194,7 @@ internal static class MatchDetailView
         Border(Caption("在左侧选择一局以查看详情").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
             .Padding(24)
             .CornerRadius(10)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
@@ -202,7 +202,7 @@ internal static class MatchDetailView
     /// <summary>详情请求进行中的占位。</summary>
     private static Element PendingHint(YuumiPalette palette) =>
         Border(Caption("正在读取该局详情…").Foreground(Theme.SecondaryText)).Padding(16).CornerRadius(8)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 
@@ -316,7 +316,7 @@ internal static class MatchDetailView
         {
             if (i > 0)
             {
-                rows.Add(SearchVisuals.Divider(palette.Separator));
+                rows.Add(SearchVisuals.Divider(Theme.DividerStroke));
             }
 
             rows.Add(PlayerRow(
@@ -338,7 +338,7 @@ internal static class MatchDetailView
 
         return Border(VStack(0, header, body))
             .CornerRadius(8)
-            .Background(palette.CardBg)
+            .Background(Theme.CardBackground)
             .WithBorder(border, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
     }
@@ -572,7 +572,7 @@ internal static class MatchDetailView
         rowBorder = isQueriedPlayer
             ? rowBorder.Background(team.Win ? palette.WinBg : palette.LoseBg)
                        .WithBorder(team.Win ? palette.WinBorder : palette.LoseBorder, 1)
-            : rowBorder.Background(palette.CardBg);
+            : rowBorder.Background(Theme.CardBackground);
 
         return rowBorder;
     }

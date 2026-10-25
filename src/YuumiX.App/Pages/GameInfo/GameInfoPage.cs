@@ -280,7 +280,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .Width(250)
-        .Background(palette.CardBg)
+        .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
@@ -379,7 +379,7 @@ public sealed class GameInfoPage : Component
                 ]
             )
         )
-        .Background(palette.CardBg)
+        .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
@@ -526,7 +526,7 @@ public sealed class GameInfoPage : Component
                 ]
             )
         )
-        .Background(palette.CardBg)
+        .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(8);
 
