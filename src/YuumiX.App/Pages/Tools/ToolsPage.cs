@@ -250,7 +250,7 @@ public sealed class ToolsPage : Component
             VStack(8,
                 Title("其他功能")
                     .HeadingLevel(AutomationHeadingLevel.Level1)
-                    .Margin(new Thickness(0, 0, 0, 10)),
+                    .Margin(new Thickness(0, 0, 0, 8)),
 
                 offlineBanner ?? Empty(),
 

@@ -45,7 +45,7 @@ internal static class SpellPickerView
         .BorderBrush(activeSlot == 0 ? Theme.Accent : Theme.ControlStroke)
         .BorderThickness(activeSlot == 0 ? 1.5 : 1)
         .CornerRadius(YuumiTheme.OverlayRadius)
-        .Padding(12, 6)
+        .Padding(12, 4)
         .Margin(new Thickness(0, 0, 12, 0))
         .AutomationName("D键技能槽位");
 
@@ -61,7 +61,7 @@ internal static class SpellPickerView
         .BorderBrush(activeSlot == 1 ? Theme.Accent : Theme.ControlStroke)
         .BorderThickness(activeSlot == 1 ? 1.5 : 1)
         .CornerRadius(YuumiTheme.OverlayRadius)
-        .Padding(12, 6)
+        .Padding(12, 4)
         .AutomationName("F键技能槽位");
 
         Element slotsHeader = HStack(0,
@@ -101,7 +101,7 @@ internal static class SpellPickerView
                 .BorderThickness(isCurrent ? 1.5 : 1)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Padding(8, 4)
-                .Margin(new Thickness(0, 0, 6, 6))
+                .Margin(new Thickness(0, 0, 4, 4))
                 .AutomationName($"选择技能_{spell.Name}")
             );
         }

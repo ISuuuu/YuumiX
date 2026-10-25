@@ -138,7 +138,7 @@ public sealed class GameInfoPage : Component
             [
                 InfoBar("演示数据", "以上十位召唤师为示例，点击不会跳转生涯与战绩查询")
                     .Informational()
-                    .Margin(10, 10, 10, 0)
+                    .Margin(8, 8, 8, 0)
                     .Grid(row: 0),
                 content.Grid(row: 1),
             ]);
@@ -202,7 +202,7 @@ public sealed class GameInfoPage : Component
                 Border(Empty())
                     .Height(2)
                     .Background(isMyTab ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
-                    .Margin(0, 6, 0, 0)
+                    .Margin(0, 4, 0, 0)
             ),
             () => service.SetActiveTab("my")
         )
@@ -221,7 +221,7 @@ public sealed class GameInfoPage : Component
                 Border(Empty())
                     .Height(2)
                     .Background(!isMyTab ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
-                    .Margin(0, 6, 0, 0)
+                    .Margin(0, 4, 0, 0)
             ),
             () => service.SetActiveTab("their")
         )
@@ -333,7 +333,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .Height(44)
-        .Padding(12, 6, 12, 6)
+        .Padding(12, 4, 12, 4)
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .BorderBrush(Theme.CardStroke);
 
@@ -389,7 +389,7 @@ public sealed class GameInfoPage : Component
                 rightPanel.Grid(row: 0, column: 1),
             ]
         )
-        .Padding(10);
+        .Padding(8);
     }
 
     private Element RenderTenColumnView(
@@ -445,7 +445,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .Height(44)
-        .Padding(12, 6, 12, 6)
+        .Padding(12, 4, 12, 4)
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .BorderBrush(Theme.CardStroke);
 
@@ -535,7 +535,7 @@ public sealed class GameInfoPage : Component
                 fullPanel.Grid(row: 0, column: 0),
             ]
         )
-        .Padding(10);
+        .Padding(8);
     }
 
     private static Element RenderTeamPill(
@@ -556,7 +556,7 @@ public sealed class GameInfoPage : Component
             .CornerRadius(YuumiTheme.PillRadius)
             .Background(dotColor)
             .VAlign(VerticalAlignment.Center)
-            .Margin(0, 0, 5, 0);
+            .Margin(0, 0, 4, 0);
 
         var label = Caption(text)
             .Foreground(fgColor)
@@ -572,7 +572,7 @@ public sealed class GameInfoPage : Component
                 .BorderBrush(borderColor)
                 .BorderThickness(new Thickness(1))
                 .CornerRadius(YuumiTheme.PillRadius)
-                .Padding(8, 3)
+                .Padding(8, 4)
                 .Height(26);
         }
 
@@ -581,7 +581,7 @@ public sealed class GameInfoPage : Component
             .BorderBrush(borderColor)
             .BorderThickness(new Thickness(1))
             .CornerRadius(YuumiTheme.PillRadius)
-            .Padding(8, 3);
+            .Padding(8, 4);
     }
 
     private static Element RenderVsBadge(YuumiPalette palette)
@@ -647,7 +647,7 @@ public sealed class GameInfoPage : Component
         .BorderBrush(Theme.CardStroke)
         .BorderThickness(new Thickness(1))
         .CornerRadius(YuumiTheme.OverlayRadius)
-        .Padding(2);
+        .Padding(0);
     }
 
     private static GameInfoPlayer? FindPlayerData(

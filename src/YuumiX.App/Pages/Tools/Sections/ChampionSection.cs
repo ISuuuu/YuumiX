@@ -171,7 +171,7 @@ internal static class ChampionSection
                         config.Functions.EnableDodgeInGameInfo = v;
                         ui.Commit(nameof(FunctionsConfig.EnableDodgeInGameInfo));
                     }, "对局信息秒退按钮")),
-                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
                 Caption("分路预选候选英雄库:").Foreground(Theme.SecondaryText),
                 LaneTabs(st.PickLaneIndex, idx => set(st with { PickLaneIndex = idx })),
                 ChampionPickerView.Render(
@@ -224,7 +224,7 @@ internal static class ChampionSection
                         },
                         ui.Palette,
                         "自动禁用延迟")),
-                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
                 Caption("分路禁用候选英雄库:").Foreground(Theme.SecondaryText),
                 LaneTabs(st.BanLaneIndex, idx => set(st with { BanLaneIndex = idx })),
                 ChampionPickerView.Render(
@@ -256,7 +256,7 @@ internal static class ChampionSection
                         config.Functions.EnableAutoSetSpells = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoSetSpells));
                     }, "自动召唤师技能")),
-                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
                 Caption("分路召唤师技能组:").Foreground(Theme.SecondaryText),
                 LaneTabs(st.SpellLaneIndex, idx => set(st with { SpellLaneIndex = idx })),
                 SpellPickerView.Render(
@@ -286,11 +286,11 @@ internal static class ChampionSection
                     .BorderThickness(isCurrent ? 1.5 : 1)
                     .CornerRadius(YuumiTheme.OverlayRadius)
                     .Padding(8, 4)
-                    .Margin(new Thickness(0, 0, 6, 0))
+                    .Margin(new Thickness(0, 0, 4, 0))
                     .AutomationName($"分路_{LaneLabels[idx]}")
             );
         }
-        return HStack(0, [.. buttons]).Margin(new Thickness(0, 6, 0, 8));
+        return HStack(0, [.. buttons]).Margin(new Thickness(0, 4, 0, 8));
     }
 
     private static void TogglePickChampion(ToolsUi ui, ChampionUi st, int champId)

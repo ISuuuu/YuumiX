@@ -21,7 +21,7 @@ internal static class SavedPlayersVisuals
                 Caption($"{totalCount}")
                     .SemiBold()
                     .Foreground(Theme.Accent)
-                    .Margin(6, 1),
+                    .Margin(4, 0),
                 Theme.CardBackground,
                 Theme.Accent)
               .VerticalAlignment(VerticalAlignment.Center)
@@ -50,16 +50,16 @@ internal static class SavedPlayersVisuals
                     8,
                     Button(Caption("导入标记"), onImport)
                         .AutomationName("导入标记")
-                        .Padding(12, 5),
+                        .Padding(12, 4),
                     Button(Caption("导出标记"), onExport)
                         .AutomationName("导出标记")
-                        .Padding(12, 5)
+                        .Padding(12, 4)
                 )
                 .VerticalAlignment(VerticalAlignment.Center)
                 .Grid(column: 1),
             ]
         )
-        .Margin(0, 0, 0, 14);
+        .Margin(0, 0, 0, 12);
     }
 
     /// <summary>搜索框与筛选 Tabs</summary>
@@ -75,7 +75,7 @@ internal static class SavedPlayersVisuals
         var clearBtn = !string.IsNullOrEmpty(searchDraft)
             ? Button(Caption("✕"), onClearSearch)
                 .AutomationName("清空搜索")
-                .Padding(6, 2)
+                .Padding(4, 0)
                 .VerticalAlignment(VerticalAlignment.Center)
             : null;
 
@@ -98,7 +98,7 @@ internal static class SavedPlayersVisuals
             var isSelected = filter == key;
             var btn = Button(Caption(label), () => setFilter(key))
                 .AutomationName(label)
-                .Padding(14, 5);
+                .Padding(12, 4);
 
             return isSelected
                 ? btn.Background(Theme.Accent)
@@ -120,7 +120,7 @@ internal static class SavedPlayersVisuals
                 filterGroup.HorizontalAlignment(HorizontalAlignment.Right).Grid(column: 1),
             ]
         )
-        .Margin(0, 0, 0, 14);
+        .Margin(0, 0, 0, 12);
     }
 
     /// <summary>卡片列表视图与分页（空态三分支：加载中 / 搜索无结果 / 无记录）</summary>
@@ -169,7 +169,7 @@ internal static class SavedPlayersVisuals
                         .Foreground(Theme.SecondaryText)
                         .HorizontalAlignment(HorizontalAlignment.Center),
                     Button(Caption("清空搜索条件"), onClearSearch)
-                        .Padding(14, 5)
+                        .Padding(12, 4)
                         .HorizontalAlignment(HorizontalAlignment.Center)
                         .AutomationName("清空搜索条件")
                 )
@@ -219,13 +219,13 @@ internal static class SavedPlayersVisuals
                 Caption("正在加载更多玩家...").Foreground(Theme.SecondaryText)
             )
             .HorizontalAlignment(HorizontalAlignment.Center)
-            .Margin(0, 10, 0, 16);
+            .Margin(0, 8, 0, 16);
         }
         else if (players.Count < totalCount)
         {
             footerSentinel = Button(Caption("加载更多玩家"), onLoadMorePlayers)
                 .AutomationName("加载更多玩家")
-                .Padding(18, 5)
+                .Padding(16, 4)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .Margin(0, 8, 0, 16);
         }
@@ -234,7 +234,7 @@ internal static class SavedPlayersVisuals
             footerSentinel = Caption("已加载全部玩家记录")
                 .Foreground(Theme.SecondaryText)
                 .HorizontalAlignment(HorizontalAlignment.Center)
-                .Margin(0, 10, 0, 16);
+                .Margin(0, 8, 0, 16);
         }
 
         if (footerSentinel is not null)

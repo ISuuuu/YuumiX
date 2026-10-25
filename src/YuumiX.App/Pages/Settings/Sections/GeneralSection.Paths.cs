@@ -85,7 +85,7 @@ internal static partial class GeneralSection
 
                 ui.Commit(nameof(GeneralConfig.LolPath));
             })
-                .Padding(new Thickness(6, 2, 6, 2))
+                .Padding(new Thickness(4, 0, 4, 0))
                 .MinWidth(0)
                 .AutomationName($"删除路径 {index + 1}")
                 .VAlign(VerticalAlignment.Center)

@@ -138,7 +138,7 @@ internal sealed class CapabilityLab : Component
                     SubHeading(title),
                     Caption(note)),
                 content)
-        ).Padding(18)
+        ).Padding(16)
          .CornerRadius(YuumiTheme.OverlayRadius)
          .Background(Theme.CardBackground)
          .WithBorder(Theme.CardStroke, 1);

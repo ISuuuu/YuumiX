@@ -120,7 +120,7 @@ public sealed class NoticePage : Component
                 .MaxWidth(420)
                 .HAlign(HorizontalAlignment.Center),
             Button("重试", retry)
-                .Padding(24, 6))
+                .Padding(24, 4))
         .HAlign(HorizontalAlignment.Center)
         .VAlign(VerticalAlignment.Center);
     }
@@ -139,7 +139,7 @@ public sealed class NoticePage : Component
                 .Grid(row: 0, column: 0),
 
                 Button("刷新", reload)
-                    .Padding(16, 5)
+                    .Padding(16, 4)
                     .VAlign(VerticalAlignment.Top)
                     .Grid(row: 0, column: 1),
             ]);

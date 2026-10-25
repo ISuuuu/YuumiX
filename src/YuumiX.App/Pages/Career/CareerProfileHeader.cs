@@ -61,7 +61,7 @@ internal static class CareerProfileHeader
                 [
                     ring.HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center),
                     avatar.HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center),
-                    levelBadge.HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Bottom).Margin(0, 0, 0, -6),
+                    levelBadge.HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Bottom).Margin(0, 0, 0, -4),
                 ])
             .Width(RingSize + 4)
             .Height(RingSize + 4);

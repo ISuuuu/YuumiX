@@ -93,7 +93,7 @@ internal static class ChallengePreferencesView
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
                 .Margin(new Thickness(12, 0, 0, 0))
-        ).Margin(new Thickness(0, 0, 0, 10));
+        ).Margin(new Thickness(0, 0, 0, 8));
 
         Element badgeList;
         if (filtered.Count == 0)
@@ -139,7 +139,7 @@ internal static class ChallengePreferencesView
                                 Caption(b.CurrentLevel)
                                     .Foreground(Theme.Accent)
                             )
-                            .Padding(6, 2)
+                            .Padding(4, 0)
                             .CornerRadius(YuumiTheme.ControlRadius)
                             .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
                             .VAlign(VerticalAlignment.Center)
@@ -152,7 +152,7 @@ internal static class ChallengePreferencesView
                 .BorderThickness(isSelected ? 1 : 0)
                 .BorderBrush(Theme.Accent)
                 .CornerRadius(YuumiTheme.ControlRadius)
-                .Padding(8, 6)
+                .Padding(8, 4)
                 .HAlign(HorizontalAlignment.Stretch)
                 .HorizontalContentAlignment(HorizontalAlignment.Stretch)
                 .AutomationName($"选择勋章_{b.Name}");
@@ -163,7 +163,7 @@ internal static class ChallengePreferencesView
                     VStack(4, badgeItems)
                 ).Height(240)
             )
-            .Padding(6)
+            .Padding(4)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.Ref("LayerFillColorDefaultBrush"))
             .WithBorder(Theme.CardStroke, 1);

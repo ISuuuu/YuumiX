@@ -35,7 +35,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                     VStack(3,
                         Props.Items.Select((item, index) => RenderRow(item, index).WithKey($"tier-row-{item.Id}")).ToArray()
                     )
-                    .Padding(new Thickness(12, 6, 12, 16))
+                    .Padding(new Thickness(12, 4, 12, 16))
                 )
                 .Grid(1, 0)
             ]
@@ -190,7 +190,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                 ]
             )
         )
-        .Padding(new Thickness(12, 6, 12, 6))
+        .Padding(new Thickness(12, 4, 12, 4))
         .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(bg)
         .WithBorder(border, 1)

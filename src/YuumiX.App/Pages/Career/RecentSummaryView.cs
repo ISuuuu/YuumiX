@@ -107,7 +107,7 @@ internal static class RecentSummaryView
         // 右侧操作：最近队友按钮（带弹层） + 队列下拉
         Element teammatesButton = Button(Caption("最近队友"), () => onRecentTeammates?.Invoke())
             .Height(30)
-            .Padding(10, 0)
+            .Padding(8, 0)
             .AutomationName("最近队友");
 
         Element flyoutButton = Flyout(
@@ -192,7 +192,7 @@ internal static class RecentSummaryView
                     .Foreground(Theme.PrimaryText),
                 tm.Tag is not null
                     ? Border(Caption(tm.Tag).Foreground(Theme.Accent))
-                        .Padding(4, 1)
+                        .Padding(4, 0)
                         .CornerRadius(YuumiTheme.ControlRadius)
                         .Background(Theme.SubtleFill)
                     : Empty()
@@ -245,7 +245,7 @@ internal static class RecentSummaryView
     private static Element PositionChip(RecentPositionStat position, YuumiPalette palette) =>
         Border(Caption($"{CareerVisuals.PositionText(position.Position)} {position.Percentage}%")
                 .Foreground(Theme.Accent))
-            .Padding(7, 2)
+            .Padding(8, 0)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.CardStroke, 1)
@@ -270,7 +270,7 @@ internal static class RecentSummaryView
             .SemiBold()
             .HAlign(HorizontalAlignment.Center);
         var badge = Border(gamesText)
-            .Padding(3, 0)
+            .Padding(4, 0)
             .CornerRadius(YuumiTheme.ControlRadius)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom);

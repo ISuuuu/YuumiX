@@ -105,7 +105,7 @@ public sealed class HomePage : Component
                             .FontFamily(Icons.MonoFontFamily))
                     .HorizontalAlignment(HorizontalAlignment.Center)
                 )
-                .Padding(32, 22)
+                .Padding(32, 20)
             )
             .Width(440)
             .Background(Theme.CardBackground)
@@ -165,7 +165,7 @@ public sealed class HomePage : Component
             Button("启动客户端", () => LaunchClient(services))
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .Padding(24, 8)
-                .Margin(0, 0, 0, 10),
+                .Margin(0, 0, 0, 8),
 
             // 等待连接环
             HStack(

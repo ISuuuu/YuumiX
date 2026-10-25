@@ -129,7 +129,7 @@ internal static class LootManagerView
                     Caption("🔑"),
                     Caption($"x{loot.TotalKeys}").SemiBold().Foreground(CareerVisuals.GoldColor))
                 .VAlign(VerticalAlignment.Center))
-                .Padding(8, 3)
+                .Padding(8, 4)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x1F))
                 .WithBorder(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x33), 1)
@@ -203,16 +203,16 @@ internal static class LootManagerView
 
         Element badge = item.IsKeyFragment
             ? Border(Caption("3合1合成").Foreground(CareerVisuals.WinText))
-                .Padding(5, 2)
+                .Padding(4, 0)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x1F))
             : item.NeedKey
                 ? Border(Caption("需要钥匙").Foreground(CareerVisuals.GoldColor))
-                    .Padding(5, 2)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x1F))
                 : Border(Caption("无需钥匙").Foreground(Theme.SecondaryText))
-                    .Padding(5, 2)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.SubtleFill);
 
@@ -224,7 +224,7 @@ internal static class LootManagerView
                 Border(Caption($"x{item.Count}")
                         .SemiBold()
                         .Foreground(Theme.Accent))
-                    .Padding(5, 1)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.SubtleFill)
                     .Width(35)
@@ -417,7 +417,7 @@ internal static class LootManagerView
                     .AutomationName("批量重随"),
                 Button(Caption("升级 / 解锁"), () => onUpgrade?.Invoke())
                     .Height(30)
-                    .Padding(14, 0)
+                    .Padding(12, 0)
                     .IsEnabled(selectedCount > 0)
                     .AutomationName("批量升级解锁"))
                 .Width(416)
@@ -433,7 +433,7 @@ internal static class LootManagerView
                     Caption($"正在处理... ({progress.Current}/{progress.Total}) {progress.ItemName}: {progress.RewardDesc}")
                         .Foreground(Theme.Accent)
                         .VAlign(VerticalAlignment.Center)))
-                .Padding(10, 6)
+                .Padding(8, 4)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(Theme.SubtleFill)
                 .WithBorder(Theme.Accent, 1);
@@ -444,7 +444,7 @@ internal static class LootManagerView
                 Caption(operationNotice)
                     .TextWrapping()
                     .Foreground(CareerVisuals.WinText))
-                .Padding(10, 6)
+                .Padding(8, 4)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x1A))
                 .WithBorder(CareerVisuals.WinText, 1);
@@ -518,7 +518,7 @@ internal static class LootManagerView
                 Border(Caption($"x{item.Count}")
                         .SemiBold()
                         .Foreground(Theme.Accent))
-                    .Padding(4, 1)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.SubtleFill)
                     .Width(35)
@@ -530,7 +530,7 @@ internal static class LootManagerView
                             .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x14))
                         : Border(Caption("未拥有").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center))
                             .Background(Theme.SubtleFill))
-                    .Padding(4, 1)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Width(50)
                     .VAlign(VerticalAlignment.Center),
@@ -545,7 +545,7 @@ internal static class LootManagerView
 
         Element checkBadge = isSelected
             ? Border(Caption("✓").SemiBold().Foreground(CareerVisuals.WinText))
-                .Padding(4, 1)
+                .Padding(4, 0)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x33))
                 .HAlign(HorizontalAlignment.Right)

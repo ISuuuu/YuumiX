@@ -91,7 +91,7 @@ public sealed class OpggFilterBarView : Component<OpggFilterBarProps>
             HStack(6, [.. items])
                 .VAlign(VerticalAlignment.Center)
         )
-        .Padding(new Thickness(16, 6, 16, 6))
+        .Padding(new Thickness(16, 4, 16, 4))
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .WithBorder(Theme.CardStroke, 1);
     }

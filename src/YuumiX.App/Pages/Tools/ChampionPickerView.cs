@@ -53,7 +53,7 @@ internal static class ChampionPickerView
                             Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, Size: 24, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                             Caption(name).VAlign(VerticalAlignment.Center),
                             Button(Caption(Icons.Cancel).FontFamily(Icons.FontFamily), () => onToggleChampion(id))
-                                .Padding(4, 2)
+                                .Padding(4, 0)
                                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                                 .Foreground(Theme.SecondaryText)
                                 .AutomationName($"移除_{name}")
@@ -73,7 +73,7 @@ internal static class ChampionPickerView
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
                     Button(Caption("清空全部"), onClearSelection)
-                        .Padding(6, 2)
+                        .Padding(4, 0)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .AutomationName("清空已选英雄")
                 ),
@@ -136,12 +136,12 @@ internal static class ChampionPickerView
                 () => onToggleChampion(champ.Id)
             )
             .Width(130)
-            .Padding(6, 4)
+            .Padding(4, 4)
             .Background(isSelected ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
             .BorderBrush(isSelected ? Theme.Accent : Theme.ControlStroke)
             .BorderThickness(isSelected ? 1.5 : 1)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Margin(new Thickness(0, 0, 6, 6))
+            .Margin(new Thickness(0, 0, 4, 4))
             .AutomationName($"选择英雄_{champ.Name}");
 
             currentRow.Add(item);

@@ -51,13 +51,13 @@ internal static class FriendCleanerView
             [GridSize.Auto],
             [
                 TextBox(searchQuery, onSearchQueryChanged, "搜索好友昵称、Riot ID 或备注...")
-                    .Margin(new Thickness(0, 0, 10, 0))
+                    .Margin(new Thickness(0, 0, 8, 0))
                     .AutomationName("好友搜索框")
                     .Grid(row: 0, column: 0),
 
                 ComboBox(FilterLabels, filterIndex, onFilterIndexChanged)
                     .Width(200)
-                    .Margin(new Thickness(0, 0, 10, 0))
+                    .Margin(new Thickness(0, 0, 8, 0))
                     .AutomationName("好友筛选下拉")
                     .Grid(row: 0, column: 1),
 
@@ -66,7 +66,7 @@ internal static class FriendCleanerView
                     .AutomationName("重新扫描好友")
                     .Grid(row: 0, column: 2),
             ]
-        ).Margin(new Thickness(0, 6, 0, 10));
+        ).Margin(new Thickness(0, 4, 0, 8));
 
         int selectedCount = selectedIds.Count;
 
@@ -91,7 +91,7 @@ internal static class FriendCleanerView
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
             .WithBorder(Theme.Ref("SystemFillColorCriticalBrush"), 1)
-            .Margin(new Thickness(0, 0, 0, 10));
+            .Margin(new Thickness(0, 0, 0, 8));
         }
         else
         {
@@ -110,8 +110,8 @@ internal static class FriendCleanerView
                 Caption($"当前筛选显示 {filtered.Count} 位好友")
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center)
-                    .Margin(new Thickness(10, 0, 0, 0))
-            ).Margin(new Thickness(0, 0, 0, 10));
+                    .Margin(new Thickness(8, 0, 0, 0))
+            ).Margin(new Thickness(0, 0, 0, 8));
         }
 
         Element friendList;
@@ -121,7 +121,7 @@ internal static class FriendCleanerView
                 Caption(allFriends.Count == 0 ? "尚未扫描好友，请点击上方「重新扫描好友」开始分析" : "没有符合当前筛选条件的好友")
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center)
-                    .Margin(new Thickness(0, 30, 0, 30))
+                    .Margin(new Thickness(0, 28, 0, 28))
             );
         }
         else
@@ -201,13 +201,13 @@ internal static class FriendCleanerView
                         })
                         .Foreground(entry.Friend.Availability == "chat" ? Theme.Ref("SystemFillColorSuccessBrush") : Theme.SecondaryText)
                     )
-                    .Padding(6, 2)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
                     .VAlign(VerticalAlignment.Center)
                     .Grid(row: 0, column: 2),
                 ]
-            ).Padding(new Thickness(8, 6, 8, 6))
+            ).Padding(new Thickness(8, 4, 8, 4))
         )
         .CornerRadius(YuumiTheme.ControlRadius)
         .Background(Theme.Ref("SubtleFillColorTransparentBrush"))

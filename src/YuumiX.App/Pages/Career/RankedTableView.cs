@@ -65,7 +65,7 @@ internal static class RankedTableView
             HeaderCell("胜点", ColLpWidth),
             HeaderCell("赛季最高", ColHighestWidth),
             HeaderCell("上赛季结算", ColPreviousWidth))
-            .Padding(12, 10);
+            .Padding(12, 8);
 
         return CareerVisuals.Card(
             VStack(0,
@@ -114,6 +114,6 @@ internal static class RankedTableView
             DataCell(leaguePoints, ColLpWidth),
             DataCell(highest, ColHighestWidth, foreground: Theme.SecondaryText),
             DataCell(previous, ColPreviousWidth, foreground: Theme.SecondaryText))
-            .Padding(12, 10);
+            .Padding(12, 8);
     }
 }

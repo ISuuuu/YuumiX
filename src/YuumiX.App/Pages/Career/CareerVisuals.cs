@@ -148,7 +148,7 @@ internal static class CareerVisuals
         Card(
             HStack(12,
                 Body(message).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                Button(Caption("重试"), onRetry).Height(30).Padding(14, 0).AutomationName($"重试：{message}")),
+                Button(Caption("重试"), onRetry).Height(30).Padding(12, 0).AutomationName($"重试：{message}")),
             padding: 16);
 
     /// <summary>未登录时的资料卡占位：说明原因而不是留白。</summary>

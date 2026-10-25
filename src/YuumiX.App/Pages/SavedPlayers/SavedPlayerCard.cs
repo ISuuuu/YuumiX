@@ -59,7 +59,7 @@ internal static class SavedPlayerCard
                 !string.IsNullOrEmpty(player.Tag)
                     ? Border(
                         Caption(player.Tag)
-                            .Margin(6, 1)
+                            .Margin(4, 0)
                       )
                       .Background(Theme.Accent)
                       .CornerRadius(YuumiTheme.ControlRadius)
@@ -69,7 +69,7 @@ internal static class SavedPlayerCard
                     ? Border(
                         Caption(modeName)
                             .Foreground(Theme.SecondaryText)
-                            .Margin(6, 1)
+                            .Margin(4, 0)
                       )
                       .Background(Theme.CardBackground)
                       .WithBorder(Theme.CardStroke, 1)
@@ -80,7 +80,7 @@ internal static class SavedPlayerCard
                     ? Border(
                         Caption($"相遇 {player.EncounterCount} 次")
                             .Foreground(Theme.Accent)
-                            .Margin(6, 1)
+                            .Margin(4, 0)
                       )
                       .Background(Theme.CardBackground)
                       .WithBorder(Theme.Accent, 1)
@@ -105,16 +105,16 @@ internal static class SavedPlayerCard
                 setEditingPuuid(player.Puuid);
             })
             .AutomationName("编辑标记")
-            .Padding(8, 3),
+            .Padding(8, 4),
 
             Button(Caption("删除"), () => setPendingDeletePuuid(player.Puuid))
                 .AutomationName("删除")
-                .Padding(8, 3)
+                .Padding(8, 4)
                 .Foreground(palette.LoseAccent),
 
             Button(Caption(isExpanded ? "▾" : "▸"), onToggle)
                 .AutomationName("展开或折叠对局历史")
-                .Padding(8, 3)
+                .Padding(8, 4)
         )
         .VerticalAlignment(VerticalAlignment.Center);
 
@@ -129,7 +129,7 @@ internal static class SavedPlayerCard
         )
         .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(0)
-        .Padding(4, 2)
+        .Padding(4, 0)
         .HorizontalAlignment(HorizontalAlignment.Stretch)
         .HorizontalContentAlignment(HorizontalAlignment.Left)
         .AutomationName($"查看 {player.SummonerName} 的相遇对局历史");
@@ -155,14 +155,14 @@ internal static class SavedPlayerCard
                         .Foreground(palette.LoseAccent)
                         .VerticalAlignment(VerticalAlignment.Center),
                     Button(Caption("确认删除"), onConfirmDelete)
-                        .Padding(10, 3)
+                        .Padding(8, 4)
                         .Background(palette.LoseAccent)
                         .AutomationName("确认删除"),
                     Button(Caption("取消"), () => setPendingDeletePuuid(null))
-                        .Padding(10, 3)
+                        .Padding(8, 4)
                         .AutomationName("取消")
                 )
-                .Padding(10, 6)
+                .Padding(8, 4)
             )
             .Background(Theme.CardBackground)
             .WithBorder(palette.LoseAccent, 1)
@@ -192,7 +192,7 @@ internal static class SavedPlayerCard
                     .AutomationName("取消")
                     .Padding(12, 4)
             )
-            .Margin(0, 10, 0, 0);
+            .Margin(0, 8, 0, 0);
         }
 
         // 展开对局列表
@@ -206,13 +206,13 @@ internal static class SavedPlayerCard
                     ProgressRing().Width(18).Height(18).IsActive(true),
                     Caption("加载相遇对局...").Foreground(Theme.SecondaryText)
                 )
-                .Margin(0, 10, 0, 4);
+                .Margin(0, 8, 0, 4);
             }
             else if (encounteredGames.Count == 0)
             {
                 historySection = Caption("暂无相遇对局记录")
                     .Foreground(Theme.SecondaryText)
-                    .Margin(0, 10, 0, 4);
+                    .Margin(0, 8, 0, 4);
             }
             else
             {
@@ -224,7 +224,7 @@ internal static class SavedPlayerCard
                         Caption(FormatTime(g.UpdateAt))
                             .Foreground(Theme.SecondaryText)
                     )
-                    .Margin(0, 2, 0, 2)
+                    .Margin(0, 0, 0, 0)
                 ).ToList();
 
                 if (encounteredGames.Count < encounteredTotal)
@@ -233,10 +233,10 @@ internal static class SavedPlayerCard
                         HStack(
                             8,
                             Button(Caption("加载更多对局记录"), onLoadMoreGames)
-                                .Padding(10, 3)
+                                .Padding(8, 4)
                                 .AutomationName("加载更多对局记录")
                         )
-                        .Margin(0, 4, 0, 2)
+                        .Margin(0, 4, 0, 0)
                     );
                 }
 
@@ -244,10 +244,10 @@ internal static class SavedPlayerCard
                     4,
                     Caption("相遇对局历史：")
                         .Foreground(Theme.SecondaryText)
-                        .Margin(0, 8, 0, 2),
-                    VStack(gameRows.ToArray()).Spacing(2)
+                        .Margin(0, 8, 0, 0),
+                    VStack(gameRows.ToArray()).Spacing(4)
                 )
-                .Margin(0, 6, 0, 0);
+                .Margin(0, 4, 0, 0);
             }
         }
 
@@ -259,7 +259,7 @@ internal static class SavedPlayerCard
                 editRow,
                 historySection
             )
-            .Padding(14, 10)
+            .Padding(12, 8)
         )
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)

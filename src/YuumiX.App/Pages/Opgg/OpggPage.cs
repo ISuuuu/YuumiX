@@ -341,7 +341,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                 ]
             )
         )
-        .Padding(new Thickness(16, 10, 16, 10))
+        .Padding(new Thickness(16, 8, 16, 8))
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .WithBorder(Theme.CardStroke, 1);
     }

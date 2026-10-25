@@ -307,7 +307,7 @@ internal static class MatchDetailView
                         ColumnLabel("金币", 4, palette, HorizontalAlignment.Right),
                         ColumnLabel("输出", 5, palette, HorizontalAlignment.Right),
                     ]))
-            .Padding(6)
+            .Padding(4)
             .Background(tint)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 
@@ -565,7 +565,7 @@ internal static class MatchDetailView
                         damageCell.Grid(row: 0, column: 5),
                     ]))
             .Height(RowHeight)
-            .Padding(6)
+            .Padding(4)
             .CornerRadius(isQueriedPlayer ? 4 : 0)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 

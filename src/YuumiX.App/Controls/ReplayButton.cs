@@ -189,21 +189,21 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                 Button(ProgressRing().Width(14).Height(14), onClick)
                     .Width(28)
                     .Height(28)
-                    .Padding(2, 0)
+                    .Padding(0, 0)
                     .AutomationName("回放下载中")
                     .WithToolTip(TextBlock("回放下载中…")),
             "watch" =>
                 Button(Glyph(Icons.Play, CareerVisuals.WinText), onClick)
                     .Width(28)
                     .Height(28)
-                    .Padding(2, 0)
+                    .Padding(0, 0)
                     .AutomationName("观看回放")
                     .WithToolTip(TextBlock("点击启动对局回放")),
             "unsupported" =>
                 Button(Glyph(Icons.Cancel, Theme.SecondaryText), onClick)
                     .Width(28)
                     .Height(28)
-                    .Padding(2, 0)
+                    .Padding(0, 0)
                     .IsEnabled(false)
                     .AutomationName("回放不可用")
                     .WithToolTip(TextBlock(notice ?? "该对局回放不可用")),
@@ -211,14 +211,14 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
                 Button(Glyph(Icons.Error, CareerVisuals.LoseText), onClick)
                     .Width(28)
                     .Height(28)
-                    .Padding(2, 0)
+                    .Padding(0, 0)
                     .AutomationName("下载失败重试")
                     .WithToolTip(TextBlock(notice ?? "下载失败，点击重试")),
             _ =>
                 Button(Glyph(Icons.Replay, Theme.SecondaryText), onClick)
                     .Width(28)
                     .Height(28)
-                    .Padding(2, 0)
+                    .Padding(0, 0)
                     .AutomationName("回放")
                     .WithToolTip(TextBlock("回放")),
         };
@@ -231,35 +231,35 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
             "checking" =>
                 Button(HStack(6, ProgressRing().Width(14).Height(14), Caption("检查中…")), onClick)
                     .Height(28)
-                    .Padding(10, 0)
+                    .Padding(8, 0)
                     .AutomationName("回放检查中"),
             "downloading" =>
                 Button(HStack(6, ProgressRing().Width(14).Height(14), Caption("下载中…")), onClick)
                     .Height(28)
-                    .Padding(10, 0)
+                    .Padding(8, 0)
                     .AutomationName("回放下载中"),
             "watch" =>
                 Button(HStack(6, Glyph(Icons.Play, CareerVisuals.WinText), Caption("观看回放")), onClick)
                     .Height(28)
-                    .Padding(10, 0)
+                    .Padding(8, 0)
                     .AutomationName("观看回放"),
             "unsupported" =>
                 Button(HStack(6, Glyph(Icons.Cancel), Caption("不可用")), onClick)
                     .Height(28)
-                    .Padding(10, 0)
+                    .Padding(8, 0)
                     .IsEnabled(false)
                     .AutomationName("回放不可用")
                     .WithToolTip(TextBlock(notice ?? "该对局回放不可用")),
             "error" =>
                 Button(HStack(6, Glyph(Icons.Error, CareerVisuals.LoseText), Caption("重试")), onClick)
                     .Height(28)
-                    .Padding(10, 0)
+                    .Padding(8, 0)
                     .AutomationName("重试")
                     .WithToolTip(TextBlock(notice ?? "下载失败，点击重试")),
             _ =>
                 Button(HStack(6, Glyph(Icons.Replay), Caption("回放")), onClick)
                     .Height(28)
-                    .Padding(10, 0)
+                    .Padding(8, 0)
                     .AutomationName("回放")
                     .WithToolTip(TextBlock("回放")),
         };
