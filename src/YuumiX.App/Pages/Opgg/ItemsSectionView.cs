@@ -51,7 +51,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
                 )
             )
             .Padding(new Thickness(16, 12, 16, 12))
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
         )

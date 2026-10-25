@@ -140,7 +140,7 @@ internal static class ChallengePreferencesView
                                     .Foreground(Theme.Accent)
                             )
                             .Padding(6, 2)
-                            .CornerRadius(4)
+                            .CornerRadius(YuumiTheme.ControlRadius)
                             .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
                             .VAlign(VerticalAlignment.Center)
                             .Grid(row: 0, column: 2),
@@ -151,7 +151,7 @@ internal static class ChallengePreferencesView
                 .Background(isSelected ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
                 .BorderThickness(isSelected ? 1 : 0)
                 .BorderBrush(Theme.Accent)
-                .CornerRadius(4)
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Padding(8, 6)
                 .HAlign(HorizontalAlignment.Stretch)
                 .HorizontalContentAlignment(HorizontalAlignment.Stretch)
@@ -164,7 +164,7 @@ internal static class ChallengePreferencesView
                 ).Height(240)
             )
             .Padding(6)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.Ref("LayerFillColorDefaultBrush"))
             .WithBorder(Theme.CardStroke, 1);
         }

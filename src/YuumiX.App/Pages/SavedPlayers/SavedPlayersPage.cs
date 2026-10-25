@@ -442,15 +442,13 @@ public sealed class SavedPlayersPage : Component
     private static Element RenderHeader(long totalCount, Action onImport, Action onExport, YuumiPalette palette)
     {
         var badge = totalCount > 0
-            ? Border(
+            ? Badge.Create(
                 Caption($"{totalCount}")
                     .SemiBold()
                     .Foreground(Theme.Accent)
-                    .Margin(6, 1)
-              )
-              .Background(Theme.CardBackground)
-              .WithBorder(Theme.Accent, 1)
-              .CornerRadius(10)
+                    .Margin(6, 1),
+                Theme.CardBackground,
+                Theme.Accent)
               .VerticalAlignment(VerticalAlignment.Center)
             : null;
 
@@ -731,7 +729,7 @@ public sealed class SavedPlayersPage : Component
                             .Margin(6, 1)
                       )
                       .Background(Theme.Accent)
-                      .CornerRadius(4)
+                      .CornerRadius(YuumiTheme.ControlRadius)
                     : null,
 
                 !string.IsNullOrEmpty(modeName)
@@ -742,7 +740,7 @@ public sealed class SavedPlayersPage : Component
                       )
                       .Background(Theme.CardBackground)
                       .WithBorder(Theme.CardStroke, 1)
-                      .CornerRadius(4)
+                      .CornerRadius(YuumiTheme.ControlRadius)
                     : null,
 
                 player.EncounterCount >= 2
@@ -753,7 +751,7 @@ public sealed class SavedPlayersPage : Component
                       )
                       .Background(Theme.CardBackground)
                       .WithBorder(Theme.Accent, 1)
-                      .CornerRadius(4)
+                      .CornerRadius(YuumiTheme.ControlRadius)
                     : null
             )
         )
@@ -835,7 +833,7 @@ public sealed class SavedPlayersPage : Component
             )
             .Background(Theme.CardBackground)
             .WithBorder(palette.LoseAccent, 1)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Margin(0, 8, 0, 0);
         }
 
@@ -932,7 +930,7 @@ public sealed class SavedPlayersPage : Component
         )
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
-        .CornerRadius(8);
+        .CornerRadius(YuumiTheme.OverlayRadius);
     }
 
     private static string FormatQueue(string? queueType)

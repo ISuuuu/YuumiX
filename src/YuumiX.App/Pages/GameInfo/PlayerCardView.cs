@@ -58,12 +58,12 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         double ringBorderThickness = masteryDetail?.IsTopChampion == true ? 2.0 : (xpProgress > 0 ? 1.5 : 0.0);
 
         var avatarCore = Border(
-            Component<LcuImage, LcuImageProps>(new LcuImageProps(avatarAsset, Size: 42, CornerRadius: 21))
+            Component<LcuImage, LcuImageProps>(new LcuImageProps(avatarAsset, Size: 42, CornerRadius: YuumiTheme.PillRadius))
                 .Provide(AppHost.Context, services)
         )
         .Width(42)
         .Height(42)
-        .CornerRadius(21)
+        .CornerRadius(YuumiTheme.PillRadius)
         .WithBorder(ringBorderColor, ringBorderThickness);
 
         var avatarStack = new List<Element> { avatarCore };
@@ -78,7 +78,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             )
             .Width(13)
             .Height(13)
-            .CornerRadius(6.5)
+            .CornerRadius(YuumiTheme.PillRadius)
             .Background(AssetColors.BadgeRose)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom)
@@ -98,7 +98,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .VAlign(VerticalAlignment.Center)
             )
             .Background(AssetColors.BadgeDark)
-            .CornerRadius(3)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Padding(3, 0.5)
             .HAlign(HorizontalAlignment.Center)
             .VAlign(VerticalAlignment.Bottom)
@@ -149,10 +149,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         if (isSelf)
         {
             nameRowItems.Add(
-                Border(Caption("我").Foreground(Theme.Accent))
-                    .Background(Theme.SubtleFill)
-                    .CornerRadius(2.5)
-                    .Padding(2.5, 0.5)
+                Badge.Create(Caption("我").Foreground(Theme.Accent), Theme.SubtleFill, padH: 2.5, padV: 0.5)
                     .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center));
         }
@@ -176,10 +173,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             string fateFg = isAlly ? palette.WinText : palette.LoseText;
 
             nameRowItems.Add(
-                Border(Caption(fateText).Foreground(fateFg))
-                    .Background(fateBg)
-                    .CornerRadius(2.5)
-                    .Padding(2.5, 0.5)
+                Badge.Create(Caption(fateText).Foreground(fateFg), fateBg, padH: 2.5, padV: 0.5)
                     .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
@@ -201,10 +195,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             string streakBg = d.Streak.IsWin ? palette.WinBg : palette.LoseBg;
 
             nameRowItems.Add(
-                Border(Caption(streakText).Foreground(streakFg))
-                    .Background(streakBg)
-                    .CornerRadius(2.5)
-                    .Padding(2.5, 0.5)
+                Badge.Create(Caption(streakText).Foreground(streakFg), streakBg, padH: 2.5, padV: 0.5)
                     .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock(d.Streak.IsWin ? $"{d.Streak.Count}连胜" : $"{d.Streak.Count}连败")));
@@ -220,10 +211,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             var soloElement = HStack(3,
                 CareerVisuals.RankedMedal(d!.Solo!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(Caption("单双").Foreground(AssetColors.BlueEssence))
-                    .Background(AssetColors.BlueFaint)
-                    .CornerRadius(2)
-                    .Padding(2, 0.5)
+                Badge.Create(Caption("单双").Foreground(AssetColors.BlueEssence), AssetColors.BlueFaint, padH: 2, padV: 0.5)
                     .VAlign(VerticalAlignment.Center),
                 Caption($"{d.Solo.TierText} {d.Solo.LeaguePoints} LP · {d.Solo.Wins}胜")
                     .Foreground(Theme.SecondaryText)
@@ -233,10 +221,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
 
             var flexElement = HStack(3,
                 CareerVisuals.RankedMedal(d.Flex!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(Caption("灵活").Foreground(palette.WinText))
-                    .Background(palette.WinBg)
-                    .CornerRadius(2)
-                    .Padding(2, 0.5)
+                Badge.Create(Caption("灵活").Foreground(palette.WinText), palette.WinBg, padH: 2, padV: 0.5)
                     .VAlign(VerticalAlignment.Center),
                 Caption($"{d.Flex.TierText} {d.Flex.LeaguePoints} LP · {d.Flex.Wins}胜")
                     .Foreground(Theme.SecondaryText)
@@ -250,10 +235,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             rankRow = HStack(3,
                 CareerVisuals.RankedMedal(d!.Solo!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(Caption("单双").Foreground(AssetColors.BlueEssence))
-                    .Background(AssetColors.BlueFaint)
-                    .CornerRadius(2)
-                    .Padding(2, 0.5)
+                Badge.Create(Caption("单双").Foreground(AssetColors.BlueEssence), AssetColors.BlueFaint, padH: 2, padV: 0.5)
                     .VAlign(VerticalAlignment.Center),
                 Caption($"{d.Solo.TierText} {d.Solo.LeaguePoints} LP · {d.Solo.Wins}胜")
                     .Foreground(Theme.SecondaryText)
@@ -265,10 +247,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             rankRow = HStack(3,
                 CareerVisuals.RankedMedal(d!.Flex!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Border(Caption("灵活").Foreground(palette.WinText))
-                    .Background(palette.WinBg)
-                    .CornerRadius(2)
-                    .Padding(2, 0.5)
+                Badge.Create(Caption("灵活").Foreground(palette.WinText), palette.WinBg, padH: 2, padV: 0.5)
                     .VAlign(VerticalAlignment.Center),
                 Caption($"{d.Flex.TierText} {d.Flex.LeaguePoints} LP · {d.Flex.Wins}胜")
                     .Foreground(Theme.SecondaryText)
@@ -379,7 +358,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                             .Foreground(Theme.SecondaryText)
                     )
                     .Background(Theme.SubtleFill)
-                    .CornerRadius(3)
+                    .CornerRadius(YuumiTheme.ControlRadius)
                     .Padding(3, 1)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock(masteryTip))
@@ -391,7 +370,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                 leftItems.Add(
                     Border(Caption("招牌").Foreground(AssetColors.Amber))
                         .Background(AssetColors.AmberFaint)
-                        .CornerRadius(3)
+                        .CornerRadius(YuumiTheme.ControlRadius)
                         .Padding(3, 1)
                         .Margin(3, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
@@ -403,7 +382,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                 leftItems.Add(
                     Border(Caption("练英雄").Foreground(palette.LoseText))
                         .Background(palette.LoseBg)
-                        .CornerRadius(3)
+                        .CornerRadius(YuumiTheme.ControlRadius)
                         .Padding(3, 1)
                         .Margin(3, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
@@ -429,7 +408,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                         .VAlign(VerticalAlignment.Center)
                 )
                 .Background(Theme.SubtleFill)
-                .CornerRadius(3)
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Padding(3, 1)
                 .WithToolTip(TextBlock(posTip));
 
@@ -472,7 +451,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             : topContent;
 
         var card = Border(fullContent)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Padding(10, 8);
 
         return premadeColor is null

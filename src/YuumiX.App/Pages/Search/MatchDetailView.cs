@@ -183,7 +183,7 @@ internal static class MatchDetailView
         return Border(
                 ScrollViewer(VStack(10, blocks.ToArray()).Padding(12))
                     .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch))
-            .CornerRadius(10)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
@@ -193,7 +193,7 @@ internal static class MatchDetailView
     private static Element EmptyPanel(YuumiPalette palette) =>
         Border(Caption("在左侧选择一局以查看详情").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
             .Padding(24)
-            .CornerRadius(10)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
@@ -201,7 +201,7 @@ internal static class MatchDetailView
 
     /// <summary>详情请求进行中的占位。</summary>
     private static Element PendingHint(YuumiPalette palette) =>
-        Border(Caption("正在读取该局详情…").Foreground(Theme.SecondaryText)).Padding(16).CornerRadius(8)
+        Border(Caption("正在读取该局详情…").Foreground(Theme.SecondaryText)).Padding(16).CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
@@ -239,7 +239,7 @@ internal static class MatchDetailView
             $"游戏 ID: {summary.GameId.ToString(CultureInfo.InvariantCulture)}");
 
         Element info = HStack(10,
-            Border(Empty()).Width(4).Height(34).CornerRadius(2).Background(accent),
+            Border(Empty()).Width(4).Height(34).CornerRadius(YuumiTheme.PillRadius).Background(accent),
             VStack(3,
                 BodyLarge(SearchVisuals.ResultText(summary))
                     .SemiBold()
@@ -259,7 +259,7 @@ internal static class MatchDetailView
             .Width(28)
             .Height(28)
             .Padding(0)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .AutomationName("复制游戏 ID")
             .WithToolTip(TextBlock($"复制游戏 ID: {summary.GameId}"));
 
@@ -273,7 +273,7 @@ internal static class MatchDetailView
 
         return Border(bannerContent)
             .Padding(12)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(bg)
             .WithBorder(border, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
@@ -337,7 +337,7 @@ internal static class MatchDetailView
             : VStack(0, rows.ToArray());
 
         return Border(VStack(0, header, body))
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(border, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
@@ -417,7 +417,7 @@ internal static class MatchDetailView
                     .VAlign(VerticalAlignment.Center))
             .Width(15)
             .Height(15)
-            .CornerRadius(3)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Background(AssetColors.BadgeDark)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom);

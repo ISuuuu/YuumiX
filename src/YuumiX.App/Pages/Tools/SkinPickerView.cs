@@ -93,7 +93,7 @@ internal static class SkinPickerView
                 ]
             ).Padding(12, 8)
         )
-        .CornerRadius(6)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.Ref("LayerFillColorDefaultBrush"))
         .WithBorder(Theme.CardStroke, 1)
         .Margin(new Thickness(0, 0, 0, 10));
@@ -115,7 +115,7 @@ internal static class SkinPickerView
             .BorderThickness(isCurrent ? 1 : 0)
             .BorderBrush(Theme.Accent)
             .Padding(10, 6)
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .AutomationName($"选择皮肤_{skin.Name}");
         }).ToArray();
 

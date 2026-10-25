@@ -19,6 +19,21 @@ namespace YuumiX.App.Theming;
 /// </summary>
 public static class YuumiTheme
 {
+    /// <summary>控件级圆角（按钮、输入框、小徽标），对齐 WinUI ControlCornerRadius。</summary>
+    public const double ControlRadius = 4;
+
+    /// <summary>容器级圆角（卡片、对话框、浮层），对齐 WinUI OverlayCornerRadius。</summary>
+    public const double OverlayRadius = 8;
+
+    /// <summary>
+    /// 胶囊档圆角（头像、等级徽标、全圆胶囊）。XAML 会把超过边长一半的圆角
+    /// 自动收缩为半宽/半高，因此用大值表达「全圆」语义，代替各处手写的高度一半。
+    /// </summary>
+    public const double PillRadius = 999;
+
+    /// <summary>方形（无圆角）：仅用于刻意做直角的控件，如 Tab 条按钮。</summary>
+    public const double SquareRadius = 0;
+
     /// <summary>胜利卡片底色默认值（对应 WinCardColor 默认 #3339b01b，含 alpha）。</summary>
     public const string WinCard = "#3339B01B";
 

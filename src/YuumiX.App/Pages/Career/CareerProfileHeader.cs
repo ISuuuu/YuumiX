@@ -45,14 +45,15 @@ internal static class CareerProfileHeader
                 AvatarSize / 2));
 
         // 环底部中心悬浮等级徽章
-        Element levelBadge = Border(Caption(summoner.SummonerLevel.ToString(CultureInfo.InvariantCulture))
+        Element levelBadge = Badge.Create(
+            Caption(summoner.SummonerLevel.ToString(CultureInfo.InvariantCulture))
                 .SemiBold()
                 .Foreground(Theme.PrimaryText)
-                .HAlign(HorizontalAlignment.Center))
-            .Padding(8, 1)
-            .CornerRadius(9)
-            .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1);
+                .HAlign(HorizontalAlignment.Center),
+            Theme.CardBackground,
+            Theme.CardStroke,
+            padH: 8,
+            padV: 1);
 
         Element avatarBlock = Grid(
                 [GridSize.Auto],
@@ -83,7 +84,7 @@ internal static class CareerProfileHeader
                 .Width(28)
                 .Height(28)
                 .Padding(0)
-                .CornerRadius(6)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .AutomationName("复制 Riot ID"),
             copied
                 ? Caption("✓ 已复制")
@@ -123,7 +124,7 @@ internal static class CareerProfileHeader
             actionButtons.Add(Button(Caption("返回我的生涯"), onBackToSelf)
                 .Width(ActionWidth)
                 .Height(30)
-                .CornerRadius(6)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .AutomationName("返回我的生涯"));
         }
 
@@ -131,12 +132,12 @@ internal static class CareerProfileHeader
             .AutomationName("刷新")
             .Width(ActionWidth)
             .Height(30)
-            .CornerRadius(6));
+            .CornerRadius(YuumiTheme.OverlayRadius));
         actionButtons.Add(Button(Caption("历史战绩"), onHistory)
             .AutomationName("历史战绩")
             .Width(ActionWidth)
             .Height(30)
-            .CornerRadius(6));
+            .CornerRadius(YuumiTheme.OverlayRadius));
 
         Element actions = VStack(8, actionButtons.ToArray())
             .HAlign(HorizontalAlignment.Right)
@@ -153,7 +154,7 @@ internal static class CareerProfileHeader
 
         return Border(headerContent)
             .Padding(20)
-            .CornerRadius(10)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1);
     }

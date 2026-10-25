@@ -62,7 +62,7 @@ internal static class ChampionPickerView
                     .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
                     .BorderBrush(Theme.Ref("CardStrokeColorDefaultBrush"))
                     .BorderThickness(1)
-                    .CornerRadius(6)
+                    .CornerRadius(YuumiTheme.OverlayRadius)
                     .Padding(8, 4)
                 );
             }
@@ -140,7 +140,7 @@ internal static class ChampionPickerView
             .Background(isSelected ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
             .BorderBrush(isSelected ? Theme.Accent : Theme.ControlStroke)
             .BorderThickness(isSelected ? 1.5 : 1)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Margin(new Thickness(0, 0, 6, 6))
             .AutomationName($"选择英雄_{champ.Name}");
 

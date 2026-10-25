@@ -110,7 +110,7 @@ public sealed class HomePage : Component
             .Width(440)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
-            .CornerRadius(12)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .HorizontalAlignment(HorizontalAlignment.Center)
         )
         .HorizontalAlignment(HorizontalAlignment.Center)

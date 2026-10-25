@@ -914,7 +914,7 @@ public sealed class CareerPage : Component
         })
         .Height(34)
         .Padding(16, 0)
-        .CornerRadius(8)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .AutomationName(label);
 
         return isSelected

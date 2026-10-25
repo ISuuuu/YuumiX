@@ -158,14 +158,14 @@ public sealed class NoticePage : Component
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)))
                 .Padding(12, 8)
-                .CornerRadius(6)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(Theme.Ref("SubtleFillColorSecondaryBrush")));
         }
 
         blocks.Add(Border(
                 VStack(12, NoticeMarkdown.RenderBlocks(view.Markdown ?? string.Empty)))
             .Padding(24)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1));
 

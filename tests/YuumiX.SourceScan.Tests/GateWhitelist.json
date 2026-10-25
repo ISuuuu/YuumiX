@@ -33,7 +33,7 @@
     {
       "path": "Pages/Career/CareerProfileHeader.cs",
       "rule": "SpacingOff4Grid",
-      "count": 2,
+      "count": 1,
       "batch": "R16"
     },
     {
@@ -69,13 +69,13 @@
     {
       "path": "Pages/GameInfo/GameInfoPage.cs",
       "rule": "SpacingOff4Grid",
-      "count": 12,
+      "count": 11,
       "batch": "R16"
     },
     {
       "path": "Pages/GameInfo/PlayerCardView.cs",
       "rule": "SpacingOff4Grid",
-      "count": 22,
+      "count": 15,
       "batch": "R16"
     },
     {
@@ -93,13 +93,13 @@
     {
       "path": "Pages/GameInfo/PlayerMatchColumnView.cs",
       "rule": "SpacingOff4Grid",
-      "count": 7,
+      "count": 6,
       "batch": "R16"
     },
     {
       "path": "Pages/GameInfo/PremadeGroupChipsView.cs",
       "rule": "SpacingOff4Grid",
-      "count": 2,
+      "count": 1,
       "batch": "R16"
     },
     {

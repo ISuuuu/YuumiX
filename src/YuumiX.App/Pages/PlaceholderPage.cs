@@ -65,7 +65,7 @@ public sealed class PlaceholderPage : Component<PlaceholderProps>
                     SubHeading("待迁移功能"),
                     VStack(8, featureList))
             ).Padding(20)
-             .CornerRadius(8)
+             .CornerRadius(YuumiTheme.OverlayRadius)
              .Background(Theme.CardBackground)
              .WithBorder(Theme.CardStroke, 1));
 

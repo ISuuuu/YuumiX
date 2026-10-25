@@ -337,7 +337,7 @@ public sealed class ToolsPage : Component
                     ]
                 ).Padding(new Thickness(16, 12, 16, 12))
             )
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
@@ -394,7 +394,7 @@ public sealed class ToolsPage : Component
                 .Padding(new Thickness(16, 12, 16, 12))
                 .HAlign(HorizontalAlignment.Stretch)
                 .HorizontalContentAlignment(HorizontalAlignment.Stretch)
-                .CornerRadius(8)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .IsEnabled(isLcuConnected)
                 .AutomationName(title);
 
@@ -417,7 +417,7 @@ public sealed class ToolsPage : Component
             }
 
             return Border(body)
-                .CornerRadius(8)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(Theme.CardBackground)
                 .WithBorder(Theme.CardStroke, 1)
                 .HAlign(HorizontalAlignment.Stretch);
@@ -485,7 +485,7 @@ public sealed class ToolsPage : Component
                         .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
                         .BorderBrush(isCurrent ? Theme.Accent : Theme.ControlStroke)
                         .BorderThickness(isCurrent ? 1.5 : 1)
-                        .CornerRadius(6)
+                        .CornerRadius(YuumiTheme.OverlayRadius)
                         .Padding(8, 4)
                         .Margin(new Thickness(0, 0, 6, 0))
                         .AutomationName($"分路_{LaneLabels[idx]}")
@@ -1410,25 +1410,25 @@ public sealed class ToolsPage : Component
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Ref("SystemFillColorCriticalBrush")),
+                    Border(Empty()).Width(3).Height(26).CornerRadius(YuumiTheme.PillRadius).Background(Theme.Ref("SystemFillColorCriticalBrush")),
                     Caption($"配置错误: {error}").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center)))
-                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
+                .Padding(10).CornerRadius(YuumiTheme.OverlayRadius).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
         else if (actionFeedback is not null)
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Accent),
+                    Border(Empty()).Width(3).Height(26).CornerRadius(YuumiTheme.PillRadius).Background(Theme.Accent),
                     Caption(actionFeedback).Foreground(Theme.Accent).VAlign(VerticalAlignment.Center)))
-                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
+                .Padding(10).CornerRadius(YuumiTheme.OverlayRadius).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
         else if (savedAt is { } time)
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Accent),
+                    Border(Empty()).Width(3).Height(26).CornerRadius(YuumiTheme.PillRadius).Background(Theme.Accent),
                     Caption($"配置已保存 · {time:HH:mm:ss}").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)))
-                .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
+                .Padding(10).CornerRadius(YuumiTheme.OverlayRadius).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
 
         Element? offlineBanner = null;
@@ -1448,7 +1448,7 @@ public sealed class ToolsPage : Component
             .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
             .BorderBrush(Theme.Ref("SystemFillColorCriticalBrush"))
             .BorderThickness(1)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Padding(12, 8)
             .Margin(new Thickness(0, 0, 0, 8));
         }

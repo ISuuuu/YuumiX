@@ -649,7 +649,7 @@ public sealed class SettingsPage : Component
                             .Foreground(Theme.AccentText)
                     )
                     .Padding(new Thickness(8, 4, 8, 4))
-                    .CornerRadius(4)
+                    .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.Accent)
                     .VAlign(VerticalAlignment.Center));
             }
@@ -921,7 +921,7 @@ public sealed class SettingsPage : Component
         Element SignalrBadgeElement(SignalrStatus status)
         {
             Element Dot(ThemeRef color) =>
-                Border(Empty()).Width(8).Height(8).CornerRadius(4).Background(color);
+                Border(Empty()).Width(8).Height(8).CornerRadius(YuumiTheme.ControlRadius).Background(color);
 
             var color = status.State switch
             {
@@ -1375,7 +1375,7 @@ public sealed class SettingsPage : Component
         Border(Empty())
             .Width(56)
             .Height(24)
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Background(color)
             .WithBorder(Theme.CardStroke, 1);
 

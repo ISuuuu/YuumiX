@@ -66,7 +66,7 @@ public static class CompactStepperControl
         )
         .Width(110)
         .Height(30)
-        .CornerRadius(6)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.SubtleFill)
         .WithBorder(Theme.ControlStroke, 1);
     }
@@ -118,7 +118,7 @@ public static class CompactStepperControl
         )
         .Width(110)
         .Height(30)
-        .CornerRadius(6)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.SubtleFill)
         .WithBorder(Theme.ControlStroke, 1);
     }

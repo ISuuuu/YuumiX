@@ -133,14 +133,14 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                     .SubtleButton()
                     .Width(22)
                     .Height(22)
-                    .CornerRadius(6)
+                    .CornerRadius(YuumiTheme.OverlayRadius)
                     .AutomationName("关闭公告")))
             .Padding(new Thickness(14, 10, 8, 10))
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.DividerStroke, 1)
             // WinUI 的 Border 不像 CSS overflow:hidden 那样裁剪子内容，
             // 标题栏需要自己收掉上侧两个圆角，避免方角顶出 14px 圆角卡片。
-            .CornerRadius(14, 14, 0, 0);
+            .CornerRadius(YuumiTheme.OverlayRadius, YuumiTheme.OverlayRadius, 0, 0);
 
         // ── 正文：加载中 / 失败 / 内容三态（旧版 notice-popup-body）──
         Element body = status switch
@@ -152,7 +152,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                         .Foreground(Theme.Ref("TextFillColorSecondaryBrush"))
                         .TextWrapping(),
                     Button("重试", () => setAttempt(attempt + 1))
-                        .CornerRadius(6)
+                        .CornerRadius(YuumiTheme.OverlayRadius)
                         .Padding(new Thickness(16, 4, 16, 4)))
                 .HAlign(HorizontalAlignment.Center)
                 .Padding(new Thickness(16, 24, 16, 24)),
@@ -168,7 +168,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         // ── 卡片本体：360px 宽、圆角 14，吸右下角 20px（旧版 notice-popup）──
         return VStack(0, header, body)
             .Width(360)
-            .CornerRadius(14)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Right)

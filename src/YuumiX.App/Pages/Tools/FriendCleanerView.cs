@@ -88,7 +88,7 @@ internal static class FriendCleanerView
                 )
             )
             .Padding(12, 8)
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
             .WithBorder(Theme.Ref("SystemFillColorCriticalBrush"), 1)
             .Margin(new Thickness(0, 0, 0, 10));
@@ -132,7 +132,7 @@ internal static class FriendCleanerView
                     VStack(4, rows)
                 ).Height(320)
             )
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.Ref("LayerFillColorDefaultBrush"))
             .WithBorder(Theme.CardStroke, 1)
             .Padding(8);
@@ -202,14 +202,14 @@ internal static class FriendCleanerView
                         .Foreground(entry.Friend.Availability == "chat" ? Theme.Ref("SystemFillColorSuccessBrush") : Theme.SecondaryText)
                     )
                     .Padding(6, 2)
-                    .CornerRadius(4)
+                    .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
                     .VAlign(VerticalAlignment.Center)
                     .Grid(row: 0, column: 2),
                 ]
             ).Padding(new Thickness(8, 6, 8, 6))
         )
-        .CornerRadius(4)
+        .CornerRadius(YuumiTheme.ControlRadius)
         .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
         .WithKey(entry.Friend.Id);
     }

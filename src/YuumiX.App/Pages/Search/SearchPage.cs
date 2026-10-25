@@ -736,7 +736,7 @@ public sealed class SearchPage : Component
 
         return Border(body)
             .Padding(8)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
@@ -768,7 +768,7 @@ public sealed class SearchPage : Component
 
         return Border(content)
             .Padding(4)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
@@ -802,7 +802,7 @@ public sealed class SearchPage : Component
     private static Element Hint(string text, YuumiPalette palette) =>
         Border(Caption(text).Foreground(Theme.SecondaryText).TextWrapping())
             .Padding(12)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);

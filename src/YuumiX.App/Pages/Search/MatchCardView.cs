@@ -86,7 +86,7 @@ internal static class MatchCardView
             .Width(CardWidth)
             .Height(CardHeight)
             .Padding(8)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(bg)
             .WithBorder(borderBrush, borderThickness);
 
@@ -116,7 +116,7 @@ internal static class MatchCardView
         var border = Border(Empty())
             .Width(CardWidth)
             .Height(CardHeight)
-            .CornerRadius(8);
+            .CornerRadius(YuumiTheme.OverlayRadius);
 
         if (palette is not null)
         {

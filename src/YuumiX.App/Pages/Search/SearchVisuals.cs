@@ -91,7 +91,7 @@ internal static class SearchVisuals
         return Border(image)
             .Width(size)
             .Height(size)
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Background(AugmentBackgroundColor)
             .WithBorder(AugmentBorderColor, 1)
             .WithToolTip(Caption(name))

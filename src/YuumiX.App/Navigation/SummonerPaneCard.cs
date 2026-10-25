@@ -87,7 +87,7 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
                 .Width(Props.PaneWidth)
                 .Height(CardHeight)
                 .Padding(new Thickness(10, 0, 10, 0))
-                .CornerRadius(4)
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(hovered ? Theme.SubtleFill : Theme.CardBackground)
                 .WithBorder(hovered ? Theme.ControlStroke : Theme.CardStroke, 1)
                 .VerticalContentAlignment(VerticalAlignment.Center)

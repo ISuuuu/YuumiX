@@ -94,7 +94,7 @@ internal static class CareerVisuals
     public static Element Card(Element content, double padding = 16) =>
         Border(content)
             .Padding(padding)
-            .CornerRadius(10)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1);
 
@@ -135,7 +135,7 @@ internal static class CareerVisuals
                 .Foreground(foreground)
                 .VAlign(VerticalAlignment.Center))
             .Padding(padX, padY)
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Background(background);
 
         return borderBrush is not null

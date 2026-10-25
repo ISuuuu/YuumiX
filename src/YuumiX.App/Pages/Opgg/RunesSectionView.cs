@@ -56,7 +56,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
         )
         .Margin(new Thickness(12, 6, 12, 6))
         .Padding(new Thickness(16, 12, 16, 12))
-        .CornerRadius(8)
+        .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1);
     }
@@ -222,7 +222,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                             )
                         )
                         .Padding(new Thickness(8, 6, 8, 6))
-                        .CornerRadius(6)
+                        .CornerRadius(YuumiTheme.OverlayRadius)
                         .OnPointerPressed((_, _) => onSelect(idx))
                         .WithKey($"preset-{idx}");
 

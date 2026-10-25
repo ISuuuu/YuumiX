@@ -139,7 +139,7 @@ internal sealed class CapabilityLab : Component
                     Caption(note)),
                 content)
         ).Padding(18)
-         .CornerRadius(8)
+         .CornerRadius(YuumiTheme.OverlayRadius)
          .Background(Theme.CardBackground)
          .WithBorder(Theme.CardStroke, 1);
 
@@ -147,7 +147,7 @@ internal sealed class CapabilityLab : Component
         VStack(6,
             Border(Empty())
                 .Width(56).Height(40)
-                .CornerRadius(6)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(theme)
                 .WithBorder(Theme.CardStroke, 1),
             Caption(label));
@@ -156,7 +156,7 @@ internal sealed class CapabilityLab : Component
         VStack(6,
             Border(Empty())
                 .Width(56).Height(40)
-                .CornerRadius(6)
+                .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(color)
                 .WithBorder(Theme.CardStroke, 1),
             Caption(label));

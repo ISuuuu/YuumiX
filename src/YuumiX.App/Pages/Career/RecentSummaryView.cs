@@ -207,7 +207,7 @@ internal static class RecentSummaryView
                 tm.Tag is not null
                     ? Border(Caption(tm.Tag).Foreground(Theme.Accent))
                         .Padding(4, 1)
-                        .CornerRadius(3)
+                        .CornerRadius(YuumiTheme.ControlRadius)
                         .Background(Theme.SubtleFill)
                     : Empty()
             ),
@@ -232,7 +232,7 @@ internal static class RecentSummaryView
                 .HAlign(HorizontalAlignment.Stretch)
                 .Background(Theme.CardBackground)
                 .AutomationName($"查看 {tm.Name} 战绩"))
-            .CornerRadius(6)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .WithBorder(Theme.CardStroke, 1);
     }
 
@@ -260,7 +260,7 @@ internal static class RecentSummaryView
         Border(Caption($"{CareerVisuals.PositionText(position.Position)} {position.Percentage}%")
                 .Foreground(Theme.Accent))
             .Padding(7, 2)
-            .CornerRadius(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.CardStroke, 1)
             // 行高被 32px 头像撑高时，未居中的 Border 会贴顶，徽片相对标签上浮（同 CareerVisuals.Stat）
@@ -285,7 +285,7 @@ internal static class RecentSummaryView
             .HAlign(HorizontalAlignment.Center);
         var badge = Border(gamesText)
             .Padding(3, 0)
-            .CornerRadius(3)
+            .CornerRadius(YuumiTheme.ControlRadius)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom);
         if (wr >= 60)
