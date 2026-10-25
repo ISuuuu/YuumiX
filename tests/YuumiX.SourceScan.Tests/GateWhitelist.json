@@ -25,7 +25,7 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/Career/CareerPage.cs",
+      "path": "Pages/Career/CareerVisuals.cs",
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
@@ -163,9 +163,15 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/SavedPlayers/SavedPlayersPage.cs",
+      "path": "Pages/SavedPlayers/SavedPlayerCard.cs",
       "rule": "SpacingOff4Grid",
-      "count": 31,
+      "count": 20,
+      "batch": "R16"
+    },
+    {
+      "path": "Pages/SavedPlayers/SavedPlayersVisuals.cs",
+      "rule": "SpacingOff4Grid",
+      "count": 11,
       "batch": "R16"
     },
     {
