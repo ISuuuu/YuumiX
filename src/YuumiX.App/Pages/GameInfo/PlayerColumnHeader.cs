@@ -95,7 +95,7 @@ internal static class PlayerColumnHeader
         var header = Border(body)
             .BorderThickness(new Thickness(0, 0, 0, 1))
             .BorderBrush(Theme.CardStroke)
-            .Padding(5, 6);
+            .Padding(4, 4);
 
         return premadeColor is null
             ? header.Background(Theme.SubtleFill)
@@ -148,7 +148,7 @@ internal static class PlayerColumnHeader
                 Border(Caption(FateBadgeVisuals.GetBadgeText(d)).Foreground(isAlly ? palette.WinText : palette.LoseText))
                     .Background(isAlly ? palette.WinBg : palette.LoseBg)
                     .CornerRadius(YuumiTheme.ControlRadius)
-                    .Padding(3, 0.5)
+                    .Padding(4, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
         }
@@ -185,7 +185,7 @@ internal static class PlayerColumnHeader
         if (d?.WinCount.HasValue == true && d.LossesCount.HasValue)
         {
             summaryItems.Add(Caption($"{d.WinCount}胜").Foreground(palette.WinText));
-            summaryItems.Add(Caption($"{d.LossesCount}负").Foreground(palette.LoseText).Margin(2, 0, 4, 0));
+            summaryItems.Add(Caption($"{d.LossesCount}负").Foreground(palette.LoseText).Margin(4, 0, 4, 0));
         }
         else if (d?.WinRate.HasValue == true)
         {
@@ -231,7 +231,7 @@ internal static class PlayerColumnHeader
             .Height(48)
             .BorderThickness(new Thickness(0, 0, 0, 1))
             .BorderBrush(Theme.CardStroke)
-            .Padding(6, 4);
+            .Padding(4, 4);
 
         headerBorder = premadeColor is null
             ? headerBorder.Background(Theme.SubtleFill)

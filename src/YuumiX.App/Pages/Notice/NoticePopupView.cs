@@ -135,7 +135,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                     .Height(22)
                     .CornerRadius(YuumiTheme.OverlayRadius)
                     .AutomationName("关闭公告")))
-            .Padding(new Thickness(14, 10, 8, 10))
+            .Padding(new Thickness(12, 8, 8, 8))
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.DividerStroke, 1)
             // WinUI 的 Border 不像 CSS overflow:hidden 那样裁剪子内容，
@@ -193,7 +193,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                             .Foreground(Theme.Ref("TextFillColorSecondaryBrush"))
                             .TextWrapping()
                             .VAlign(VerticalAlignment.Center)))
-                .Padding(new Thickness(14, 6, 14, 6))
+                .Padding(new Thickness(12, 4, 12, 4))
                 .Background(Theme.Ref("SubtleFillColorSecondaryBrush")));
         }
 
@@ -201,7 +201,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
             (ScrollViewer(
                     VStack(7, NoticeMarkdown.RenderBlocks(content?.Markdown ?? string.Empty))
                         .HAlign(HorizontalAlignment.Stretch)
-                        .Padding(new Thickness(14, 12, 14, 12))) with
+                        .Padding(new Thickness(12, 12, 12, 12))) with
                 {
                     HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 })

@@ -74,7 +74,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 // 模块 6：克制与被克制双列卡片
                 RenderCounterCard(build)
             )
-            .Padding(new Thickness(0, 6, 0, 16))
+            .Padding(new Thickness(0, 4, 0, 16))
         );
     }
 
@@ -139,7 +139,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 ]
             )
         )
-        .Margin(new Thickness(12, 6, 12, 6))
+        .Margin(new Thickness(12, 4, 12, 4))
         .Padding(new Thickness(16, 12, 16, 12))
         .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(bg)
@@ -203,8 +203,8 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 ]
             )
         )
-        .Margin(new Thickness(12, 6, 12, 6))
-        .Padding(new Thickness(16, 10, 16, 10))
+        .Margin(new Thickness(12, 4, 12, 4))
+        .Padding(new Thickness(16, 8, 16, 8))
         .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1);
@@ -303,7 +303,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 ]
             )
         )
-        .Margin(new Thickness(12, 6, 12, 6))
+        .Margin(new Thickness(12, 4, 12, 4))
         .Padding(new Thickness(16, 12, 16, 12))
         .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.CardBackground)
@@ -329,7 +329,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
                 Caption(name)
                     .TextTrimming(TextTrimming.CharacterEllipsis)
-                    .Margin(new Thickness(6, 0, 0, 0))
+                    .Margin(new Thickness(4, 0, 0, 0))
                     .VAlign(VerticalAlignment.Center)
                     .Grid(0, 1),
 
@@ -345,6 +345,6 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 .Grid(0, 2)
             ]
         )
-        .Padding(new Thickness(0, 2, 0, 2));
+        .Padding(new Thickness(0, 0, 0, 0));
     }
 }

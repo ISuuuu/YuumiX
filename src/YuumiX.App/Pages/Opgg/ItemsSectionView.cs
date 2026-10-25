@@ -55,7 +55,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
         )
-        .Margin(new Thickness(12, 6, 12, 6));
+        .Margin(new Thickness(12, 4, 12, 4));
     }
 
     private Element RenderApplyBar()

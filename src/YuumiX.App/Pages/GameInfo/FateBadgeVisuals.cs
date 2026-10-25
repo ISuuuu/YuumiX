@@ -123,7 +123,7 @@ internal static class FateBadgeVisuals
             .Background(Theme.SubtleFill)
             .WithBorder(hasTag ? Theme.CardStroke : Theme.Ref("SubtleFillColorTransparentBrush"), hasTag ? 1 : 0)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Padding(4, 0.5)
+            .Padding(4, 0)
             .MaxWidth(50)
             .VAlign(VerticalAlignment.Center)
             .WithToolTip(BuildSavedToolTip(marker));

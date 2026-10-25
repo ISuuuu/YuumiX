@@ -37,7 +37,7 @@ internal static class SkinPickerView
                     .AutomationName("获取皮肤按钮")
                     .Grid(row: 0, column: 1),
             ]
-        ).Margin(new Thickness(0, 0, 0, 10));
+        ).Margin(new Thickness(0, 0, 0, 8));
 
         if (skins.Count == 0)
         {
@@ -96,7 +96,7 @@ internal static class SkinPickerView
         .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.Ref("LayerFillColorDefaultBrush"))
         .WithBorder(Theme.CardStroke, 1)
-        .Margin(new Thickness(0, 0, 0, 10));
+        .Margin(new Thickness(0, 0, 0, 8));
 
         var skinCards = skins.Select((skin, idx) =>
         {
@@ -114,7 +114,7 @@ internal static class SkinPickerView
             .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
             .BorderThickness(isCurrent ? 1 : 0)
             .BorderBrush(Theme.Accent)
-            .Padding(10, 6)
+            .Padding(8, 4)
             .CornerRadius(YuumiTheme.ControlRadius)
             .AutomationName($"选择皮肤_{skin.Name}");
         }).ToArray();

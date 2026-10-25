@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 与 YuumiX.App 同 TFM：调和决策层虽是纯托管逻辑，但类型定义在 App 程序集内
+         （Element/MountedItem），测试工程必须同平台家族才能引用。 -->
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <RootNamespace>YuumiX.App.Tests</RootNamespace>
+    <Platforms>x64</Platforms>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/YuumiX.App/YuumiX.App.csproj" />
+  </ItemGroup>
+
+</Project>

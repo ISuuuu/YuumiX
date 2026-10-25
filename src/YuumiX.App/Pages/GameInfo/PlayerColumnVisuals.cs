@@ -60,7 +60,7 @@ internal static class PlayerColumnVisuals
                     .Background(AssetColors.LoseDark)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Top)
-                    .Margin(0, -2, -2, 0)
+                    .Margin(0, 0, 0, 0)
                     .WithToolTip(TextBlock("练英雄/新手状态 (熟练度≤1级或点数<5000，近期少用或初次尝试)")));
         }
         else if (masteryDetail?.IsTopChampion == true)
@@ -76,7 +76,7 @@ internal static class PlayerColumnVisuals
                     .Background(AssetColors.Amber)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Top)
-                    .Margin(0, -2, -2, 0)
+                    .Margin(0, 0, 0, 0)
                     .WithToolTip(TextBlock("招牌/绝活英雄 (熟练度排名前三且≥1万分，或累计≥10万分)")));
         }
 
@@ -150,7 +150,7 @@ internal static class PlayerColumnVisuals
                 Caption(Icons.View)
                     .FontFamily(Icons.FontFamily)
                     .Foreground(AssetColors.AmberDeep)
-                    .Margin(3, 0, 0, 0)
+                    .Margin(4, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("战绩已隐藏")));
         }
@@ -163,15 +163,15 @@ internal static class PlayerColumnVisuals
                         .Foreground(isAlly ? palette.WinText : palette.LoseText))
                     .Background(isAlly ? palette.WinBg : palette.LoseBg)
                     .CornerRadius(YuumiTheme.ControlRadius)
-                    .Padding(3, 0.5)
-                    .Margin(3, 0, 0, 0)
+                    .Padding(4, 0)
+                    .Margin(4, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
         }
 
         if (showSavedBadge && savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
-            items.Add(FateBadgeVisuals.BuildSavedBadge(savedInfo).Margin(3, 0, 0, 0));
+            items.Add(FateBadgeVisuals.BuildSavedBadge(savedInfo).Margin(4, 0, 0, 0));
         }
 
         return HStack(0, items.ToArray());
@@ -219,7 +219,7 @@ internal static class PlayerColumnVisuals
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.CardStroke, 1)
             .CornerRadius(YuumiTheme.ControlRadius)
-            .Padding(3, 0.5)
+            .Padding(4, 0)
             .VAlign(VerticalAlignment.Center)
             .WithToolTip(TextBlock($"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)"));
     }
@@ -354,7 +354,7 @@ internal static class PlayerColumnVisuals
 
         var items = new List<Element>
         {
-            BuildPositionIcon(primary, 10).Margin(0, 0, 2, 0),
+            BuildPositionIcon(primary, 10).Margin(0, 0, 4, 0),
             Caption($"{ShortPosition(primary)} {d.Positions.PrimaryPercentage}%")
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
@@ -363,7 +363,7 @@ internal static class PlayerColumnVisuals
         if (d.Positions.SecondaryPosition is { } secondary && d.Positions.SecondaryPercentage > 0)
         {
             items.Add(Caption(" / ").Foreground(Theme.DisabledText).VAlign(VerticalAlignment.Center));
-            items.Add(BuildPositionIcon(secondary, 10).Margin(0, 0, 2, 0));
+            items.Add(BuildPositionIcon(secondary, 10).Margin(0, 0, 4, 0));
             items.Add(Caption($"{ShortPosition(secondary)} {d.Positions.SecondaryPercentage}%")
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center));

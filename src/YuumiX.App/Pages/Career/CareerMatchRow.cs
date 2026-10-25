@@ -85,7 +85,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                         .SemiBold()
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
-                    .Padding(3, 0)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.CardBackground)
                     .WithBorder(Theme.CardStroke, 1)
@@ -233,7 +233,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         // 业务描边是 string、悬停描边是 ThemeRef 令牌，两种形态无法共存于同一三元，因此在元素级分支。
         var row = Border(cardContent)
             .Height(RowHeight)
-            .Padding(14, 8)
+            .Padding(12, 8)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(currentBg)
             .AutomationName($"查看对局 {summary.GameId}");

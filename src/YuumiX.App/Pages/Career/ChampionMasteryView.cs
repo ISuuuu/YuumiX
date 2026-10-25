@@ -52,7 +52,7 @@ internal static class ChampionMasteryView
                 VStack(10,
                     Body("该账号暂无英雄熟练度记录")
                         .Foreground(Theme.SecondaryText),
-                    Button(Caption("重试"), onRefresh).Height(30).Padding(14, 0).AutomationName("重试加载熟练度")),
+                    Button(Caption("重试"), onRefresh).Height(30).Padding(12, 0).AutomationName("重试加载熟练度")),
                 padding: 24);
         }
 
@@ -119,7 +119,7 @@ internal static class ChampionMasteryView
             HStack(6,
                 BodyLarge(heroName).SemiBold().VAlign(VerticalAlignment.Center),
                 Border(Caption($"Lv. {heroLevel}").SemiBold().Foreground(Theme.Accent))
-                    .Padding(6, 2)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.SubtleFill)
                     .VAlign(VerticalAlignment.Center)),
@@ -180,7 +180,7 @@ internal static class ChampionMasteryView
             ComboBox(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx))
                 .Width(125)
                 .AutomationName("排序方式"),
-            Button(Caption("刷新"), onRefresh).Height(30).Padding(14, 0).AutomationName("刷新熟练度"))
+            Button(Caption("刷新"), onRefresh).Height(30).Padding(12, 0).AutomationName("刷新熟练度"))
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
 
@@ -308,7 +308,7 @@ internal static class ChampionMasteryView
                         .SemiBold()
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
-                    .Padding(4, 1)
+                    .Padding(4, 0)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.CardBackground)
                     .WithBorder(Theme.CardStroke, 1)
@@ -362,7 +362,7 @@ internal static class ChampionMasteryView
         var badges = new List<Element>
         {
             Border(Caption($"里程碑 {item.ChampionSeasonMilestone}").Foreground(Theme.SecondaryText))
-                .Padding(5, 1)
+                .Padding(4, 0)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(Theme.SubtleFill)
                 .WithBorder(Theme.CardStroke, 1),
@@ -372,7 +372,7 @@ internal static class ChampionMasteryView
         {
             badges.Add(Border(Caption(grade)
                     .Foreground(CareerVisuals.GoldColor))
-                .Padding(4, 1)
+                .Padding(4, 0)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x1F)));
         }
@@ -380,7 +380,7 @@ internal static class ChampionMasteryView
         Element chestBtn = Border(HStack(3,
                 Caption("可获宝箱").Foreground(Theme.Accent),
                 Caption("📦")))
-            .Padding(6, 2)
+            .Padding(4, 0)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.CardStroke, 1);

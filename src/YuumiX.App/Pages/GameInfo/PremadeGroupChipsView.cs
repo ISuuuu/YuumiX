@@ -48,7 +48,7 @@ public sealed class PremadeGroupChipsView : Component<PremadeGroupChipsProps>
                 : "/lol-game-data/assets/v1/profile-icons/29.png";
 
             var icon = Component<LcuImage, LcuImageProps>(new LcuImageProps(asset, Size: 18, CornerRadius: 9))
-                .Margin(i > 0 ? -6 : 0, 0, 0, 0);
+                .Margin(i > 0 ? -4 : 0, 0, 0, 0);
 
             if (!string.IsNullOrEmpty(member.DisplayName))
             {

@@ -182,7 +182,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                 padV: 0)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom)
-            .Margin(0, 0, -1, -1);
+            .Margin(0, 0, 0, 0);
 
         var champIconWithLevel = Grid(
             [GridSize.Auto],
@@ -208,7 +208,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             topRowColumns.Add(GridSize.Auto);
             topRowElements.Add(
-                PlayerColumnVisuals.BuildPositionIcon(inferredPos, 11).Margin(2, 0, 2, 0)
+                PlayerColumnVisuals.BuildPositionIcon(inferredPos, 11).Margin(4, 0, 4, 0)
                     .Grid(row: 0, column: topCol));
             topCol++;
         }
@@ -223,8 +223,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .Background(Theme.SubtleFill)
                     .WithBorder(Theme.CardStroke, 1)
                     .CornerRadius(YuumiTheme.ControlRadius)
-                    .Padding(3, 0.5)
-                    .Margin(3, 0, 3, 0)
+                    .Padding(4, 0)
+                    .Margin(4, 0, 4, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("你曾参与本场对局"))
                     .Grid(row: 0, column: topCol));
@@ -273,7 +273,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             [GridSize.Auto, GridSize.Star()],
             [GridSize.Auto],
             [
-                champIconWithLevel.Grid(row: 0, column: 0).Margin(0, 0, isTenCol ? 4 : 6, 0).VAlign(VerticalAlignment.Center),
+                champIconWithLevel.Grid(row: 0, column: 0).Margin(0, 0, 4, 0).VAlign(VerticalAlignment.Center),
                 statsBox.Grid(row: 0, column: 1).VAlign(VerticalAlignment.Center),
             ]
         );
@@ -284,7 +284,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         .Background(cardBg)
         .WithBorder(cardBorder, 1)
         .CornerRadius(isTenCol ? 5 : 6)
-        .Padding(isTenCol ? 3 : 5, isTenCol ? 2.5 : 3.5);
+        .Padding(4, 4);
     }
 
     private static (string text, string? color) FormatKdaRatio(MatchSummary m, YuumiPalette palette)
