@@ -17,12 +17,16 @@ dotnet build src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64   # 必须 0 警�
 
 ```bash
 grep -rn "FontSize([0-9]" --include=*.cs src/YuumiX.App | wc -l     # 目标 0
-grep -rn "FontWeights.Bold" --include=*.cs src/YuumiX.App | wc -l   # 目标 0（标题用 Heading 工厂）
+grep -rn "FontWeights.Bold" --include=*.cs src/YuumiX.App | wc -l   # 目标 0（标题用 Title 工厂）
 grep -rn "FontWeights\." --include=*.cs src/YuumiX.App | wc -l      # 目标 0（字重见 §1.1，禁止手写 FontWeights 常量）
 grep -rn 'statusText != "' --include=*.cs src/YuumiX.App | wc -l    # 目标 0（禁止文案反推状态）
 grep -rn "SyncWinUiAccentResources" --include=*.cs src | wc -l      # 目标 0（禁止覆盖系统强调色）
 grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0（滚动容器只允许 ScrollViewer，见 §5.5）
 ```
+
+> 以上 grep 是**人工过渡门禁**（Windows 上依赖记得去跑）。终态是构建期自动拦截：
+> 引入 `Microsoft.CodeAnalysis.BannedApiAnalyzers` + `BannedSymbols.txt`（首批禁 `ScrollView`、`FontWeights`、`ContentDialog.ShowAsync`）并开 `TreatWarningsAsErrors`；
+> 硬编码颜色、字号字面量、非 4 倍数间距这类"模式级"违规则用 xUnit 测试扫源码拦截。落地后本节 grep 降级为兜底。
 
 ---
 
@@ -39,11 +43,12 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 | 卡片标题、强调标签 | `BodyStrong(x)`（14 / SemiBold） |
 | 强调正文 | `BodyLarge(x)`（18 / Regular） |
 | 分组标题、二级标题 | `Subtitle(x)`（20 / SemiBold） |
-| 页面标题、对话框标题 | `Title(x)`（28 / SemiBold）或 `Heading(x)`（28 / 700） |
+| 页面标题、对话框标题 | `Title(x)`（28 / SemiBold） |
 | 首屏主标题（每页最多一个） | `TitleLarge(x)`（40） |
 
 > 需要 WinUI 命名样式（含行高等完整 setter）时用 `.ApplyStyle("BodyTextBlockStyle")`，
 > **不要**用 `FontSize` 模拟。`Caption()` 是纯字号预设，要完整 Caption 样式请 `.ApplyStyle("CaptionTextBlockStyle")`。
+> `Heading`/`SubHeading` 是官方标注的旧预设（28/700），与 `Title` 同级却不同字重，会造成同一级标题两种观感——页面标题固定用 `Title`，禁止新增 `Heading`。
 
 **最小字号 12px**。任何小于 12 的设计意图一律改为 12 + 降低字重/提高对比度解决，不得靠缩字号。
 **禁止删除/绕过** `docs/ui-native-fluent-plan.md` §5.1 的映射表自行发明新档位。
@@ -65,6 +70,15 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 **禁止**手写 `.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)`：字重是框架语义层的概念，
 应走工厂或 `.SemiBold()`；手写常量既绕过类型阶，也让「哪些小字该加粗」失去可审的依据。
 
+### 1.2 文字渲染：浏览器兜不了的底，必须自己守
+
+Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底；WinUI 直连 DirectWrite 且做像素对齐，任何一处没对齐文字就发虚。历史三次踩坑（全局字体栈注入崩溃 `83fd2ef`、12px 中文加粗发糊、ScrollView 亚像素虚化）全是这一类。因此：
+
+- **禁止注入全局字体/字体栈**：系统默认 Segoe UI Variable + 中文回退已是最优；"统一品牌字体"先按 §8 反问是否产品决策。
+- **尺寸、偏移、圆角一律整数像素**，禁止小数——亚像素位置会让 DirectWrite 失去像素网格拟合。
+- **禁止对文字做 Scale / Translation 动画**（动画期间文字脱离像素网格，结束时也可能停在半像素上）。
+- 观感类改动必须用 Reactor devtools（`mur`）截图对比验证，不要肉眼反复试、更不要靠改字号/字重"救"清晰度。
+
 ---
 
 ## 2. 颜色：结构色走 `Theme.*`，业务色走 `palette`
@@ -78,6 +92,8 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 - **禁止**在 `Pages/**` 新增 `#FF______` 硬编码颜色（图表/品牌位除外，且必须注释来源）。
 - **禁止**覆盖 `SystemAccentColor*` / `AccentFillColor*` 等系统资源来"统一品牌色"——强调色由系统决定。
 - `YuumiPalette` 只保留业务色派生；结构色字段只减不增。
+- **强调色一律 `Theme.Accent` / `Theme.AccentText`**：`palette.Accent`（读配置 `ThemeColor`，存量约 70 处）与 `ThemeColor` 配置项是待清欠账（见 `docs/requirements-fluent-refactor.md` 批次②），新代码禁止使用；半透明强调底用 `Theme.SubtleFill` 等现成令牌。
+- **禁止带透明度的手写 ARGB 充当结构色**（如 `"#20808080"` 当描边）：高对比度模式下全部失效，还会盖住 Mica；描边一律 `Theme.ControlStroke` / `Theme.CardStroke` / `Theme.DividerStroke`。
 - 深色/浅色/高对比度三态必须同时成立：凡是"浅色下发白""深色下发黑"的写法，一律视为 bug。
 
 **取舍**：业务色与结构色语义重叠时（如胜率着色），优先语义色（`Theme.SystemSuccess/Caution`），而非业务色板。
@@ -86,10 +102,11 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 
 ## 3. 圆角与间距：只有两档圆角，4px 网格
 
-- 控件级（按钮、输入框、徽标）：`Theme.ControlCornerRadius`（4）
-- 容器级（卡片、对话框、浮层）：`OverlayCornerRadius`（8）
-- 头像/等级环等胶囊元素如需第三档，**必须**在 `YuumiTheme` 定义为单一常量 `PillRadius`，不得就地写字面量。
-- 间距只用 4 的倍数：4/8/12/16/20/24/32。禁止 9、10、11、13、14、15 这类数值。
+- 控件级（按钮、输入框、徽标）：`ThemeResource.CornerRadius("ControlCornerRadius")`（4）
+- 容器级（卡片、对话框、浮层）：`ThemeResource.CornerRadius("OverlayCornerRadius")`（8）
+- 注意 `Theme.ControlCornerRadius` 在 Reactor API 中**不存在**（这正是全仓 0 处使用、161 处写死圆角数字的直接原因）；如嫌 ThemeResource 写法长，在 `YuumiTheme` 定义 `ControlRadius` / `OverlayRadius` / `PillRadius` 三个常量统一取用。
+- 头像/等级环等胶囊元素的第三档就是 `PillRadius`，不得就地写字面量（存量 3/6/9/10 等圆角值按批次收敛，见需求文档 R12）。
+- 间距只用 4 的倍数：4/8/12/16/20/24/32。禁止 9、10、11、13、14、15 这类数值（存量约 220 处非 4 倍数间距为历史欠账，分批清理；新代码禁止新增）。
 - 卡片内边距统一 `16`（`SettingsCard` 已内置，无需手写）。
 
 ---
@@ -102,6 +119,7 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 - 卡片状态用强类型枚举（`SettingStatus`），**禁止**从显示文案反推（`statusText != "未启用"` 这类写法一律不通过评审）。
 - 分组标题必须 `Subtitle(title).HeadingLevel(AutomationHeadingLevel.Level2)`，禁止用 `TextBlock` + 字号模拟。
 - **`SettingsExpander.Items` 内部子项必须为 `SettingsCard`**：CommunityToolkit 的 `SettingsExpanderItemStyleSelector` 返回固定 `TargetType = typeof(SettingsCard)` 的样式，传入非 `SettingsCard`（如裸 `VStack`）在展开实例化时会在原生 XAML 触发 `COMException 0x800F1000` 导致进程直接闪退（`0xc000027b`）。整块表单请用 `SettingsCardKit.ContentCard` 承载，多张子卡片必须拆为 `SettingsCard[]` 传入，严禁外层多包一层 `VStack`。
+- **危险/不可逆操作不要手搓红色按钮**：WinUI 没有内置 danger 按钮样式，深色主题 `SystemFillColorCriticalBrush` 是浅粉色、压白字几乎不可读。用普通按钮 + `ContentDialog` 二次确认；确需红色时前景色必须按主题分别取值，禁止写死 hex。
 
 ---
 
@@ -118,6 +136,11 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 7. **事件钩子委托必须跨渲染保持同一实例**（`UseRef` 缓存），否则触发 `REACTOR_EVENT_001`。
 8. **`DispatcherQueue.TryEnqueue` 优先级参数在前**：`(priority, callback)`。
 9. **`SettingsExpander.Items` 子项必须为 `SettingsCard`**：WinUI Toolkit 的 `SettingsExpander` 展开时其内部 `ItemsRepeater` 会给每个 item 赋 `SettingsCard` 的默认样式，如果子项为 `StackPanel` 等非 `SettingsCard` 元素，会抛出 `COMException (0x800F1000)` 导致进程闪退崩溃。自定义表单块必须使用 `SettingsCardKit.ContentCard(...)` 承载；`SettingsCardKit.Expander` 已内置自动归一化兜底。
+10. **渲染状态不得用类字段 + 强制重渲染**（`_renderTick` + `setTick(++_renderTick)`、`_proxyDraft` 这类模式）：草稿值用 `UseState`；配置对象用不可变 record + `UseState`/`UseReducer`；非渲染数据用 `UseRef`。命令式"踢一下"刷新会让状态来源不可追溯。
+11. **异步数据走 `UseResource` / `UseMutation`**（详见 `agentkit/skills/async.md`）：读数据自带取消、加载/出错状态、缓存与重试；写操作用 `UseMutation`。禁止每页手写 `Task.Run` + 自维护 loading/error（存量约 40 处按批次迁移），组件卸载后请求必须自动取消，禁止新增 `async void`。
+12. **禁止在 `.Set()` 里挂事件或补写受控值**：控件走池回收，`Set` 每次重渲染都会重放，`Tag` 守卫不可靠（SearchPage AutoSuggestBox 的教训）。事件挂载用 `OnMountAdd`/`OnUnmountAdd` + `UseRef` 缓存委托（照 `AppShell` 现有做法）；受控值（如 ComboBox 选中项）走工厂参数，若确属 Reactor 缺陷则收成统一辅助方法，不要散在各页 `.Set()` 里补写。
+13. **导航参数走路由对象，禁止全局单例 payload**（`CareerNavigationPayload` / `SearchNavigationPayload` 这种一边 Set 一边 Consume 的可变单例有时序问题）：`UseNavigation<TRoute>` 的 `TRoute` 支持任意类型，把 `AppRoute` 从 enum 演进为 record 层级（如 `record CareerRoute(string? Puuid, ...) : AppRoute`），参数跟着路由走。
+14. **字形图标与字体族**：图标字体统一 `"Segoe Fluent Icons, Segoe MDL2 Assets"`（Win10 没装 Fluent 字体，只写前者会渲染成方框）；字形码集中在 `Icons` 静态类，禁止散落 `\uE...` 字面量；等宽字体只写 `"Cascadia Mono, Consolas"`，禁止 CSS 写法（`monospace` 不是 WinUI 字体名，会被静默丢弃）。
 
 > 包内自带 API 索引与分析器文档：`~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.16/agentkit/`。
 > 不确定某个 API 是否存在时**先查 `agentkit/plugins/reactor/skills/reactor-dsl/references/reactor.api.txt`**，不要猜。
@@ -146,6 +169,7 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 
 - 主题模式（浅色/深色/跟随系统）、Mica、战绩卡片配色、死亡数字配色 = **保留**的用户配置。
 - **强调色不再由应用配置**：全局跟随系统 Accent。新增任何"品牌色"需求先反问是否为产品决策，不要默认加配置项。
+- **业务色必须响应运行时主题切换**：`Theme.*` 会自动跟随，`palette.*` 依赖的 `IsDark` 不允许只读启动时的 `Application.Current.RequestedTheme`——"跟随系统"模式下运行中切换系统深浅，必须由根元素监听 `ActualThemeChanged` 写回实际主题并触发调色板重算，否则界面深浅混搭。
 - 新增配置项必须同时改三个文件并保持节结构一致：`appsettings.json`、`appsettings.Development.json`、`appsettings.Development.local.json`（敏感值只放 `.local.json`）。
 
 ---
