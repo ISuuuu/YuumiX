@@ -50,9 +50,8 @@ public sealed record CareerPageProps(string? Puuid = null, SummonerProfile? Prel
 /// 请求代际防串号：<see cref="Render"/> 内 <c>requestSeqRef</c> 递增计数，回写前校验
 /// （先点 A 再点 B，慢响应不回写）。
 ///
-/// <b>规模</b>：本文件 397 行（R14 过渡期，超 300 理由：hooks 编排必须整块留在 Render 内
-/// 保证调用顺序；加载/弹窗/命令/分节实现已全部外移到 CareerLoaders/CareerLootSection/
-/// CareerCommands/CareerMatchesSection）。
+/// <b>规模</b>：约 400 行（R14 过渡期，超 300 理由：hooks 编排必须整块留在 Render 内保证调用顺序；
+/// 加载/弹窗/命令/分节实现已外移到 CareerLoaders/CareerLootSection/CareerCommands/CareerMatchesSection）。
 /// </summary>
 public sealed class CareerPage : Component<CareerPageProps>
 {

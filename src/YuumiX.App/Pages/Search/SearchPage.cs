@@ -33,8 +33,7 @@ namespace YuumiX.App.Pages.Search;
 /// <b>线程</b>：服务在后台线程发布状态、异步返回结果，所有 <c>UseState</c> 都必须带
 /// <c>threadSafe: true</c>（ADR-07）。
 ///
-/// <b>规模</b>：本文件 398 行（R14 过渡期，超 300 理由：hooks 编排必须整块留在 Render 内
-/// 保证调用顺序，状态声明 + 订阅 + 命令闭包天然占行；视觉与异步实现已全部外移）。
+/// <b>规模</b>：约 400 行（R14 过渡期，超 300 理由：hooks 编排必须整块留在 Render 内保证调用顺序）。
 /// </summary>
 /// <summary>战绩查询页 props：路由参数（R8）。Query/Puuid 非空 = 自动发起查询；GameId &gt; 0 时选中该局。</summary>
 public sealed record SearchPageProps(string? Query = null, string? Puuid = null, long? GameId = null);
