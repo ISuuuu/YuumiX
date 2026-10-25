@@ -142,4 +142,65 @@ internal static class CareerVisuals
             ? border.WithBorder(borderBrush, 1)
             : border;
     }
+
+    /// <summary>D1：读取失败的提示条（对齐旧版失败 toast 的文案口径）。</summary>
+    public static Element FailureHint(string message, Action onRetry) =>
+        Card(
+            HStack(12,
+                Body(message).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+                Button(Caption("重试"), onRetry).Height(30).Padding(14, 0).AutomationName($"重试：{message}")),
+            padding: 16);
+
+    /// <summary>未登录时的资料卡占位：说明原因而不是留白。</summary>
+    public static Element EmptyHeader(bool loading) =>
+        Card(
+            VStack(6,
+                BodyStrong(loading ? "正在读取生涯数据…" : "未读取到当前召唤师（客户端未登录）"),
+                Caption("启动并登录英雄联盟客户端后，这里会显示头像、等级与排位成绩。")),
+            padding: 20);
+
+    /// <summary>页签按钮：选中时用强调色文字 + 浅色底色与边框，未选中走次要文字色。</summary>
+    public static Element TabButton(
+        string label,
+        CareerTab target,
+        CareerTab current,
+        Action<CareerTab> setTab)
+    {
+        bool isSelected = target == current;
+        var text = Body(label)
+            .Foreground(isSelected ? Theme.AccentText : Theme.SecondaryText)
+            .HAlign(HorizontalAlignment.Center)
+            .VAlign(VerticalAlignment.Center);
+
+        Element button = Button(text, () =>
+        {
+            if (target == current)
+            {
+                return;
+            }
+
+            setTab(target);
+        })
+        .Height(34)
+        .Padding(16, 0)
+        .CornerRadius(YuumiTheme.OverlayRadius)
+        .AutomationName(label);
+
+        return isSelected
+            ? button
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.CardStroke, 1)
+            : button
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
+                .BorderThickness(0);
+    }
+
+    /// <summary>页签栏：三个页签按钮 + 底部分隔线。</summary>
+    public static Element TabBar(CareerTab current, Action<CareerTab> setTab) =>
+        VStack(8,
+            HStack(8,
+                TabButton("生涯战绩", CareerTab.Matches, current, setTab),
+                TabButton("战利品", CareerTab.Loot, current, setTab),
+                TabButton("英雄熟练度", CareerTab.Mastery, current, setTab)),
+            Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch));
 }

@@ -25,7 +25,7 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/Career/CareerPage.cs",
+      "path": "Pages/Career/CareerVisuals.cs",
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
@@ -163,9 +163,15 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/SavedPlayers/SavedPlayersPage.cs",
+      "path": "Pages/SavedPlayers/SavedPlayerCard.cs",
       "rule": "SpacingOff4Grid",
-      "count": 31,
+      "count": 20,
+      "batch": "R16"
+    },
+    {
+      "path": "Pages/SavedPlayers/SavedPlayersVisuals.cs",
+      "rule": "SpacingOff4Grid",
+      "count": 11,
       "batch": "R16"
     },
     {
@@ -175,7 +181,7 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/Settings/SettingsPage.cs",
+      "path": "Pages/Settings/Sections/GeneralSection.Paths.cs",
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
@@ -199,6 +205,18 @@
       "batch": "R16"
     },
     {
+      "path": "Pages/Tools/Sections/ChampionSection.cs",
+      "rule": "SpacingOff4Grid",
+      "count": 5,
+      "batch": "R16"
+    },
+    {
+      "path": "Pages/Tools/Sections/ProfileSection.cs",
+      "rule": "SpacingOff4Grid",
+      "count": 4,
+      "batch": "R16"
+    },
+    {
       "path": "Pages/Tools/SkinPickerView.cs",
       "rule": "SpacingOff4Grid",
       "count": 3,
@@ -213,7 +231,13 @@
     {
       "path": "Pages/Tools/ToolsPage.cs",
       "rule": "SpacingOff4Grid",
-      "count": 17,
+      "count": 1,
+      "batch": "R16"
+    },
+    {
+      "path": "Pages/Tools/ToolsVisuals.cs",
+      "rule": "SpacingOff4Grid",
+      "count": 4,
       "batch": "R16"
     }
   ]

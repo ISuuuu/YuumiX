@@ -45,13 +45,6 @@ internal static class RecentSummaryView
                             .Width(140)
                             .HAlign(HorizontalAlignment.Right)
                             .VAlign(VerticalAlignment.Center)
-                            .Set(cb =>
-                            {
-                                if (cb.SelectedIndex != currentQueueIndex && currentQueueIndex >= 0 && currentQueueIndex < queueLabels.Length)
-                                {
-                                    cb.SelectedIndex = currentQueueIndex;
-                                }
-                            })
                             .Grid(row: 0, column: 1),
                     ]),
                 padding: 12);
@@ -126,14 +119,7 @@ internal static class RecentSummaryView
             flyoutButton,
             ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
                 .Width(140)
-                .AutomationName("队列筛选")
-                .Set(cb =>
-                {
-                    if (cb.SelectedIndex != currentQueueIndex && currentQueueIndex >= 0 && currentQueueIndex < queueLabels.Length)
-                    {
-                        cb.SelectedIndex = currentQueueIndex;
-                    }
-                }))
+                .AutomationName("队列筛选"))
             .VAlign(VerticalAlignment.Center)
             .HAlign(HorizontalAlignment.Right);
 
