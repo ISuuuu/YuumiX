@@ -181,7 +181,7 @@
       "batch": "R16"
     },
     {
-      "path": "Pages/Settings/SettingsPage.cs",
+      "path": "Pages/Settings/Sections/GeneralSection.Paths.cs",
       "rule": "SpacingOff4Grid",
       "count": 1,
       "batch": "R16"
