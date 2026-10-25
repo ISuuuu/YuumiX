@@ -155,7 +155,7 @@ internal static class PlayerColumnHeader
 
         if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
-            items.Add(FateBadgeVisuals.BuildSavedBadge(savedInfo, palette));
+            items.Add(FateBadgeVisuals.BuildSavedBadge(savedInfo));
         }
 
         return items.Count > 0 ? HStack(3, items.ToArray()) : Empty();

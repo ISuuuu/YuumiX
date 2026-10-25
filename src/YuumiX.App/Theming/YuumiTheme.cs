@@ -8,9 +8,8 @@ namespace YuumiX.App.Theming;
 /// <summary>
 /// Yuumi 的主题令牌桥接层。
 ///
-/// 原项目使用 CSS 变量 + 动态主题色（PersonalizationConfig.ThemeColor，默认 #009faa）。
-/// Reactor 的 <see cref="Theme"/> 是只读系统令牌，无法写入自定义值，
-/// 因此需要跨页面共享的自定义色集中放在这里。
+/// 强调色一律跟随系统（AGENTS.md §2，走 <see cref="Theme.Accent"/> 等语义令牌）；
+/// 这里只承载原项目遗留的**业务色**配置（胜负面板、死亡数字）的默认值。
 ///
 /// 这里刻意使用 ARGB 十六进制字符串而非 Color：
 ///   1. Reactor 的 Background/Foreground 修饰符只接受 Brush / ThemeRef / string，没有 Color 重载；
@@ -20,9 +19,6 @@ namespace YuumiX.App.Theming;
 /// </summary>
 public static class YuumiTheme
 {
-    /// <summary>品牌主题色默认值，对应 PersonalizationConfig.ThemeColor 默认值。</summary>
-    public const string Accent = "#FF009FAA";
-
     /// <summary>胜利卡片底色默认值（对应 WinCardColor 默认 #3339b01b，含 alpha）。</summary>
     public const string WinCard = "#3339B01B";
 
@@ -56,8 +52,6 @@ public static class YuumiTheme
 /// </summary>
 public sealed record YuumiPalette
 {
-    public required string Accent { get; init; }
-
     public required string WinCard { get; init; }
 
     public required string LoseCard { get; init; }
@@ -82,15 +76,6 @@ public sealed record YuumiPalette
         "Light" => false,
         _ => Application.Current?.RequestedTheme == ApplicationTheme.Dark,
     };
-
-    // ─── 1. 主色调 Alpha 阶梯（对应原版 --primary-color-alpha-10/15/20/30/40）───
-    public string AccentHover => WithAlpha(Accent, 0xD9);   // 85%
-    public string AccentPressed => WithAlpha(Accent, 0xA6); // 65%
-    public string AccentAlpha10 => WithAlpha(Accent, 0x1A); // 10%
-    public string AccentAlpha15 => WithAlpha(Accent, 0x26); // 15%
-    public string AccentAlpha20 => WithAlpha(Accent, 0x33); // 20%
-    public string AccentAlpha30 => WithAlpha(Accent, 0x4D); // 30%
-    public string AccentAlpha40 => WithAlpha(Accent, 0x66); // 40%
 
     // ─── 2. 胜/负/平局（重开）文字色、底色、悬停色、描边色 ───
     public bool IsDefaultWinCard => string.Equals(WinCard, YuumiTheme.WinCard, StringComparison.OrdinalIgnoreCase);
@@ -185,10 +170,8 @@ public sealed record YuumiPalette
 
     /// <summary>把配置翻译成运行时调色板。颜色统一归一化为 8 位 <c>#AARRGGBB</c>。</summary>
     /// <remarks>
-    /// 强调色刻意**不**通过覆盖 WinUI 的 <c>AccentFillColorDefaultBrush</c> 来全局生效：
-    /// 已实测（阶段 5 后半）在根元素上覆盖该资源对原生控件无效——开关、选中指示器仍用系统强调色。
-    /// 因此约定为「谁用谁取」：消费方从 <see cref="ThemeState.Current"/> 取 <see cref="Accent"/>，
-    /// 直接作为 <c>Background/Foreground</c> 的字符串传入（ADR-03）。
+    /// 本调色板只承载**业务色**（胜负面板、死亡数字）；强调色一律走
+    /// <see cref="Theme"/> 的系统语义令牌（<c>Theme.Accent</c> 等），不在此配置。
     /// </remarks>
     public static YuumiPalette FromConfig(PersonalizationConfig personalization)
     {
@@ -196,7 +179,6 @@ public sealed record YuumiPalette
 
         return new YuumiPalette
         {
-            Accent = ColorHex.NormalizeArgb(personalization.ThemeColor, YuumiTheme.Accent),
             WinCard = ColorHex.NormalizeArgb(personalization.WinCardColor, YuumiTheme.WinCard),
             LoseCard = ColorHex.NormalizeArgb(personalization.LoseCardColor, YuumiTheme.LoseCard),
             RemakeCard = ColorHex.NormalizeArgb(personalization.RemakeCardColor, YuumiTheme.RemakeCard),

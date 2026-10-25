@@ -148,8 +148,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         if (isSelf)
         {
             nameRowItems.Add(
-                Border(Caption("我").Foreground(palette.Accent))
-                    .Background(palette.AccentAlpha15)
+                Border(Caption("我").Foreground(Theme.Accent))
+                    .Background(Theme.SubtleFill)
                     .CornerRadius(2.5)
                     .Padding(2.5, 0.5)
                     .Margin(3, 0, 0, 0)
@@ -189,7 +189,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         if (savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
             nameRowItems.Add(
-                FateBadgeVisuals.BuildSavedBadge(savedInfo, palette)
+                FateBadgeVisuals.BuildSavedBadge(savedInfo)
                     .Margin(3, 0, 0, 0));
         }
 
@@ -295,18 +295,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         else if (d?.WinRate.HasValue == true)
         {
             int wr = (int)Math.Round(d.WinRate.Value);
-            string wrColor = wr >= 70 ? palette.WinText : wr >= 50 ? palette.Accent : palette.TextMuted;
             string kdaStr = d.AvgKda.HasValue ? $"KDA {d.AvgKda.Value:F2}" : string.Empty;
-
-            // 色阶对齐旧版 PlayerCard.vue：≥5 强调色 / ≥4 段位蓝 / ≥3 胜利绿 / 其余灰。
-            // 旧版最高档位用的是 --accent-color（不是纯金黄 #FFD700，那个在小字号下过于刺眼）。
-            string kdaColor = d.AvgKda switch
-            {
-                >= 5.0 => palette.Accent,
-                >= 4.0 => CareerVisuals.IsDarkTheme ? "#FF60A5FA" : "#FF3B82F6",
-                >= 3.0 => palette.WinText,
-                _ => palette.TextMuted,
-            };
 
             int totalGames = (d.WinCount ?? 0) + (d.LossesCount ?? 0);
             if (totalGames == 0) totalGames = d.Matches?.Count ?? 0;
@@ -322,14 +311,33 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                 kdaTip = $"近期场均 KDA\n场均数据: {avgK:F1} / {avgD:F1} / {avgA:F1}\n综合数值: {(d.AvgKda.HasValue ? d.AvgKda.Value.ToString("F2") : "0.00")}\n计算公式: (击杀 + 助攻) ÷ 死亡";
             }
 
-            var wrBlock = Caption($"{wr}%")
-                .SemiBold()
-                .Foreground(wrColor)
-                .WithToolTip(TextBlock(wrTip));
+            // 胜率与 KDA 的着色横跨业务色（string）与语义令牌（ThemeRef），无法共存于同一
+            // 三元/switch，按 CareerMatchRow 的既有做法在元素级分支。
+            var wrBlock = Caption($"{wr}%").SemiBold();
+            wrBlock = wr >= 70
+                ? wrBlock.Foreground(BrushHelper.Parse(palette.WinText))
+                : wr >= 50 ? wrBlock.Foreground(Theme.Accent) : wrBlock.Foreground(Theme.TertiaryText);
 
-            var kdaBlock = Caption(kdaStr)
-                .Foreground(kdaColor)
-                .WithToolTip(TextBlock(kdaTip));
+            // 色阶对齐旧版 PlayerCard.vue：≥5 强调色 / ≥4 段位蓝 / ≥3 胜利绿 / 其余灰。
+            // 旧版最高档位用的是 --accent-color（不是纯金黄 #FFD700，那个在小字号下过于刺眼）。
+            var kdaBlock = Caption(kdaStr);
+            if (d.AvgKda is { } avgKda)
+            {
+                kdaBlock = avgKda switch
+                {
+                    >= 5.0 => kdaBlock.Foreground(Theme.Accent),
+                    >= 4.0 => kdaBlock.Foreground(BrushHelper.Parse(CareerVisuals.IsDarkTheme ? "#FF60A5FA" : "#FF3B82F6")),
+                    >= 3.0 => kdaBlock.Foreground(BrushHelper.Parse(palette.WinText)),
+                    _ => kdaBlock.Foreground(Theme.TertiaryText),
+                };
+            }
+            else
+            {
+                kdaBlock = kdaBlock.Foreground(Theme.TertiaryText);
+            }
+
+            wrBlock = wrBlock.WithToolTip(TextBlock(wrTip));
+            kdaBlock = kdaBlock.WithToolTip(TextBlock(kdaTip));
 
             var statsItems = new List<Element>
             {

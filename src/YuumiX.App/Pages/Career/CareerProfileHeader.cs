@@ -184,12 +184,14 @@ internal static class CareerProfileHeader
 
         var children = new List<Element>
         {
-            GaugeArc(ArcData(GaugeStartAngle, GaugeSweepMax), trackColor),
+            GaugeArc(ArcData(GaugeStartAngle, GaugeSweepMax), BrushHelper.Parse(trackColor)),
         };
 
         if (sweep > 0.1)
         {
-            children.Add(GaugeArc(ArcData(GaugeStartAngle, sweep), palette.Accent));
+            // PathElement.Stroke 只收 Brush（无 ThemeRef 重载），这里急切解析强调色资源；
+            // 系统强调色不随深浅主题变化，急切取值不会产生主题漂移。
+            children.Add(GaugeArc(ArcData(GaugeStartAngle, sweep), ThemeResource.Brush("AccentFillColorDefaultBrush")));
         }
 
         return Grid(
@@ -221,10 +223,10 @@ internal static class CareerProfileHeader
             startX, startY, GaugeRadius, largeArc, endX, endY);
     }
 
-    private static Element GaugeArc(string data, string strokeColor) => new PathElement
+    private static Element GaugeArc(string data, Brush strokeColor) => new PathElement
     {
         PathDataString = data,
-        Stroke = BrushHelper.Parse(strokeColor),
+        Stroke = strokeColor,
         StrokeThickness = GaugeStroke,
         StrokeStartLineCap = PenLineCap.Round,
         StrokeEndLineCap = PenLineCap.Round,

@@ -170,7 +170,7 @@ internal static class PlayerColumnVisuals
 
         if (showSavedBadge && savedInfo is not null && FateBadgeVisuals.ShouldShowSavedBadge(savedInfo, d))
         {
-            items.Add(FateBadgeVisuals.BuildSavedBadge(savedInfo, palette).Margin(3, 0, 0, 0));
+            items.Add(FateBadgeVisuals.BuildSavedBadge(savedInfo).Margin(3, 0, 0, 0));
         }
 
         return HStack(0, items.ToArray());

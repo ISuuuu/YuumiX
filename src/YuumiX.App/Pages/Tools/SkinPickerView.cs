@@ -85,7 +85,7 @@ internal static class SkinPickerView
                     carouselControls.Margin(new Thickness(12, 0, 12, 0)).Grid(row: 0, column: 1),
 
                     Button("应用此背景", () => onApplySkin(activeSkin.Id))
-                        .Background(palette.Accent)
+                        .Background(Theme.Accent)
                         .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                         .AutomationName("应用当前皮肤背景")
                         .VAlign(VerticalAlignment.Center)
@@ -104,7 +104,7 @@ internal static class SkinPickerView
             var text = Caption(skin.Name);
             if (isCurrent)
             {
-                text = text.Foreground(palette.Accent);
+                text = text.Foreground(Theme.Accent);
             }
 
             return Button(
@@ -113,7 +113,7 @@ internal static class SkinPickerView
             )
             .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
             .BorderThickness(isCurrent ? 1 : 0)
-            .BorderBrush(palette.Accent)
+            .BorderBrush(Theme.Accent)
             .Padding(10, 6)
             .CornerRadius(4)
             .AutomationName($"选择皮肤_{skin.Name}");

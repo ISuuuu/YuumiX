@@ -49,7 +49,7 @@ internal static class ChampionPickerView
                 selectedChips.Add(
                     Border(
                         HStack(6,
-                            Caption($"#{order}").Foreground(palette.Accent).VAlign(VerticalAlignment.Center),
+                            Caption($"#{order}").Foreground(Theme.Accent).VAlign(VerticalAlignment.Center),
                             Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, Size: 24, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                             Caption(name).VAlign(VerticalAlignment.Center),
                             Button(Caption("\uE711").FontFamily("Segoe Fluent Icons"), () => onToggleChampion(id))
@@ -138,7 +138,7 @@ internal static class ChampionPickerView
             .Width(130)
             .Padding(6, 4)
             .Background(isSelected ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
-            .BorderBrush(isSelected ? palette.Accent : "#20808080")
+            .BorderBrush(isSelected ? Theme.Accent : Theme.ControlStroke)
             .BorderThickness(isSelected ? 1.5 : 1)
             .CornerRadius(6)
             .Margin(new Thickness(0, 0, 6, 6))

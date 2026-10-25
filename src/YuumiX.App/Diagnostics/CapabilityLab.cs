@@ -51,7 +51,6 @@ internal sealed class CapabilityLab : Component
                     "验证 Theme 系统令牌与 Yuumi 自定义色能否共存",
                     HStack(12,
                         ThemeSwatch("Theme.Accent", Theme.Accent),
-                        ColorSwatch("品牌色", YuumiTheme.Accent),
                         ColorSwatch("胜利", YuumiTheme.WinCard),
                         ColorSwatch("失败", YuumiTheme.LoseCard),
                         ColorSwatch("重赛", YuumiTheme.RemakeCard))),

@@ -92,13 +92,13 @@ internal static class RankedTableView
         Element tierCell = medalUri is null
             ? Caption(tier)
                 .Width(ColTierWidth)
-                .Foreground(palette.Accent)
+                .Foreground(Theme.Accent)
                 .TextAlignment(TextAlignment.Center)
                 .VAlign(VerticalAlignment.Center)
             : HStack(6,
                     CareerVisuals.RankedMedal(queue?.Tier, 20),
                     Caption(tier)
-                        .Foreground(palette.Accent)
+                        .Foreground(Theme.Accent)
                         .VAlign(VerticalAlignment.Center))
                 .Width(ColTierWidth)
                 .HAlign(HorizontalAlignment.Center)

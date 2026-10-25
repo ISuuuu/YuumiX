@@ -919,10 +919,10 @@ public sealed class CareerPage : Component
 
         return isSelected
             ? button
-                .Background(palette.AccentAlpha10)
-                .WithBorder(palette.AccentAlpha20, 1)
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.CardStroke, 1)
             : button
-                .Background("#00000000")
+                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                 .BorderThickness(0);
     }
 

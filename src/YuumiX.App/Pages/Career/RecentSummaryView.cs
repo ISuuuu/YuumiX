@@ -92,7 +92,7 @@ internal static class RecentSummaryView
                                 .Foreground(Theme.SecondaryText)
                                 .Width(40),
                             Caption($"{pos.Percentage}%")
-                                .Foreground(palette.Accent)
+                                .Foreground(Theme.Accent)
                                 .Width(40)
                         ).WithKey(pos.Position.ToString())).ToArray())
                 )));
@@ -205,10 +205,10 @@ internal static class RecentSummaryView
                 Caption(tm.Name)
                     .Foreground(Theme.PrimaryText),
                 tm.Tag is not null
-                    ? Border(Caption(tm.Tag).Foreground(palette.Accent))
+                    ? Border(Caption(tm.Tag).Foreground(Theme.Accent))
                         .Padding(4, 1)
                         .CornerRadius(3)
-                        .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1E))
+                        .Background(Theme.SubtleFill)
                     : Empty()
             ),
             Caption($"最近相遇: {playTimeText}")
@@ -258,11 +258,11 @@ internal static class RecentSummaryView
 
     private static Element PositionChip(RecentPositionStat position, YuumiPalette palette) =>
         Border(Caption($"{CareerVisuals.PositionText(position.Position)} {position.Percentage}%")
-                .Foreground(palette.Accent))
+                .Foreground(Theme.Accent))
             .Padding(7, 2)
             .CornerRadius(4)
-            .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
-            .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1)
+            .Background(Theme.SubtleFill)
+            .WithBorder(Theme.CardStroke, 1)
             // 行高被 32px 头像撑高时，未居中的 Border 会贴顶，徽片相对标签上浮（同 CareerVisuals.Stat）
             .VAlign(VerticalAlignment.Center);
 
@@ -272,22 +272,37 @@ internal static class RecentSummaryView
     private static Element ChampionCell(RecentChampionStat champion, GameDataCatalog catalog, YuumiPalette palette)
     {
         double wr = champion.Games > 0 ? (champion.Wins * 100.0 / champion.Games) : 0;
-        string badgeBg = wr >= 60
-            ? CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x33)
-            : (wr < 45
-                ? CareerVisuals.WithAlpha(LowWinRateColor, 0x33)
-                : CareerVisuals.WithAlpha(palette.Accent, 0x14));
-
-        string badgeFg = wr >= 60
-            ? CareerVisuals.WinText
-            : (wr < 45
-                ? LowWinRateColor
-                : palette.Accent);
 
         string champName = catalog.Champions.TryGetValue(champion.ChampionId, out string? name) && !string.IsNullOrWhiteSpace(name)
             ? name
             : $"英雄 {champion.ChampionId}";
         string posText = champion.PrimaryPosition is { } p ? CareerVisuals.PositionText(p) : "--";
+
+        // 胜率徽章着色：优=胜利绿 / 低=灰蓝（裁决 D5）/ 中=强调底。业务色（string）与
+        // 语义令牌（ThemeRef）无法共存于同一三元，底色与前景各自在元素级分支。
+        var gamesText = Caption(champion.Games.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .SemiBold()
+            .HAlign(HorizontalAlignment.Center);
+        var badge = Border(gamesText)
+            .Padding(3, 0)
+            .CornerRadius(3)
+            .HAlign(HorizontalAlignment.Right)
+            .VAlign(VerticalAlignment.Bottom);
+        if (wr >= 60)
+        {
+            gamesText = gamesText.Foreground(CareerVisuals.WinText);
+            badge = badge.Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x33));
+        }
+        else if (wr < 45)
+        {
+            gamesText = gamesText.Foreground(LowWinRateColor);
+            badge = badge.Background(CareerVisuals.WithAlpha(LowWinRateColor, 0x33));
+        }
+        else
+        {
+            gamesText = gamesText.Foreground(Theme.Accent);
+            badge = badge.Background(Theme.SubtleFill);
+        }
 
         Element cell = Grid(
             [GridSize.Auto],
@@ -297,18 +312,24 @@ internal static class RecentSummaryView
                     Search.SearchVisuals.ChampionIcon(champion.ChampionId),
                     ChampionSize,
                     ChampionSize / 2),
-                Border(Caption(champion.Games.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .SemiBold()
-                        .Foreground(badgeFg)
-                        .HAlign(HorizontalAlignment.Center))
-                    .Padding(3, 0)
-                    .CornerRadius(3)
-                    .Background(badgeBg)
-                    .HAlign(HorizontalAlignment.Right)
-                    .VAlign(VerticalAlignment.Bottom),
+                badge,
             ])
             .Width(ChampionSize)
             .Height(ChampionSize);
+
+        var winRateText = Caption($"胜率: {champion.WinRateText}");
+        if (wr >= 60)
+        {
+            winRateText = winRateText.Foreground(CareerVisuals.WinText);
+        }
+        else if (wr < 45)
+        {
+            winRateText = winRateText.Foreground(LowWinRateColor);
+        }
+        else
+        {
+            winRateText = winRateText.Foreground(Theme.Accent);
+        }
 
         return cell.WithToolTip(
             VStack(4,
@@ -316,11 +337,10 @@ internal static class RecentSummaryView
                 Caption($"出场 {champion.Games} 次 · 主位置 {posText}")
                     .Foreground(Theme.SecondaryText),
                 HStack(6,
-                    Caption($"胜率: {champion.WinRateText}")
-                        .Foreground(wr >= 60 ? CareerVisuals.WinText : (wr < 45 ? LowWinRateColor : palette.Accent)),
+                    winRateText,
                     Caption($"({champion.Wins}胜 {champion.Losses}负)")
                         .Foreground(Theme.SecondaryText)),
                 Caption($"KDA: {champion.KdaText} ({champion.Kills}/{champion.Deaths}/{champion.Assists})")
-                    .Foreground(palette.Accent)));
+                    .Foreground(Theme.Accent)));
     }
 }

@@ -38,26 +38,25 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
         bool hasSummonerId = p.SummonerId > 0;
         bool canClick = hasPuuid || hasSummonerId;
 
-        string color;
+        // 玩家名着色：查询者走胜负面板业务色；其余按可点击/悬停走语义令牌。
+        // string 业务色与 ThemeRef 令牌无法共存于同一三元，因此按 CareerMatchRow 的既有做法在元素级分支。
+        var text = Caption(p.DisplayName);
         if (p.IsQueriedPlayer)
         {
-            color = p.TeamWin ? p.Palette.WinText : p.Palette.LoseText;
+            text = text.Foreground(p.TeamWin ? p.Palette.WinText : p.Palette.LoseText);
         }
         else if (canClick && hovered)
         {
-            color = p.Palette.Accent;
+            text = text.Foreground(Theme.Accent);
         }
         else if (canClick)
         {
-            color = p.Palette.TextPrimary;
+            text = text.Foreground(Theme.PrimaryText);
         }
         else
         {
-            color = p.Palette.TextSecondary;
+            text = text.Foreground(Theme.SecondaryText);
         }
-
-        var text = Caption(p.DisplayName)
-            .Foreground(color);
 
         if (hasPuuid)
         {

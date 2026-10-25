@@ -203,7 +203,7 @@ public sealed class GameInfoPage : Component
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
                     .Height(2)
-                    .Background(isMyTab ? palette.Accent : "#00000000")
+                    .Background(isMyTab ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
                     .Margin(0, 6, 0, 0)
             ),
             () => service.SetActiveTab("my")
@@ -222,7 +222,7 @@ public sealed class GameInfoPage : Component
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
                     .Height(2)
-                    .Background(!isMyTab ? palette.Accent : "#00000000")
+                    .Background(!isMyTab ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
                     .Margin(0, 6, 0, 0)
             ),
             () => service.SetActiveTab("their")

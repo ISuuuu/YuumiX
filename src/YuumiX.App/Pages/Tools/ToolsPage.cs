@@ -539,7 +539,7 @@ public sealed class ToolsPage : Component
                 buttons.Add(
                     Button(LaneLabels[idx], () => onSelectLane(idx))
                         .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
-                        .BorderBrush(isCurrent ? palette.Accent : "#20808080")
+                        .BorderBrush(isCurrent ? Theme.Accent : Theme.ControlStroke)
                         .BorderThickness(isCurrent ? 1.5 : 1)
                         .CornerRadius(6)
                         .Padding(8, 4)
@@ -1467,15 +1467,15 @@ public sealed class ToolsPage : Component
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(palette.Accent),
-                    Caption(actionFeedback).Foreground(palette.Accent).VAlign(VerticalAlignment.Center)))
+                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Accent),
+                    Caption(actionFeedback).Foreground(Theme.Accent).VAlign(VerticalAlignment.Center)))
                 .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }
         else if (savedAt is { } time)
         {
             feedbackBanner = Border(
                 HStack(12,
-                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(palette.Accent),
+                    Border(Empty()).Width(3).Height(26).CornerRadius(2).Background(Theme.Accent),
                     Caption($"配置已保存 · {time:HH:mm:ss}").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)))
                 .Padding(10).CornerRadius(6).Background(Theme.CardBackground).WithBorder(Theme.CardStroke, 1);
         }

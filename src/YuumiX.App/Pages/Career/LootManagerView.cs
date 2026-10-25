@@ -198,8 +198,8 @@ internal static class LootManagerView
                 .Width(50)
                 .Height(50)
                 .CornerRadius(8)
-                .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
-                .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.CardStroke, 1);
 
         Element badge = item.IsKeyFragment
             ? Border(Caption("3合1合成").Foreground(CareerVisuals.WinText))
@@ -214,7 +214,7 @@ internal static class LootManagerView
                 : Border(Caption("无需钥匙").Foreground(Theme.SecondaryText))
                     .Padding(5, 2)
                     .CornerRadius(4)
-                    .Background(CareerVisuals.WithAlpha(palette.Accent, 0x10));
+                    .Background(Theme.SubtleFill);
 
         Element rightContent = VStack(6,
             HStack(0,
@@ -223,10 +223,10 @@ internal static class LootManagerView
                     .VAlign(VerticalAlignment.Center),
                 Border(Caption($"x{item.Count}")
                         .SemiBold()
-                        .Foreground(palette.Accent))
+                        .Foreground(Theme.Accent))
                     .Padding(5, 1)
                     .CornerRadius(3)
-                    .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1F))
+                    .Background(Theme.SubtleFill)
                     .Width(35)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Center)),
@@ -389,7 +389,7 @@ internal static class LootManagerView
             : "未选择任何碎片";
 
         Element countText = selectedCount > 0
-            ? Caption(selectionDesc).Foreground(palette.Accent).VAlign(VerticalAlignment.Center)
+            ? Caption(selectionDesc).Foreground(Theme.Accent).VAlign(VerticalAlignment.Center)
             : Caption(selectionDesc).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center);
 
         // 重铸按钮：与旧版 canReroll 同口径——存在可重随的选中项即可点；
@@ -431,12 +431,12 @@ internal static class LootManagerView
             progressBanner = Border(
                 HStack(12,
                     Caption($"正在处理... ({progress.Current}/{progress.Total}) {progress.ItemName}: {progress.RewardDesc}")
-                        .Foreground(palette.Accent)
+                        .Foreground(Theme.Accent)
                         .VAlign(VerticalAlignment.Center)))
                 .Padding(10, 6)
                 .CornerRadius(6)
-                .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1E))
-                .WithBorder(palette.Accent, 1);
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.Accent, 1);
         }
         else if (!string.IsNullOrWhiteSpace(operationNotice))
         {
@@ -456,7 +456,7 @@ internal static class LootManagerView
             Border(filterBar)
                 .Padding(12, 8)
                 .CornerRadius(6)
-                .Background(CareerVisuals.WithAlpha(palette.Accent, 0x08))
+                .Background(Theme.SubtleFill)
                 .WithBorder(Theme.CardStroke, 1),
         };
 
@@ -501,8 +501,8 @@ internal static class LootManagerView
                 .Width(44)
                 .Height(44)
                 .CornerRadius(6)
-                .Background(CareerVisuals.WithAlpha(palette.Accent, 0x14))
-                .WithBorder(CareerVisuals.WithAlpha(palette.Accent, 0x2A), 1);
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.CardStroke, 1);
 
         string valueColor = item.IsChampion
             ? CareerVisuals.BlueEssenceColor
@@ -517,21 +517,21 @@ internal static class LootManagerView
                     .VAlign(VerticalAlignment.Center),
                 Border(Caption($"x{item.Count}")
                         .SemiBold()
-                        .Foreground(palette.Accent))
+                        .Foreground(Theme.Accent))
                     .Padding(4, 1)
                     .CornerRadius(3)
-                    .Background(CareerVisuals.WithAlpha(palette.Accent, 0x1F))
+                    .Background(Theme.SubtleFill)
                     .Width(35)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Center)),
             HStack(0,
-                Border((item.IsOwned
-                        ? Caption("已拥有").Foreground(CareerVisuals.WinText)
-                        : Caption("未拥有").Foreground(Theme.SecondaryText))
-                        .HAlign(HorizontalAlignment.Center))
+                (item.IsOwned
+                        ? Border(Caption("已拥有").Foreground(CareerVisuals.WinText).HAlign(HorizontalAlignment.Center))
+                            .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x14))
+                        : Border(Caption("未拥有").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center))
+                            .Background(Theme.SubtleFill))
                     .Padding(4, 1)
                     .CornerRadius(3)
-                    .Background(CareerVisuals.WithAlpha(item.IsOwned ? CareerVisuals.WinText : palette.Accent, 0x14))
                     .Width(50)
                     .VAlign(VerticalAlignment.Center),
                 HStack(3,
@@ -571,7 +571,7 @@ internal static class LootManagerView
             .CornerRadius(8);
 
         return isSelected
-            ? cardBorder.WithBorder(palette.Accent, 2)
+            ? cardBorder.WithBorder(Theme.Accent, 2)
             : cardBorder.WithBorder(Theme.CardStroke, 1);
     }
 

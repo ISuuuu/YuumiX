@@ -220,9 +220,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             topRowColumns.Add(GridSize.Auto);
             topRowElements.Add(
                 Border(Caption("同局")
-                        .Foreground(palette.Accent))
-                    .Background(palette.AccentAlpha15)
-                    .WithBorder(palette.AccentAlpha40, 1)
+                        .Foreground(Theme.Accent))
+                    .Background(Theme.SubtleFill)
+                    .WithBorder(Theme.CardStroke, 1)
                     .CornerRadius(3)
                     .Padding(3, 0.5)
                     .Margin(3, 0, 3, 0)
@@ -257,10 +257,12 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (!isTenCol)
         {
             var (ratioText, ratioColor) = FormatKdaRatio(m, palette);
+            var ratioLine = Caption($"{ratioText} KDA");
             statsBox = VStack(1,
                 kdaLine,
-                Caption($"{ratioText} KDA")
-                    .Foreground(ratioColor)
+                ratioColor is null
+                    ? ratioLine.Foreground(Theme.SecondaryText)
+                    : ratioLine.Foreground(ratioColor)
             );
         }
         else
@@ -286,7 +288,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         .Padding(isTenCol ? 3 : 5, isTenCol ? 2.5 : 3.5);
     }
 
-    private static (string text, string color) FormatKdaRatio(MatchSummary m, YuumiPalette palette)
+    private static (string text, string? color) FormatKdaRatio(MatchSummary m, YuumiPalette palette)
     {
         // 金色取旧版 PlayerMatchColumn.vue 的 #f59e0b（琥珀），纯金黄 #FFD700 在小字号下过亮
         if (m.Deaths == 0)
@@ -299,12 +301,13 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             ? ratio.ToString("0", CultureInfo.InvariantCulture)
             : ratio.ToString("0.0", CultureInfo.InvariantCulture);
 
-        string color = ratio switch
+        // color 为 null 表示走次要文本（ThemeRef 令牌），由调用方在元素级分支消费。
+        string? color = ratio switch
         {
             >= 5.0 => KdaGold,
             >= 3.0 => CareerVisuals.IsDarkTheme ? "#FF60A5FA" : "#FF3B82F6",
             >= 2.0 => palette.WinText,
-            _ => palette.TextSecondary,
+            _ => null,
         };
 
         return (text, color);
