@@ -20,20 +20,4 @@ public static class ButtonStyleExtensions
             .Set("ButtonBorderBrushPointerOver", Theme.Ref("SubtleFillColorTransparentBrush"))
             .Set("ButtonBorderBrushPressed", Theme.Ref("SubtleFillColorTransparentBrush"))
             .Set("ButtonBorderBrushDisabled", Theme.Ref("SubtleFillColorTransparentBrush")));
-
-    /// <summary>
-    /// 警告/危险按钮（Critical 样式）：红底高亮，用于强提醒或具有破坏性的操作（如重启客户端、删除好友）。
-    /// </summary>
-    public static ButtonElement CriticalButton(this ButtonElement button) =>
-        button.Resources(static resources => resources
-            .Set("ButtonBackground", Theme.Ref("SystemFillColorCriticalBrush"))
-            .Set("ButtonBackgroundPointerOver", "#D83B01")
-            .Set("ButtonBackgroundPressed", "#A80000")
-            .Set("ButtonBackgroundDisabled", Theme.Ref("ControlFillColorDisabledBrush"))
-            .Set("ButtonForeground", "#FFFFFFFF")
-            .Set("ButtonForegroundPointerOver", "#FFFFFFFF")
-            .Set("ButtonForegroundPressed", "#FFFFFFFF")
-            .Set("ButtonBorderBrush", Theme.Ref("SystemFillColorCriticalBrush"))
-            .Set("ButtonBorderBrushPointerOver", "#D83B01")
-            .Set("ButtonBorderBrushPressed", "#A80000"));
 }
