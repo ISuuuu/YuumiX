@@ -52,7 +52,7 @@ public sealed class AppShell : Component
     public override Element Render()
     {
         var services = AppHost.Services;
-        var nav = UseNavigation(AppRoute.Home);
+        var nav = UseNavigation<AppRoute>(new AppRoute.HomeRoute());
 
         // 标题栏游戏状态：LCU 连接态 + 游戏阶段是本页的重渲染来源。
         // threadSafe: true —— 推送来自 LCU 后台线程（ADR-07），由 UseState 封送回 UI 线程。
@@ -244,13 +244,13 @@ public sealed class AppShell : Component
         var menuKey = (menuVisibility.HideTft ? 1 : 0) | (menuVisibility.HideSavedPlayers ? 2 : 0);
         var menuItems = UseMemo(
             () => RouteCatalog.Primary
-                .Where(item => item.Route switch
+                .Where(item => item.Key switch
                 {
-                    AppRoute.Tft => !menuVisibility.HideTft,
-                    AppRoute.SavedPlayers => !menuVisibility.HideSavedPlayers,
+                    "Tft" => !menuVisibility.HideTft,
+                    "SavedPlayers" => !menuVisibility.HideSavedPlayers,
                     _ => true,
                 })
-                .Select(item => NavItem(item.Label, item.Glyph, item.Route.ToString()))
+                .Select(item => NavItem(item.Label, item.Glyph, item.Key))
                 .ToArray(),
             menuKey);
 
@@ -321,7 +321,7 @@ public sealed class AppShell : Component
 
         var navigationView = NavigationView(menuItems, NavigationHost(nav, BuildPage)) with
         {
-            SelectedTag = nav.CurrentRoute.ToString(),
+            SelectedTag = RouteCatalog.KeyFor(nav.CurrentRoute),
             IsSettingsVisible = false,
             IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed,
             // LeftCompact：收起态保留 64px 图标栏（对齐旧版 .sidebar.collapsed），
@@ -349,7 +349,7 @@ public sealed class AppShell : Component
                         isClientConnected,
                         paneOpen,
                         paneOpen ? PaneOpenWidth : PaneCompactWidth,
-                        () => nav.Replace(AppRoute.Career))))
+                        () => nav.Replace(new AppRoute.CareerRoute()))))
                 .HorizontalAlignment(HorizontalAlignment.Stretch),
         };
 
@@ -395,7 +395,7 @@ public sealed class AppShell : Component
                     return;
                 }
 
-                if (Enum.TryParse<AppRoute>(tag, out var route) && route != nav.CurrentRoute)
+                if (tag is not null && RouteCatalog.Resolve(tag) is { } route && route != nav.CurrentRoute)
                 {
                     nav.Replace(route);
                 }
@@ -579,7 +579,7 @@ public sealed class AppShell : Component
 
         foreach (var route in RouteCatalog.Footer)
         {
-            items.Add(NavItem(route.Label, route.Glyph, route.Route.ToString()));
+            items.Add(NavItem(route.Label, route.Glyph, route.Key));
         }
 
         return items.ToArray();
@@ -591,23 +591,26 @@ public sealed class AppShell : Component
     /// </summary>
     private static Element BuildPage(AppRoute route) => route switch
     {
-        AppRoute.Home => Component<HomePage>(),
-        AppRoute.Career => Component<CareerPage>(),
-        AppRoute.GameInfo => Component<GameInfoPage>(),
-        AppRoute.SavedPlayers => Component<SavedPlayersPage>(),
-        AppRoute.Search => Component<SearchPage>(),
-        AppRoute.Settings => Component<SettingsPage>(),
-        AppRoute.Tools => Component<ToolsPage>(),
-        AppRoute.Notice => Component<NoticePage>(),
+        AppRoute.HomeRoute => Component<HomePage>(),
+        // CareerRoute / SearchRoute 的参数经 props 下发（R8：参数跟着路由走）。
+        AppRoute.CareerRoute career => Component<CareerPage, CareerPageProps>(
+            new CareerPageProps(career.Puuid, career.Preload)),
+        AppRoute.GameInfoRoute => Component<GameInfoPage>(),
+        AppRoute.SavedPlayersRoute => Component<SavedPlayersPage>(),
+        AppRoute.SearchRoute search => Component<SearchPage, SearchPageProps>(
+            new SearchPageProps(search.Query, search.Puuid, search.GameId)),
+        AppRoute.SettingsRoute => Component<SettingsPage>(),
+        AppRoute.ToolsRoute => Component<ToolsPage>(),
+        AppRoute.NoticeRoute => Component<NoticePage>(),
         _ => BuildPlaceholder(route),
     };
 
     private static Element BuildPlaceholder(AppRoute route)
     {
-        var (title, sourceView, pending) = PageCatalog.For(route);
+        var (title, sourceView, pending) = PageCatalog.For(RouteCatalog.KeyFor(route));
 
         // 主页展示品牌 Logo（对应原 Home.vue 顶部 96px 的 Logo）；其余占位页不显示图片。
-        var brandLogoUri = route == AppRoute.Home ? AppAssets.LogoUri : null;
+        var brandLogoUri = route is AppRoute.HomeRoute ? AppAssets.LogoUri : null;
 
         return Component<PlaceholderPage, PlaceholderProps>(
             new PlaceholderProps(title, sourceView, pending, brandLogoUri));

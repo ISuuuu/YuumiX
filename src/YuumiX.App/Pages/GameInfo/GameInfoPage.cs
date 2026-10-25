@@ -36,14 +36,12 @@ public sealed class GameInfoPage : Component
         {
             // 演示数据的 puuid 是占位值，跳过去只会查到一个不存在的召唤师
             if (gameInfoService.CurrentState.IsDemoData) return;
-            CareerNavigationPayload.Instance.Set(puuid, profile);
-            nav.Replace(AppRoute.Career);
+            nav.Replace(new AppRoute.CareerRoute(puuid, profile));
         };
         Action<string, string?> onNavigateSearch = (query, puuid) =>
         {
             if (gameInfoService.CurrentState.IsDemoData) return;
-            SearchNavigationPayload.Instance.Set(query, puuid);
-            nav.Replace(AppRoute.Search);
+            nav.Replace(new AppRoute.SearchRoute(query, puuid));
         };
 
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
