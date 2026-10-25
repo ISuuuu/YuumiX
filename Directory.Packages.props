@@ -20,6 +20,17 @@
       而不是被 NuGet 悄悄选一个版本。
     -->
     <PackageVersion Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
+    <!--
+      只引子包、不引 Microsoft.WindowsAppSDK 元包（理由见 YuumiX.App.csproj）：
+      元包会拉入 AI / ML / Search / Widgets，其中 AI 带 onnxruntime(20.7M) + DirectML(17.8M)。
+      下列子包版本与元包 2.5.1 的传递解析结果一致，显式钉住是为了避免 NU1603
+      （WinUI 2.3.9 要求 InteractiveExperiences >= 2.1.8，而实际可用的只有 2.1.9）。
+    -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Base" Version="2.0.4" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Foundation" Version="2.3.12" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.DWrite" Version="2.1.0" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Runtime" Version="2.5.1" />
     <!-- SettingsCard / SettingsExpander：Windows 11 设置页的原生 Fluent 实现（WinUI 3 Gallery 同款） -->
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.3.260402-preview2" />
   </ItemGroup>

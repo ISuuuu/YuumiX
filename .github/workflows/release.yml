@@ -1,0 +1,375 @@
+name: Release
+
+# 发布由 git tag 驱动，tag 是版本号的唯一真源：
+#   git tag -a v0.1.0 -m "YuumiX 0.1.0" && git push origin v0.1.0
+#
+# 命名契约（改之前先读 src/YuumiX.Core/Updates/UpdateService.cs）：
+#   1) 正式版 tag 用 vX.Y.Z，预发布用 vX.Y.Z-rc.1 一类 SemVer 后缀
+#      （UpdateService 用 SemVer 比较，预发布只在「当前已装预发布」时才推送，
+#      稳定版用户不会被 rc 打扰）。
+#   2) 两种资产，各自被独立的匹配逻辑挑选，命名不得混用：
+#        a) 便携版：名称含 portable 且 .zip 结尾（FindPortableAssetUrl）；
+#        b) 安装版：名称含 setup 且 .exe 结尾（FindSetupAssetUrl）。
+#      任一方缺资产时，该形态用户看到的是「已是最新」，而不是一个点下去必然失败的按钮。
+#   3) 便携 zip 内必须带 portable.flag 空文件，否则解压后 RuntimePaths 会识别成安装版，
+#      数据被写到 %APPDATA%\Yuumi 而不是 exe 旁的 data\。
+#   4) 安装包不得包含 portable.flag，理由同上（反向）。
+
+on:
+  push:
+    tags:
+      # 用 v* 而不是 v[0-9]+.[0-9]+.[0-9]+：GitHub 的 tag filter 是 glob 语法，
+      # 其中的 + 是字面量而非正则量词，写成前者会一个 tag 都匹配不到（静默不触发）。
+      # 真正严格的格式校验在下面的 Resolve release version 步骤里做。
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "已存在的发布标签，例如 v0.1.0 或 v0.2.0-rc.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  APP_PROJECT: src/YuumiX.App/YuumiX.App.csproj
+
+jobs:
+  build:
+    name: Build portable x64
+    runs-on: windows-latest
+    outputs:
+      prerelease: ${{ steps.release.outputs.prerelease }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # workflow_dispatch 允许针对已存在的 tag 重跑
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      # global.json 锁 10.0.401；用 global-json-file 而非硬编码版本，避免两处漂移
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Resolve release version
+        id: release
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          $tag = $env:RELEASE_TAG.Trim()
+          $version = $tag -replace '^v', ''
+          # 允许 SemVer 预发布后缀（0.2.0-rc.1）；构建元数据 +xxx 不进 tag
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+            throw "Tag '$tag' 必须为 vMAJOR.MINOR.PATCH 或 vMAJOR.MINOR.PATCH-<预发布>，当前为 '$version'。"
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$($version.Contains('-').ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+      # 发布与门禁合并为一步，原因：
+      #   a) dotnet publish --no-build 会忽略 -p:Version，程序集版本会退回 Directory.Build.props
+      #      的默认值，发 0.2.0 时 exe 里仍是 0.1.0，更新检查随即永久失灵；
+      #   b) 不要写 --no-incremental：它是 dotnet build 的参数，dotnet publish 不认识，
+      #      CLI 会把它原样透传给 MSBuild，直接报 MSB1001「未知开关」导致步骤失败。
+      #      CI 是干净 VM、没有 obj/bin 缓存，首轮 publish 本来就是全量编译，
+      #      分析器告警不会被增量吞掉（App 已开 TreatWarningsAsErrors，构建期即拦截 AGENTS.md §0）；
+      #   c) 必须显式 --self-contained true：.NET 6 起 `publish -r <rid>` 不再隐式自包含，
+      #      漏掉它产出的是框架依赖包（runtimeconfig 里是 framework 而非 includedFrameworks、
+      #      顶层没有 coreclr.dll/hostfxr.dll），用户机器未装 .NET 10 运行时就会双击无反应。
+      #      注意 WindowsAppSDKSelfContained 只负责 WinAppSDK 运行时，与 .NET 运行时是两个维度。
+      - name: Publish self-contained application
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $publishDir = Join-Path $env:RUNNER_TEMP "publish"
+          dotnet publish $env:APP_PROJECT -c Release `
+            -p:Platform=x64 `
+            -r win-x64 `
+            --self-contained true `
+            -p:Version=$env:VERSION `
+            -o $publishDir
+          if ($LASTEXITCODE -ne 0) {
+            throw "dotnet publish 失败（构建告警在此转错误，先看 AGENTS.md §0）。"
+          }
+          "PUBLISH_DIR=$publishDir" >> $env:GITHUB_ENV
+
+      # 产物完整性校验。这一条是为「发布版丢图标」那次故障加的：
+      # Assets 是运行期按 AppContext.BaseDirectory 直读的实体文件，缺一个就是空图标，
+      # 而且 build 正常、publish 才丢，只有在这里拦得住。
+      - name: Verify publish output
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $dir = $env:PUBLISH_DIR
+          $required = @(
+            'YuumiX.exe',
+            'YuumiX.dll',
+            'Assets\AppIcon.ico',
+            'Assets\Logo.png',
+            'Assets\opgg-nav.png',
+            'Assets\RankedIcons\challenger.png',
+            'Assets\Positions\utility.png',
+            'Assets\MatchDetail\kills.png',
+            'Assets\Tier\tier-1.svg'
+          )
+          $missing = $required | Where-Object { -not (Test-Path (Join-Path $dir $_)) }
+          if ($missing) {
+            throw "发布产物缺少关键文件：$($missing -join ', ')"
+          }
+          $assetCount = (Get-ChildItem (Join-Path $dir 'Assets') -Recurse -File).Count
+          if ($assetCount -lt 34) {
+            throw "Assets 应有 34 个文件，实际 $assetCount 个（资源复制规则退化）。"
+          }
+          Write-Host "Assets 校验通过：$assetCount 个文件"
+
+          # 部署模型断言。这一条是为「发布的是框架依赖包」那次故障加的：
+          # 漏写 --self-contained 时 publish 照样成功、Assets 与版本号全对，
+          # 只有用户机器上没装对应 .NET 运行时时才会双击无反应，事后无法从产物之外看出来。
+          # 判据用运行时实体文件而不是 runtimeconfig 文本，避免格式变化导致误判。
+          $runtimeFiles = @('coreclr.dll', 'hostpolicy.dll', 'hostfxr.dll', 'System.Private.CoreLib.dll')
+          $notSelfContained = $runtimeFiles | Where-Object { -not (Test-Path (Join-Path $dir $_)) }
+          if ($notSelfContained) {
+            throw "发布产物缺少 $($notSelfContained -join ', ')：当前是框架依赖包而非自包含包，请检查 --self-contained true。"
+          }
+          $dllCount = (Get-ChildItem -LiteralPath $dir -Filter *.dll -File).Count
+          if ($dllCount -lt 200) {
+            throw "顶层只有 $dllCount 个 dll，低于自包含包的预期量级（约 300），疑似退化为框架依赖包。"
+          }
+          Write-Host "自包含校验通过：顶层 $dllCount 个 dll"
+
+          # PRI 断言：非打包模式下应用自身的 PRI 不会被 publish 自动搬到输出目录
+          #（构建目标只放到 TargetDir，由 csproj 的 CopyAppPriToPublish 补到 PublishDir）。
+          # 缺它的后果比缺 Assets 更隐蔽：产物文件数、Assets、版本号全部正常，
+          # 但 XAML 解析不到 ms-appx 资源，进程在创建窗口阶段崩在 Microsoft.UI.Xaml.dll，
+          # 事件日志记 STATUS_STOWED_EXCEPTION (0xc000027b)，用户看到的是「双击没反应、进程立刻消失」。
+          $appPri = Get-Item (Join-Path $dir 'YuumiX.pri') -ErrorAction SilentlyContinue
+          if ($null -eq $appPri) {
+            throw "发布产物缺少 YuumiX.pri：XAML 资源无法解析，启动即崩（0xc000027b）。检查 csproj 的 CopyAppPriToPublish 目标。"
+          }
+          if ($appPri.Length -lt 100KB) {
+            throw "YuumiX.pri 仅 $([math]::Round($appPri.Length / 1KB, 1)) KB，疑似生成不完整。"
+          }
+          Write-Host "PRI 校验通过：$([math]::Round($appPri.Length / 1KB, 1)) KB"
+
+          # 程序集版本必须与 tag 一致，否则应用内更新检查会把新版本当成「已是最新」。
+          # 用 ProductVersion 而不是 FileVersion：FileVersion 只有数字段（0.2.0.0），
+          # 预发布后缀只存在于 InformationalVersion（ProductVersion 的基础）里。
+          $exe = Join-Path $dir 'YuumiX.exe'
+          $versionInfo = (Get-Item $exe).VersionInfo
+          if (-not $versionInfo.ProductVersion.StartsWith($env:VERSION, [StringComparison]::Ordinal)) {
+            throw "exe ProductVersion '$($versionInfo.ProductVersion)' 与 tag '$env:VERSION' 不一致。"
+          }
+          $numericVersion = ($env:VERSION -split '-')[0]
+          if (-not $versionInfo.FileVersion.StartsWith("$numericVersion.", [StringComparison]::Ordinal)) {
+            throw "exe FileVersion '$($versionInfo.FileVersion)' 与 tag '$env:VERSION' 的数字段不一致。"
+          }
+          Write-Host "版本校验通过：Product=$($versionInfo.ProductVersion) File=$($versionInfo.FileVersion)"
+
+      # 便携版组装：zip 根目录为 YuumiX-portable\，带 portable.flag 与空 data\ 目录，
+      # 与旧版 Yuumi 的 portable 包结构一致（ApplyPendingUpdate 递归查找 exe，层数不敏感）。
+      - name: Assemble portable package
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'stage'
+          $root = Join-Path $stage 'YuumiX-portable'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+
+          Copy-Item -Path (Join-Path $env:PUBLISH_DIR '*') -Destination $root -Recurse
+
+          # 调试符号不进用户包（体积约占三成，且会泄露构建机源码路径）。
+          # 用 foreach + FullName 而不是管道喂 Remove-Item：pwsh 下 FileInfo 走管道时
+          # 参数绑定会失败（Get-ChildItem -Filter 与 -Recurse 组合时尤其不稳定）。
+          foreach ($pdb in @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object Extension -eq '.pdb')) {
+            Remove-Item -LiteralPath $pdb.FullName -Force
+          }
+
+          Copy-Item README.md, NOTICE.md -Destination $root
+          # 便携版标记：缺这个文件会被识别成安装版，数据改落 %APPDATA%\Yuumi
+          New-Item -ItemType File -Force -Path (Join-Path $root 'portable.flag') | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $root 'data') | Out-Null
+          New-Item -ItemType File -Force -Path (Join-Path $root 'data\.keep') | Out-Null
+
+          $zipName = "YuumiX_v$($env:VERSION)_portable.zip"
+          $zipPath = Join-Path $env:RUNNER_TEMP $zipName
+
+          # 7z 更快更小，但依赖 runner 的 PATH；取不到就退回 Compress-Archive
+          $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
+          if ($null -ne $sevenZip) {
+            & $sevenZip.Source a -tzip -mx=7 $zipPath (Join-Path $stage '*') | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw '7z 打包失败。' }
+          } else {
+            Write-Warning '7z 不在 PATH，改用 Compress-Archive（体积略大）。'
+            Compress-Archive -Path (Join-Path $stage 'YuumiX-portable') -DestinationPath $zipPath -CompressionLevel Optimal
+          }
+
+          $sizeMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
+          Write-Host "便携包：$zipName（$sizeMb MB）"
+          "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
+
+      - name: Upload portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable
+          path: ${{ env.ZIP_PATH }}
+          if-no-files-found: error
+
+      # 安装包：Inno Setup 编译，用户级安装（%LOCALAPPDATA%\Programs\YuumiX），不弹 UAC。
+      # 为什么不在 Program Files：应用把日志写在 exe 旁的 log\，装到 Program Files 后
+      # 普通用户无写权限，RotatingFileLoggerProvider 会静默丢弃全部日志（程序不崩，
+      # 但用户报 bug 时没有诊断材料）。细节见 installer/YuumiX.iss 文件头。
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          $iscc = @(
+            "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup*\ISCC.exe"
+          ) | ForEach-Object { Get-ChildItem $_ -ErrorAction SilentlyContinue } |
+              Sort-Object FullName -Descending | Select-Object -First 1
+          if ($null -eq $iscc) { throw 'Inno Setup 安装后未找到 ISCC.exe。' }
+          Write-Host "ISCC: $($iscc.FullName)"
+          "ISCC_PATH=$($iscc.FullName)" >> $env:GITHUB_ENV
+
+      - name: Build installer
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $setupDir = Join-Path $env:RUNNER_TEMP 'setup'
+          New-Item -ItemType Directory -Force -Path $setupDir | Out-Null
+          # Inno 的 VersionInfoVersion 只接受数字四段，预发布后缀要去掉；AppVersion 保留完整版本。
+          $numeric = ($env:VERSION -split '-')[0] + '.0'
+          & $env:ISCC_PATH "/DVersion=$env:VERSION" "/DNumericVersion=$numeric" `
+            "/DSourceDir=$env:PUBLISH_DIR" "/DOutputDir=$setupDir" installer\YuumiX.iss
+          if ($LASTEXITCODE -ne 0) { throw 'ISCC 编译安装包失败。' }
+
+          # 命名契约（UpdateService.FindSetupAssetUrl）：必须含 setup、.exe 结尾、且不含 portable。
+          # 含 portable 会被便携版的资产匹配逻辑误抢，两边都会挑到错的包。
+          $setup = Get-ChildItem -LiteralPath $setupDir -Filter *.exe | Select-Object -First 1
+          if ($null -eq $setup) { throw '未生成安装包。' }
+          if ($setup.Name -match 'portable') { throw "安装包名不得含 portable：$($setup.Name)" }
+          if ($setup.Name -notmatch 'setup') { throw "安装包名必须含 setup：$($setup.Name)" }
+          # 自包含运行时约 160 MB，压缩后仍在数十 MB 量级；过小说明只打进了壳。
+          if ($setup.Length -lt 20MB) { throw "安装包体积异常：$([math]::Round($setup.Length / 1MB, 1)) MB" }
+
+          Write-Host "安装包：$($setup.Name)（$([math]::Round($setup.Length / 1MB, 1)) MB）"
+          "SETUP_PATH=$($setup.FullName)" >> $env:GITHUB_ENV
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: ${{ env.SETUP_PATH }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          # 需要完整 tag 历史：CHANGELOG 缺段落时用 git log 在「上一个 tag..当前 tag」之间生成兜底内容
+          fetch-depth: 0
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          # 两种形态一并取回：portable 出 zip，installer 出 setup.exe
+          pattern: '*'
+          path: packages
+          merge-multiple: true
+
+      # 发布说明 = 下载指引 + CHANGELOG 对应版本段落。
+      # 段落靠 `## <version>` 标题定位，所以 CHANGELOG 的标题必须与 tag 版本号一致。
+      # 找不到段落不报错（小版本可以不写），退化为「上一个 tag..当前 tag」的提交标题列表。
+      # 用单引号 here-string 做模板：双引号 here-string 里反引号是 PowerShell 转义符，
+      # 会把 Markdown 的行内代码吃掉。
+      - name: Compose release notes
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          IS_PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          $version = $env:RELEASE_TAG.Trim() -replace '^v', ''
+          $changelog = Get-Content -LiteralPath CHANGELOG.md -Raw
+          $pattern = "(?ms)^##\s+\[?$([regex]::Escape($version))\]?.*?(?=^##\s|\z)"
+          $section = [regex]::Match($changelog, $pattern).Value.Trim()
+          if ([string]::IsNullOrWhiteSpace($section)) {
+            # 兜底：CHANGELOG 没写这一版时，用上一个 tag 到当前 tag 之间的提交标题拼一段。
+            # 首个版本没有上一个 tag，退化为最近 20 条；过滤 merge 提交，避免全是合并噪音。
+            Write-Warning "CHANGELOG.md 中没有 $version 段落，改用提交记录自动生成。"
+            $prevTag = (git describe --tags --abbrev=0 "$env:RELEASE_TAG^" 2>$null)
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($prevTag)) {
+              $commits = git log --no-merges --pretty=format:"- %s" "$prevTag..$env:RELEASE_TAG"
+            } else {
+              $commits = git log --no-merges --pretty=format:"- %s" -20
+            }
+            # 显式字符串拼接而非数组 -join：git log 的输出在 pwsh 里是字符串数组，
+            # 与标题一起 join 时首行会粘连。换行用 [char]10 而不是反引号转义，
+            # 避免不同执行宿主对反引号的二次解释。
+            $nl = [char]10
+            $section = "### 本版本变更（自动生成）" + $nl + $nl + (($commits | Where-Object { $_ }) -join $nl)
+          }
+
+          $preNote = ''
+          if ($env:IS_PRERELEASE -eq 'true') {
+            $preNote = @'
+          > [!WARNING]
+          > 这是**预发布版本**，用于提前验证新功能，可能存在未修复的缺陷。
+          > 已装正式版的用户不会收到本版本的更新提示；若只想稳定使用，请留在最新正式版。
+          '@
+          }
+
+          $template = @'
+          {{PRERELEASE}}
+          > [!IMPORTANT]
+          > 本版本提供两种分发形态，按需选一种即可：
+          > - **便携版** `YuumiX_v*_portable.zip`：解压后运行 `YuumiX-portable\YuumiX.exe`，
+          >   数据保存在 `YuumiX-portable\data\`，删除整个目录即完全卸载。
+          > - **安装版** `YuumiX_v*_x64-setup.exe`：安装到当前用户目录（无需管理员权限），
+          >   自动创建开始菜单与卸载项，数据保存在 `%APPDATA%\Yuumi`（与旧版 Yuumi 共用）。
+          > 两种形态都可使用应用内「设置 → 软件更新」自动比对 GitHub Releases 并提示新版本。
+
+          ## 运行要求
+
+          - Windows 10 1809（17763）及以上，推荐 Windows 11
+          - x64，无需预装 .NET 或 Windows App SDK 运行时（已自包含）
+          - 部分功能需要英雄联盟客户端处于运行状态
+
+          > [!NOTE]
+          > 发布包未做代码签名，首次运行时 Windows SmartScreen 会提示「已保护你的电脑」，
+          > 点「更多信息 → 仍要运行」即可。
+
+          ---
+
+          {{SECTION}}
+          '@
+
+          $body = $template.Replace('{{PRERELEASE}}', $preNote).Replace('{{SECTION}}', $section)
+          Set-Content -LiteralPath release-body.md -Value $body -Encoding utf8NoBOM
+          Get-Content -LiteralPath release-body.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          name: YuumiX ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          body_path: release-body.md
+          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: true
+          files: |
+            packages/*.zip
+            packages/*.exe

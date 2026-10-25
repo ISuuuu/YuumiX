@@ -33,7 +33,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <!-- 不引 Microsoft.WindowsAppSDK 元包：它会把 AI / ML / Search / Widgets 四组组件
+         一并拉进来，其中 AI 带 onnxruntime.dll(20.7M) + DirectML.dll(17.8M)，全仓零使用，
+         压缩后白占约 14MB。改为只引真正用到的子包。 -->
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Runtime" />
+    <!-- WinUI 2.3.9 声明的下限是 InteractiveExperiences >= 2.1.8，但该版本并不存在
+         （实际只有 2.1.9），不直接引用就会报 NU1603。直接引用即钉住解析结果。 -->
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" />
     <PackageReference Include="Microsoft.UI.Reactor" />
     <!-- 设置项容器（SettingsCard/SettingsExpander）。控件模板在包内 .pri 中，
          裁剪/AOT 时必须保留该程序集，见 Controls/ToolkitXamlMetadata.cs。 -->
@@ -50,22 +57,21 @@
   <ItemGroup>
     <!-- 静态资源随 exe 分发到输出目录的 Assets/ 下，由 Theming/AppAssets.cs 按
          AppContext.BaseDirectory 解析（非打包模式没有 ms-appx:/// 虚拟根）。
-         用 None + Update 而非 Content Include：.png/.ico 已被 SDK 默认 None 项包含，
-         重复 Include 会触发 NETSDK1022。 -->
-    <None Update="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="Assets\Logo.png" CopyToOutputDirectory="PreserveNewest" />
-    <!-- 段位奖章图标（来自原 Yuumi 的 src/assets/ranked-icons，10 个段位各一张）。
-         生涯页的排位表按 tier 取图，路径由 Theming/AppAssets 统一解析。 -->
-    <None Update="Assets\RankedIcons\*.png" CopyToOutputDirectory="PreserveNewest" />
-    <!-- 对局详情双方资源统计图标（来自原 Yuumi 的 public/images/，kills/tower/dragon/baron/herald/inhibitor）。 -->
-    <None Update="Assets\MatchDetail\*.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="Assets\Tier\*.svg" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="Assets\opgg.svg" CopyToOutputDirectory="PreserveNewest" />
-    <!-- 侧边栏 OP.GG 菜单项专用 18px 品牌图标（由 opgg.svg 光栅化；Reactor 的
-         ImageIcon 走 BitmapImage，不支持 SVG，故必须用 PNG）。 -->
-    <None Update="Assets\opgg-nav.png" CopyToOutputDirectory="PreserveNewest" />
-    <!-- 召唤师峡谷分路位置图标（上/野/中/下/辅 5 张 PNG）。 -->
-    <None Update="Assets\Positions\*.png" CopyToOutputDirectory="PreserveNewest" />
+
+         项类型必须按扩展名分开写，原因（发布版丢图标踩过一次）：
+         WinUI SDK 先把 *.png 收进 Content 默认项，只对它们写 None Update 是空操作；
+         而 Content 项缺 CopyToPublishDirectory 时 dotnet build 会复制、dotnet publish 不会，
+         结果 build 输出 34 个资源、publish 只剩 6 个（.ico/.svg），发布版段位奖章、
+         分路与资源统计图标全空。因此 *.png 走 Content Update 并显式给两个元数据。
+         重复 Include 会触发 NETSDK1022，故一律用 Update 而非 Include。 -->
+    <Content Update="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+
+    <!-- .ico/.svg 不在 SDK 默认 Content 集内，属 None 默认项，Update 有效。 -->
+    <None Update="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="Assets\Tier\*.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="Assets\opgg.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- 段位奖章（10 张）、资源统计（11 张）、分路位置（5 张）、Logo 与 opgg-nav 均由
+         上面的 Assets\**\*.png 规则覆盖，不再逐目录声明。 -->
   </ItemGroup>
 
   <ItemGroup>
@@ -77,5 +83,22 @@
     <!-- SettingsExpander 调和决策层为 internal，供 R15 回归测试直接测（tests/YuumiX.App.Tests） -->
     <InternalsVisibleTo Include="YuumiX.App.Tests" />
   </ItemGroup>
+
+  <!-- 非打包模式下应用自身的 PRI 必须手动带到 publish 输出。
+       WinUI 的构建目标只把 YuumiX.pri 生成/复制到 TargetDir，`dotnet publish` 不会
+       把它搬进 PublishDir —— 与 Assets 那次（PNG 走 None Update 只进 build 不进 publish）
+       属同一类退化，症状更重：缺 PRI 时 XAML 解析不到 ms-appx 资源，
+       进程在创建窗口阶段就崩在 Microsoft.UI.Xaml.dll，事件日志记
+       STATUS_STOWED_EXCEPTION (0xc000027b)，表现为「双击没反应、进程立刻消失」。
+       实测：Release TargetDir 有 2.2 MB 的 YuumiX.pri，publish 目录只有 5 个框架 pri。 -->
+  <Target Name="CopyAppPriToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_AppPriFiles Include="$(TargetDir)$(TargetName).pri" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AppPriFiles)"
+          DestinationFolder="$(PublishDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(TargetDir)$(TargetName).pri')" />
+  </Target>
 
 </Project>

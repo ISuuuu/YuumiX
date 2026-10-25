@@ -1,5 +1,21 @@
 <Project>
 
+  <!-- 产品元数据与版本。
+
+       版本号唯一真源是 git tag（CI 用 -p:Version=<tag> 覆盖），这里的值只作本地
+       构建与调试的默认值。不要只改这里就发版：UpdateService 用
+       Assembly.GetName().Version.ToString(3) 与 GitHub releases/latest 的 tag 比较，
+       两者不一致会导致「永远已是最新」或「永远提示有更新」。 -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Product>YuumiX</Product>
+    <Company>ISuuuu</Company>
+    <Authors>ISuuuu</Authors>
+    <Copyright>Copyright © 2026 ISuuuu</Copyright>
+    <RepositoryUrl>https://github.com/ISuuuu/YuumiX</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
   <!-- 跨项目统一属性。项目自身的 TFM / 打包模式仍在各自 csproj 中声明。 -->
   <PropertyGroup>
     <LangVersion>latest</LangVersion>

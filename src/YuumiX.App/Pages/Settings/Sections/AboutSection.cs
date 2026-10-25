@@ -13,9 +13,12 @@ internal static class AboutSection
     /// <summary>开源仓库地址（工程 git remote 与 README 一致）。</summary>
     private const string RepositoryUrl = "https://github.com/ISuuuu/YuumiX";
 
-    /// <summary>应用版本（入口程序集的文件版本，显示为 v主.次.修订）。</summary>
-    private static string AppVersion =>
-        "v" + (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0");
+    /// <summary>
+    /// 应用版本，显示为 <c>v主.次.修订[-预发布]</c>。
+    /// 复用 <see cref="YuumiX.Core.Updates.UpdateService.CurrentVersion"/> 而不是自己读
+    /// <c>Assembly.Version</c>：后者只有数字段，预发布版本会显示成正式版，与更新检查看到的版本号不一致。
+    /// </summary>
+    private static string AppVersion => "v" + YuumiX.Core.Updates.UpdateService.CurrentVersion;
 
     public static Element Render(SettingsUi ui)
     {

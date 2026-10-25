@@ -60,12 +60,14 @@ internal static partial class GeneralSection
                 config.General.EnableStartLolWithApp = v;
                 ui.Commit(nameof(GeneralConfig.EnableStartLolWithApp));
             }),
-            SettingsCardKit.Card("关闭到托盘", "关闭窗口时最小化到托盘而不是退出；未设置时按平台默认处理",
-                ThreeStateCheckBox(config.General.EnableCloseToTray, v =>
+            // 两态开关，不是三态复选框：配置里的 null 只是「老配置未表态」的存储细节，
+            // 语义上等价于 false（旧版 get_close_to_tray 的 unwrap_or(false)），不能渲染成第三种状态。
+            SettingsCardKit.Toggle("关闭到托盘", "点击关闭按钮时将窗口隐藏到系统托盘区域",
+                config.General.EnableCloseToTray ?? false, v =>
                 {
                     config.General.EnableCloseToTray = v;
                     ui.Commit(nameof(GeneralConfig.EnableCloseToTray));
-                }).AutomationName("关闭到托盘开关")),
+                }, automationName: "关闭到托盘开关"),
             SettingsCardKit.Toggle("游戏开始时最小化", "检测到对局开始后自动最小化主窗口", config.General.EnableGameStartMinimize, v =>
             {
                 config.General.EnableGameStartMinimize = v;
@@ -192,15 +194,20 @@ internal static partial class GeneralSection
                 string.IsNullOrEmpty(update.Info.Notes)
                     ? Empty()
                     : Caption(update.Info.Notes).Foreground(Theme.SecondaryText).TextWrapping(),
-                // 下载与安装区：下载中显示进度，就绪后切换为安装按钮
+                // 下载与安装区：下载中显示进度，就绪后切换为安装按钮。
+                // DownloadUrl 为空表示该版本没有当前形态对应的资产（例如只发了 zip 却用安装版运行），
+                // 此时不能渲染「下载更新」——点下去必然抛「该版本没有可下载的资产」，只能引导去发布页。
                 update.DownloadedPath is not null
-                    ? Button(ui.Services.Paths.IsPortable ? "应用更新并重启" : "立即重启安装", () => ApplyPendingUpdate(ui, update, update.DownloadedPath))
+                    ? Button(ui.Services.Paths.IsPortable ? "应用更新并重启" : "安装更新并重启", () => ApplyPendingUpdate(ui, update, update.DownloadedPath))
                         .AutomationName("安装更新按钮")
                     : update.Progress is { } p
                         ? VStack(4,
                             Progress(p.Percent ?? 0),
                             Caption($"已下载 {p.Downloaded / 1024.0 / 1024.0:F1} MB" + (p.Total is { } t ? $" / {t / 1024.0 / 1024.0:F1} MB" : string.Empty)))
-                        : Button("下载更新", () => _ = update.Download.RunAsync(update.Info)).AutomationName("下载更新按钮"))));
+                        : update.Info.DownloadUrl is null
+                            ? Caption("该版本未提供适用于当前安装形态的更新包，请在下方发布页手动下载。")
+                                .Foreground(Theme.SecondaryText).TextWrapping()
+                            : Button("下载更新", () => _ = update.Download.RunAsync(update.Info)).AutomationName("下载更新按钮"))));
         }
 
         items.Add(SettingsCardKit.Card("开源发布页", "在浏览器中打开 GitHub Releases",
@@ -210,7 +217,8 @@ internal static partial class GeneralSection
                 {
                     _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                        FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases/latest",
+                        // 指向发布列表而非 /releases/latest：仓库只有预发布时 latest 会返回 404
+                        FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases",
                         UseShellExecute = true,
                     });
                 }
@@ -224,7 +232,7 @@ internal static partial class GeneralSection
             "软件更新",
             ui.Services.Paths.IsPortable
                 ? "便携版通过 zip 覆盖方式更新；检查到新版后手动下载应用"
-                : "检查新版本并后台下载，就绪后重启安装",
+                : "安装版通过 setup 静默重装；检查到新版后手动下载应用",
             SettingsStatus.Custom,
             headerControl: null,
             innerItems: [.. items],
@@ -235,7 +243,20 @@ internal static partial class GeneralSection
     {
         try
         {
-            YuumiX.Core.Updates.UpdateService.ApplyPendingUpdate(path, ui.Services.Paths.IsPortable);
+            bool willRestart = YuumiX.Core.Updates.UpdateService.ApplyPendingUpdate(path, ui.Services.Paths.IsPortable);
+            if (!willRestart)
+            {
+                return;
+            }
+
+            // 两种形态都必须等主进程彻底退出后由外部脚本接手（运行中的 exe 与已映射的 dll
+            // 都被锁住；安装版若交给 Restart Manager 强关，未落盘的配置会丢）。
+            // 这里主动结束消息循环，让 App.cs 的 finally 正常刷新日志、释放容器，
+            // 随后脚本才开始 robocopy 覆盖或启动安装程序，并拉起新版本。
+            ui.Toast.Info(ui.Services.Paths.IsPortable
+                ? "正在应用更新，应用即将重启…"
+                : "正在启动安装程序，应用即将退出…");
+            Microsoft.UI.Xaml.Application.Current.Exit();
         }
         catch (Exception ex)
         {
