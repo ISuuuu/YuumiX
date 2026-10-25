@@ -135,6 +135,7 @@ public sealed class SettingsPage : Component
 
         // 云端服务：SignalR 四态徽标状态（EventStream 推送来自后台线程，threadSafe 消费，ADR-07）
         var signalr = services.Services.GetRequiredService<YuumiX.Core.Realtime.SignalrService>();
+        var uploadQueue = services.Services.GetRequiredService<YuumiX.Core.Upload.UploadQueueService>();
         var (signalrStatus, setSignalrStatus) = UseState(signalr.Current, threadSafe: true);
 
         // 云端文本（URL/userid）合并写盘序号
@@ -332,6 +333,13 @@ public sealed class SettingsPage : Component
             {
                 config.General.UploadApiUrl = url.Trim();
                 Commit(nameof(GeneralConfig.UploadApiUrl));
+
+                // 地址填好或改动的瞬间，把以前没传完的对局重新入队
+                // （旧 commands/config.rs 的 trigger_upload_retry：地址变了才值得重试）
+                if (!string.IsNullOrWhiteSpace(config.General.UploadApiUrl))
+                {
+                    _ = Task.Run(() => uploadQueue.TriggerPendingRetry());
+                }
             }
 
             if (userId is not null && userId.Trim() != config.General.SignalrUserId)

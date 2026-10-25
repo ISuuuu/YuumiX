@@ -209,6 +209,29 @@ public sealed class AppServices : IAsyncDisposable
             () => provider.GetRequiredService<AppConfig>(),
             provider.GetService<ILogger<Upload.UploadService>>()));
 
+        // 上传失败落盘 + 去重队列（对应旧 upload.rs 的 pending_uploads 与 UploadQueue）：
+        // 构造即启动后台 worker，因此必须是单例，否则每个解析一次就会多一条消费线程。
+        collection.AddSingleton(provider => new Upload.PendingUploadStore(
+            provider.GetRequiredService<RuntimePaths>(),
+            provider.GetService<ILogger<Upload.PendingUploadStore>>()));
+
+        collection.AddSingleton(provider => new Upload.UploadQueueService(
+            provider.GetRequiredService<Upload.UploadService>(),
+            provider.GetRequiredService<Upload.PendingUploadStore>(),
+            () => provider.GetRequiredService<AppConfig>(),
+            async () => (await provider.GetRequiredService<ISummonerService>()
+                .GetCurrentSummonerAsync().ConfigureAwait(false))?.Puuid,
+            championNameResolver: id => ResolveChampionName(
+                provider.GetRequiredService<GameDataService>(), id),
+            logger: provider.GetService<ILogger<Upload.UploadQueueService>>()));
+
+        collection.AddSingleton(provider => new Upload.UploadBatchService(
+            provider.GetRequiredService<Upload.UploadService>(),
+            () => provider.GetRequiredService<AppConfig>(),
+            championNameResolver: id => ResolveChampionName(
+                provider.GetRequiredService<GameDataService>(), id),
+            logger: provider.GetService<ILogger<Upload.UploadBatchService>>()));
+
         // ── 在线更新（requirements-settings.md S6，对应原 updater.rs / portable_updater.rs）──
         // GitHub 域名白名单 + 代理 + 24h 更新日志缓存；安装版/便携版双策略见 UpdateService。
         collection.AddSingleton<Updates.UpdateService>(provider => new Updates.UpdateService(
@@ -366,6 +389,14 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>资源缓存目录：<c>&lt;数据目录&gt;/cache/assets</c>，与原实现同构。</summary>
     private static string AssetCacheDirectory(RuntimePaths paths) =>
         Path.Combine(paths.DataDirectory, "cache", "assets");
+
+    /// <summary>
+    /// 英雄 ID → 名称，供上传载荷填充 <c>championName</c>。
+    /// 映射表没加载出来时退化为 "Unknown"——客户端刚启动时拿不到表是常态，
+    /// 不能用它挡住上传（旧实现同款兜底值）。
+    /// </summary>
+    private static string ResolveChampionName(GameDataService gameData, int championId) =>
+        gameData.Current?.Champions.TryGetValue(championId, out string? name) == true ? name : "Unknown";
 
     /// <summary>
     /// 把配置中的日志等级应用到已构建的 provider（设置页改日志等级后即时生效）。
