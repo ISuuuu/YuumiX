@@ -1,0 +1,26 @@
+# BannedSymbols.txt — 禁用 API 门禁（AGENTS.md §0 / docs/requirements-fluent-refactor.md R17）
+# 条目格式与 XML 文档注释 ID 一致（T: 类型 / M: 方法 / P: 属性），每行一条，`#` 开头为注释。
+# 由 Microsoft.CodeAnalysis.BannedApiAnalyzers 消费，App 项目开启 TreatWarningsAsErrors 后
+# 引用下列符号即报 RS0030 构建错误。AGENTS.md §0 的人工 grep 自此降级为兜底。
+
+# ── ScrollView 一族：滚动容器一律用 ScrollViewer（AGENTS.md §5.5）────────────────
+# ScrollView 把内容放进 ScrollPresenter 的独立 Composition Visual，靠浮点 Offset 驱动，
+# 绕过 XAML 布局取整 → DirectWrite 失去像素网格拟合 → 该滚动区内所有文字整体发虚。
+# 三个入口全禁：Reactor 工厂方法（页面代码的实际调用点）、WinUI 控件类型、Reactor 元素类型。
+M:Microsoft.UI.Reactor.Factories.ScrollView(Microsoft.UI.Reactor.Core.Element)
+T:Microsoft.UI.Xaml.Controls.ScrollView
+T:Microsoft.UI.Reactor.Core.ScrollViewElement
+
+# ── FontWeights：字重只走排版工厂或 .SemiBold() 修饰符（AGENTS.md §1.1）──────────
+# 手写 FontWeights 常量绕过类型阶：12px 中文加粗会被雅黑吸附成 Bold 导致笔画发糊，
+# 也让「哪些小字该加粗」失去可审依据。
+T:Microsoft.UI.Text.FontWeights
+
+# ── ContentDialog.ShowAsync：对话框一律声明式（AGENTS.md §5.3）──────────────────
+# 命令式 ShowAsync 绕开 Reactor 的状态驱动渲染，分析器 REACTOR_DIALOG_001 只覆盖部分场景，
+# 此处从符号层面彻底禁掉。
+M:Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync
+
+# ── SyncWinUiAccentResources：禁止覆盖系统强调色（AGENTS.md §2）─────────────────
+# 强调色由系统决定。该方法已在 9dd3736 删除，条目保留以防同名签名复活。
+M:YuumiX.App.Theming.YuumiPalette.SyncWinUiAccentResources(System.String)

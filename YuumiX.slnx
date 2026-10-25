@@ -19,6 +19,10 @@
     <Project Path="tests/YuumiX.Core.Tests/YuumiX.Core.Tests.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>
+    <!-- 模式级 UI 规范门禁（R17）：扫描 src/YuumiX.App 源码，违规必须有白名单承接 -->
+    <Project Path="tests/YuumiX.SourceScan.Tests/YuumiX.SourceScan.Tests.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
     <Project Path="tests/YuumiX.Testing.Lcu/YuumiX.Testing.Lcu.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>
