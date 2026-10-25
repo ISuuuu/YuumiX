@@ -188,6 +188,19 @@ public sealed class UploadQueueService : IDisposable
         long gameId = item.GameId;
         UploadPayload? payload = item.Payload;
 
+        var config = _configProvider();
+        if (!config.Functions.UploadEnabled)
+        {
+            _logger?.LogDebug("对局 {GameId} 跳过上传: 上传功能未开启", gameId);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.General.UploadApiUrl))
+        {
+            _logger?.LogWarning("对局 {GameId} 跳过上传: 未配置上传 API 地址", gameId);
+            return;
+        }
+
         using var timeout = new CancellationTokenSource(TaskTimeout);
         try
         {

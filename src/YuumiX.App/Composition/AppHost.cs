@@ -140,6 +140,9 @@ public static class AppHost
             {
                 try
                 {
+                    // 延迟 2 秒等待 LCU 数据写入（对齐旧 UploadTrigger）
+                    await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
                     var profile = await summonerService.GetCurrentSummonerAsync().ConfigureAwait(false);
                     if (profile is null)
                     {
@@ -179,6 +182,21 @@ public static class AppHost
             catch (Exception ex)
             {
                 uploadLogger.LogWarning(ex, "启动恢复暂存上传失败");
+            }
+        });
+
+        // 启动 SignalR Hub 远程反代（对齐旧 lib.rs 条件启动：LcuRealtimeEnabled 开启且配置了 URL）
+        var signalr = _services.Services.GetRequiredService<YuumiX.Core.Realtime.SignalrService>();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await signalr.ApplyConfigAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _services.LoggerFactory.CreateLogger<YuumiX.Core.Realtime.SignalrService>()
+                    .LogWarning(ex, "启动 SignalR 远程反代服务失败");
             }
         });
     }

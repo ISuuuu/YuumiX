@@ -242,6 +242,11 @@ public static class UploadUrlBuilder
     public static string BuildUploadUrl(string baseUrl)
     {
         string url = EnsureScheme(baseUrl.TrimEnd('/'));
+        if (url.EndsWith("/api/lol/upload-batch", StringComparison.OrdinalIgnoreCase))
+        {
+            url = url[..^"/api/lol/upload-batch".Length];
+        }
+
         if (!url.Contains("/api/lol/upload", StringComparison.Ordinal))
         {
             url += "/api/lol/upload";
@@ -253,8 +258,13 @@ public static class UploadUrlBuilder
     /// <summary>拼接批量上传 URL（旧 build_batch_upload_url）：先剥掉单局后缀再拼批量后缀。</summary>
     public static string BuildBatchUploadUrl(string baseUrl)
     {
-        const string UploadSuffix = "/api/lol/upload";
         string url = EnsureScheme(baseUrl.TrimEnd('/'));
+        if (url.EndsWith("/api/lol/upload-batch", StringComparison.OrdinalIgnoreCase))
+        {
+            return url;
+        }
+
+        const string UploadSuffix = "/api/lol/upload";
         if (url.EndsWith(UploadSuffix, StringComparison.OrdinalIgnoreCase))
         {
             url = url[..^UploadSuffix.Length];

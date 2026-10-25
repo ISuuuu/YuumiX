@@ -168,7 +168,7 @@ public sealed class SignalrService : IDisposable
         _activeTarget = target;
 
         var connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
+            .WithUrl(target)
             // 库级自动重连：断线后按默认策略重连；建连失败的 5 秒重试由 RetryLoop 兜底
             .WithAutomaticReconnect()
             .Build();
@@ -197,8 +197,8 @@ public sealed class SignalrService : IDisposable
             return Task.CompletedTask;
         };
 
-        // Hub 端 ReceiveCommand 的参数为 (commandJson, queryId)（旧 handle_receive_command 的 arguments[0]/[1]）
-        connection.On<string, string>("ReceiveCommand", (command, queryId) =>
+        // Hub 端 ReceiveCommand 的参数为 (command, queryId)（后端下发 LcuCommandMessage 对象，容错处理 string/object）
+        connection.On<JsonElement, string>("ReceiveCommand", (command, queryId) =>
             _ = HandleReceiveCommandAsync(connection, userId, command, queryId));
 
         _connection = connection;
@@ -316,14 +316,19 @@ public sealed class SignalrService : IDisposable
     }
 
     /// <summary>ReceiveCommand：白名单校验 → LCU GET → ReportResult 回传（旧 handle_receive_command）。</summary>
-    private async Task HandleReceiveCommandAsync(HubConnection connection, string userId, string commandJson, string queryId)
+    private async Task HandleReceiveCommandAsync(HubConnection connection, string userId, JsonElement command, string queryId)
     {
         string endpoint = string.Empty;
 
         try
         {
-            using var doc = JsonDocument.Parse(commandJson);
-            var root = doc.RootElement;
+            JsonElement root = command;
+            if (command.ValueKind == JsonValueKind.String)
+            {
+                using var doc = JsonDocument.Parse(command.GetString() ?? "{}");
+                root = doc.RootElement.Clone();
+            }
+
             endpoint = GetStringOrNull(root, "Endpoint") ?? GetStringOrNull(root, "endpoint") ?? string.Empty;
         }
         catch (Exception ex)
@@ -346,7 +351,7 @@ public sealed class SignalrService : IDisposable
 
         try
         {
-            await connection.InvokeAsync(
+            await connection.SendAsync(
                 "ReportResult", userId, payload, queryId,
                 CancellationToken.None).ConfigureAwait(false);
             _logger?.LogInformation("[SignalR] >>> 成功发送结果回执给云端, queryId={QueryId}", queryId);
@@ -413,7 +418,7 @@ public sealed class SignalrService : IDisposable
             timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
         string queryId = Guid.NewGuid().ToString("N");
-        await connection.InvokeAsync(
+        await connection.SendAsync(
             "ReportResult", userId, JsonSerializer.Serialize(payload), queryId,
             CancellationToken.None).ConfigureAwait(false);
     }
