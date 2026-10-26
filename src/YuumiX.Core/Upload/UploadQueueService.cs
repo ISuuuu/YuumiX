@@ -201,24 +201,38 @@ public sealed class UploadQueueService : IDisposable
             if (payload is null)
             {
                 string? puuid = await ResolvePuuidAsync().ConfigureAwait(false);
-                var (built, error) = await _single.TryBuildPayloadAsync(
-                    gameId, puuid, _championNameResolver, timeout.Token).ConfigureAwait(false);
+                string? lastError = null;
 
-                if (built is null)
+                // 结算初期 LCU 对局详情生成可能有短暂延迟，短间隔重试 5 次
+                for (int attempt = 0; attempt < 5; attempt++)
+                {
+                    var (built, error) = await _single.TryBuildPayloadAsync(
+                        gameId, puuid, _championNameResolver, timeout.Token).ConfigureAwait(false);
+
+                    if (built is not null)
+                    {
+                        payload = built;
+                        break;
+                    }
+
+                    lastError = error;
+                    if (attempt < 4)
+                    {
+                        await Task.Delay(1500, timeout.Token).ConfigureAwait(false);
+                    }
+                }
+
+                if (payload is null)
                 {
                     // LCU 暂时拉不到详情时退回本地暂存（旧逻辑）：结算瞬间接口抖一下是常态
                     payload = _store.Load().FirstOrDefault(x => x.GameId == gameId)?.Payload;
                     if (payload is null)
                     {
-                        _logger?.LogWarning("对局 {GameId} 跳过上传: {Error}", gameId, error);
+                        _logger?.LogWarning("对局 {GameId} 跳过上传: {Error}", gameId, lastError ?? "拉取详情失败");
                         return;
                     }
 
                     _logger?.LogInformation("LCU 暂无法获取详情，使用本地暂存的对局 {GameId} 数据上传", gameId);
-                }
-                else
-                {
-                    payload = built;
                 }
             }
 

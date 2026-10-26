@@ -90,6 +90,8 @@ public sealed class CareerPage : Component<CareerPageProps>
         var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
         var (ranked, setRanked) = UseState(RankedStats.Empty, threadSafe: true);
         var (matches, setMatches) = UseState(CareerLoaders.EmptyMatches, threadSafe: true);
+        var matchesRef = UseRef(matches);
+        matchesRef.Current = matches;
         var (loot, setLoot) = UseState<PlayerLootOverview?>(null, threadSafe: true);
         var (mastery, setMastery) = UseState<MasteryOverview?>(null, threadSafe: true);
         var (tab, setTab) = UseState(CareerTab.Matches, threadSafe: true);
@@ -182,7 +184,16 @@ public sealed class CareerPage : Component<CareerPageProps>
             {
                 if (lifecycle is null) return static () => { };
                 var sub1 = lifecycle.GameEnded.Subscribe(time =>
-                    _ = CareerLoaders.DelayedRefreshAsync(refreshSeqRef, setRefreshToken));
+                {
+                    long? prevLatestId = matchesRef.Current.Count > 0 ? matchesRef.Current[0].GameId : null;
+                    long? targetGameId = lifecycle.LastEndedGameId;
+                    _ = CareerLoaders.DelayedRefreshAsync(
+                        refreshSeqRef,
+                        setRefreshToken,
+                        () => matchesRef.Current.Count > 0 ? matchesRef.Current[0].GameId : null,
+                        prevLatestId,
+                        targetGameId);
+                });
                 var sub2 = lifecycle.NewGameStarted.Subscribe(time => BumpRefresh());
                 return () =>
                 {

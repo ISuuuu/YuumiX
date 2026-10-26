@@ -23,18 +23,22 @@ public sealed class GameLifecycleServiceTests
         // 1. 进入选人
         service.OnPhaseChanged("ChampSelect");
         Assert.True(newGameTime > 0);
+        Assert.Null(service.CurrentGameId);
 
-        // 2. 进入游戏中
+        // 2. 进入游戏中并模拟获取当前局真实 ID
         service.OnPhaseChanged("InProgress");
+        service.CurrentGameId = 401163895581L;
 
         // 3. 对局结束，进入结算
         service.OnPhaseChanged("WaitingForStats");
         Assert.True(gameEndedTime > 0);
+        Assert.Equal(401163895581L, service.LastEndedGameId);
 
         // 4. 回到大厅
         long previousGameEnded = gameEndedTime;
         service.OnPhaseChanged("Lobby");
         // 不应重复触发
         Assert.Equal(previousGameEnded, gameEndedTime);
+        Assert.Equal(401163895581L, service.LastEndedGameId);
     }
 }

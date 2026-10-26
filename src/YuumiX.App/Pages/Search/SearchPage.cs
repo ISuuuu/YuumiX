@@ -145,7 +145,16 @@ public sealed class SearchPage : Component<SearchPageProps>
             {
                 if (lifecycle is null) return static () => { };
                 var sub = lifecycle.GameEnded.Subscribe(time =>
-                    _ = SearchEffects.DelayedRefreshAsync(requestSeqRef, setRequestVersion));
+                {
+                    long? prevLatestId = matches.Count > 0 ? matches[0].GameId : null;
+                    long? targetGameId = lifecycle.LastEndedGameId;
+                    _ = SearchEffects.DelayedRefreshAsync(
+                        requestSeqRef,
+                        setRequestVersion,
+                        () => matches.Count > 0 ? matches[0].GameId : null,
+                        prevLatestId,
+                        targetGameId);
+                });
                 return () => sub.Dispose();
             },
             0);
@@ -325,11 +334,16 @@ public sealed class SearchPage : Component<SearchPageProps>
         // 提交搜索：名字空时只更新提示，不清空当前已显示的战绩（否则一次手滑就把列表清空）。
         void SubmitSearch(string? targetPuuid = null, long targetGameId = 0)
         {
-            string query = (draftRef.Current ?? string.Empty).Trim();
+            string query = (draftRef.Current ?? summoner?.RiotId ?? string.Empty).Trim();
             if (query.Length == 0 && string.IsNullOrWhiteSpace(targetPuuid))
             {
                 setNotice("请输入召唤师名称（形如 名字#TAG）");
                 return;
+            }
+
+            if (draftRef.Current is null && !string.IsNullOrEmpty(query))
+            {
+                draftRef.Current = query;
             }
 
             _ = searchMutation.RunAsync(new SearchTargetInput(query, targetPuuid, null, targetGameId));

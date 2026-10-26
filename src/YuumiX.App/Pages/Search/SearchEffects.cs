@@ -151,16 +151,35 @@ internal static class SearchEffects
         }
     }
 
-    /// <summary>对局结束后的延迟双跳刷新：先立即刷新一次，2 秒后再补一次（战绩落库有延迟）。</summary>
-    internal static async Task DelayedRefreshAsync(Ref<int> requestSeq, Action<int> apply)
+    /// <summary>对局结束后的延迟梯度轮询刷新（对齐旧版 Search.vue：立即刷新 + 1.5s/2s/3s/3s 重试梯度，检测到新对局即退出）。</summary>
+    internal static async Task DelayedRefreshAsync(
+        Ref<int> requestSeq,
+        Action<int> apply,
+        Func<long?> getCurrentLatestGameId,
+        long? prevLatestId,
+        long? expectedNewGameId)
     {
         requestSeq.Current += 1;
         apply(requestSeq.Current);
 
-        await Task.Delay(2000).ConfigureAwait(false);
+        int[] retryDelays = [1500, 2000, 3000, 3000];
+        foreach (int delay in retryDelays)
+        {
+            await Task.Delay(delay).ConfigureAwait(false);
 
-        requestSeq.Current += 1;
-        apply(requestSeq.Current);
+            long? currentLatest = getCurrentLatestGameId();
+            if (expectedNewGameId is { } target && target > 0 && currentLatest == target)
+            {
+                break;
+            }
+            if (prevLatestId is { } prev && prev > 0 && currentLatest is { } cur && cur > 0 && cur != prev)
+            {
+                break;
+            }
+
+            requestSeq.Current += 1;
+            apply(requestSeq.Current);
+        }
     }
 
     /// <summary>提示文案自动消失（复制游戏 ID 等）。页面卸载后 setter 为 no-op，无需取消。</summary>

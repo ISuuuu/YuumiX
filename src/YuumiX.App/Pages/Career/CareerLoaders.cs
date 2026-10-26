@@ -95,16 +95,36 @@ internal static class CareerLoaders
         }
     }
 
-    /// <summary>对局结束后的延迟双跳刷新：先立即刷新一次，2 秒后再补一次（战绩落库有延迟）。</summary>
-    internal static async Task DelayedRefreshAsync(Microsoft.UI.Reactor.Core.Ref<int> refreshSeq, Action<int> apply)
+    /// <summary>对局结束后的延迟梯度轮询刷新（对齐旧版 MatchHistoryTab.vue：立即刷新 + 1.5s/2s/3s/3s 重试梯度，检测到新对局即退出）。</summary>
+    internal static async Task DelayedRefreshAsync(
+        Microsoft.UI.Reactor.Core.Ref<int> refreshSeq,
+        Action<int> apply,
+        Func<long?> getCurrentLatestGameId,
+        long? prevLatestId,
+        long? expectedNewGameId)
     {
         refreshSeq.Current += 1;
         apply(refreshSeq.Current);
 
-        await Task.Delay(2000).ConfigureAwait(false);
+        int[] retryDelays = [1500, 2000, 3000, 3000];
+        foreach (int delay in retryDelays)
+        {
+            await Task.Delay(delay).ConfigureAwait(false);
 
-        refreshSeq.Current += 1;
-        apply(refreshSeq.Current);
+            // 检查当前是否已经刷新出了新对局：若已刷新出目标对局或最新对局已改变，停止后续重试（对齐旧版 MatchHistoryTab.vue）
+            long? currentLatest = getCurrentLatestGameId();
+            if (expectedNewGameId is { } target && target > 0 && currentLatest == target)
+            {
+                break;
+            }
+            if (prevLatestId is { } prev && prev > 0 && currentLatest is { } cur && cur > 0 && cur != prev)
+            {
+                break;
+            }
+
+            refreshSeq.Current += 1;
+            apply(refreshSeq.Current);
+        }
     }
 
     /// <summary>

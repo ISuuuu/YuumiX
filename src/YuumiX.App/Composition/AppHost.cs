@@ -200,24 +200,28 @@ public static class AppHost
                     // 延迟 2 秒等待 LCU 数据写入（对齐旧 UploadTrigger）
                     await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-                    var profile = await summonerService.GetCurrentSummonerAsync().ConfigureAwait(false);
-                    if (profile is null)
+                    // 优先使用局内记录的真实对局 ID（对齐旧 upload.rs：LCU 战绩列表落库存在延迟，不能盲查第 0 场）
+                    long targetGameId = lifecycle.LastEndedGameId ?? 0;
+                    if (targetGameId == 0)
                     {
-                        return;
+                        var profile = await summonerService.GetCurrentSummonerAsync().ConfigureAwait(false);
+                        if (profile is not null)
+                        {
+                            matchService.InvalidateCache();
+                            var page = await matchService.GetMatchHistoryAsync(profile.Puuid, 0, 0).ConfigureAwait(false);
+                            if (page.Games.Count > 0)
+                            {
+                                targetGameId = page.Games[0].GameId;
+                            }
+                        }
                     }
 
-                    // 战绩列表单例有内存缓存，对局结束后必须先失效，否则连续对局会拿到上一场旧数据
-                    matchService.InvalidateCache();
-
-                    var page = await matchService.GetMatchHistoryAsync(profile.Puuid, 0, 0).ConfigureAwait(false);
-                    if (page.Games.Count == 0)
+                    if (targetGameId > 0)
                     {
-                        return;
+                        uploadQueue.Enqueue(targetGameId);
+                        // 顺带把以前没传完的一起重试（旧 UploadTrigger 收尾动作）
+                        uploadQueue.TriggerPendingRetry();
                     }
-
-                    uploadQueue.Enqueue(page.Games[0].GameId);
-                    // 顺带把以前没传完的一起重试（旧 UploadTrigger 收尾动作）
-                    uploadQueue.TriggerPendingRetry();
                 }
                 catch (Exception ex)
                 {
