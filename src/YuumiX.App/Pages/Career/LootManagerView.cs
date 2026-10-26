@@ -82,7 +82,7 @@ internal static class LootManagerView
         LootOperationProgress? progress = null,
         string? operationNotice = null)
     {
-        return VStack(14,
+        return VStack(16,
             RenderMaterialsSection(loot, palette, onRefresh, onOpenAll, onOpenItem),
             RenderInventorySection(
                 loot,
@@ -180,7 +180,7 @@ internal static class LootManagerView
         }
 
         return CareerVisuals.Card(
-            VStack(14, header, VStack(10, rows.ToArray())),
+            VStack(16, header, VStack(12, rows.ToArray())),
             padding: 16);
     }
 
@@ -239,7 +239,7 @@ internal static class LootManagerView
                     .VAlign(VerticalAlignment.Center)));
 
         // 对齐旧版：点击整张卡片弹出数量选择弹窗（openLootModal），而不是直接执行开启。
-        Element cardContent = HStack(10,
+        Element cardContent = HStack(12,
             thumb.VAlign(VerticalAlignment.Center),
             rightContent.Width(130).VAlign(VerticalAlignment.Center));
 
@@ -289,7 +289,7 @@ internal static class LootManagerView
             Button(Caption("刷新库存"), onRefresh).Height(30).Padding(12, 0).AutomationName("刷新碎片库存"))
             .VAlign(VerticalAlignment.Center);
 
-        Element rightCurrency = HStack(10,
+        Element rightCurrency = HStack(12,
             Border(HStack(6,
                     Caption("🔵"),
                     Caption(loot.BlueEssence.ToString(CultureInfo.InvariantCulture)).SemiBold().Foreground(CareerVisuals.BlueEssenceColor))
@@ -467,7 +467,7 @@ internal static class LootManagerView
 
         if (rows.Count > 0)
         {
-            sectionChildren.Add(VStack(10, rows.ToArray()));
+            sectionChildren.Add(VStack(12, rows.ToArray()));
         }
         else
         {
@@ -482,7 +482,7 @@ internal static class LootManagerView
         sectionChildren.Add(footer);
 
         return CareerVisuals.Card(
-            VStack(14, sectionChildren.ToArray()),
+            VStack(16, sectionChildren.ToArray()),
             padding: 16);
     }
 

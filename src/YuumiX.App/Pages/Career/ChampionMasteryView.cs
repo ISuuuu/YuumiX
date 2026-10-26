@@ -49,7 +49,7 @@ internal static class ChampionMasteryView
         if (overview.Champions.Count == 0)
         {
             return CareerVisuals.Card(
-                VStack(10,
+                VStack(12,
                     Body("该账号暂无英雄熟练度记录")
                         .Foreground(Theme.SecondaryText),
                     Button(Caption("重试"), onRefresh).Height(30).Padding(12, 0).AutomationName("重试加载熟练度")),
@@ -70,7 +70,7 @@ internal static class ChampionMasteryView
         int eligibleChests = overview.EligibleChestCount;
         int grantedChests = overview.GrantedChestCount;
 
-        return VStack(14,
+        return VStack(16,
             RenderSummaryCards(totalCount, totalPoints, maxLevel, eligibleChests, grantedChests, catalog, palette),
             RenderToolbar(
                 onRefresh,
@@ -162,7 +162,7 @@ internal static class ChampionMasteryView
         int sortIndex,
         Action<int>? onSortChanged)
     {
-        Element leftToolbar = HStack(10,
+        Element leftToolbar = HStack(12,
             TextBox(searchQuery, text => onSearchChanged?.Invoke(text), "搜索英雄名称...")
                 .Width(170)
                 .Height(30)
@@ -319,7 +319,7 @@ internal static class ChampionMasteryView
             .Height(46);
 
         // 头部信息：名字 + 熟练度点数
-        Element header = HStack(10,
+        Element header = HStack(12,
             avatar.VAlign(VerticalAlignment.Center),
             VStack(3,
                 BodyStrong(champName),
@@ -390,7 +390,7 @@ internal static class ChampionMasteryView
             Border(chestBtn).Width(82).HAlign(HorizontalAlignment.Right).VAlign(VerticalAlignment.Center));
 
         return CareerVisuals.Card(
-            VStack(10, header, progressBar, footer),
+            VStack(12, header, progressBar, footer),
             padding: 14);
     }
 }

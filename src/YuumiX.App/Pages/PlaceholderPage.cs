@@ -1,6 +1,7 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 
@@ -57,7 +58,8 @@ public sealed class PlaceholderPage : Component<PlaceholderProps>
         }
 
         blocks.Add(VStack(4,
-            Heading(Props.Title),
+            Title(Props.Title)
+                .HeadingLevel(AutomationHeadingLevel.Level1),
             Caption($"对应原实现：{Props.SourceView}")));
 
         blocks.Add(Border(

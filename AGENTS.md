@@ -4,16 +4,28 @@
 > 技术栈固定：**WinUI 3（Windows App SDK 2.5.x）+ Microsoft.UI.Reactor 0.1.0-preview.16 + .NET 10**。
 > 目标是**原生 Fluent Design**：字号、颜色、圆角、间距、控件一律走框架语义层，不手搓视觉。
 > 详细方案见 `docs/ui-native-fluent-plan.md`；架构决策见 `docs/architecture.md` 的 ADR 系列。
+> **注意**：`docs/` 目前在 `.gitignore` 中，不随仓库分发，上述及下文引用的 `docs/*` 文档仅作者本地可见；
+> 克隆仓库的人以本文件为准。
 
 ---
 
-## 0. 提交前必过的三道门
+## 0. 提交前必过的门禁
 
 ```bash
-dotnet build src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64   # 必须 0 警告 0 错误
+dotnet build src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64                            # 必须 0 警告 0 错误
+dotnet test tests/YuumiX.SourceScan.Tests/YuumiX.SourceScan.Tests.csproj -p:Platform=x64 # 模式级规则必须全绿
 ```
 
-并且以下六条 grep 必须为 0（新代码不得新增违规；历史欠账按批次清零）：
+> 以上两条是**主门禁**，已落地为构建期 / 测试期自动拦截：
+> - 符号级：`Microsoft.CodeAnalysis.BannedApiAnalyzers` + `src/YuumiX.App/BannedSymbols.txt`
+>   （禁 `ScrollView`、`FontWeights`、`ContentDialog.ShowAsync`、`SyncWinUiAccentResources`），
+>   配合 App 项目 `TreatWarningsAsErrors`，引用即构建失败
+>   （`REACTOR_THEME_001` 是既有 `NoWarn` 例外，新增例外须评审）。
+> - 模式级：`tests/YuumiX.SourceScan.Tests` 扫源码拦截硬编码 8 位 ARGB、字号字面量、非 4 倍数布局间距（栈内 <8px 微间距除外）、
+>   裸字形字体名、从文案反推状态；存量白名单见 `GateWhitelist.json`，目前为空。
+> - 暂无自动门禁、靠评审把关：空 catch（§10）、`.CornerRadius(数字)` 字面量（§3）。
+
+以下六条 grep 是**兜底自检**（主门禁失效或换环境时跑），应保持为 0：
 
 ```bash
 grep -rn "FontSize([0-9]" --include=*.cs src/YuumiX.App | wc -l     # 目标 0
@@ -23,10 +35,6 @@ grep -rn 'statusText != "' --include=*.cs src/YuumiX.App | wc -l    # 目标 0�
 grep -rn "SyncWinUiAccentResources" --include=*.cs src | wc -l      # 目标 0（禁止覆盖系统强调色）
 grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0（滚动容器只允许 ScrollViewer，见 §5.5）
 ```
-
-> 以上 grep 是**人工过渡门禁**（Windows 上依赖记得去跑）。终态是构建期自动拦截：
-> 引入 `Microsoft.CodeAnalysis.BannedApiAnalyzers` + `BannedSymbols.txt`（首批禁 `ScrollView`、`FontWeights`、`ContentDialog.ShowAsync`）并开 `TreatWarningsAsErrors`；
-> 硬编码颜色、字号字面量、非 4 倍数间距这类"模式级"违规则用 xUnit 测试扫源码拦截。落地后本节 grep 降级为兜底。
 
 ---
 
@@ -48,7 +56,9 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 
 > 需要 WinUI 命名样式（含行高等完整 setter）时用 `.ApplyStyle("BodyTextBlockStyle")`，
 > **不要**用 `FontSize` 模拟。`Caption()` 是纯字号预设，要完整 Caption 样式请 `.ApplyStyle("CaptionTextBlockStyle")`。
-> `Heading`/`SubHeading` 是官方标注的旧预设（28/700），与 `Title` 同级却不同字重，会造成同一级标题两种观感——页面标题固定用 `Title`，禁止新增 `Heading`。
+> `Heading`（28 / Bold 700）、`SubHeading`（20 / SemiBold 600）是 Reactor 自带的便捷封装，并非弃用 API，且会自动带上 `HeadingLevel` 1/2。
+> 但 `Heading` 与 `Title` 同级却字重不同（700 vs 600），会造成同一级标题两种观感——页面标题固定用 `Title`，禁止新增 `Heading`。
+> 因 `Title`/`Subtitle` **不会**自动设置标题层级，必须手写 `.HeadingLevel(...)`（见 §4、§6）。
 
 **最小字号 12px**。任何小于 12 的设计意图一律改为 12 + 降低字重/提高对比度解决，不得靠缩字号。
 **禁止删除/绕过** `docs/ui-native-fluent-plan.md` §5.1 的映射表自行发明新档位。
@@ -92,7 +102,7 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 - **禁止**在 `Pages/**` 新增 `#FF______` 硬编码颜色（图表/品牌位除外，且必须注释来源）。
 - **禁止**覆盖 `SystemAccentColor*` / `AccentFillColor*` 等系统资源来"统一品牌色"——强调色由系统决定。
 - `YuumiPalette` 只保留业务色派生；结构色字段只减不增。
-- **强调色一律 `Theme.Accent` / `Theme.AccentText`**：`palette.Accent`（读配置 `ThemeColor`，存量约 70 处）与 `ThemeColor` 配置项是待清欠账（见 `docs/requirements-fluent-refactor.md` 批次②），新代码禁止使用；半透明强调底用 `Theme.SubtleFill` 等现成令牌。
+- **强调色一律 `Theme.Accent` / `Theme.AccentText`**：旧的 `palette.Accent` 与 `ThemeColor` 配置项已清零，禁止复活；半透明强调底用 `Theme.SubtleFill` 等现成令牌。
 - **禁止带透明度的手写 ARGB 充当结构色**（如 `"#20808080"` 当描边）：高对比度模式下全部失效，还会盖住 Mica；描边一律 `Theme.ControlStroke` / `Theme.CardStroke` / `Theme.DividerStroke`。
 - 深色/浅色/高对比度三态必须同时成立：凡是"浅色下发白""深色下发黑"的写法，一律视为 bug。
 
@@ -102,11 +112,13 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 
 ## 3. 圆角与间距：只有两档圆角，4px 网格
 
-- 控件级（按钮、输入框、徽标）：`ThemeResource.CornerRadius("ControlCornerRadius")`（4）
-- 容器级（卡片、对话框、浮层）：`ThemeResource.CornerRadius("OverlayCornerRadius")`（8）
-- 注意 `Theme.ControlCornerRadius` 在 Reactor API 中**不存在**（这正是全仓 0 处使用、161 处写死圆角数字的直接原因）；如嫌 ThemeResource 写法长，在 `YuumiTheme` 定义 `ControlRadius` / `OverlayRadius` / `PillRadius` 三个常量统一取用。
-- 头像/等级环等胶囊元素的第三档就是 `PillRadius`，不得就地写字面量（存量 3/6/9/10 等圆角值按批次收敛，见需求文档 R12）。
-- 间距只用 4 的倍数：4/8/12/16/20/24/32。禁止 9、10、11、13、14、15 这类数值（存量约 220 处非 4 倍数间距为历史欠账，分批清理；新代码禁止新增）。
+- 控件级（按钮、输入框、徽标）：`YuumiTheme.ControlRadius`（4），对应系统资源 `ControlCornerRadius`
+- 容器级（卡片、对话框、浮层）：`YuumiTheme.OverlayRadius`（8），对应系统资源 `OverlayCornerRadius`
+- 头像/等级环等胶囊元素的第三档是 `YuumiTheme.PillRadius`。
+- **禁止**在 `.CornerRadius(...)` 里写数字字面量（当前存量为 0，由此保持）；需要主题资源形态时用 `ThemeResource.CornerRadius("ControlCornerRadius")`。
+  注意 `Theme.ControlCornerRadius` 在 Reactor API 中**不存在**，不要猜。
+- 布局间距只用 4 的倍数：4/8/12/16/20/24/32，禁止 9、10、11、13、14、15 这类数值。
+  `HStack`/`VStack` 内 <8px 的图标/文字微间距可自由取值（1–8）；≥8px 仍走 4 的倍数。存量已清零，由 SourceScan 测试 `SpacingOff4Grid` 拦截。
 - 卡片内边距统一 `16`（`SettingsCard` 已内置，无需手写）。
 
 ---
@@ -128,18 +140,19 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 1. **元素必须通过工厂创建**：`TextBlock(...)` / `SettingsCard(...)`，禁止 `new XxxElement(...)` 直接构造 record。Reactor 的 handler 注册是惰性的，直接 new 会在挂载时抛 `No handler is registered for element type`。
 2. **`with { }` 后不能直接链式修饰**：写成 `(Xxx(...) with { ... }).Modifier(...)`，或把回调写进 `with` 初始化器。
 3. **对话框一律声明式**：`ContentDialog(title, content, primary) with { IsOpen = state, ... }`，禁止 `ShowAsync()`（分析器 `REACTOR_DIALOG_001`）。
-4. **走 `IconData`/`ImageIcon` 的图标必须是位图 PNG**：`IconResolver` 解析成 `ImageIcon + BitmapImage`，不支持 SVG（静默失败）。需要 SVG 时先光栅化（如 `Assets/opgg-nav.png`）。
+4. **走 `IconData`/`ImageIcon` 的图标用位图 PNG**：`IconResolver` 解析成 `ImageIcon + BitmapImage`；`Image()` 会按 `.svg` 扩展名改用 `SvgImageSource`（静态支持良好，动画/动态支持有限），两条链路不要混用。需要 SVG 图标时先光栅化（如 `Assets/opgg-nav.png`）。
 5. **滚动容器一律用 `ScrollViewer`，禁止 `ScrollView`**：`ScrollView` 把内容放在 `ScrollPresenter` 的独立 Composition Visual 上，靠浮点 `Visual.Offset` 驱动，**绕过 XAML 布局取整** → 内容落在亚像素位置 → DirectWrite 失去像素网格拟合 → **该滚动区内所有文字整体发虚**（笔画变胖、边缘过渡带约翻倍；实测归一化梯度 0.26 vs 0.40）。编译通过、零告警，只在观感上退化（上游同类现象：microsoft-ui-xaml#1579）。
    - 诊断判据：同一窗口内，滚动区**外**的元素（侧边栏图标、裸 `Border` 里的按钮）明显更锐利；与字号、字重、颜色、字体、运行时版本全部无关，改这些只会空转。
    - 焦点约定：承载表单的 `ScrollViewer` 加 **`.IsTabStop(true)` 修饰符**，**不要** `.Set(sv => sv.IsTabStop = true)`（控件走池回收，Set 写入会在重渲染时丢失，触发 `REACTOR_POOL_001`）。否则点空白会把焦点下发给第一个输入框（microsoft-ui-xaml#597）。
 6. **`NavigationView.IsPaneOpen` 初值不能在渲染期赋**，必须 `Loaded` → `DispatcherQueue.TryEnqueue(Low, ...)` 延后校正，并用 `paneInitialized` 守卫 `PaneOpenChanged`（详见 `AppShell.cs` 现有实现）。
-7. **事件钩子委托必须跨渲染保持同一实例**（`UseRef` 缓存），否则触发 `REACTOR_EVENT_001`。
+7. **事件订阅走 `OnMountAdd` / `OnUnmountAdd`，委托用 `UseRef` 缓存成同一实例**（`-=` 才能摘得掉）。
+   在 `.Set(c => c.Event += h)` 里订阅会随每次重渲染叠加，触发 `REACTOR_EVENT_001`（见 §5.12）。
 8. **`DispatcherQueue.TryEnqueue` 优先级参数在前**：`(priority, callback)`。
-9. **`SettingsExpander.Items` 子项必须为 `SettingsCard`**：WinUI Toolkit 的 `SettingsExpander` 展开时其内部 `ItemsRepeater` 会给每个 item 赋 `SettingsCard` 的默认样式，如果子项为 `StackPanel` 等非 `SettingsCard` 元素，会抛出 `COMException (0x800F1000)` 导致进程闪退崩溃。自定义表单块必须使用 `SettingsCardKit.ContentCard(...)` 承载；`SettingsCardKit.Expander` 已内置自动归一化兜底。
+9. **`SettingsExpander.Items` 子项必须为 `SettingsCard`**：详见 §4（违反会 `COMException 0x800F1000` 闪退）。`SettingsCardKit.Expander` 已内置自动归一化兜底。
 10. **渲染状态不得用类字段 + 强制重渲染**（`_renderTick` + `setTick(++_renderTick)`、`_proxyDraft` 这类模式）：草稿值用 `UseState`；配置对象用不可变 record + `UseState`/`UseReducer`；非渲染数据用 `UseRef`。命令式"踢一下"刷新会让状态来源不可追溯。
-11. **异步数据走 `UseResource` / `UseMutation`**（详见 `agentkit/skills/async.md`）：读数据自带取消、加载/出错状态、缓存与重试；写操作用 `UseMutation`。禁止每页手写 `Task.Run` + 自维护 loading/error（存量约 40 处按批次迁移），组件卸载后请求必须自动取消，禁止新增 `async void`。
+11. **异步数据走 `UseResource` / `UseMutation`**（详见 `agentkit/skills/async.md`）：读数据自带取消、加载/出错状态、缓存与重试；写操作用 `UseMutation`。禁止每页手写 `Task.Run` + 自维护 loading/error（存量约 20 处，主要散在 `ReplayButton`、`SavedPlayersLoaders`、`NoticePopupView`、`SearchEffects` 等；`AppShell` 只有 1 处，`AppHost` 的启动期后台任务不在此列），组件卸载后请求必须自动取消，禁止新增 `async void`。
 12. **禁止在 `.Set()` 里挂事件或补写受控值**：控件走池回收，`Set` 每次重渲染都会重放，`Tag` 守卫不可靠（SearchPage AutoSuggestBox 的教训）。事件挂载用 `OnMountAdd`/`OnUnmountAdd` + `UseRef` 缓存委托（照 `AppShell` 现有做法）；受控值（如 ComboBox 选中项）走工厂参数，若确属 Reactor 缺陷则收成统一辅助方法，不要散在各页 `.Set()` 里补写。
-13. **导航参数走路由对象，禁止全局单例 payload**（`CareerNavigationPayload` / `SearchNavigationPayload` 这种一边 Set 一边 Consume 的可变单例有时序问题）：`UseNavigation<TRoute>` 的 `TRoute` 支持任意类型，把 `AppRoute` 从 enum 演进为 record 层级（如 `record CareerRoute(string? Puuid, ...) : AppRoute`），参数跟着路由走。
+13. **导航参数走路由对象，禁止全局单例 payload**（曾有 `CareerNavigationPayload` / `SearchNavigationPayload` 这种一边 Set 一边 Consume 的可变单例，有时序问题，现已清除，禁止复活）：`AppRoute` 已是 record 层级（如 `CareerRoute(string? Puuid, ...)`），新增页面参数一律加在对应路由 record 上。
 14. **字形图标与字体族**：图标字体统一 `"Segoe Fluent Icons, Segoe MDL2 Assets"`（Win10 没装 Fluent 字体，只写前者会渲染成方框）；字形码集中在 `Icons` 静态类，禁止散落 `\uE...` 字面量；等宽字体只写 `"Cascadia Mono, Consolas"`，禁止 CSS 写法（`monospace` 不是 WinUI 字体名，会被静默丢弃）。
 
 > 包内自带 API 索引与分析器文档：`~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.16/agentkit/`。
@@ -158,7 +171,7 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 
 ## 7. 文件规模与结构
 
-- 单文件**上限 300 行**。`SettingsPage`/`ToolsPage` 这类聚合页只保留：状态编排、写回、滚动容器。
+- `SettingsPage`/`ToolsPage` 这类聚合页只保留：状态编排、写回、滚动容器。
 - 业务分节拆到 `Pages/<模块>/Sections/*.cs`，一个 `GroupHeader` 对应一个文件。
 - 可复用的视觉构件（卡片壳、状态条、空态、加载态）放 `Controls/` 或 `Pages/<模块>/<模块>Visuals.cs`，禁止复制粘贴到第二个页面。
 - 跨页面共享的提示/弹窗走全局宿主（`Composition/ToastHost`），禁止每个页面各写一套 toast 队列。
@@ -170,7 +183,8 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 - 主题模式（浅色/深色/跟随系统）、Mica、战绩卡片配色、死亡数字配色 = **保留**的用户配置。
 - **强调色不再由应用配置**：全局跟随系统 Accent。新增任何"品牌色"需求先反问是否为产品决策，不要默认加配置项。
 - **业务色必须响应运行时主题切换**：`Theme.*` 会自动跟随，`palette.*` 依赖的 `IsDark` 不允许只读启动时的 `Application.Current.RequestedTheme`——"跟随系统"模式下运行中切换系统深浅，必须由根元素监听 `ActualThemeChanged` 写回实际主题并触发调色板重算，否则界面深浅混搭。
-- 新增配置项必须同时改三个文件并保持节结构一致：`appsettings.json`、`appsettings.Development.json`、`appsettings.Development.local.json`（敏感值只放 `.local.json`）。
+- 配置统一存放在数据目录的 `config.json`（路径见 `YuumiX.Core/Runtime/RuntimePaths.cs`，迁移期与旧版 Yuumi 共用）。
+  新增配置项必须改 `AppConfig`（`YuumiX.Core/Persistence/AppConfig.cs`），且**不得丢弃未知键**（`JsonExtensionData`），否则会破坏与旧版的配置互通；敏感值不得写入仓库内任何文件。
 
 ---
 
@@ -188,4 +202,49 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 - **外科手术式修改**：只改任务相关的行，不做顺手重排、不做无关格式化。
 - 先读后改：改动前必须读过目标文件与相邻实现，确认没有既有约定被破坏。
 - 任何"为了让它编译过"的临时 hack（`#pragma`、空 catch、`!` 压制、`TODO` 留下）都不允许进入主干。
+  存量：App 层约 7 处裸 `catch`（其中 `SettingsPage`、`SearchLoaders` 各有一处完全为空），Core 侧另有约 33 处（`GameInfoService` 最集中）；新代码必须至少记日志或写明为何可忽略，存量按批次处理。
 - 不确定时写注释解释**为什么**，不解释**做了什么**（代码本身说明做了什么）。
+
+---
+
+## 11. 工程目录结构
+
+```
+YuumiX/
+├── src/YuumiX.App/                  # 应用宿主（WinUI 3 + Reactor）
+│   ├── App.cs                       # 应用入口
+│   ├── Assets/                      # 静态资源（图标、Logo、段位与分路图标）
+│   ├── Composition/                 # 服务宿主容器（DI + 日志 + 生命周期）
+│   ├── Controls/                    # 通用组件（SettingsCardKit、LcuImage、Toast 等）
+│   ├── Diagnostics/                 # 架构能力验证与诊断实验室
+│   ├── Navigation/                  # 路由 record 层级（AppRoute）与导航元数据
+│   ├── Pages/                       # 功能页面（Home/Career/Search/GameInfo/SavedPlayers/Tools/Opgg/Notice/Settings）
+│   ├── Services/                    # 平台服务（文件选择器等）
+│   ├── Shell/                       # 主外壳（自定义标题栏 + 侧边栏 + Mica）
+│   ├── Theming/                     # 主题令牌与资源映射
+│   └── Windowing/                   # 独立窗口宿主（OP.GG）
+├── src/YuumiX.Core/                 # 核心领域层（禁止 UI 依赖）
+│   ├── Assets/                      # 游戏资源映射与双级缓存
+│   ├── Automation/                  # 对局自动化代理（接收/重连/选人/点赞等）
+│   ├── Common/                      # 颜色转换、事件流等基础类型
+│   ├── Diagnostics/                 # 轮转日志与诊断设施
+│   ├── Features/                    # 业务服务（Match/Summoner/Career/GameInfo/Opgg 等）
+│   ├── Interop/                     # Win32 互操作
+│   ├── Lcu/                         # LCU 进程发现、凭据解析、HTTP 与 WebSocket
+│   ├── Parsers/                     # JSON 数据解析器
+│   ├── Persistence/                 # 配置原子读写、备份与迁移
+│   ├── Realtime/                    # 云端实时通道（SignalR）
+│   ├── Runtime/                     # 运行环境与存储路径计算
+│   ├── Updates/                     # GitHub Releases 更新检查与就地替换
+│   └── Upload/                      # 对局数据上传队列
+├── tests/                           # 4 个测试工程（Core / App / SourceScan / Testing.Lcu）
+├── tools/ScreenCapture/             # 开发辅助（窗口前置 + 截图比对）
+├── docs/                            # 架构规范、验收记录与需求文档（本地，不入库）
+├── Directory.Build.props            # 统一 MSBuild 属性与产品元数据
+├── Directory.Packages.props         # 集中包版本管理（CPM）
+├── global.json                      # .NET SDK 锁定
+└── YuumiX.slnx                      # 解决方案配置
+```
+
+- 新增顶层目录或调整既有分层前，先更新本节的目录树与 `docs/architecture.md` 的对应章节。
+- 上面标注的「禁止 UI 依赖」「禁止复制粘贴视觉构件」等约束，以本文件 §5、§7 为准。

@@ -27,7 +27,7 @@ internal static class AboutSection
             $"当前版本 {AppVersion} · 运行环境与存储位置",
             SettingsStatus.Custom,
             headerControl: null,
-            innerContent: VStack(10,
+            innerContent: VStack(12,
                 SettingsVisuals.InfoRow("应用版本", AppVersion),
                 SettingsVisuals.InfoRow("配置版本", $"v{ui.Config.Version}"),
                 SettingsVisuals.InfoRow("配置文件", ui.Services.ConfigStore.FilePath),

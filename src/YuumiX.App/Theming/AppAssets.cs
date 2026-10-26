@@ -40,10 +40,9 @@ public static class AppAssets
     /// 侧边栏专用 OP.GG 图标（18px PNG，对应旧版 NavigationSidebar.vue 的
     /// <c>width: 18px; border-radius: 3px</c>）。由 <c>opgg.svg</c> 光栅化而来。
     ///
-    /// 为什么用 PNG 而不是直接用 SVG：Reactor 的 <c>IconResolver</c> 把
-    /// <see cref="Microsoft.UI.Reactor.Core.ImageIconData"/> 解析成
-    /// <c>ImageIcon + BitmapImage</c>，而 BitmapImage 不支持 SVG（需要 SvgImageSource），
-    /// SVG 源会静默加载失败、图标整个消失。
+    /// <c>Image()</c> 会按扩展名走 <see cref="Microsoft.UI.Xaml.Media.Imaging.SvgImageSource"/>
+    /// （静态 SVG 支持良好，动画/动态 SVG 支持有限）；但 <c>IconResolver</c> 这条图标链路
+    /// 固定用 <c>BitmapImage</c>，所以图标资源统一光栅化为 PNG。
     /// </summary>
     public static string OpggNavIconPath { get; } = Path.Combine(AppContext.BaseDirectory, "Assets", "opgg-nav.png");
 

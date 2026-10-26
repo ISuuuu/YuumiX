@@ -83,7 +83,7 @@ public static class LcuOfflineState
                 ]);
 
         Element waiting = HStack(
-                10,
+                12,
                 ProgressRing()
                     .Width(16)
                     .Height(16)

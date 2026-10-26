@@ -150,7 +150,7 @@ internal static class SavedPlayerCard
         {
             deleteConfirmRow = Border(
                 HStack(
-                    10,
+                    12,
                     Caption("⚠️ 确定要删除该玩家及其所有相遇记录吗？")
                         .Foreground(palette.LoseAccent)
                         .VerticalAlignment(VerticalAlignment.Center),

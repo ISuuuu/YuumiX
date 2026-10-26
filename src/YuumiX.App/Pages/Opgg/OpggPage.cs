@@ -287,7 +287,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                 [GridSize.Auto],
                 [
                     // 左侧：OP.GG Logo + 品牌文字 + Tab 切换
-                    HStack(10,
+                    HStack(12,
                         // OP.GG Logo
                         Image(AppAssets.OpggLogoUri)
                             .AutomationName("OPGG品牌Logo")

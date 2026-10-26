@@ -83,7 +83,7 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
                 .VerticalContentAlignment(VerticalAlignment.Center);
 
         Element card = Props.IsPaneOpen
-            ? Border(HStack(10, avatarWrap, text))
+            ? Border(HStack(12, avatarWrap, text))
                 .Width(Props.PaneWidth)
                 .Height(CardHeight)
                 .Padding(new Thickness(8, 0, 8, 0))

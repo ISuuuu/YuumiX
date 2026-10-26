@@ -336,7 +336,7 @@ public sealed class CareerPage : Component<CareerPageProps>
 
         Element content = effectiveTab switch
         {
-            CareerTab.Loot => VStack(10,
+            CareerTab.Loot => VStack(12,
                 lootFailureHint,
                 Component<CareerLootSection, CareerLootSectionProps>(
                     new CareerLootSectionProps(

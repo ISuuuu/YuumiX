@@ -95,7 +95,7 @@ internal static class FriendCleanerView
         }
         else
         {
-            actionToolbar = HStack(10,
+            actionToolbar = HStack(12,
                 Button("全选当前筛选", onSelectAllFiltered)
                     .IsEnabled(!isScanning && filtered.Count > 0)
                     .AutomationName("全选好友"),

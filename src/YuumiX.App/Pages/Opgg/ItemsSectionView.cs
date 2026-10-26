@@ -39,7 +39,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
             // 主出装推荐卡片
             Border(
-                VStack(10,
+                VStack(12,
                     // 1. 初始装备与鞋子（并排）
                     RenderStarterAndBoots(hasStarter, hasBoots),
 

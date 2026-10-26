@@ -1,6 +1,7 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
@@ -44,7 +45,8 @@ internal sealed class CapabilityLab : Component
         return ScrollViewer(
             VStack(20,
                 VStack(4,
-                    Heading("架构能力验证"),
+                    Title("架构能力验证")
+                        .HeadingLevel(AutomationHeadingLevel.Level1),
                     Caption("迁移业务代码前，先确认 Reactor 覆盖 Yuumi 的关键场景")),
 
                 Section("1 · 主题与配色",
@@ -66,21 +68,21 @@ internal sealed class CapabilityLab : Component
 
                 Section("3 · 系统托盘",
                     "原项目支持关闭到托盘，需要在非打包模式下可用",
-                    HStack(10,
+                    HStack(12,
                         Button(trayVisible ? "隐藏托盘图标" : "显示托盘图标", () => setTrayVisible(!trayVisible))
                             .AutomationName("切换托盘图标"),
                         Caption(trayVisible ? "托盘图标已显示（查看任务栏通知区域）" : "托盘图标当前隐藏"))),
 
                 Section("4 · 多窗口",
                     "OP.GG 独立窗口与大乱斗悬浮窗依赖多窗口能力",
-                    HStack(10,
+                    HStack(12,
                         Button("打开一个子窗口", OpenChildWindow)
                             .AutomationName("打开子窗口"),
                         Caption("验证 WindowSpec 独立窗口的生命周期"))),
 
                 Section("5 · 本地资源链路（ADR-11）",
                     "图标经「磁盘缓存 → LCU → CDragon」解析后以 file:// 引用；此处用 200 项做滚动压力验证",
-                    VStack(10,
+                    VStack(12,
                         Caption(ChampionIconNote),
                         BuildChampionIconGrid()))
             ).Padding(28).HAlign(HorizontalAlignment.Stretch)
@@ -185,7 +187,7 @@ internal sealed class ChildWindowProbe : Component
     {
         var (clicks, setClicks) = UseState(0);
 
-        return VStack(14,
+        return VStack(16,
             SubHeading("子窗口已独立渲染"),
             Caption("该窗口拥有自己的状态树，与主窗口互不影响。"),
             // 分析器对插值字符串按钮会误判为 icon-only，显式补 AutomationName

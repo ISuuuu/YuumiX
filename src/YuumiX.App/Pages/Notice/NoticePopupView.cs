@@ -147,7 +147,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         {
             NoticeStatus.Loaded => RenderContentBody(content),
 
-            NoticeStatus.Failed => VStack(10,
+            NoticeStatus.Failed => VStack(12,
                     Caption("公告获取失败，请检查网络或代理设置")
                         .Foreground(Theme.Ref("TextFillColorSecondaryBrush"))
                         .TextWrapping(),
@@ -157,7 +157,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                 .HAlign(HorizontalAlignment.Center)
                 .Padding(new Thickness(16, 24, 16, 24)),
 
-            _ => VStack(10,
+            _ => VStack(12,
                     ProgressRing().Width(22).Height(22),
                     Caption("正在获取公告…")
                         .Foreground(Theme.Ref("TextFillColorSecondaryBrush")))

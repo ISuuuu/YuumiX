@@ -111,7 +111,7 @@ internal static class CareerProfileHeader
         }
 
         // 居中主体：头像 + 召唤师信息
-        Element centerProfile = HStack(18,
+        Element centerProfile = HStack(20,
             avatarBlock.VAlign(VerticalAlignment.Center),
             VStack(4, nameColumn.ToArray()).VAlign(VerticalAlignment.Center))
             .HAlign(HorizontalAlignment.Center)

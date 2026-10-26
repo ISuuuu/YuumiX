@@ -181,7 +181,7 @@ internal static class MatchDetailView
         }
 
         return Border(
-                ScrollViewer(VStack(10, blocks.ToArray()).Padding(12))
+                ScrollViewer(VStack(12, blocks.ToArray()).Padding(12))
                     .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch))
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
@@ -238,7 +238,7 @@ internal static class MatchDetailView
             summary.DetailDateText,
             $"游戏 ID: {summary.GameId.ToString(CultureInfo.InvariantCulture)}");
 
-        Element info = HStack(10,
+        Element info = HStack(12,
             Border(Empty()).Width(4).Height(34).CornerRadius(YuumiTheme.PillRadius).Background(accent),
             VStack(3,
                 BodyLarge(SearchVisuals.ResultText(summary))

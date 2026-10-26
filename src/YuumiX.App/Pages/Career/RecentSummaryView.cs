@@ -162,7 +162,7 @@ internal static class RecentSummaryView
         }
 
         return Border(
-            VStack(10,
+            VStack(12,
                 HStack(8,
                     BodyStrong("最近同队玩家"),
                     Caption("点击可查看战绩")

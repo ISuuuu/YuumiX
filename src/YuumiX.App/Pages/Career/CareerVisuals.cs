@@ -47,7 +47,7 @@ internal static class CareerVisuals
     /// <summary>
     /// 给颜色换一个 alpha（输入输出均为 <c>#AARRGGBB</c>）。
     ///
-    /// 选中页签、徽标底色都用"强调色 + 低透明度"，而 <see cref="YuumiPalette.Accent"/>
+    /// 选中页签、徽标底色都用"强调色 + 低透明度"，而 <see cref="Theme.Accent"/>
     /// 是不透明值；Reactor 只接受字符串，所以只能在这里拼。
     /// 解析失败时原样返回——宁可少一层透明，也不要让整页因为一个颜色字符串渲染异常。
     /// </summary>

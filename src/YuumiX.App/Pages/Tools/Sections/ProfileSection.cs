@@ -108,7 +108,7 @@ internal static class ProfileSection
             ui,
             "profileBg", "生涯背景", "在个人生涯主页展示任意指定的英雄皮肤插画背景", "点击展开",
             false,
-            VStack(10,
+            VStack(12,
                 Body("浏览英雄皮肤并预览应用，或直接输入皮肤 ID：")
                     .Foreground(Theme.SecondaryText),
                 SkinPickerView.Render(
@@ -201,7 +201,7 @@ internal static class ProfileSection
             ui,
             "rankSpoof", "段位伪装", "在本地客户端及好友列表中伪造段位展示 (仅限视觉效果)", "点击展开",
             false,
-            VStack(10,
+            VStack(12,
                 ToolsVisuals.CardRow("排位队列类型:",
                     ComboBox(SpoofQueueLabels, spoof.QueueIndex, index => setSpoof(spoof with { QueueIndex = index }))
                         .Width(180).AutomationName("伪装队列选择")),
@@ -284,7 +284,7 @@ internal static class ProfileSection
             ui,
             "badges", "挑战勋章与头像框", "装配/卸下展示的挑战勋章、称号与头像框", "点击展开",
             false,
-            VStack(10,
+            VStack(12,
                 HStack(8,
                     clearBadgesAction,
                     clearBorderAction

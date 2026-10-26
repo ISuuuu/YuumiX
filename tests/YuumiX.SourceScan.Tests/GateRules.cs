@@ -46,7 +46,7 @@ internal sealed record GateRule(
 
         new(
             "SpacingOff4Grid",
-            "间距不在 4px 网格上：工厂参数与 with 赋值中的数值都必须是 4 的倍数（AGENTS.md §3）",
+            "间距不在 4px 网格上（栈内 <8px 微间距除外）：工厂参数、with 赋值与 HStack/VStack 首参都必须是 4 的倍数（AGENTS.md §3）",
             CleanupBatch: "R16",
             ExcludeTheming: false,
             IsSpacingOffGrid),
@@ -75,6 +75,11 @@ internal sealed record GateRule(
         new("\\b(Spacing|Padding|Margin|RowSpacing|ColumnSpacing)\\s*=\\s*(?<value>-?[0-9]+(\\.[0-9]+)?)",
             RegexOptions.Compiled);
 
+    // 栈间距形态：HStack(12, ...) / VStack(spacing: 8, ...)
+    private static readonly Regex StackGapPattern =
+        new("\\b(HStack|VStack)\\s*\\(\\s*(?:spacing\\s*:\\s*)?(?<value>-?[0-9]+(\\.[0-9]+)?)",
+            RegexOptions.Compiled);
+
     // 数字字面量：前后不吃标识符字符，避免把 CardGap2 里的 2 当间距
     private static readonly Regex NumberPattern =
         new("(?<![\\w.])-?[0-9]+(\\.[0-9]+)?(?![\\w.])", RegexOptions.Compiled);
@@ -92,6 +97,14 @@ internal sealed record GateRule(
         foreach (Match assign in SpacingAssignPattern.Matches(line))
         {
             if (IsOffGrid(assign.Groups["value"].Value))
+            {
+                return true;
+            }
+        }
+
+        foreach (Match stack in StackGapPattern.Matches(line))
+        {
+            if (!IsAllowedStackGap(stack.Groups["value"].Value))
             {
                 return true;
             }
@@ -139,4 +152,11 @@ internal sealed record GateRule(
 
     private static bool IsOffGrid(string value) =>
         Math.Abs(double.Parse(value, System.Globalization.CultureInfo.InvariantCulture)) % 4 > 1e-9;
+
+    // 栈内 <8px 是图标与文字的微对齐值，不参与 4 网格；≥8px 与布局间距同口径。
+    private static bool IsAllowedStackGap(string value)
+    {
+        var gap = double.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+        return gap % 4 == 0 || (gap >= 1 && gap <= 8);
+    }
 }
