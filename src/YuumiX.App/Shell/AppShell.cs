@@ -78,10 +78,17 @@ public sealed class AppShell : Component
                     return static () => { };
                 }
 
+                var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+                if (dispatcherQueue is not null)
+                {
+                    AppLifetime.RegisterExitAction(RequestExit, dispatcherQueue);
+                }
+
                 void OnClosing(object? sender, WindowClosingEventArgs e)
                 {
-                    // 托盘菜单的「退出」必须放行，否则窗口永远关不掉。
+                    // 托盘菜单的「退出」或外部退出（控制台 Ctrl+C / 进程关闭）必须放行，否则窗口永远关不掉。
                     if (exitRequested.Current ||
+                        AppLifetime.IsExitRequested ||
                         !services.Config.General.EnableCloseToTray.GetValueOrDefault())
                     {
                         return;
@@ -99,7 +106,11 @@ public sealed class AppShell : Component
                 }
 
                 window.Closing += OnClosing;
-                return () => window.Closing -= OnClosing;
+                return () =>
+                {
+                    AppLifetime.UnregisterExitAction();
+                    window.Closing -= OnClosing;
+                };
             },
             0);
 
@@ -631,6 +642,7 @@ public sealed class AppShell : Component
         {
             // 先置位再关闭：Closing 里靠它放行，避免"退出"被自己的守卫取消。
             exitRequested.Current = true;
+            AppLifetime.IsExitRequested = true;
 
             // 窗口已被隐藏（关闭到托盘）时不再"复活"它：直接请求进程退出，避免闪一帧窗口。
             if (window is null || !window.IsVisible)

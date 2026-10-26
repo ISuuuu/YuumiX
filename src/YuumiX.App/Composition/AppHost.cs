@@ -77,6 +77,10 @@ public static class AppHost
     public static void Initialize()
     {
         _services = AppServices.Create();
+
+        // 协调控制台生命周期：若从终端（dotnet run 或 CLI）启动，监听 Ctrl+C 并确保干净退出
+        AppLifetime.InitializeConsoleLifetime(_services.LoggerFactory.CreateLogger("YuumiX.Lifetime"));
+
         _theme = new ThemeState(
             _services.Config.Personalization,
             ex => _services.LoggerFactory
@@ -218,5 +222,7 @@ public static class AppHost
         _services = null;
         _theme = null;
         _menu = null;
+
+        AppLifetime.Shutdown();
     }
 }
