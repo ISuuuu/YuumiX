@@ -16,8 +16,8 @@
          多尺寸只写在 .ico 里，不要在此处指定 PNG（PE 资源仅接受 .ico）。 -->
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
 
-    <!-- Reactor 需要显式平台；省略 -p:Platform 会触发 WindowsAppSDKSelfContained 错误。
-         仅保留 x64：英雄联盟客户端只有 x64 版本，无需 ARM64（见 slnx 注释）。 -->
+    <!-- 仅保留 x64：英雄联盟客户端只有 x64 版本，无需 ARM64（见 slnx 注释）。
+         平台不再靠 -p:Platform 推导：RID 显式写死 win-x64，省略 -p:Platform 也能正常构建。 -->
     <Platforms>x64</Platforms>
     <!-- SelfContained 需要 RID：显式声明，避免依赖 Platform 推导 -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
