@@ -31,6 +31,13 @@ public sealed class ChampSelectSession
     [JsonPropertyName("benchEnabled")]
     public bool BenchEnabled { get; set; }
 
+    /// <summary>
+    /// 板凳席（大乱斗换下的英雄）。非大乱斗模式缺省为空数组，
+    /// <see cref="BenchEnabled"/> 为 false 时同样为空。
+    /// </summary>
+    [JsonPropertyName("benchChampions")]
+    public List<ChampSelectBenchChampion> BenchChampions { get; set; } = [];
+
     [JsonPropertyName("queueId")]
     public int? QueueId { get; set; }
 }
@@ -101,10 +108,35 @@ public sealed class ChampSelectTrade
     public string State { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// 板凳席上的一张英雄卡（对应 LCU 的 <c>benchChampions[i]</c>）。
+/// </summary>
+public sealed class ChampSelectBenchChampion
+{
+    [JsonPropertyName("championId")]
+    public int ChampionId { get; set; }
+
+    [JsonPropertyName("isPriorityCard")]
+    public bool IsPriorityCard { get; set; }
+
+    /// <summary>
+    /// 是否为当前玩家放上板凳席的英雄（自己换下或备选退回的牌）。
+    /// </summary>
+    [JsonPropertyName("isMine")]
+    public bool IsMine { get; set; }
+}
+
 public sealed class ChampSelectTimer
 {
     [JsonPropertyName("adjustedTimeLeftInPhase")]
     public ulong? AdjustedTimeLeftInPhase { get; set; }
+
+    /// <summary>
+    /// 本阶段总时长（毫秒）。用于反算「已进入本阶段多久」——
+    /// LCU 只给剩余时间，而板凳席的前 15 秒队友保护期需要的是已流逝时间。
+    /// </summary>
+    [JsonPropertyName("totalTimeInPhase")]
+    public ulong? TotalTimeInPhase { get; set; }
 
     [JsonPropertyName("phase")]
     public string? Phase { get; set; }

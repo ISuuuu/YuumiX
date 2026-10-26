@@ -12,6 +12,7 @@ using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
+using YuumiX.App.Pages.Bench;
 using YuumiX.App.Pages.Career;
 using YuumiX.App.Pages.GameInfo;
 using YuumiX.App.Pages.Home;
@@ -586,6 +587,8 @@ public sealed class AppShell : Component
                 navigationView.Grid(row: 1),
                 // 全局 Toast 宿主（R5）：压在页面内容之上，队列由 ToastContext 提供。
                 Component<ToastHost>().Grid(row: 1),
+                // 大乱斗板凳席悬浮窗的显隐协调者：不产生视觉输出，只把 LCU 状态翻译成窗口开关。
+                Component<AramBenchOverlayCoordinator>().Grid(row: 1),
                 // 公告弹窗：右下角覆盖层（对应旧版 NoticePopup 的 position: fixed）。
                 // 挂在最外层 Grid 上，压在页面内容之上、与 Toast 同层。
                 noticeVisible

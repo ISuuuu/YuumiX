@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Assets;
 using YuumiX.Core.Automation;
 using YuumiX.Core.Diagnostics;
+using YuumiX.Core.Features.AramBench;
 using YuumiX.Core.Features.Career;
 using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.GameLifecycle;
@@ -358,6 +359,19 @@ public sealed class AppServices : IAsyncDisposable
             () => provider.GetService<ISummonerService>(),
             provider.GetService<ILogger<MultiKillCaptureAgent>>()));
         collection.AddSingleton<AutomationHost>();
+
+        // ── 大乱斗板凳席悬浮窗（对应旧版 views/BenchOverlay.vue + ws.rs 的 bench 推送）──
+        // 构造即订阅事件流，因此必须是单例，否则每次解析都会多一份订阅与状态副本。
+        // 与其它 Feature 一样用提供器取传输层：重连会换实例，服务本身跨重连复用。
+        collection.AddSingleton<IAramBenchService>(provider =>
+        {
+            var connection = provider.GetRequiredService<LcuConnection>();
+            return new AramBenchService(
+                () => connection.Transport,
+                connection.Events,
+                connection.States,
+                provider.GetService<ILogger<AramBenchService>>());
+        });
 
         // ── 对局信息（GameInfo 模块）────────────────────────────────
         collection.AddSingleton<ILiveClientService>(provider => new LiveClientService(
