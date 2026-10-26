@@ -1,12 +1,16 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
@@ -51,9 +55,19 @@ public sealed class AppShell : Component
     /// <summary>侧边栏展开时的宽度（DIP），对齐旧版 <c>.sidebar.expanded</c> 的 210px。</summary>
     private const double PaneOpenWidth = 210;
 
+    /// <summary>
+    /// 更新提示红点的直径（DIP）。
+    ///
+    /// 压在图标右上角的角标，尺寸只在「看得见」与「不抢戏」之间取窄带：
+    /// 4 对应 16px 图标的 1/4，比系统 InfoBadge 的 dot 更小、更收敛。
+    /// 调这一个常量即可整体缩放。
+    /// </summary>
+    private const double UpdateDotSize = 4;
+
     public override Element Render()
     {
         var services = AppHost.Services;
+        var shellLogger = services.LoggerFactory.CreateLogger<AppShell>();
 
         // —— 托盘与「关闭到托盘」（对齐旧版 App.vue 的 handleClose 与 Tauri 主窗托盘）——
         // 托盘图标常驻：窗口被隐藏后它就是唯一的恢复入口，因此不能只在开关打开时才创建
@@ -180,6 +194,54 @@ public sealed class AppShell : Component
         // 公告弹窗可见性：侧边栏「公告」动作项触发显示；关闭由弹窗自身（手动 × 或 8s 自动）回调。
         // threadSafe: true —— 自动关闭计时器在后台线程调用 OnClose（ADR-07）。
         var (noticeVisible, setShowNotice) = UseState(false, threadSafe: true);
+
+        // —— 更新提示（侧边栏「设置」红点）——
+        // 数据源是 AppHost.UpdateNotice：启动检查、周期复查、设置页手动检查三处都往它发布结果，
+        // 本组件只负责订阅并绘制。threadSafe: true —— 检查在后台线程发布（ADR-07）。
+        var updateNotice = AppHost.UpdateNotice;
+        var (updateAvailable, setUpdateAvailable) = UseState(updateNotice.HasUpdate, threadSafe: true);
+        // 已用 Toast 提示过的版本：同一次驻留内不因周期复查重复打扰，
+        // 但红点会一直亮到用户装上新版本为止。
+        var notifiedVersion = UseRef<string?>(null);
+        UseEffect(
+            () =>
+            {
+                // 上次更新未完成的提示：只弹一次（状态对象读后即清），与「发现新版本」提示互不影响。
+                // 这条提示是失败路径上唯一的反馈——脚本执行时主进程已经退出，用户只会看到
+                // 「应用关了、版本没变」，没有这条 Toast 就只能自己猜。
+                if (updateNotice.FailureCode is { } failureCode)
+                {
+                    updateNotice.ClearFailure();
+                    shellLogger.LogInformation("已提示上次更新未完成：{Code}", failureCode);
+                    toastQueue.Error($"上次更新未完成：{DescribeUpdateFailure(failureCode)}，可在「设置 → 软件更新」重试");
+                }
+
+                void Apply(UpdateNoticeState state)
+                {
+                    setUpdateAvailable(state.HasUpdate);
+
+                    if (state.Version is not { } version || notifiedVersion.Current == version)
+                    {
+                        return;
+                    }
+
+                    notifiedVersion.Current = version;
+                    toastQueue.Info($"发现新版本 v{version}，可在「设置 → 通用设置 → 软件更新」中查看");
+                }
+
+                // 先按当前快照执行一次：启动检查通常早于本组件挂载，
+                // 漏掉这一次的话下一次提示要等周期复查（最长 6 小时）。
+                Apply(updateNotice);
+                var subscription = updateNotice.Subscribe(Apply);
+                return () => subscription.Dispose();
+            },
+            0);
+
+        // 红点覆盖层用到的三个原生引用：菜单项容器（定位基准）、圆点本体（呼吸/位移目标）、
+        // 覆盖画布（坐标换算基准）。只在挂载回调里写，渲染期只读。
+        var navViewRef = UseRef<NavigationView?>(null);
+        var updateDotRef = UseRef<FrameworkElement?>(null);
+        var updateOverlayRef = UseRef<Canvas?>(null);
 
         // 标题栏红蓝方：GameInfoService 在选人/对局阶段解析出本方阵营（blue/red）后经状态流推过来。
         // threadSafe: true —— 推送来自 LCU 后台线程（ADR-07）。
@@ -494,6 +556,129 @@ public sealed class AppShell : Component
             builder.Set("NavigationViewItemOnLeftMinHeight", 38d);
         });
 
+        // 「有新版本」红点。用 .Set(...) 而非 OnMountAdd：
+        // Set 在每次更新时都会在 descriptor 属性之后重新执行（框架文档明确的契约），
+        // 因此即使 Reactor 重建了菜单项实例、或红点随菜单可见性变化被丢弃，下一次渲染也会重新挂上。
+        navigationView = navigationView.Set(view => ApplyUpdateHint(view, updateAvailable, updateNotice.Version));
+
+        // —— 更新红点覆盖层 ——
+        // 为什么自绘而不用 NavigationViewItem.InfoBadge：dot 形态的直径（约 6px）和位置
+        // （展开态固定贴在最右端、收起态压在图标右上角外）都由 NavigationView 的模板写死。
+        // 这两个恰恰是红点可读性的来源——太小看不见、太远不像"设置这一项的通知"。
+        // 自绘 4px 圆点 + 按菜单项实测坐标定位，才能同时满足"够醒目"和"贴住图标"。
+        //
+        // 定位走命令式（Canvas.SetLeft/Top）而不是 state：位置依赖每帧布局，
+        // 若塞进 UseState，导航栏展开动画期间会持续触发整个外壳重渲染。
+        var updateDotLayoutHandler = UseRef<EventHandler<object>?>(null);
+        updateDotLayoutHandler.Current ??= (_, _) => PositionUpdateDot();
+
+        void PositionUpdateDot()
+        {
+            if (updateDotRef.Current is not { } dot
+                || updateOverlayRef.Current is not { } canvas
+                || navViewRef.Current is not { } view)
+            {
+                return;
+            }
+
+            var item = FindSettingsMenuItem(view);
+            if (item is null)
+            {
+                return;
+            }
+
+            double left;
+            double top;
+
+            // 优先直接取图标本体的实测角点：
+            // 收起/展开两种状态的内边距完全不同，用固定数字估会在某一种状态下偏到图标上方。
+            if (FindIconHost(item) is { ActualWidth: > 0 } icon)
+            {
+                Point corner;
+                try
+                {
+                    corner = icon.TransformToVisual(canvas).TransformPoint(new Point(icon.ActualWidth, 0));
+                }
+                catch (ArgumentException)
+                {
+                    return;
+                }
+
+                // 圆点中心对准图标右上角顶点：一半压在角上、一半探出图标外，
+                // 这是系统角标的常见位置，也避免整颗点漂在图标上方。
+                left = corner.X - UpdateDotSize / 2;
+                top = corner.Y - UpdateDotSize / 2;
+            }
+            else
+            {
+                Point origin;
+                try
+                {
+                    origin = item.TransformToVisual(canvas).TransformPoint(new Point(0, 0));
+                }
+                catch (ArgumentException)
+                {
+                    // 两者尚未处于同一棵视觉树（模板重建的瞬间）：等下一次布局回调即可，不必报错。
+                    return;
+                }
+
+                // 模板结构变化导致找不到图标时的兜底：按已知的内边距估算
+                //（收起态图标在 64px 栏内居中，展开态起于 16px 内边距）。
+                double iconRight = view.IsPaneOpen ? 32 : 40;
+                left = origin.X + iconRight - UpdateDotSize;
+                top = origin.Y + 8;
+            }
+
+            if (Math.Abs(Microsoft.UI.Xaml.Controls.Canvas.GetLeft(dot) - left) < 0.5
+                && Math.Abs(Microsoft.UI.Xaml.Controls.Canvas.GetTop(dot) - top) < 0.5)
+            {
+                return;
+            }
+
+            // 走 Debug：只在坐标真的变化时输出，排查"点跑到别处"时把日志级别调到 0 即可。
+            shellLogger.LogDebug(
+                "更新红点定位：left={Left} top={Top} paneOpen={Open} canvas={CW}x{CH}",
+                left, top, view.IsPaneOpen, canvas.ActualWidth, canvas.ActualHeight);
+
+            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(dot, left);
+            Microsoft.UI.Xaml.Controls.Canvas.SetTop(dot, top);
+        }
+
+        Element BuildUpdateDot() =>
+            Border(Empty())
+                .Width(UpdateDotSize)
+                .Height(UpdateDotSize)
+                .CornerRadius(YuumiTheme.PillRadius)
+                .Background(Theme.SystemCritical)
+                .IsHitTestVisible(false)
+                // 元素常驻、只切可见性：条件渲染（有更新 ? 红点 : Empty）会在两种元素类型之间切换，
+                // 每次都让 Reactor 重建 Canvas 并重挂 LayoutUpdated；隐藏一个已有元素没有这个代价。
+                // 呼吸动画在不可见期间继续跑，合成层开销可忽略，换来的是「显示时立刻处于当前相位」。
+                .IsVisible(updateAvailable)
+                .OnMountAdd(element =>
+                {
+                    updateDotRef.Current = (FrameworkElement)element;
+                    StartBreathing((FrameworkElement)element, shellLogger);
+                    PositionUpdateDot();
+                })
+                .OnUnmountAdd(_ => updateDotRef.Current = null);
+
+        var updateOverlay = Canvas([BuildUpdateDot()])
+            .IsHitTestVisible(false)
+            .OnMountAdd(element =>
+            {
+                updateOverlayRef.Current = (Canvas)element;
+                // LayoutUpdated 覆盖所有会移动「设置」项的情况：导航栏展开/收起、窗口缩放、
+                // 菜单项因可见性配置重建。回调内部先比较坐标，因此不会因自身的 SetLeft 反复触发。
+                element.LayoutUpdated += updateDotLayoutHandler.Current!;
+                PositionUpdateDot();
+            })
+            .OnUnmountAdd(element =>
+            {
+                element.LayoutUpdated -= updateDotLayoutHandler.Current!;
+                updateOverlayRef.Current = null;
+            });
+
         // 侧边栏是平级切换语义，因此用 Replace 而非 Navigate，避免堆积返回栈。
         navigationView = navigationView with
         {
@@ -575,8 +760,16 @@ public sealed class AppShell : Component
         // 挂载时挂上 Loaded 钩子：Loaded 是「框架复位已发生」的确定时刻，
         // 在那里做最终校正（校正被推到调度器队列，等首轮布局结束再执行）。
         navigationView = navigationView
-            .OnMountAdd(element => ((NavigationView)element).Loaded += paneLoadedHandler.Current!)
-            .OnUnmountAdd(element => ((NavigationView)element).Loaded -= paneLoadedHandler.Current!);
+            .OnMountAdd(element =>
+            {
+                navViewRef.Current = (NavigationView)element;
+                ((NavigationView)element).Loaded += paneLoadedHandler.Current!;
+            })
+            .OnUnmountAdd(element =>
+            {
+                ((NavigationView)element).Loaded -= paneLoadedHandler.Current!;
+                navViewRef.Current = null;
+            });
 
         var titleBar = TitleBar("YuumiX") with
         {
@@ -595,6 +788,9 @@ public sealed class AppShell : Component
             [
                 titleBar.Grid(row: 0),
                 navigationView.Grid(row: 1),
+                // 更新红点：与导航栏同格、后绘制压在其上；IsHitTestVisible=false 让点击穿透到
+                // 「设置」菜单项本身——点红点等于点设置，不需要额外的事件处理。
+                updateOverlay.Grid(row: 1),
                 // 全局 Toast 宿主（R5）：压在页面内容之上，队列由 ToastContext 提供。
                 Component<ToastHost>().Grid(row: 1),
                 // 公告弹窗：右下角覆盖层（对应旧版 NoticePopup 的 position: fixed）。
@@ -609,6 +805,7 @@ public sealed class AppShell : Component
         .RequestedTheme(palette.ElementTheme)
         .Provide(AppHost.Context, services)
         .Provide(AppHost.ThemeContext, AppHost.Theme)
+        .Provide(AppHost.UpdateNoticeContext, updateNotice)
         .Provide(AppHost.ToastContext, toastQueue);
 
         // 挂载即同步一次实际主题：首帧调色板的 IsDark 走启动时解析值兜底，
@@ -709,6 +906,159 @@ public sealed class AppShell : Component
     /// </summary>
     private const string NoticeBellPath =
         "M1.77 12.18 L1.71 12.23 L1.66 12.28 L1.62 12.34 L1.58 12.4 L1.55 12.47 L1.53 12.54 L1.51 12.61 L1.5 12.68 L1.5 12.76 L1.5 12.83 L1.52 12.9 L1.53 12.97 L1.56 13.04 L1.59 13.11 L1.63 13.17 L1.67 13.23 L1.72 13.28 L1.78 13.33 L1.84 13.38 L1.9 13.41 L1.96 13.44 L2.03 13.47 L2.1 13.49 L2.18 13.5 L2.25 13.5 L15.75 13.5 L15.82 13.5 L15.9 13.49 L15.97 13.47 L16.04 13.44 L16.1 13.41 L16.16 13.38 L16.22 13.33 L16.28 13.28 L16.33 13.23 L16.37 13.17 L16.41 13.11 L16.44 13.04 L16.47 12.97 L16.48 12.9 L16.5 12.83 L16.5 12.76 L16.5 12.68 L16.49 12.61 L16.47 12.54 L16.45 12.47 L16.42 12.4 L16.38 12.34 L16.34 12.28 L16.29 12.23 L16.23 12.18 L16.18 12.14 L16.18 12.14 L16.17 12.13 L16.16 12.12 L16.13 12.1 L16.1 12.07 L16.06 12.03 L16.0 11.98 L15.94 11.92 L15.88 11.85 L15.8 11.76 L15.73 11.66 L15.64 11.56 L15.56 11.43 L15.47 11.3 L15.38 11.15 L15.28 10.98 L15.19 10.81 L15.1 10.61 L15.0 10.4 L14.91 10.17 L14.82 9.93 L14.74 9.67 L14.66 9.39 L14.58 9.09 L14.51 8.78 L14.45 8.44 L14.39 8.09 L14.34 7.71 L14.3 7.32 L14.27 6.9 L14.26 6.46 L14.25 5.99 L14.25 5.98 L14.24 5.68 L14.24 5.63 L14.21 5.34 L14.2 5.29 L14.15 5.0 L14.14 4.95 L14.08 4.67 L14.06 4.62 L13.98 4.34 L13.96 4.29 L13.86 4.01 L13.84 3.97 L13.72 3.7 L13.7 3.66 L13.56 3.4 L13.53 3.35 L13.38 3.1 L13.35 3.06 L13.18 2.82 L13.15 2.78 L12.96 2.56 L12.93 2.52 L12.73 2.31 L12.69 2.27 L12.48 2.07 L12.44 2.04 L12.22 1.85 L12.18 1.82 L11.94 1.65 L11.9 1.62 L11.65 1.47 L11.6 1.44 L11.34 1.3 L11.3 1.28 L11.03 1.16 L10.99 1.14 L10.71 1.04 L10.66 1.02 L10.38 0.94 L10.33 0.92 L10.05 0.86 L10.0 0.85 L9.71 0.8 L9.66 0.79 L9.37 0.76 L9.32 0.76 L9.02 0.75 L8.98 0.75 L8.68 0.76 L8.63 0.76 L8.34 0.79 L8.29 0.8 L8.0 0.85 L7.95 0.86 L7.67 0.92 L7.62 0.94 L7.34 1.02 L7.29 1.04 L7.01 1.14 L6.97 1.16 L6.7 1.28 L6.66 1.3 L6.4 1.44 L6.35 1.47 L6.1 1.62 L6.06 1.65 L5.82 1.82 L5.78 1.85 L5.56 2.04 L5.52 2.07 L5.31 2.27 L5.27 2.31 L5.07 2.52 L5.04 2.56 L4.85 2.78 L4.82 2.82 L4.65 3.06 L4.62 3.1 L4.47 3.35 L4.44 3.4 L4.3 3.66 L4.28 3.7 L4.16 3.97 L4.14 4.01 L4.04 4.29 L4.02 4.34 L3.94 4.62 L3.92 4.67 L3.86 4.95 L3.85 5.0 L3.8 5.29 L3.79 5.34 L3.76 5.63 L3.76 5.68 L3.75 5.98 L3.75 5.99 L3.74 6.46 L3.73 6.9 L3.7 7.32 L3.66 7.71 L3.61 8.09 L3.55 8.44 L3.49 8.78 L3.42 9.09 L3.34 9.39 L3.26 9.67 L3.18 9.93 L3.09 10.17 L3.0 10.4 L2.9 10.61 L2.81 10.81 L2.72 10.98 L2.62 11.15 L2.53 11.3 L2.44 11.43 L2.36 11.56 L2.27 11.66 L2.2 11.76 L2.12 11.85 L2.06 11.92 L2.0 11.98 L1.94 12.03 L1.9 12.07 L1.87 12.1 L1.84 12.12 L1.83 12.13 L1.82 12.14 L1.82 12.14 L1.77 12.18 Z M3.91 11.92 L3.92 11.9 L4.03 11.71 L4.04 11.69 L4.14 11.49 L4.16 11.47 L4.26 11.25 L4.27 11.23 L4.37 11.0 L4.38 10.97 L4.48 10.72 L4.49 10.7 L4.59 10.43 L4.6 10.41 L4.69 10.13 L4.7 10.1 L4.79 9.8 L4.79 9.78 L4.87 9.46 L4.88 9.43 L4.96 9.09 L4.96 9.07 L5.03 8.71 L5.03 8.69 L5.09 8.31 L5.1 8.29 L5.15 7.89 L5.15 7.87 L5.19 7.45 L5.19 7.43 L5.22 6.99 L5.22 6.97 L5.24 6.51 L5.24 6.49 L5.25 6.02 L5.26 5.75 L5.28 5.51 L5.32 5.27 L5.38 5.03 L5.45 4.79 L5.54 4.57 L5.64 4.34 L5.75 4.13 L5.88 3.92 L6.03 3.72 L6.18 3.53 L6.35 3.35 L6.53 3.18 L6.72 3.03 L6.92 2.88 L7.13 2.75 L7.34 2.64 L7.57 2.54 L7.79 2.45 L8.03 2.38 L8.27 2.32 L8.51 2.28 L8.75 2.26 L9.0 2.25 L9.25 2.26 L9.49 2.28 L9.73 2.32 L9.97 2.38 L10.21 2.45 L10.43 2.54 L10.66 2.64 L10.87 2.75 L11.08 2.88 L11.28 3.03 L11.47 3.18 L11.65 3.35 L11.82 3.53 L11.97 3.72 L12.12 3.92 L12.25 4.13 L12.36 4.34 L12.46 4.57 L12.55 4.79 L12.62 5.03 L12.68 5.27 L12.72 5.51 L12.74 5.75 L12.75 6.02 L12.76 6.49 L12.76 6.51 L12.78 6.97 L12.78 6.99 L12.81 7.43 L12.81 7.45 L12.85 7.87 L12.85 7.89 L12.9 8.29 L12.91 8.31 L12.97 8.69 L12.97 8.71 L13.04 9.07 L13.04 9.09 L13.12 9.43 L13.13 9.46 L13.21 9.78 L13.21 9.8 L13.3 10.1 L13.31 10.13 L13.4 10.41 L13.41 10.43 L13.51 10.7 L13.52 10.72 L13.62 10.97 L13.63 11.0 L13.73 11.23 L13.74 11.25 L13.84 11.47 L13.86 11.49 L13.96 11.69 L13.97 11.71 L14.08 11.9 L14.09 11.92 L14.14 12.0 L3.86 12.0 L3.91 11.92 Z M9.62 16.17 L9.59 16.21 L9.56 16.24 L9.53 16.28 L9.49 16.31 L9.46 16.34 L9.42 16.37 L9.37 16.4 L9.33 16.42 L9.29 16.44 L9.24 16.46 L9.19 16.47 L9.15 16.49 L9.1 16.49 L9.05 16.5 L9.0 16.5 L8.95 16.5 L8.9 16.49 L8.85 16.49 L8.81 16.47 L8.76 16.46 L8.71 16.44 L8.67 16.42 L8.63 16.4 L8.58 16.37 L8.54 16.34 L8.51 16.31 L8.47 16.28 L8.44 16.24 L8.41 16.21 L8.38 16.17 L8.35 16.12 L8.33 16.08 L8.31 16.04 L8.29 15.99 L8.28 15.94 L8.26 15.9 L8.26 15.85 L8.25 15.8 L8.25 15.73 L8.24 15.65 L8.23 15.58 L8.21 15.51 L8.18 15.44 L8.15 15.38 L8.11 15.31 L8.06 15.26 L8.01 15.2 L7.96 15.15 L7.9 15.11 L7.83 15.08 L7.76 15.05 L7.69 15.03 L7.62 15.01 L7.55 15.0 L7.48 15.0 L7.4 15.01 L7.33 15.02 L7.26 15.04 L7.19 15.07 L7.13 15.1 L7.06 15.14 L7.01 15.19 L6.95 15.24 L6.9 15.29 L6.86 15.35 L6.83 15.42 L6.8 15.49 L6.78 15.56 L6.76 15.63 L6.75 15.7 L6.75 15.77 L6.75 15.87 L6.76 15.92 L6.77 16.02 L6.77 16.07 L6.79 16.16 L6.8 16.21 L6.82 16.31 L6.83 16.36 L6.86 16.45 L6.88 16.5 L6.91 16.59 L6.93 16.63 L6.97 16.72 L6.99 16.77 L7.04 16.85 L7.06 16.9 L7.12 16.98 L7.14 17.02 L7.2 17.1 L7.23 17.14 L7.29 17.21 L7.32 17.25 L7.39 17.32 L7.43 17.36 L7.5 17.43 L7.54 17.46 L7.61 17.52 L7.65 17.55 L7.73 17.61 L7.77 17.63 L7.85 17.69 L7.9 17.71 L7.98 17.76 L8.03 17.78 L8.12 17.82 L8.16 17.84 L8.25 17.87 L8.3 17.89 L8.39 17.92 L8.44 17.93 L8.54 17.95 L8.59 17.96 L8.68 17.98 L8.73 17.98 L8.83 17.99 L8.88 18.0 L8.98 18.0 L9.02 18.0 L9.12 18.0 L9.17 17.99 L9.27 17.98 L9.32 17.98 L9.41 17.96 L9.46 17.95 L9.56 17.93 L9.61 17.92 L9.7 17.89 L9.75 17.87 L9.84 17.84 L9.88 17.82 L9.97 17.78 L10.02 17.76 L10.1 17.71 L10.15 17.69 L10.23 17.63 L10.27 17.61 L10.35 17.55 L10.39 17.52 L10.46 17.46 L10.5 17.43 L10.57 17.36 L10.61 17.32 L10.68 17.25 L10.71 17.21 L10.77 17.14 L10.8 17.1 L10.86 17.02 L10.88 16.98 L10.94 16.9 L10.96 16.85 L11.01 16.77 L11.03 16.72 L11.07 16.63 L11.09 16.59 L11.12 16.5 L11.14 16.45 L11.17 16.36 L11.18 16.31 L11.2 16.21 L11.21 16.16 L11.23 16.07 L11.23 16.02 L11.24 15.92 L11.25 15.85 L11.24 15.77 L11.23 15.7 L11.21 15.62 L11.19 15.55 L11.15 15.48 L11.11 15.42 L11.07 15.36 L11.01 15.3 L10.96 15.26 L10.89 15.21 L10.83 15.18 L10.63 15.08 L10.56 15.05 L10.49 15.03 L10.42 15.01 L10.35 15.0 L10.27 15.0 L10.2 15.01 L10.13 15.02 L10.06 15.04 L9.99 15.07 L9.92 15.1 L9.86 15.14 L9.8 15.19 L9.75 15.24 L9.7 15.29 L9.66 15.35 L9.62 15.42 L9.6 15.49 L9.57 15.56 L9.56 15.63 L9.55 15.7 L9.55 15.78 L9.55 15.85 L9.57 15.92 L9.59 15.99 L9.61 16.06 L9.65 16.13 L9.65 16.13 L9.62 16.17 Z";
+
+    /// <summary>
+    /// 把更新失败原因码翻成人话。
+    ///
+    /// 原因码由延迟脚本写入（英文，避免 cmd 代码页问题），中文只在 UI 层做，
+    /// 这样脚本改动不会牵动文案，文案调整也不用动脚本。
+    /// </summary>
+    private static string DescribeUpdateFailure(string code) => code switch
+    {
+        YuumiX.Core.Updates.UpdateService.FailureCodeWaitExit => "应用未能在超时前退出，替换已放弃",
+        YuumiX.Core.Updates.UpdateService.FailureCodeCopyFailed => "文件替换中断，程序可能不完整",
+        YuumiX.Core.Updates.UpdateService.FailureCodeSetupFailed => "安装程序返回失败",
+        _ => "原因未知",
+    };
+
+    /// <summary>
+    /// 找「设置」菜单项里的图标本体（或其 ContentPresenter 宿主）。
+    ///
+    /// 用它而不是按内边距估算：图标在收起态（栏内居中）与展开态（16px 内边距）的位置完全不同，
+    /// 任何写死的偏移都只会在其中一种状态下正确——实测展开态会偏到图标上方。
+    /// 取实测角点则可以两种状态通用，也顺带适应 DPI 缩放与模板尺寸调整。
+    ///
+    /// 三条识别路径按精确度排序：<c>IconElement</c> 本体 → 其 <c>ContentPresenter</c> 宿主
+    /// （模板里叫 <c>IconPresenter</c>，但名字并非公开契约，因此再兜一层名字匹配）。
+    /// </summary>
+    private static FrameworkElement? FindIconHost(DependencyObject root)
+    {
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is Microsoft.UI.Xaml.Controls.IconElement icon)
+            {
+                return icon;
+            }
+
+            if (child is ContentPresenter { Content: Microsoft.UI.Xaml.Controls.IconElement } host)
+            {
+                return host;
+            }
+
+            if (child is FrameworkElement { Name: "IconPresenter" } named)
+            {
+                return named;
+            }
+
+            if (FindIconHost(child) is { } nested)
+            {
+                return nested;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 给「设置」菜单项补上无障碍提示与悬停说明。
+    ///
+    /// 红点是纯视觉元素（<c>IsHitTestVisible=false</c>，不在无障碍树里），
+    /// 屏幕阅读器与悬停提示都读不到它，所以「有新版本 vX」必须挂到菜单项本身。
+    /// </summary>
+    private static void ApplyUpdateHint(NavigationView view, bool available, string? version)
+    {
+        var item = FindSettingsMenuItem(view);
+        if (item is null)
+        {
+            return;
+        }
+
+        string helpText = !available
+            ? string.Empty
+            : string.IsNullOrEmpty(version) ? "有新版本可用" : $"有新版本 v{version} 可用";
+
+        AutomationProperties.SetHelpText(item, helpText);
+        ToolTipService.SetToolTip(item, helpText.Length == 0 ? null : helpText);
+    }
+
+    /// <summary>
+    /// 找到底部操作区「设置」项对应的原生容器。
+    ///
+    /// 优先按 Tag 匹配：Reactor 把 <c>NavigationViewItemData.Tag</c> 映射到原生
+    /// <c>NavigationViewItem.Tag</c>，而 <see cref="RouteCatalog.Footer"/> 的 Key 是稳定字符串。
+    /// Tag 未透传时（框架映射方式变化）再按文案兜底——文案取自路由目录，不在这里写死，
+    /// 菜单改名时不会静默失配。
+    /// </summary>
+    private static NavigationViewItem? FindSettingsMenuItem(NavigationView view)
+    {
+        var descriptor = RouteCatalog.Footer[0];
+
+        foreach (var entry in view.FooterMenuItems)
+        {
+            if (entry is NavigationViewItem item
+                && string.Equals(item.Tag as string, descriptor.Key, StringComparison.Ordinal))
+            {
+                return item;
+            }
+        }
+
+        foreach (var entry in view.FooterMenuItems)
+        {
+            if (entry is NavigationViewItem item
+                && string.Equals(item.Content as string, descriptor.Label, StringComparison.Ordinal))
+            {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 启动红点呼吸动画：1.0 → 0.35 → 1.0，2 秒一轮，无限循环。
+    ///
+    /// 两端与中点都用同一条缓入缓出曲线，亮度变化比线性更「像呼吸」；
+    /// 时长定 2 秒是因为更短的周期在余光里会显得焦躁（接近闪烁告警），更长则容易被忽略。
+    ///
+    /// 系统开启「减少动画」（设置 → 辅助功能 → 视觉效果）时常亮不呼吸：
+    /// 持续明暗变化对前庭敏感用户不友好，而红点本身的可见性并不依赖动画。
+    /// </summary>
+    private static void StartBreathing(FrameworkElement target, ILogger logger)
+    {
+        try
+        {
+            var visual = ElementCompositionPreview.GetElementVisual(target);
+
+            if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+            {
+                visual.Opacity = 1f;
+                return;
+            }
+
+            var compositor = visual.Compositor;
+            var easing = compositor.CreateCubicBezierEasingFunction(
+                new System.Numerics.Vector2(0.4f, 0f),
+                new System.Numerics.Vector2(0.6f, 1f));
+
+            var animation = compositor.CreateScalarKeyFrameAnimation();
+            animation.InsertKeyFrame(0f, 1f, easing);
+            animation.InsertKeyFrame(0.5f, 0.35f, easing);
+            animation.InsertKeyFrame(1f, 1f, easing);
+            animation.Duration = TimeSpan.FromSeconds(2);
+            animation.IterationBehavior = AnimationIterationBehavior.Forever;
+
+            visual.StartAnimation("Opacity", animation);
+        }
+        catch (Exception ex)
+        {
+            // 动画只是锦上添花：合成器/无障碍查询在极端环境下可能不可用，
+            // 此时红点保持常亮即可——不能因为「灯不呼吸」把整个外壳渲染打断。
+            logger.LogWarning(ex, "更新红点的呼吸动画启动失败，已降级为常亮");
+            target.Opacity = 1;
+        }
+    }
 
     /// <summary>
     /// 构造底部附加操作区的菜单项。

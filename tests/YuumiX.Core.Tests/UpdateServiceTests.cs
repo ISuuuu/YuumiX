@@ -1,4 +1,6 @@
 using System.Text.Json;
+using YuumiX.Core.Persistence;
+using YuumiX.Core.Runtime;
 using YuumiX.Core.Updates;
 using Xunit;
 
@@ -267,12 +269,19 @@ public sealed class UpdateServiceTests
     [Fact]
     public void BuildApplyScript_CopiesWithoutMirroringUserData()
     {
-        string script = UpdateService.BuildApplyScript(@"C:\tmp\src", @"C:\app", @"C:\app\YuumiX.exe", 4321);
+        string script = UpdateService.BuildApplyScript(
+            @"C:\tmp\src", @"C:\app", @"C:\app\YuumiX.exe", 4321, @"C:\app\data", "0.2.0");
 
         Assert.Contains(@"chcp 65001", script);           // 中文用户名路径
         Assert.Contains(@"set ""PID=4321""", script);      // 等父进程退出
         Assert.Contains(@"robocopy ""%SRC%"" ""%DST%"" /E", script);
         Assert.Contains(@"start """" /D ""%DST%""", script);
+
+        // 失败留痕：替换失败与等待超时都要写标记，成功路径要清掉上次的标记
+        Assert.Contains(@"set ""FLAG=C:\app\data\update-failed.txt""", script);
+        Assert.Contains(@"echo copy-failed %TARGET%", script);
+        Assert.Contains(@"echo wait-exit %TARGET%", script);
+        Assert.Contains(@"del /q ""%FLAG%"" 2>nul", script);
 
         // /MIR 会删除目标目录里多出来的文件，等于清掉用户的 data 与 log
         Assert.DoesNotContain("/MIR", script);
@@ -358,7 +367,9 @@ public sealed class UpdateServiceTests
             @"C:\tmp\downloads\YuumiX-0.2.0.exe",
             @"C:\Users\me\AppData\Local\Programs\YuumiX",
             @"C:\Users\me\AppData\Local\Programs\YuumiX\YuumiX.exe",
-            4321);
+            4321,
+            @"C:\Users\me\AppData\Roaming\Yuumi",
+            "0.2.0");
 
         Assert.Contains(@"chcp 65001", script);              // 中文用户名路径
         Assert.Contains(@"set ""PID=4321""", script);         // 等父进程退出
@@ -368,9 +379,102 @@ public sealed class UpdateServiceTests
         Assert.Contains(@"/DIR=""%DST%""", script);
         Assert.Contains(@"start """" /D ""%DST%""", script);  // 装完拉起新版本
 
+        // 安装失败的两种分支都要留痕
+        Assert.Contains(@"echo setup-failed %TARGET%", script);
+        Assert.Contains(@"echo wait-exit %TARGET%", script);
+
         // 安装版不走目录覆盖分支
         Assert.DoesNotContain("robocopy", script);
         // timeout 在无控制台窗口时会因 stdin 重定向报错
         Assert.DoesNotContain("timeout ", script);
+    }
+
+    [Fact]
+    public void BuildApplyScript_EscapesPercentInPaths()
+    {
+        // 路径里的字面量 % 会被 cmd 当成变量展开（C:\100%\src → 展开后错位），必须写成 %%
+        string script = UpdateService.BuildApplyScript(
+            @"C:\100%\src", @"C:\50%\app", @"C:\50%\app\YuumiX.exe", 7, @"C:\50%\data", "0.2.0");
+
+        Assert.Contains(@"set ""SRC=C:\100%%\src""", script);
+        Assert.Contains(@"set ""DST=C:\50%%\app""", script);
+        Assert.Contains(@"start """" /D ""%DST%"" ""C:\50%%\app\YuumiX.exe""", script);
+    }
+
+    [Fact]
+    public void ConsumeFailureMarker_ReturnsCodeOnceAndDropsStaleMarker()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "yuumix-failmark-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(root, RuntimePaths.PortableMarkerFile), string.Empty);
+            var paths = RuntimePaths.Detect(root);
+            Directory.CreateDirectory(paths.DataDirectory);
+            var service = new UpdateService(paths, () => new AppConfig());
+
+            // 目标版本高于当前版本 → 未完成，返回原因码；读一次即删
+            File.WriteAllText(service.FailureMarkerPath, "copy-failed 99.99.99");
+            Assert.Equal(UpdateService.FailureCodeCopyFailed, service.ConsumeFailureMarker());
+            Assert.False(File.Exists(service.FailureMarkerPath));
+            Assert.Null(service.ConsumeFailureMarker());
+
+            // 目标版本已被追平（≤ 当前版本）→ 视为已解决，不再提示，但文件同样清掉
+            File.WriteAllText(service.FailureMarkerPath, "copy-failed 0.0.1");
+            Assert.Null(service.ConsumeFailureMarker());
+            Assert.False(File.Exists(service.FailureMarkerPath));
+
+            // 空文件按未知原因处理，不能静默丢弃
+            File.WriteAllText(service.FailureMarkerPath, string.Empty);
+            Assert.Equal("unknown", service.ConsumeFailureMarker());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CleanupDownloadCache_KeepsNewerPackageAndDeletesRest()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "yuumix-update-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            // 造一个便携版目录：portable.flag 存在 → 数据目录落在 <root>/data
+            File.WriteAllText(Path.Combine(root, RuntimePaths.PortableMarkerFile), string.Empty);
+            var paths = RuntimePaths.Detect(root);
+            string downloads = Path.Combine(paths.DataDirectory, "downloads");
+            Directory.CreateDirectory(downloads);
+
+            string current = UpdateService.CurrentVersion;
+            File.WriteAllText(Path.Combine(downloads, "YuumiX-0.0.1.zip"), "old");
+            File.WriteAllText(Path.Combine(downloads, $"YuumiX-{current}.zip"), "same");
+            File.WriteAllText(Path.Combine(downloads, "YuumiX-99.99.99.zip"), "newer");
+            File.WriteAllText(Path.Combine(downloads, "YuumiX-99.99.99.zip.tmp"), "partial");
+            File.WriteAllText(Path.Combine(downloads, "notes.txt"), "unknown");
+            // 前缀对但版本解析不出来：属于"认不出"，不能按"比较失败 = 不高于当前"删掉
+            File.WriteAllText(Path.Combine(downloads, "YuumiX-notaversion.zip"), "garbage");
+
+            var service = new UpdateService(paths, () => new AppConfig());
+            int removed = service.CleanupDownloadCache();
+
+            Assert.Equal(3, removed); // 更旧的包 + 当前版本的包 + 半截 .tmp
+            Assert.False(File.Exists(Path.Combine(downloads, "YuumiX-0.0.1.zip")));
+            Assert.False(File.Exists(Path.Combine(downloads, $"YuumiX-{current}.zip")));
+            Assert.False(File.Exists(Path.Combine(downloads, "YuumiX-99.99.99.zip.tmp")));
+
+            // 比当前版本高的包是「已下载、等安装」，删了等于让用户白下一次
+            Assert.True(File.Exists(Path.Combine(downloads, "YuumiX-99.99.99.zip")));
+            // 认不出命名的文件一律不动
+            Assert.True(File.Exists(Path.Combine(downloads, "notes.txt")));
+            Assert.True(File.Exists(Path.Combine(downloads, "YuumiX-notaversion.zip")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }

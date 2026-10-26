@@ -21,6 +21,7 @@ internal sealed record SettingsUi(
     IToastService Toast,
     ThemeState Theme,
     MenuVisibilityState Menu,
+    UpdateNoticeState UpdateNotice,
     YuumiPalette Palette,
     ILogger Logger,
     Action<string> Commit,

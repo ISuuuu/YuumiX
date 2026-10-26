@@ -20,8 +20,13 @@ internal sealed record PathEditUi(int Index, bool IsWeGame, string? Draft);
 internal sealed record CloudTextUi(string? Url, string? UserId);
 
 /// <summary>软件更新区状态：检查/下载结果 + 两个 UseMutation 句柄 + 错误回写（R7）。</summary>
+/// <param name="Checked">
+/// 是否已经有过一次检查结果。用来区分「尚未检查」与「查过、已是最新」——
+/// <see cref="Info"/> 为 <c>null</c> 时这两种情况长得一样，只看它会把未检查误报成最新。
+/// </param>
 internal sealed record UpdateUi(
     YuumiX.Core.Updates.UpdateInfo? Info,
+    bool Checked,
     string? Error,
     YuumiX.Core.Updates.DownloadProgress? Progress,
     string? DownloadedPath,
@@ -74,10 +79,22 @@ internal static partial class GeneralSection
                 ui.Commit(nameof(GeneralConfig.EnableGameStartMinimize));
             }),
             clearCacheCard,
-            SettingsCardKit.Toggle("检查更新", "启动时检查新版本（便携版走整包覆盖）", config.General.EnableCheckUpdate, v =>
+            SettingsCardKit.Toggle("检查更新", "启动时检查新版本，发现后侧边栏「设置」会亮起红点提示", config.General.EnableCheckUpdate, v =>
             {
                 config.General.EnableCheckUpdate = v;
                 ui.Commit(nameof(GeneralConfig.EnableCheckUpdate));
+
+                if (!v)
+                {
+                    // 关掉之后不再有任何检测点：红点必须同步熄灭，
+                    // 否则它指向的是一个永远不会刷新的旧结果。
+                    ui.UpdateNotice.Clear();
+                    return;
+                }
+
+                // 打开时立即补查一次：启动检查在「关闭」状态下已被跳过，
+                // 不补查就要等到下一个复查周期（最长 6 小时）才可能有提示。
+                _ = CheckOnceAsync(ui);
             }),
             UpdateCard(ui, update));
     }
@@ -170,14 +187,30 @@ internal static partial class GeneralSection
     /// <summary>软件更新（对应旧 UpdateSection.vue + UpdateDialog.vue；检查/下载执行态由 UseMutation 提供，R7）。</summary>
     private static Element UpdateCard(SettingsUi ui, UpdateUi update)
     {
-        var updateCardStatus = update.Info is { } found ? $"发现新版 v{found.Version}" : "已是最新";
-        var items = new List<Element>
-        {
-            SettingsCardKit.Card("检查更新", "手动检查并下载新版本",
+        var info = update.Info;
+
+        // 「尚未检查」必须与「已是最新」区分开：两者 Info 都是 null，
+        // 单看 Info 会让刚装好的用户以为已经确认过没有新版本。
+        var updateCardStatus = update.Check.IsPending
+            ? "检查中"
+            : info is { } found
+                ? $"发现新版 v{found.Version}"
+                : update.Checked ? "已是最新" : "尚未检查";
+
+        // 主操作卡：已知有更新时，第一落点必须是「下载 / 安装」，而不是让用户再点一次「检查更新」——
+        // 版本已经在检查阶段确认过，再检查一次没有任何信息增量。
+        var primaryCard = info is null
+            ? SettingsCardKit.Card(
+                "检查更新", "手动检查并下载新版本",
                 Button(update.Check.IsPending ? "检查中..." : "检查更新", () => _ = update.Check.RunAsync(null))
                     .IsEnabled(!update.Check.IsPending)
-                    .AutomationName("检查更新按钮")),
-        };
+                    .AutomationName("检查更新按钮"))
+            : SettingsCardKit.Card(
+                $"发现新版本 v{info.Version}",
+                $"当前 v{info.CurrentVersion}，可更新到 v{info.Version}",
+                PrimaryAction(ui, update, info));
+
+        var items = new List<Element> { primaryCard };
 
         if (update.Error is not null)
         {
@@ -186,28 +219,26 @@ internal static partial class GeneralSection
                     .Foreground(Theme.SystemCritical)));
         }
 
-        if (update.Info is not null)
+        if (info is not null)
         {
-            items.Add(SettingsCardKit.ContentCard(VStack(4,
-                SettingsVisuals.InfoRow("新版本", $"v{update.Info.Version}"),
-                SettingsVisuals.InfoRow("当前版本", $"v{update.Info.CurrentVersion}"),
-                string.IsNullOrEmpty(update.Info.Notes)
+            items.Add(SettingsCardKit.ContentCard(VStack(8,
+                SettingsVisuals.InfoRow("新版本", $"v{info.Version}"),
+                SettingsVisuals.InfoRow("当前版本", $"v{info.CurrentVersion}"),
+                // 发布说明可能很长（某些版本带整段 changelog）：限高后可滚动，
+                // 否则一两百行的说明会把整页推下去。
+                string.IsNullOrEmpty(info.Notes)
                     ? Empty()
-                    : Caption(update.Info.Notes).Foreground(Theme.SecondaryText).TextWrapping(),
-                // 下载与安装区：下载中显示进度，就绪后切换为安装按钮。
-                // DownloadUrl 为空表示该版本没有当前形态对应的资产（例如只发了 zip 却用安装版运行），
-                // 此时不能渲染「下载更新」——点下去必然抛「该版本没有可下载的资产」，只能引导去发布页。
-                update.DownloadedPath is not null
-                    ? Button(ui.Services.Paths.IsPortable ? "应用更新并重启" : "安装更新并重启", () => ApplyPendingUpdate(ui, update, update.DownloadedPath))
-                        .AutomationName("安装更新按钮")
-                    : update.Progress is { } p
-                        ? VStack(4,
-                            Progress(p.Percent ?? 0),
-                            Caption($"已下载 {p.Downloaded / 1024.0 / 1024.0:F1} MB" + (p.Total is { } t ? $" / {t / 1024.0 / 1024.0:F1} MB" : string.Empty)))
-                        : update.Info.DownloadUrl is null
-                            ? Caption("该版本未提供适用于当前安装形态的更新包，请在下方发布页手动下载。")
-                                .Foreground(Theme.SecondaryText).TextWrapping()
-                            : Button("下载更新", () => _ = update.Download.RunAsync(update.Info)).AutomationName("下载更新按钮"))));
+                    : ScrollViewer(
+                        Caption(info.Notes)
+                            .Foreground(Theme.SecondaryText)
+                            .TextWrapping())
+                        .MaxHeight(160)
+                        .IsTabStop(true),
+                // 只在「想再确认一次」时才需要重新检查：主操作已经上移到标题卡，
+                // 这里放低频动作，避免两个同等重量的按钮抢注意力。
+                Button(update.Check.IsPending ? "检查中..." : "重新检查", () => _ = update.Check.RunAsync(null))
+                    .IsEnabled(!update.Check.IsPending)
+                    .AutomationName("重新检查更新按钮"))));
         }
 
         items.Add(SettingsCardKit.Card("开源发布页", "在浏览器中打开 GitHub Releases",
@@ -239,11 +270,71 @@ internal static partial class GeneralSection
             statusText: updateCardStatus);
     }
 
+    /// <summary>
+    /// 打开「检查更新」开关后立即补查一次，并把结果发布到全局提示状态。
+    ///
+    /// 与页面上「检查更新」按钮的区别：这条路径是开关的副作用，用户没有主动查看结果的预期，
+    /// 因此失败只记日志、不弹 Toast——免得只是打开一个开关就被网络错误弹窗打断。
+    /// </summary>
+    private static async Task CheckOnceAsync(SettingsUi ui)
+    {
+        try
+        {
+            var service = ui.Services.Services.GetRequiredService<YuumiX.Core.Updates.UpdateService>();
+            var info = await service.CheckForUpdateAsync(ui.Services.Paths.IsPortable).ConfigureAwait(false);
+            ui.UpdateNotice.Publish(info);
+        }
+        catch (Exception ex)
+        {
+            ui.Logger.LogWarning(ex, "打开「检查更新」后的补查失败（离线或网络受限属常态）");
+        }
+    }
+
+    /// <summary>
+    /// 更新主操作：已下载 → 安装并重启；下载中 → 进度；否则 → 下载。
+    ///
+    /// 三种状态共用一个按钮位的原因：它们互斥且都表达「把这次更新做完」，
+    /// 分散成多张卡会让用户在「下载/安装」之间来回找。
+    /// <c>DownloadUrl</c> 为空表示该版本没有当前安装形态的资产（例如只发了 zip 却用安装版运行），
+    /// 此时不渲染下载按钮——点下去必然抛「该版本没有可下载的资产」，只能引导去发布页。
+    /// </summary>
+    private static Element PrimaryAction(SettingsUi ui, UpdateUi update, YuumiX.Core.Updates.UpdateInfo info)
+    {
+        if (update.DownloadedPath is { } path)
+        {
+            return Button(
+                    ui.Services.Paths.IsPortable ? "应用更新并重启" : "安装更新并重启",
+                    () => ApplyPendingUpdate(ui, update, path))
+                .AutomationName("安装更新按钮");
+        }
+
+        if (update.Progress is { } progress)
+        {
+            return VStack(4,
+                Progress(progress.Percent ?? 0),
+                Caption($"已下载 {progress.Downloaded / 1024.0 / 1024.0:F1} MB"
+                    + (progress.Total is { } total ? $" / {total / 1024.0 / 1024.0:F1} MB" : string.Empty)));
+        }
+
+        if (info.DownloadUrl is not null)
+        {
+            // 下载中禁用：进度条出现前有几百毫秒窗口，连点会并发写同一个 .tmp（FileShare.None 直接报错）。
+            return Button("下载更新", () => _ = update.Download.RunAsync(info))
+                .IsEnabled(!update.Download.IsPending)
+                .AutomationName("下载更新按钮");
+        }
+
+        return Caption("该版本未提供适用于当前安装形态的更新包，请在下方发布页手动下载。")
+            .Foreground(Theme.SecondaryText)
+            .TextWrapping();
+    }
+
     private static void ApplyPendingUpdate(SettingsUi ui, UpdateUi update, string path)
     {
         try
         {
-            bool willRestart = YuumiX.Core.Updates.UpdateService.ApplyPendingUpdate(path, ui.Services.Paths.IsPortable);
+            bool willRestart = YuumiX.Core.Updates.UpdateService.ApplyPendingUpdate(
+                path, ui.Services.Paths.IsPortable, ui.Services.Paths.DataDirectory);
             if (!willRestart)
             {
                 return;

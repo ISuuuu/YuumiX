@@ -268,6 +268,23 @@ public sealed class UpdateService
     /// <summary>缓存有效期 24 小时（旧 CACHE_TTL_SECS）。</summary>
     public static readonly TimeSpan CacheTtl = TimeSpan.FromHours(24);
 
+    /// <summary>
+    /// 更新失败标记文件名，落在数据目录下。
+    ///
+    /// 为什么用文件而不是任何进程内状态：失败发生在主进程退出之后（由延迟脚本执行替换），
+    /// 那时应用已经没了，只有磁盘上的东西能跨越「退出 → 下次启动」把结果带回来。
+    /// </summary>
+    public const string FailureMarkerFileName = "update-failed.txt";
+
+    /// <summary>失败原因码：主进程在脚本的超时窗口内没有退出。</summary>
+    public const string FailureCodeWaitExit = "wait-exit";
+
+    /// <summary>失败原因码：便携版目录覆盖失败（robocopy 返回 ≥ 8）。</summary>
+    public const string FailureCodeCopyFailed = "copy-failed";
+
+    /// <summary>失败原因码：安装版静默安装返回失败。</summary>
+    public const string FailureCodeSetupFailed = "setup-failed";
+
     private readonly RuntimePaths _paths;
     private readonly Func<AppConfig> _configProvider;
     private readonly ILogger<UpdateService>? _logger;
@@ -670,25 +687,201 @@ public sealed class UpdateService
 
         long? total = response.Content.Headers.ContentLength;
         await using var source = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        await using var target = new FileStream(targetPath + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None);
 
-        var buffer = new byte[81920];
+        // 先写 .tmp、校验通过才改名：中断或截断的包绝不能以最终文件名落盘，
+        // 否则用户下次点「安装」时才发现是半个包（那时应用已经退出，没法再给提示）。
+        string tempPath = targetPath + ".tmp";
         long downloaded = 0;
-        int read;
-        while ((read = await source.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
+        try
         {
-            await target.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
-            downloaded += read;
-            progress?.Report(new DownloadProgress(
-                downloaded,
-                total,
-                total is > 0 ? Math.Min(100.0, downloaded * 100.0 / total.Value) : null));
+            await using var target = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+            var buffer = new byte[81920];
+            int read;
+            while ((read = await source.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
+            {
+                await target.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
+                downloaded += read;
+                progress?.Report(new DownloadProgress(
+                    downloaded,
+                    total,
+                    total is > 0 ? Math.Min(100.0, downloaded * 100.0 / total.Value) : null));
+            }
+
+            await target.FlushAsync(token).ConfigureAwait(false);
+            target.Close();
+        }
+        catch
+        {
+            // 取消、断网、磁盘写满：一律清掉半截文件再往上抛，不给磁盘留垃圾。
+            TryDeleteFile(tempPath, "清理未完成的更新包失败");
+            throw;
         }
 
-        await target.FlushAsync(token).ConfigureAwait(false);
-        target.Close();
-        File.Move(targetPath + ".tmp", targetPath, overwrite: true);
+        // 服务器给了长度就必须对得上：连接被中途掐断时流读取未必报错，
+        // 少几个字节的 zip/exe 到安装阶段才炸，代价比在这里拦住高得多。
+        if (total is > 0 && downloaded != total.Value)
+        {
+            TryDeleteFile(tempPath, "清理被截断的更新包失败");
+            throw new IOException($"更新包下载不完整（{downloaded}/{total.Value} 字节），已丢弃，请重试");
+        }
+
+        File.Move(tempPath, targetPath, overwrite: true);
         return targetPath;
+    }
+
+    /// <summary>
+    /// 清理数据目录下的过期更新包：中断留下的 <c>.tmp</c>，以及版本不高于当前版本的旧包。
+    ///
+    /// 只删「确定用不上」的文件：正在等安装的新版本包（版本高于当前）必须保留，
+    /// 否则用户下载完还没装、下次启动就被清掉，等于白下 300MB。
+    /// 认不出命名的文件一律不动——这个目录是同级的派生数据区，宁可多留也不误删。
+    /// </summary>
+    public int CleanupDownloadCache()
+    {
+        string dir = Path.Combine(_paths.DataDirectory, "downloads");
+        if (!Directory.Exists(dir))
+        {
+            return 0;
+        }
+
+        const string prefix = "YuumiX-";
+        int removed = 0;
+
+        // 当前版本解析不出来就完全不清理：`SemVer` 比较失败等价于"不高于当前"，
+        // 若照那个结果删文件，等于用一个解析错误去决定「删掉用户刚下好的包」。
+        if (!SemVerVersion.TryParse(CurrentVersion, out var currentVersion))
+        {
+            return 0;
+        }
+
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(dir))
+            {
+                bool stale;
+
+                if (file.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+                {
+                    stale = true;
+                }
+                else
+                {
+                    string name = Path.GetFileNameWithoutExtension(file);
+                    if (!name.StartsWith(prefix, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    // 版本解析不出来（手工放进来的备份、重命名过的包）→ 认不出就不动，
+                    // 与上面注释的「宁可多留也不误删」保持一致。
+                    if (!SemVerVersion.TryParse(name[prefix.Length..], out var fileVersion))
+                    {
+                        continue;
+                    }
+
+                    stale = fileVersion.CompareTo(currentVersion) <= 0;
+                }
+
+                if (!stale)
+                {
+                    continue;
+                }
+
+                if (TryDeleteFile(file, "清理旧更新包失败"))
+                {
+                    removed++;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger?.LogWarning(ex, "枚举更新包缓存目录失败");
+        }
+
+        if (removed > 0)
+        {
+            _logger?.LogInformation("已清理 {Count} 个过期更新包", removed);
+        }
+
+        return removed;
+    }
+
+    /// <summary>删除文件；失败只记日志（清理属尽力而为，不该影响调用方的正常流程）。</summary>
+    private bool TryDeleteFile(string path, string failureMessage)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            File.Delete(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger?.LogWarning(ex, failureMessage);
+            return false;
+        }
+    }
+
+    /// <summary>失败标记文件的完整路径。</summary>
+    public string FailureMarkerPath => Path.Combine(_paths.DataDirectory, FailureMarkerFileName);
+
+    /// <summary>
+    /// 读取并清除「上次更新未完成」标记，返回原因码（见 <see cref="FailureCodeWaitExit"/> 等）。
+    ///
+    /// 两条刻意的规则：
+    /// <list type="bullet">
+    ///   <item>读一次即删：同一份失败不该每次启动都弹；</item>
+    ///   <item>标记里的目标版本若已被追平（用户手动装了新版、或后来更新成功过一次），
+    ///         直接当作无标记返回——此时再提示「更新未完成」只会误导。</item>
+    /// </list>
+    /// 任何 IO 失败都返回 <c>null</c>：这是提示功能，不能因为它挡住启动。
+    /// </summary>
+    public string? ConsumeFailureMarker()
+    {
+        string path = FailureMarkerPath;
+
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            string raw = File.ReadAllText(path).Trim();
+            File.Delete(path);
+
+            if (raw.Length == 0)
+            {
+                return "unknown";
+            }
+
+            // 标记格式：<原因码> <目标版本>（脚本用空格分隔写入）
+            string[] parts = raw.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0)
+            {
+                return "unknown";
+            }
+
+            if (parts.Length == 2 && !IsNewerVersion(parts[1], CurrentVersion))
+            {
+                _logger?.LogInformation(
+                    "上次更新失败标记已过期（目标 {Target} ≤ 当前 {Current}），不再提示", parts[1], CurrentVersion);
+                return null;
+            }
+
+            _logger?.LogInformation("检测到上次更新未完成的标记：{Code}（目标 {Target}）", parts[0], parts.Length == 2 ? parts[1] : "未知");
+            return parts[0];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger?.LogWarning(ex, "读取更新失败标记失败，本次不提示");
+            return null;
+        }
     }
 
     /// <summary>
@@ -711,14 +904,24 @@ public sealed class UpdateService
     ///
     /// 为什么不再只替换 exe：发布包是自包含的（380+ 个 dll，含 Windows App SDK 与 WinUI 运行时），
     /// 只换主程序等于让新 exe 跑在旧 dll 上；某次升级一旦同时换了依赖库版本，进程启动即崩。
+    /// <para>
+    /// 失败留痕：脚本在替换/安装失败时会往 <c>&lt;数据目录&gt;/update-failed.txt</c> 写一行
+    /// 「原因码 + 目标版本」，下次启动由 <see cref="ConsumeFailureMarker"/> 读出来提示一次。
+    /// 为什么必须由脚本写：失败发生在主进程退出之后，那时应用已经没了，没有别的通道能告诉用户。
+    /// </para>
     /// </summary>
-    public static bool ApplyPendingUpdate(string downloadedPath, bool isPortable)
+    public static bool ApplyPendingUpdate(string downloadedPath, bool isPortable, string dataDirectory)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+
         string currentExe = Environment.ProcessPath
             ?? throw new InvalidOperationException("无法定位当前可执行文件");
 
         string targetDir = Path.GetDirectoryName(currentExe)
             ?? throw new InvalidOperationException("无法定位当前程序目录");
+
+        // 标记目录必须存在，脚本里的重定向才不会失败（数据目录正常都已存在，这里只是兜底）。
+        Directory.CreateDirectory(dataDirectory);
 
         if (!isPortable)
         {
@@ -735,7 +938,8 @@ public sealed class UpdateService
             string setupScript = Path.Combine(scriptRoot, "run-setup.cmd");
             File.WriteAllText(
                 setupScript,
-                BuildInstallerScript(downloadedPath, targetDir, currentExe, Environment.ProcessId),
+                BuildInstallerScript(
+                    downloadedPath, targetDir, currentExe, Environment.ProcessId, dataDirectory, CurrentVersion),
                 new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
             LaunchDetached(scriptRoot, setupScript);
@@ -768,10 +972,24 @@ public sealed class UpdateService
                 $"更新包版本 {incoming ?? "未知"} 不高于当前版本 {CurrentVersion}，已取消替换");
         }
 
+        // 用户数据目录绝不能出现在覆盖源里：robocopy /E 会覆盖同名文件，
+        // 包内一旦误带 data\config.json，用户配置就被静默冲掉。
+        // 发布脚本目前只放 data\.keep，但那只是打包约定；这里用代码兜一层。
+        // 删不掉就让它抛——宁可这次更新失败，也不能带着"可能覆盖用户数据"的源目录继续跑。
+        foreach (string userDirectory in UserDataDirectoryNames)
+        {
+            string path = Path.Combine(newRoot, userDirectory);
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+
         string scriptPath = Path.Combine(stagingRoot, "apply-update.cmd");
         File.WriteAllText(
             scriptPath,
-            BuildApplyScript(newRoot, targetDir, currentExe, Environment.ProcessId),
+            BuildApplyScript(
+                newRoot, targetDir, currentExe, Environment.ProcessId, dataDirectory, CurrentVersion),
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
         LaunchDetached(stagingRoot, scriptPath);
@@ -806,28 +1024,40 @@ public sealed class UpdateService
     /// </list>
     /// 设为 internal 是为了让单测能断言脚本内容（<c>/MIR</c> 误入会静默删掉用户数据，必须在门禁里锁住）。
     /// </summary>
-    internal static string BuildApplyScript(string sourceDir, string targetDir, string exePath, int processId)
+    internal static string BuildApplyScript(
+        string sourceDir, string targetDir, string exePath, int processId, string dataDirectory, string targetVersion)
     {
+        string flagPath = Path.Combine(dataDirectory, FailureMarkerFileName);
+
         return $"""
             @echo off
             chcp 65001 >nul
             setlocal
             set "PID={processId}"
-            set "SRC={sourceDir}"
-            set "DST={targetDir}"
+            set "SRC={EscapeForBatchSet(sourceDir)}"
+            set "DST={EscapeForBatchSet(targetDir)}"
+            set "FLAG={EscapeForBatchSet(flagPath)}"
+            set "TARGET={EscapeForBatchSet(targetVersion)}"
             set /a tries=0
             :wait
             tasklist /FI "PID eq %PID%" /NH 2>nul | find /I "YuumiX.exe" >nul
             if errorlevel 1 goto apply
             set /a tries+=1
-            if %tries% gtr 60 goto abort
+            if %tries% gtr 60 goto failwait
             ping -n 2 127.0.0.1 >nul
             goto wait
             :apply
             robocopy "%SRC%" "%DST%" /E /IS /IT /R:3 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-            if errorlevel 8 goto abort
-            start "" /D "%DST%" "{exePath}"
-            :abort
+            if errorlevel 8 goto failcopy
+            del /q "%FLAG%" 2>nul
+            start "" /D "%DST%" "{EscapeForBatchSet(exePath)}"
+            goto cleanup
+            :failwait
+            >"%FLAG%" echo {FailureCodeWaitExit} %TARGET%
+            goto cleanup
+            :failcopy
+            >"%FLAG%" echo {FailureCodeCopyFailed} %TARGET%
+            :cleanup
             rd /s /q "%SRC%" 2>nul
             del /q "%~f0" 2>nul
             """;
@@ -849,30 +1079,61 @@ public sealed class UpdateService
     /// </list>
     /// 设为 internal 是为了让单测能断言参数组合（缺 <c>/DIR</c> 会装到别处，属静默事故）。
     /// </summary>
-    internal static string BuildInstallerScript(string setupPath, string targetDir, string exePath, int processId)
+    internal static string BuildInstallerScript(
+        string setupPath, string targetDir, string exePath, int processId, string dataDirectory, string targetVersion)
     {
+        string flagPath = Path.Combine(dataDirectory, FailureMarkerFileName);
+
         return $"""
             @echo off
             chcp 65001 >nul
             setlocal
             set "PID={processId}"
-            set "SETUP={setupPath}"
-            set "DST={targetDir}"
-            set "EXE={exePath}"
+            set "SETUP={EscapeForBatchSet(setupPath)}"
+            set "DST={EscapeForBatchSet(targetDir)}"
+            set "EXE={EscapeForBatchSet(exePath)}"
+            set "FLAG={EscapeForBatchSet(flagPath)}"
+            set "TARGET={EscapeForBatchSet(targetVersion)}"
             set /a tries=0
             :wait
             tasklist /FI "PID eq %PID%" /NH 2>nul | find /I "YuumiX.exe" >nul
             if errorlevel 1 goto apply
             set /a tries+=1
-            if %tries% gtr 120 goto abort
+            if %tries% gtr 120 goto failwait
             ping -n 2 127.0.0.1 >nul
             goto wait
             :apply
             "%SETUP%" /SILENT /NORESTART /CLOSEAPPLICATIONS /SUPPRESSMSGBOXES /DIR="%DST%"
-            if errorlevel 1 goto abort
+            if errorlevel 1 goto failsetup
+            del /q "%FLAG%" 2>nul
             start "" /D "%DST%" "%EXE%"
-            :abort
+            goto cleanup
+            :failwait
+            >"%FLAG%" echo {FailureCodeWaitExit} %TARGET%
+            goto cleanup
+            :failsetup
+            >"%FLAG%" echo {FailureCodeSetupFailed} %TARGET%
+            :cleanup
             del /q "%~f0" 2>nul
             """;
     }
+
+    /// <summary>
+    /// 覆盖源里必须剔除的用户目录名。
+    ///
+    /// <c>data</c> 是便携版的数据目录（配置、数据库、缓存），<c>log</c> 是固定日志目录；
+    /// 两者都属于用户资产，不接受被更新包覆盖。安装版数据在 <c>%APPDATA%\Yuumi</c>，
+    /// exe 目录下即使出现同名目录也不应被包内内容替换。
+    /// </summary>
+    private static readonly string[] UserDataDirectoryNames = ["data", "log"];
+
+    /// <summary>
+    /// 转义批处理 <c>set</c> 赋值里的 <c>%</c>。
+    ///
+    /// cmd 解析 <c>set "VAR=%USERPROFILE%\x"</c> 时会先展开变量；路径里出现字面量百分号
+    /// （例如 <c>C:\100%\app</c>）会被吃掉或展开成空串，脚本随后就去覆盖一个错的目录——
+    /// 这是静默事故，不会报错。写成 <c>%%</c> 才能原样落进变量。
+    /// 引号内的空格与 <c>&amp;</c> 本身是安全的（<c>set "VAR=a&amp;b"</c> 正常），无需额外处理。
+    /// </summary>
+    private static string EscapeForBatchSet(string value) => value.Replace("%", "%%", StringComparison.Ordinal);
 }
