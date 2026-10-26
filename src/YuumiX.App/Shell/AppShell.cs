@@ -4,6 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Foundation;
@@ -432,7 +433,15 @@ public sealed class AppShell : Component
                 });
         });
 
-        var navigationView = NavigationView(menuItems, NavigationHost(nav, BuildPage)) with
+        // 页面切换不做过渡动画：NavigationHost 默认 Entrance（整页上滑 + 淡入），
+        // 而 LCU 未连接时各页显示的是同一张离线占位——内容一模一样，动画就只剩
+        // 「闪一下」。旧版用 v-show 平级切换同样没有动画，这里对齐旧行为。
+        var pageHost = NavigationHost(nav, BuildPage) with
+        {
+            Transition = NavigationTransition.None,
+        };
+
+        var navigationView = NavigationView(menuItems, pageHost) with
         {
             SelectedTag = RouteCatalog.KeyFor(nav.CurrentRoute),
             IsSettingsVisible = false,

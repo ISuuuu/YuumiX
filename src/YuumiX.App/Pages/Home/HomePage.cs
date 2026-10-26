@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using System.Diagnostics;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Lcu;
@@ -53,14 +54,18 @@ public sealed class HomePage : Component
             0);
 
         var isConnected = connState.Status == LcuConnectionStatus.Connected;
+        if (!isConnected)
+        {
+            // 与生涯 / 战绩查询 / 对局信息共用同一套离线布局（Controls/LcuOfflineState），
+            // 只是主页多出可用的启动入口与等待指示。
+            return LcuOfflineState.RenderHome(() => LaunchClient(services));
+        }
 
         return Grid(
             [GridSize.Star()],
             [GridSize.Star()],
             [
-                isConnected
-                    ? RenderConnectedView(connState, palette)
-                    : RenderDisconnectedView(services, palette),
+                RenderConnectedView(connState, palette),
             ]
         )
         .Padding(32);
@@ -134,53 +139,6 @@ public sealed class HomePage : Component
                 cornerLogo,
             ]
         );
-    }
-
-    /// <summary>
-    /// 未连接态视图：对齐原 Home.vue
-    /// </summary>
-    private static Element RenderDisconnectedView(AppServices services, YuumiPalette palette)
-    {
-        return VStack(
-            16,
-            // 居中 Logo
-            Image(AppAssets.LogoUri)
-                .Width(96)
-                .Height(96)
-                .AutomationName("Yuumi Logo")
-                .HorizontalAlignment(HorizontalAlignment.Center)
-                .Margin(0, 0, 0, 4),
-
-            // 标题
-            Title("客户端未连接")
-                .HorizontalAlignment(HorizontalAlignment.Center),
-
-            // 说明文案
-            Body("请启动英雄联盟客户端，连接成功后将自动识别并加载数据")
-                .Foreground(Theme.SecondaryText)
-                .HorizontalAlignment(HorizontalAlignment.Center)
-                .Margin(0, 0, 0, 8),
-
-            // 启动客户端按钮
-            Button("启动客户端", () => LaunchClient(services))
-                .HorizontalAlignment(HorizontalAlignment.Center)
-                .Padding(24, 8)
-                .Margin(0, 0, 0, 8),
-
-            // 等待连接环
-            HStack(
-                10,
-                ProgressRing()
-                    .Width(16)
-                    .Height(16)
-                    .IsActive(true),
-                Body("等待客户端启动中...")
-                    .Foreground(Theme.SecondaryText)
-            )
-            .HorizontalAlignment(HorizontalAlignment.Center)
-        )
-        .HorizontalAlignment(HorizontalAlignment.Center)
-        .VerticalAlignment(VerticalAlignment.Center);
     }
 
     /// <summary>
