@@ -47,6 +47,7 @@ public sealed class SettingsPage : Component
         var services = UseContext(AppHost.Context);
         var theme = UseContext(AppHost.ThemeContext);
         var menu = UseContext(AppHost.MenuContext);
+        var updateNotice = UseContext(AppHost.UpdateNoticeContext);
         var config = services.Config;
         var toast = UseContext(AppHost.ToastContext)!;
 
@@ -66,8 +67,11 @@ public sealed class SettingsPage : Component
 
         // 软件更新：检查结果 / 错误 / 下载进度 / 已就绪的安装包路径
         //（检查中与下载中的执行态由下方两个 UseMutation 的 IsPending 承载，R7）
+        // 初值取自全局更新提示状态：启动检查已经查到的版本，进页面就该直接显示版本详情与下载按钮，
+        // 而不是让用户对着「已是最新」再手动查一次。
         var updateService = services.Services.GetRequiredService<YuumiX.Core.Updates.UpdateService>();
-        var (updateInfo, setUpdateInfo) = UseState<YuumiX.Core.Updates.UpdateInfo?>(null, threadSafe: true);
+        var (updateInfo, setUpdateInfo) = UseState(updateNotice.Pending, threadSafe: true);
+        var (updateChecked, setUpdateChecked) = UseState(updateNotice.HasUpdate, threadSafe: true);
         var (updateCheckError, setUpdateCheckError) = UseState<string?>(null, threadSafe: true);
         var (updateProgress, setUpdateProgress) = UseState<YuumiX.Core.Updates.DownloadProgress?>(null, threadSafe: true);
         var (downloadedUpdatePath, setDownloadedUpdatePath) = UseState<string?>(null, threadSafe: true);
@@ -113,6 +117,10 @@ public sealed class SettingsPage : Component
                 OnSuccess: (info, _) =>
                 {
                     setUpdateInfo(info);
+                    setUpdateChecked(true);
+                    // 把结果回灌全局状态：侧边栏红点与设置页必须说同一件事。
+                    // info 为 null（已是最新）时 Clear 掉红点，避免「查完发现没更新，红点还在呼吸」。
+                    updateNotice.Publish(info);
                     toast.Info(info is null ? "当前已是最新版本" : $"发现新版本 v{info.Version}");
                 },
                 OnError: (ex, _) =>
@@ -158,6 +166,25 @@ public sealed class SettingsPage : Component
             () =>
             {
                 var subscription = signalr.Status.Subscribe(setSignalrStatus);
+                return () => subscription.Dispose();
+            },
+            0);
+
+        // 全局更新提示订阅：周期复查在本页停留期间发现新版本时，版本详情要立即出现
+        //（threadSafe: true —— 复查在后台线程发布，ADR-07）。
+        // 清除（关闭开关 / 已是最新）时只清结果，不把「检查过」的标记一起丢掉：
+        // 那会把状态文案退回「尚未检查」，与用户刚点过的操作矛盾。
+        UseEffect(
+            () =>
+            {
+                var subscription = updateNotice.Subscribe(state =>
+                {
+                    setUpdateInfo(state.Pending);
+                    if (state.HasUpdate)
+                    {
+                        setUpdateChecked(true);
+                    }
+                });
                 return () => subscription.Dispose();
             },
             0);
@@ -215,7 +242,7 @@ public sealed class SettingsPage : Component
         Microsoft.UI.Dispatching.DispatcherQueue Dispatcher() =>
             dispatcherRef.Current ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
-        var ui = new SettingsUi(config, services, toast, theme, menu, palette, logger, Commit, setError);
+        var ui = new SettingsUi(config, services, toast, theme, menu, updateNotice, palette, logger, Commit, setError);
 
         // ── 防抖 effect：序号每变一次就重置定时器，只有最后一次会真正落盘 ────────
         // 定时器回调在线程池，写盘与改状态一律 TryEnqueue 回 UI 线程（ADR-12 决策一）。
@@ -287,7 +314,7 @@ public sealed class SettingsPage : Component
             0);
 
         var update = new UpdateUi(
-            updateInfo, updateCheckError, updateProgress, downloadedUpdatePath,
+            updateInfo, updateChecked, updateCheckError, updateProgress, downloadedUpdatePath,
             checkUpdate, downloadUpdate, setUpdateCheckError);
 
         var mainScroll = ScrollViewer(
