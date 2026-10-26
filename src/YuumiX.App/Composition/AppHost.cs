@@ -117,6 +117,10 @@ public static class AppHost
         _services.Services.GetRequiredService<LcuConnection>().Start(_services.ShutdownToken);
         _services.Services.GetRequiredService<YuumiX.Core.Automation.AutomationHost>().Start(_services.ShutdownToken);
 
+        // 板凳席服务同样是「构造即订阅」，这里提前解析一次：悬浮窗的显隐由 UI 继承状态流驱动，
+        // 若等到第一次渲染才创建，助手启动时已经处于选人阶段的用户会漏掉开局那几秒的事件。
+        _services.Services.GetRequiredService<YuumiX.Core.Features.AramBench.IAramBenchService>();
+
         // 「随应用启动客户端」：消费 General.EnableStartLolWithApp（旧版 launch_lol_client 语义）。
         // 放后台线程：进程扫描与注册表探测都是阻塞调用，不能挡住 UI 首帧；
         // 客户端启动失败只记日志——主页「启动客户端」按钮承担人工兜底。
