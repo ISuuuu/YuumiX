@@ -98,6 +98,40 @@ public sealed class UpdateServiceTests
         Assert.Equal("v0.2.0", picked.Tag);
     }
 
+    /// <summary>
+    /// 预发布用户必须能收到同号正式版（0.1.0-rc.1 → 0.1.0 的「转正」路径）。
+    /// 通道过滤写成 <c>(候选预发布 &amp;&amp; 当前非预发布) 才跳过</c> 正是为了这条：
+    /// 若误写成「当前是预发布就只收预发布」，rc 用户会被永久钉死在预发布通道。
+    /// </summary>
+    [Theory]
+    [InlineData(true)]  // 便携版：认 portable 资产
+    [InlineData(false)] // 安装版：认 setup 资产
+    public void SelectCandidate_PrereleaseUserReceivesSameVersionStableRelease(bool isPortable)
+    {
+        var releases = new[]
+        {
+            AssetEntry("v0.1.0", setupUrl: "https://github.com/x/setup-0.1.0.exe"),
+            AssetEntry("v0.1.0-rc.1", setupUrl: "https://github.com/x/setup-0.1.0-rc1.exe"),
+        };
+
+        var picked = UpdateService.SelectCandidate(releases, "0.1.0-rc.1", isPortable);
+
+        Assert.NotNull(picked);
+        Assert.Equal("v0.1.0", picked.Tag);
+        Assert.False(picked.IsPrerelease);
+    }
+
+    /// <summary>
+    /// 转正之后再发预发布，已转正的用户不应收到——否则「升级到正式版」反而把人带回尝鲜通道。
+    /// </summary>
+    [Fact]
+    public void SelectCandidate_UserOnStableDoesNotGetPrereleaseAfterGraduating()
+    {
+        var releases = new[] { AssetEntry("v0.1.1-rc.1", prerelease: true), AssetEntry("v0.1.0") };
+
+        Assert.Null(UpdateService.SelectCandidate(releases, "0.1.0", isPortable: true));
+    }
+
     [Fact]
     public void SelectCandidate_PicksHighestNewerVersion()
     {
