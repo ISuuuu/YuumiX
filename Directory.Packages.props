@@ -14,6 +14,13 @@
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
     <PackageVersion Include="Microsoft.UI.Reactor" Version="0.1.0-preview.16" />
     <!--
+      Reactor Devtools 宿主：提供 Element 树检视、截图、点击/输入、hook 状态读取。
+      只在 Debug 配置下引用（见 YuumiX.App.csproj），Release 不得携带。
+      版本必须与 Microsoft.UI.Reactor 严格一致：devtools 依赖 Reactor.Advanced 的
+      内部类型，跨版本会出现类型不匹配。
+    -->
+    <PackageVersion Include="Microsoft.UI.Reactor.Devtools" Version="0.1.0-preview.16" />
+    <!--
       显式钉住 WinUI 子包版本：WASDK 2.5.1 传递的是 WinUI 2.3.9。
       CommunityToolkit 的 SettingsControls 依赖 WinUI >= 1.8.260204000，2.3.9 满足该下限，
       不会触发 NU1107；此处显式声明是为了在 toolkit 将来抬高下限时第一时间暴露冲突，

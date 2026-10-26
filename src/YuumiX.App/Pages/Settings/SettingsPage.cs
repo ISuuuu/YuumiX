@@ -390,6 +390,10 @@ public sealed class SettingsPage : Component
                     IsOpen = clearDialogOpen,
                     CloseButtonText = "取消",
                 })
+                // 对话框宿主在 XamlRoot 的 Popup 里，不在根 Grid 的视觉树内，
+                // 且 ContentDialogElement 的 Modifiers（.RequestedTheme）只作用在主树不可见的占位 StackPanel 上，
+                // 真实弹窗只接收 Setters（OverlayLifecycle.ShowContentDialogCore），故统一走 DialogTheme 扩展。
+                .DialogTheme(palette.ElementTheme)
                 .Closed(result =>
                 {
                     setClearDialogOpen(false);

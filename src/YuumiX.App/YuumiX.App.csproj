@@ -49,6 +49,19 @@
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
 
+  <!--
+    Reactor Devtools（仅 Debug）：开启后应用会在 %TEMP%/reactor-devtools/ 写 lockfile，
+    由 `mur devtools <verb>` 自动发现会话，实现截图 / 元素树 / 点击 / hook 状态读取。
+    这是 AGENTS.md §1.2「观感类改动必须用 Reactor devtools 截图对比验证」得以执行的前提。
+
+    Release 不引：devtools 带本地 HTTP 监听与按名反射调用入口，且会让裁剪/AOT 分析器报未标注的反射。
+    两道闸都要齐——缺包则能力不存在，缺开关则能力不启用，缺一不可。
+  -->
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <PackageReference Include="Microsoft.UI.Reactor.Devtools" />
+    <RuntimeHostConfigurationOption Include="Reactor.DevtoolsSupport" Value="true" Trim="true" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- BannedSymbols.txt 的条目格式与文档注释 ID 一致（T:/M:/P:），条目含义见文件内注释 -->
     <AdditionalFiles Include="BannedSymbols.txt" />

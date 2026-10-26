@@ -1,3 +1,4 @@
+using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using YuumiX.Core.Common;
@@ -54,6 +55,19 @@ public static class YuumiTheme
 
     /// <summary>无配置上下文时的兜底调色板（诊断页等拿不到 Provide 的场景使用）。</summary>
     public static YuumiPalette Default { get; } = YuumiPalette.FromConfig(new PersonalizationConfig());
+
+    /// <summary>
+    /// 为 <see cref="ContentDialogElement"/> 设置弹窗主题。
+    /// </summary>
+    /// <remarks>
+    /// <c>ContentDialogElement</c> 在主视觉树中只挂载一个 <c>Visibility.Collapsed</c> 的占位 <c>StackPanel</c>，
+    /// 真实 <c>ContentDialog</c> 宿主在 <c>XamlRoot</c> 的 Popup 中；
+    /// <c>OverlayLifecycle.ShowContentDialogCore</c> / <c>UpdateContentDialog</c> 只把 <c>Setters</c>（<c>.Set(...)</c>）
+    /// 转发给真实 <c>ContentDialog</c>，而 <c>Element.Modifiers</c>（<c>.RequestedTheme(...)</c>）只作用在不可见的占位容器上。
+    /// 因此弹窗主题必须通过本辅助方法走 <c>.Set(control =&gt; control.RequestedTheme = theme)</c>。
+    /// </remarks>
+    public static ContentDialogElement DialogTheme(this ContentDialogElement dialog, ElementTheme theme) =>
+        dialog.Set(control => control.RequestedTheme = theme);
 }
 
 /// <summary>

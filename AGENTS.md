@@ -9,14 +9,60 @@
 
 ---
 
+## A. Reactor API 查询规则（强制，先于一切编码动作）
+
+> **触发条件**：本次任务要新增或修改任何 Reactor 元素（工厂调用、修饰符、Hook、Element record 成员）。
+> **强制动作**：写代码前**必须**先查 API 索引确认符号存在。
+> **禁止**：凭记忆写出 Reactor API 名——包括 `UseResource`、`UseReducer`、`RequestedTheme`、`WithKey`、
+> `IsEnabled`、`TextWrapping` 这类"看起来显然"的。写错的名字要么编译失败，
+> 要么**静默降级**（如 `IconData` 遇到 SVG 直接吞掉、`.Set` 补写受控值被池回收冲掉），
+> 后者更危险：编译零告警，功能不对。
+
+**唯一真源**（版本与 `Directory.Packages.props` 严格一致，勿用其它版本）：
+
+```
+~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.16/agentkit/plugins/reactor/skills/
+```
+
+| 要查什么                                       | 读哪个文件                               |
+| ---------------------------------------------- | ---------------------------------------- |
+| 工厂 / 修饰符 / Hook 签名是否存在、诊断 ID     | `reactor-dsl/references/reactor.api.txt` |
+| 视觉、无障碍、高对比度规则、代码审查清单       | `reactor-design/SKILL.md`                |
+| 异步数据 hook（`UseResource` / `UseMutation`） | `reactor-async/SKILL.md`                 |
+| 截图 / 元素树 / 状态诊断（`mur` 用法）         | `reactor-devtools/SKILL.md`              |
+| 分析器诊断 ID ↔ 构建错误对照表                 | `reactor-build-and-check/SKILL.md`       |
+| 可编译示例                                     | `reactor-recipes/references/*.cs`        |
+
+**查法**：用 `Grep` 定位到具体行，**不要整文件读入**（`reactor.api.txt` 有 6400+ 行）。
+
+**已安装的用户级副本**（与包同版本；`mur` CLI 在其中，且已加入用户级 `PATH`）：
+
+```
+~/.workbuddy/skills/reactor/   （镜像副本：~/.agent/skills/reactor/）
+├── SKILL.md                   # 扁平单文件版（上游标注 legacy）
+├── skills/                    # 扁平 .md：design.md / async.md / devtools.md / reactor.api.txt …
+├── bin/x64/mur.exe            # Reactor Devtools CLI（直接调 `mur` 即可）
+└── install-skill-kit.ps1
+```
+
+> 本机还有一份同内容的**包内副本**（`agentkit/plugins/reactor/skills/`），两者同源于上游 `plugins/reactor/skills/`。
+> 包内副本随 `Directory.Packages.props` 的版本走，**以它为准**；用户级副本是给人读的 convenience 副本。
+>
+> **本仓库优先于上游技能文档**：上游推荐 `Heading`/`SubHeading` 工厂与 `ScrollView` 滚动容器，
+> 本仓库分别禁用（见 §1、§5.5），**冲突时以本文件为准**。
+
+---
+
 ## 0. 提交前必过的门禁
 
 ```bash
-dotnet build src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64                            # 必须 0 警告 0 错误
+mur check src/YuumiX.App/YuumiX.App.csproj -- -p:Platform=x64                            # Reactor 官方构建+分析器门禁（含 → try: 修正建议）
+dotnet build src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64 --no-incremental           # 全量构建校验，必须 0 警告 0 错误
 dotnet test tests/YuumiX.SourceScan.Tests/YuumiX.SourceScan.Tests.csproj -p:Platform=x64 # 模式级规则必须全绿
 ```
 
 > 以上两条是**主门禁**，已落地为构建期 / 测试期自动拦截：
+>
 > - 符号级：`Microsoft.CodeAnalysis.BannedApiAnalyzers` + `src/YuumiX.App/BannedSymbols.txt`
 >   （禁 `ScrollView`、`FontWeights`、`ContentDialog.ShowAsync`、`SyncWinUiAccentResources`），
 >   配合 App 项目 `TreatWarningsAsErrors`，引用即构建失败
@@ -44,15 +90,15 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 
 **必须**从 Reactor 排版工厂里选（括号内为实际字号/字重）：
 
-| 场景 | 工厂 |
-|---|---|
-| 角标、时间戳、次要说明 | `Caption(x)`（12 / Regular） |
-| 正文、列表主文本、表头 | `Body(x)`（14 / Regular） |
-| 卡片标题、强调标签 | `BodyStrong(x)`（14 / SemiBold） |
-| 强调正文 | `BodyLarge(x)`（18 / Regular） |
-| 分组标题、二级标题 | `Subtitle(x)`（20 / SemiBold） |
-| 页面标题、对话框标题 | `Title(x)`（28 / SemiBold） |
-| 首屏主标题（每页最多一个） | `TitleLarge(x)`（40） |
+| 场景                       | 工厂                             |
+| -------------------------- | -------------------------------- |
+| 角标、时间戳、次要说明     | `Caption(x)`（12 / Regular）     |
+| 正文、列表主文本、表头     | `Body(x)`（14 / Regular）        |
+| 卡片标题、强调标签         | `BodyStrong(x)`（14 / SemiBold） |
+| 强调正文                   | `BodyLarge(x)`（18 / Regular）   |
+| 分组标题、二级标题         | `Subtitle(x)`（20 / SemiBold）   |
+| 页面标题、对话框标题       | `Title(x)`（28 / SemiBold）      |
+| 首屏主标题（每页最多一个） | `TitleLarge(x)`（40）            |
 
 > 需要 WinUI 命名样式（含行高等完整 setter）时用 `.ApplyStyle("BodyTextBlockStyle")`，
 > **不要**用 `FontSize` 模拟。`Caption()` 是纯字号预设，要完整 Caption 样式请 `.ApplyStyle("CaptionTextBlockStyle")`。
@@ -67,12 +113,12 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 
 工厂里**没有 12px 加粗档位**（`BodyStrong` 是唯一带 Strong 的工厂，14px）。所以 12px 想强调只有两条合规路径：
 
-| 内容类型 | 做法 |
-|---|---|
+| 内容类型                                                             | 做法                                                                                         |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | 12px 中文 / 运行时多为中文的动态文本（昵称、段位、道具名、按钮文字） | **去字重**，层级改由 `Theme.PrimaryText` vs `Theme.SecondaryText` 对比度 + 既有边框/底色承担 |
-| 12px 纯数值、拉丁文、符号（KDA、等级、胜率、徽标字形） | 用官方修饰符 `.SemiBold()`（`TextBlockElement.SemiBold()`），保留强调观感 |
-| 14px 需要强调 | 换 `BodyStrong(x)` 工厂，不要再叠 `.FontWeight(...)` |
-| ≥18px 需要强调 | 保留 `BodyLarge`/`Subtitle` 尺寸，用 `.SemiBold()` |
+| 12px 纯数值、拉丁文、符号（KDA、等级、胜率、徽标字形）               | 用官方修饰符 `.SemiBold()`（`TextBlockElement.SemiBold()`），保留强调观感                    |
+| 14px 需要强调                                                        | 换 `BodyStrong(x)` 工厂，不要再叠 `.FontWeight(...)`                                         |
+| ≥18px 需要强调                                                       | 保留 `BodyLarge`/`Subtitle` 尺寸，用 `.SemiBold()`                                           |
 
 **为什么 12px 中文不能加粗**：雅黑没有 SemiBold 字重，字重 600 会被吸附到 Bold，小字号笔画粘连发糊——
 这正是今天工具页/设置页观感变好的原因（`refactor(ui): 移除自定义字体栈，工具页排版对齐原生 Fluent`）。
@@ -87,24 +133,45 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 - **禁止注入全局字体/字体栈**：系统默认 Segoe UI Variable + 中文回退已是最优；"统一品牌字体"先按 §8 反问是否产品决策。
 - **尺寸、偏移、圆角一律整数像素**，禁止小数——亚像素位置会让 DirectWrite 失去像素网格拟合。
 - **禁止对文字做 Scale / Translation 动画**（动画期间文字脱离像素网格，结束时也可能停在半像素上）。
-- 观感类改动必须用 Reactor devtools（`mur`）截图对比验证，不要肉眼反复试、更不要靠改字号/字重"救"清晰度。
+- 观感类改动必须用 Reactor devtools 截图对比验证，不要肉眼反复试、更不要靠改字号/字重"救"清晰度。
+    - **Devtools 能力已接入（Debug-only）**：`YuumiX.App.csproj` 有 `'$(Configuration)' == 'Debug'` 条件项组，
+      含 `Microsoft.UI.Reactor.Devtools` 包引用 + `<RuntimeHostConfigurationOption Include="Reactor.DevtoolsSupport" Value="true" Trim="true" />`。
+      Release 由 Reactor 包自带的 targets 兜底为 `false`（包内默认 `Value="false"`，last-write-wins），且**不携带** devtools dll。
+    - **启动方式**：命令行 `dotnet run --project src/YuumiX.App/YuumiX.App.csproj --no-build -p:Platform=x64 -- --devtools run`（或直接给 `YuumiX.exe` 传 `--devtools`），VS 中直接选择 `YuumiX (Devtools)` profile（定义于 `Properties/launchSettings.json`）。
+    - **CLI 门禁与调试**（直接使用官方 `mur` 工具，已在用户级 `PATH`：`~/.workbuddy/skills/reactor/bin/x64/mur.exe`，禁止编写临时 `.py` 脚本替代）：
+        - 编译及分析器门禁（日常必跑）：`mur check src/YuumiX.App/YuumiX.App.csproj -- -p:Platform=x64`
+        - 交互/截图工作流（应用启动后）：
+          - `mur devtools session list`（确认会话就绪）
+          - `mur devtools screenshot --out artifacts/shot.png`（截图落盘）
+          - `mur devtools tree --view summary`（转储元素树）
+          - `mur devtools shutdown`（关闭应用并释放构建输出锁）
 
 ---
 
 ## 2. 颜色：结构色走 `Theme.*`，业务色走 `palette`
 
-| 类别 | 取值 | 例 |
-|---|---|---|
-| 结构色（文本、描边、卡片底、hover） | **`Theme.*`** | `Theme.PrimaryText`、`Theme.SecondaryText`、`Theme.DisabledText`、`Theme.CardBackground`、`Theme.CardStroke`、`Theme.SubtleFill`、`Theme.Accent`、`Theme.AccentText`、`Theme.SystemCritical`、`Theme.SystemCaution`、`Theme.SystemSuccess` |
-| 业务色（用户可配置：胜负、死亡数字、重开） | `palette.WinText/WinBg/LoseText/LoseBg/Remake*/LightDeath/DarkDeath` | 只允许出现在战绩相关视图 |
+| 类别                                       | 取值                                                                 | 例                                                                                                                                                                                                                                         |
+| ------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 结构色（文本、描边、卡片底、hover）        | **`Theme.*`**                                                        | `Theme.PrimaryText`、`Theme.SecondaryText`、`Theme.DisabledText`、`Theme.CardBackground`、`Theme.CardStroke`、`Theme.SubtleFill`、`Theme.Accent`、`Theme.AccentText`、`Theme.SystemCritical`、`Theme.SystemCaution`、`Theme.SystemSuccess` |
+| 业务色（用户可配置：胜负、死亡数字、重开） | `palette.WinText/WinBg/LoseText/LoseBg/Remake*/LightDeath/DarkDeath` | 只允许出现在战绩相关视图                                                                                                                                                                                                                   |
 
 规则：
+
 - **禁止**在 `Pages/**` 新增 `#FF______` 硬编码颜色（图表/品牌位除外，且必须注释来源）。
 - **禁止**覆盖 `SystemAccentColor*` / `AccentFillColor*` 等系统资源来"统一品牌色"——强调色由系统决定。
 - `YuumiPalette` 只保留业务色派生；结构色字段只减不增。
 - **强调色一律 `Theme.Accent` / `Theme.AccentText`**：旧的 `palette.Accent` 与 `ThemeColor` 配置项已清零，禁止复活；半透明强调底用 `Theme.SubtleFill` 等现成令牌。
 - **禁止带透明度的手写 ARGB 充当结构色**（如 `"#20808080"` 当描边）：高对比度模式下全部失效，还会盖住 Mica；描边一律 `Theme.ControlStroke` / `Theme.CardStroke` / `Theme.DividerStroke`。
 - 深色/浅色/高对比度三态必须同时成立：凡是"浅色下发白""深色下发黑"的写法，一律视为 bug。
+    - **高对比度（HC）当前状态：未专门适配**。全仓 `UseHighContrast()` / `HighContrastAdjustment` 使用数为 0，
+      结构色靠 `Theme.*` 语义令牌，WinUI 会自行解析到系统色，故非"三态全废"，但也没有 HC 专项设计。
+    - **若要补 HC 适配**，官方推荐做法（不是禁用 HC）：`Application.Current.HighContrastAdjustment = ApplicationHighContrastAdjustment.None`。
+      其语义是**关闭框架的强制文字色覆盖与不透明背板**（Auto 模式下框架会忽略自定义前景色、
+      给文字垫不透明底板、忽略非零 Opacity），让应用自己的 `ThemeResource` 对比主题配色透出来。
+      若应用已在主题字典里正确配了 `HighContrast` 项，就设 None；否则保持默认 Auto 更安全。
+    - HC 下的硬约束：**只用 8 个系统色刷**（`SystemColorWindow/WindowText/Highlight/HighlightText/ButtonFace/ButtonText/GrayText/Hotlight`），
+      禁止硬编码颜色、禁止任何 Opacity、禁止渐变动画；可交互卡片要加 `SystemColorHighlightColor` 描边，
+      flyout/对话框/卡片描边在 HC 下用 2px。
 
 **取舍**：业务色与结构色语义重叠时（如胜率着色），优先语义色（`Theme.SystemSuccess/Caution`），而非业务色板。
 
@@ -142,21 +209,23 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 3. **对话框一律声明式**：`ContentDialog(title, content, primary) with { IsOpen = state, ... }`，禁止 `ShowAsync()`（分析器 `REACTOR_DIALOG_001`）。
 4. **走 `IconData`/`ImageIcon` 的图标用位图 PNG**：`IconResolver` 解析成 `ImageIcon + BitmapImage`；`Image()` 会按 `.svg` 扩展名改用 `SvgImageSource`（静态支持良好，动画/动态支持有限），两条链路不要混用。需要 SVG 图标时先光栅化（如 `Assets/opgg-nav.png`）。
 5. **滚动容器一律用 `ScrollViewer`，禁止 `ScrollView`**：`ScrollView` 把内容放在 `ScrollPresenter` 的独立 Composition Visual 上，靠浮点 `Visual.Offset` 驱动，**绕过 XAML 布局取整** → 内容落在亚像素位置 → DirectWrite 失去像素网格拟合 → **该滚动区内所有文字整体发虚**（笔画变胖、边缘过渡带约翻倍；实测归一化梯度 0.26 vs 0.40）。编译通过、零告警，只在观感上退化（上游同类现象：microsoft-ui-xaml#1579）。
-   - 诊断判据：同一窗口内，滚动区**外**的元素（侧边栏图标、裸 `Border` 里的按钮）明显更锐利；与字号、字重、颜色、字体、运行时版本全部无关，改这些只会空转。
-   - 焦点约定：承载表单的 `ScrollViewer` 加 **`.IsTabStop(true)` 修饰符**，**不要** `.Set(sv => sv.IsTabStop = true)`（控件走池回收，Set 写入会在重渲染时丢失，触发 `REACTOR_POOL_001`）。否则点空白会把焦点下发给第一个输入框（microsoft-ui-xaml#597）。
+    - 诊断判据：同一窗口内，滚动区**外**的元素（侧边栏图标、裸 `Border` 里的按钮）明显更锐利；与字号、字重、颜色、字体、运行时版本全部无关，改这些只会空转。
+    - 焦点约定：承载表单的 `ScrollViewer` 加 **`.IsTabStop(true)` 修饰符**，**不要** `.Set(sv => sv.IsTabStop = true)`（控件走池回收，Set 写入会在重渲染时丢失，触发 `REACTOR_POOL_001`）。否则点空白会把焦点下发给第一个输入框（microsoft-ui-xaml#597）。
 6. **`NavigationView.IsPaneOpen` 初值不能在渲染期赋**，必须 `Loaded` → `DispatcherQueue.TryEnqueue(Low, ...)` 延后校正，并用 `paneInitialized` 守卫 `PaneOpenChanged`（详见 `AppShell.cs` 现有实现）。
 7. **事件订阅走 `OnMountAdd` / `OnUnmountAdd`，委托用 `UseRef` 缓存成同一实例**（`-=` 才能摘得掉）。
    在 `.Set(c => c.Event += h)` 里订阅会随每次重渲染叠加，触发 `REACTOR_EVENT_001`（见 §5.12）。
 8. **`DispatcherQueue.TryEnqueue` 优先级参数在前**：`(priority, callback)`。
 9. **`SettingsExpander.Items` 子项必须为 `SettingsCard`**：详见 §4（违反会 `COMException 0x800F1000` 闪退）。`SettingsCardKit.Expander` 已内置自动归一化兜底。
 10. **渲染状态不得用类字段 + 强制重渲染**（`_renderTick` + `setTick(++_renderTick)`、`_proxyDraft` 这类模式）：草稿值用 `UseState`；配置对象用不可变 record + `UseState`/`UseReducer`；非渲染数据用 `UseRef`。命令式"踢一下"刷新会让状态来源不可追溯。
-11. **异步数据走 `UseResource` / `UseMutation`**（详见 `agentkit/skills/async.md`）：读数据自带取消、加载/出错状态、缓存与重试；写操作用 `UseMutation`。禁止每页手写 `Task.Run` + 自维护 loading/error（存量约 20 处，主要散在 `ReplayButton`、`SavedPlayersLoaders`、`NoticePopupView`、`SearchEffects` 等；`AppShell` 只有 1 处，`AppHost` 的启动期后台任务不在此列），组件卸载后请求必须自动取消，禁止新增 `async void`。
+11. **异步数据走 `UseResource` / `UseMutation`**（详见 `agentkit/plugins/reactor/skills/reactor-async/SKILL.md`）：读数据自带取消、加载/出错状态、缓存与重试；写操作用 `UseMutation`。禁止每页手写 `Task.Run` + 自维护 loading/error（存量约 20 处，主要散在 `ReplayButton`、`SavedPlayersLoaders`、`NoticePopupView`、`SearchEffects` 等；`AppShell` 只有 1 处，`AppHost` 的启动期后台任务不在此列），组件卸载后请求必须自动取消，禁止新增 `async void`。
 12. **禁止在 `.Set()` 里挂事件或补写受控值**：控件走池回收，`Set` 每次重渲染都会重放，`Tag` 守卫不可靠（SearchPage AutoSuggestBox 的教训）。事件挂载用 `OnMountAdd`/`OnUnmountAdd` + `UseRef` 缓存委托（照 `AppShell` 现有做法）；受控值（如 ComboBox 选中项）走工厂参数，若确属 Reactor 缺陷则收成统一辅助方法，不要散在各页 `.Set()` 里补写。
 13. **导航参数走路由对象，禁止全局单例 payload**（曾有 `CareerNavigationPayload` / `SearchNavigationPayload` 这种一边 Set 一边 Consume 的可变单例，有时序问题，现已清除，禁止复活）：`AppRoute` 已是 record 层级（如 `CareerRoute(string? Puuid, ...)`），新增页面参数一律加在对应路由 record 上。
 14. **字形图标与字体族**：图标字体统一 `"Segoe Fluent Icons, Segoe MDL2 Assets"`（Win10 没装 Fluent 字体，只写前者会渲染成方框）；字形码集中在 `Icons` 静态类，禁止散落 `\uE...` 字面量；等宽字体只写 `"Cascadia Mono, Consolas"`，禁止 CSS 写法（`monospace` 不是 WinUI 字体名，会被静默丢弃）。
-
-> 包内自带 API 索引与分析器文档：`~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.16/agentkit/`。
-> 不确定某个 API 是否存在时**先查 `agentkit/plugins/reactor/skills/reactor-dsl/references/reactor.api.txt`**，不要猜。
+15. **Hook 依赖不许传新分配的对象**（分析器 `REACTOR_HOOKS_004`）：`UseEffect(fn, (a, b))` 这类元组、数组、lambda 都是每次渲染新分配 → 依赖判定永远不相等 → 效果每帧重跑。要么传标量 key，要么 `UseMemo` 缓存，要么把变量提到字段。存量写法一律用标量（`0` 表示挂载一次）。
+16. **引用类型状态禁止原地修改**（分析器 `REACTOR_HOOKS_010`）：setter 走 `EqualityComparer<T>.Default` 比较，**同一实例比较相等** → 不排重渲染。`setItems(items)` 后再 `items.Add(x)` 等于什么都没做；必须传新值（`setItems([.. items, x])`）。setter 是 `Action<T>` 而非函数式更新，**禁止** `setItems(prev => ...)`。
+17. **主题覆盖：常规元素用 `.RequestedTheme(...)` 修饰符，`ContentDialog` 用 `.DialogTheme(...)`（`YuumiTheme.DialogTheme`）**：
+    - 常规元素走 `.RequestedTheme(...)`（分析器 `REACTOR_THEME_003`），不用 `.Set(...)`（违反 §5.12）。
+    - **`ContentDialogElement` 是唯一例外**：`MountContentDialog` 在主视觉树里只挂一个 `Visibility.Collapsed` 的占位 `StackPanel`，`Element.Modifiers`（含 `.RequestedTheme`）只会施加在该不可见占位容器上；真实 `ContentDialog` 宿主在 `XamlRoot` 的 Popup 中，`OverlayLifecycle.ShowContentDialogCore` / `UpdateContentDialog` 只向真实弹窗转发 `Setters`（`.Set(...)`），因此弹窗必须统一调 `.DialogTheme(palette.ElementTheme)`。
 
 ---
 
