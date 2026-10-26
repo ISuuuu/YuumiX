@@ -80,7 +80,7 @@ internal static class TrayMenu
 
         try
         {
-            var appended = AppendMenuW(menu, MfString, CommandExit, "退出 YuumiX");
+            var appended = AppendMenuW(menu, MfString, CommandExit, "退出");
             var appendedError = Marshal.GetLastWin32Error();
 
             var hasCursor = GetCursorPos(out var cursor);

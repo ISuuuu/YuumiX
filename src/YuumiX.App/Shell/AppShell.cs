@@ -258,13 +258,37 @@ public sealed class AppShell : Component
         UseEffect(
             () =>
             {
+                var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+                var lastPhase = GamePhase.None;
                 var phaseSubscription = automationHost.Phases.Subscribe(phase =>
                 {
                     setGamePhase(phase);
-                    if (phase == GamePhase.ChampSelect && services.Config.Functions.AutoShowOpgg)
+                    if (phase == GamePhase.ChampSelect && lastPhase != GamePhase.ChampSelect)
                     {
-                        OpggWindowHost.ShowOrActivate();
+                        if (services.Config.Functions.AutoShowOpgg)
+                        {
+                            OpggWindowHost.ShowOrActivate();
+                        }
+
+                        void NavigateToGameInfo()
+                        {
+                            if (nav.CurrentRoute is not AppRoute.GameInfoRoute)
+                            {
+                                nav.Replace(new AppRoute.GameInfoRoute());
+                            }
+                        }
+
+                        if (dispatcherQueue is not null)
+                        {
+                            dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, NavigateToGameInfo);
+                        }
+                        else
+                        {
+                            NavigateToGameInfo();
+                        }
                     }
+
+                    lastPhase = phase;
                 });
                 var stateSubscription = lcu.States.Subscribe(state =>
                     setIsClientConnected(state.Status == LcuConnectionStatus.Connected));
