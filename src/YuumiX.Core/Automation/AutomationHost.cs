@@ -37,6 +37,11 @@ public sealed class AutomationHost : IDisposable
     /// </summary>
     public EventStream<GamePhase> Phases { get; } = new();
 
+    /// <summary>
+    /// 当前已知的游戏阶段快照。
+    /// </summary>
+    public GamePhase CurrentPhase => _lifecycle.Snapshot().Phase;
+
     public AutomationHost(
         LcuConnection connection,
         AgentLifecycle lifecycle,

@@ -114,7 +114,7 @@ internal static class SearchEffects
         }
     }
 
-    /// <summary>上传开关写回（对齐旧 config.rs）：保存配置；打开时把以前没传完的一起重试。</summary>
+    /// <summary>上传开关写回（对齐旧 config.rs）：仅保存配置状态，不主动触发任何上传。</summary>
     internal static void ApplyUploadToggle(
         AppServices services,
         UploadQueueService uploadQueue,
@@ -131,12 +131,6 @@ internal static class SearchEffects
         catch (Exception)
         {
             setNotice("上传开关保存失败");
-        }
-
-        // Task.Run 是同步 IO（读暂存盘 + 入队）的线程池卸载，非异步状态管理（R7 例外）
-        if (enabled)
-        {
-            _ = Task.Run(() => uploadQueue.TriggerPendingRetry());
         }
     }
 

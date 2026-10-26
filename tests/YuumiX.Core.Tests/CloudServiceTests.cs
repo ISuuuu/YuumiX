@@ -181,21 +181,13 @@ public sealed class CloudServiceTests
     // ── 上传服务的开关门控（不触网路径）────────────────────────
 
     [Fact]
-    public async Task UploadMatchAsync_SkipsWhenDisabledOrUnconfigured()
+    public async Task UploadMatchAsync_SkipsWhenUnconfigured()
     {
         var config = new AppConfig();
-        config.Functions.UploadEnabled = false;
-        config.General.UploadApiUrl = "https://example.com";
+        config.General.UploadApiUrl = "";
 
         var service = new Upload.UploadService(() => null, () => config);
         var (outcome, message) = await service.UploadMatchAsync(123, "p-me");
-
-        Assert.Equal(UploadOutcome.Failed, outcome);
-        Assert.Contains("未开启", message, StringComparison.Ordinal);
-
-        config.Functions.UploadEnabled = true;
-        config.General.UploadApiUrl = "";
-        (outcome, message) = await service.UploadMatchAsync(123, "p-me");
 
         Assert.Equal(UploadOutcome.Failed, outcome);
         Assert.Contains("未配置", message, StringComparison.Ordinal);

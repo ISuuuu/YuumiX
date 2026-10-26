@@ -254,19 +254,18 @@ public sealed class SearchPage : Component<SearchPageProps>
             currentGameId);
 
         // 载入一页后补传本页对局（对齐旧 Search.vue：翻页即补传，服务端已有会返回 exists）。
-        // 依赖键取 matches 引用：换页或刷新会拿到新引用，纯筛选不会（筛选不改变要传的集合）。
+        // 依赖键只取 matches 引用：换页或刷新会拿到新引用，纯筛选不会。勾选开关本身不应触发当前已有对局的上传。
         UseEffect(
             () =>
             {
-                if (uploadOn && uploadConfigured)
+                if (services.Config.Functions.UploadEnabled && uploadConfigured)
                 {
                     SearchEffects.RunAutoUpload(services, matches, uploadedGameIdsRef.Current, summoner?.Puuid, setNotice);
                 }
 
                 return static () => { };
             },
-            matches,
-            uploadOn);
+            matches);
 
         // 列表卡片：ScrollViewer 自适应滚动并支持完全自定义的选中边框与胜负色，
         // 彻底消除 ListView 原生控件的蓝色选中矩形和焦点边框干扰。

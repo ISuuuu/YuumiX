@@ -271,7 +271,8 @@ public sealed class FunctionsConfig
     /// <summary>倒计时结束时自动确认选择（配合 hover 模式）。</summary>
     public bool AutoSelectConfirmOnTimeout { get; set; } = true;
 
-    public bool UploadEnabled { get; set; } = true;
+    /// <summary>战绩查询页浏览时的对局自动补传（默认关闭）。</summary>
+    public bool UploadEnabled { get; set; } = false;
 
     /// <summary>隐藏云顶之弈模式（默认隐藏）。</summary>
     public bool HideTft { get; set; } = true;

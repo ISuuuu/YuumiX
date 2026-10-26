@@ -260,36 +260,52 @@ public sealed class AppShell : Component
             {
                 var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
                 var lastPhase = GamePhase.None;
-                var phaseSubscription = automationHost.Phases.Subscribe(phase =>
+
+                void NavigateToGameInfo()
+                {
+                    if (nav.CurrentRoute is not AppRoute.GameInfoRoute)
+                    {
+                        nav.Replace(new AppRoute.GameInfoRoute());
+                    }
+                }
+
+                void EnqueueNavigation()
+                {
+                    if (dispatcherQueue is not null)
+                    {
+                        dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, NavigateToGameInfo);
+                    }
+                    else
+                    {
+                        NavigateToGameInfo();
+                    }
+                }
+
+                void HandlePhase(GamePhase phase)
                 {
                     setGamePhase(phase);
-                    if (phase == GamePhase.ChampSelect && lastPhase != GamePhase.ChampSelect)
+                    bool shouldNavigate = (phase == GamePhase.ChampSelect && lastPhase != GamePhase.ChampSelect)
+                        || (phase is GamePhase.InProgress or GamePhase.GameStart && lastPhase is not (GamePhase.InProgress or GamePhase.GameStart or GamePhase.ChampSelect));
+
+                    if (shouldNavigate)
                     {
-                        if (services.Config.Functions.AutoShowOpgg)
+                        if (phase == GamePhase.ChampSelect && services.Config.Functions.AutoShowOpgg)
                         {
                             OpggWindowHost.ShowOrActivate();
                         }
 
-                        void NavigateToGameInfo()
-                        {
-                            if (nav.CurrentRoute is not AppRoute.GameInfoRoute)
-                            {
-                                nav.Replace(new AppRoute.GameInfoRoute());
-                            }
-                        }
-
-                        if (dispatcherQueue is not null)
-                        {
-                            dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, NavigateToGameInfo);
-                        }
-                        else
-                        {
-                            NavigateToGameInfo();
-                        }
+                        EnqueueNavigation();
                     }
 
                     lastPhase = phase;
-                });
+                }
+
+                if (automationHost.CurrentPhase is GamePhase.InProgress or GamePhase.GameStart or GamePhase.ChampSelect)
+                {
+                    HandlePhase(automationHost.CurrentPhase);
+                }
+
+                var phaseSubscription = automationHost.Phases.Subscribe(HandlePhase);
                 var stateSubscription = lcu.States.Subscribe(state =>
                     setIsClientConnected(state.Status == LcuConnectionStatus.Connected));
                 return () =>

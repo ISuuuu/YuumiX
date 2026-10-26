@@ -181,7 +181,7 @@ public static class AppHost
         // 对局结束后的云端上传（旧 upload.rs：EndOfGame → 拉最新对局 → 入队 → POST 上传 API）。
         // 走队列而不是直接调 UploadService：去重、串行、失败落盘重试这三件事只在队列里有一份实现，
         // 直接调用等于丢掉断网期间的对局（旧版 upload_single_task 的落盘分支）。
-        // UploadEnabled 开关由 UploadService 内部消费，UI 放在战绩查询页工具栏（同旧 Search.vue）。
+        // 只要配置了 General.UploadApiUrl 即自动上传；战绩查询页的 UploadEnabled 专用于翻页补传。
         var lifecycle = _services.Services.GetRequiredService<YuumiX.Core.Features.GameLifecycle.GameLifecycleService>();
         var uploadQueue = _services.Services.GetRequiredService<YuumiX.Core.Upload.UploadQueueService>();
         var summonerService = _services.Services.GetRequiredService<YuumiX.Core.Features.Summoner.ISummonerService>();
@@ -201,6 +201,9 @@ public static class AppHost
                     {
                         return;
                     }
+
+                    // 战绩列表单例有内存缓存，对局结束后必须先失效，否则连续对局会拿到上一场旧数据
+                    matchService.InvalidateCache();
 
                     var page = await matchService.GetMatchHistoryAsync(profile.Puuid, 0, 0).ConfigureAwait(false);
                     if (page.Games.Count == 0)

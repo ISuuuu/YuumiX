@@ -19,6 +19,7 @@ public sealed class GameLifecycleService : IDisposable
     private readonly EventStream<long> _gameEnded;
     private readonly EventStream<long> _newGameStarted;
     private readonly IDisposable? _subscription;
+    private readonly IDisposable? _stateSubscription;
 
     private string _previousPhase = string.Empty;
     private bool _hadInGame;
@@ -33,6 +34,34 @@ public sealed class GameLifecycleService : IDisposable
         _newGameStarted = new EventStream<long>(ex => _logger?.LogWarning(ex, "新对局开始事件观察者异常"));
 
         _subscription = connection.Events.Subscribe(OnLcuEvent);
+        _stateSubscription = connection.States.Subscribe(state =>
+        {
+            if (state.Status == LcuConnectionStatus.Connected)
+            {
+                _ = ReconcilePhaseAsync(connection);
+            }
+        });
+    }
+
+    private async Task ReconcilePhaseAsync(LcuConnection connection)
+    {
+        try
+        {
+            var transport = connection.Transport;
+            if (transport is null) return;
+
+            var resp = await transport.SendAsync(LcuRequest.Get(GameflowPhaseUri)).ConfigureAwait(false);
+            if (!resp.IsSuccess || string.IsNullOrWhiteSpace(resp.Body)) return;
+
+            string phase = resp.Body.Trim().Trim('"');
+            if (!string.IsNullOrWhiteSpace(phase))
+            {
+                OnPhaseChanged(phase);
+            }
+        }
+        catch
+        {
+        }
     }
 
     /// <summary>对局结束事件流（投递毫秒时间戳）。</summary>
@@ -100,5 +129,6 @@ public sealed class GameLifecycleService : IDisposable
         if (_disposed) return;
         _disposed = true;
         _subscription?.Dispose();
+        _stateSubscription?.Dispose();
     }
 }

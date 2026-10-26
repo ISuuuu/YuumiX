@@ -28,8 +28,8 @@ public enum UploadOutcome
 ///         （缺 scheme 补 http://、自动拼 /api/lol/upload）；</item>
 ///   <item>POST 载荷失败最多重试 5 次（间隔 1s，受总预算约束）；4xx 客户端错误不重试；</item>
 ///   <item>服务器响应 <c>{ success, data.isNewMatch }</c> 决定 New/Exists；</item>
-///   <item>开关语义：<c>Functions.UploadEnabled</c> 在旧版位于战绩查询页，本次只在 Core
-///         保留消费点（不新增 UI）；<c>General.UploadApiUrl</c> 为空时上传不执行。</item>
+///   <item>开关语义：只要配置了 <c>General.UploadApiUrl</c> 即自动执行对局上传；
+///         <c>Functions.UploadEnabled</c> 专用于战绩查询页浏览时的按需补传开关。</item>
 /// </list>
 /// </summary>
 public sealed class UploadService
@@ -65,7 +65,7 @@ public sealed class UploadService
     }
 
     /// <summary>
-    /// 上传指定对局。返回结局与原因；未连接 LCU、开关关闭或地址未配置时返回
+    /// 上传指定对局。返回结局与原因；未连接 LCU、地址未配置时返回
     /// <see cref="UploadOutcome.Failed"/> 且原因说明跳过缘由（调用方据此不落盘重试）。
     /// </summary>
     public async Task<(UploadOutcome Outcome, string Message)> UploadMatchAsync(
@@ -75,11 +75,6 @@ public sealed class UploadService
         CancellationToken cancellationToken = default)
     {
         var config = _configProvider();
-        if (!config.Functions.UploadEnabled)
-        {
-            return (UploadOutcome.Failed, "上传功能未开启");
-        }
-
         if (string.IsNullOrWhiteSpace(config.General.UploadApiUrl))
         {
             return (UploadOutcome.Failed, "未配置服务器 API 地址");
