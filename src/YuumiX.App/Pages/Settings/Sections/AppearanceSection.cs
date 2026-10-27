@@ -10,13 +10,19 @@ using YuumiX.Core.Persistence;
 namespace YuumiX.App.Pages.Settings.Sections;
 
 /// <summary>
-/// 设置页「外观与个性化」分组：Mica 背景 / 主题模式 / 战绩卡片配色 / 死亡数字配色。
+/// 设置页「外观与个性化」分组：Mica 背景 / 主题模式 / 界面缩放 / 语言设置 / 战绩卡片配色 / 死亡数字配色。
 /// 颜色改动统一出口：先落内存与主题状态（界面即时生效），再由页面的防抖回调落盘。
 /// </summary>
 internal static class AppearanceSection
 {
     private static readonly string[] ThemeModeLabels = ["浅色", "深色", "跟随系统"];
     private static readonly string[] ThemeModeValues = ["Light", "Dark", "Auto"];
+
+    private static readonly string[] DpiScaleLabels = ["跟随系统", "100%", "125%", "150%"];
+    private static readonly string[] DpiScaleValues = ["Auto", "100", "125", "150"];
+
+    private static readonly string[] LanguageLabels = ["跟随系统", "简体中文", "繁體中文", "English"];
+    private static readonly string[] LanguageValues = ["Auto", "zh_CN", "zh_TW", "en_US"];
 
     public static Element Render(SettingsUi ui, Action<string> requestColorCommit)
     {
@@ -31,6 +37,22 @@ internal static class AppearanceSection
                 ui.Commit(nameof(PersonalizationConfig.ThemeMode));
             }).Width(160).AutomationName("主题模式选择"));
 
+        var dpiScaleCard = SettingsCardKit.Card(
+            "界面缩放", "调整应用界面显示比例（部分效果重启后生效）",
+            ComboBox(DpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
+            {
+                config.Personalization.DpiScale = DpiScaleValues[index];
+                ui.Commit(nameof(PersonalizationConfig.DpiScale));
+            }).Width(160).AutomationName("界面缩放选择"));
+
+        var languageCard = SettingsCardKit.Card(
+            "语言设置", "选择应用界面显示语言（多语言适配中 · 重启后生效）",
+            ComboBox(LanguageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
+            {
+                config.Personalization.Language = LanguageValues[index];
+                ui.Commit(nameof(PersonalizationConfig.Language));
+            }).Width(160).AutomationName("语言选择"));
+
         return VStack(8,
             SettingsCardKit.Toggle("Mica 背景", "使用系统亚克力/云母材质作为窗口背景 · 即时生效", config.Personalization.MicaEnabled, v =>
             {
@@ -39,6 +61,8 @@ internal static class AppearanceSection
                 ui.Commit(nameof(PersonalizationConfig.MicaEnabled));
             }),
             themeModeCard,
+            dpiScaleCard,
+            languageCard,
             // 强调色跟随系统，原「主题强调色」卡片已删除；这里只剩业务配色（战绩卡片 / 死亡数字）。
             CardColorEditor(ui, requestColorCommit),
             DeathColorEditor(ui, requestColorCommit));
