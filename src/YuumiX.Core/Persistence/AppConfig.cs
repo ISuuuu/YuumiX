@@ -14,8 +14,8 @@ namespace YuumiX.Core.Persistence;
 ///         本模型用属性初始化器等价表达；</item>
 ///   <item>属性声明顺序与原 Rust 结构体字段顺序保持一致，保证写回的文件在排版上也与原来一致；</item>
 ///   <item><see cref="ExtraFields"/> 收集本模型未建模的键并原样写回。这是与 Rust 的有意差异：
-///         迁移期 Yuumi 与 YuumiX 共用同一份 config.json，若 YuumiX 写回时丢弃未知键，
-///         会静默抹掉原版本新增的字段。</item>
+///         首次启动会从旧版 Yuumi 复制 config.json，其中可能携带本模型未建模的键
+///         （旧版也可能在自己目录里继续新增字段）；若写回时丢弃未知键，这些内容会被静默抹掉。</item>
 /// </list>
 /// </summary>
 public sealed class AppConfig

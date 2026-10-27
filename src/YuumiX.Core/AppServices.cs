@@ -101,6 +101,10 @@ public sealed class AppServices : IAsyncDisposable
         var loggerFactory = LoggingSetup.CreateFactory(fileProvider);
 
         var store = new ConfigStore(paths.ConfigFilePath, loggerFactory.CreateLogger<ConfigStore>());
+        // 加载前先做旧版 Yuumi 数据目录的一次性迁移：自己的 config.json 尚不存在时，
+        // 从 %APPDATA%/Yuumi 复制配置与用户数据（路人集库、搜索历史）过来。
+        // 静态类不能作 CreateLogger<T> 的类型参数，改用类别名字符串。
+        LegacyDataMigrator.Migrate(paths, loggerFactory.CreateLogger("LegacyDataMigrator"));
         var config = store.Load();
 
         var collection = new ServiceCollection();
@@ -117,8 +121,8 @@ public sealed class AppServices : IAsyncDisposable
             logger: provider.GetRequiredService<ILogger<LcuProcessFinder>>()));
 
         // ── 资源层（ADR-11）────────────────────────────────────
-        // 缓存目录与 Rust 实现一致（<数据目录>/cache/assets），并共用同一套 FNV 哈希命名，
-        // 使迁移期两个版本的缓存可互相复用。
+        // 缓存目录与 Rust 实现一致（<数据目录>/cache/assets），沿用同一套 FNV 哈希命名；
+        // 数据目录已独立（%APPDATA%/YuumiX），不再与旧版 Yuumi 复用缓存。
         collection.AddSingleton(provider => new AssetCache(
             AssetCacheDirectory(provider.GetRequiredService<RuntimePaths>()),
             TimeProvider.System,

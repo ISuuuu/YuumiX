@@ -4,8 +4,8 @@ using YuumiX.Core.Runtime;
 namespace YuumiX.Core.Tests;
 
 /// <summary>
-/// 运行时路径解析。核心约束：安装版必须指向 <c>%APPDATA%/Yuumi</c>（与原项目共用配置），
-/// 便携版必须完全隔离到 exe 旁的 <c>data</c>。
+/// 运行时路径解析。核心约束：安装版数据目录是 YuumiX 自己的 <c>%APPDATA%/YuumiX</c>，
+/// 旧版 Yuumi 目录仅作为一次性迁移的只读来源暴露；便携版完全隔离到 exe 旁的 <c>data</c>。
 /// </summary>
 public sealed class RuntimePathsTests
 {
@@ -18,8 +18,10 @@ public sealed class RuntimePathsTests
         var paths = RuntimePaths.Detect(exeDir.Path, appData.Path);
 
         Assert.False(paths.IsPortable);
-        Assert.Equal(Path.Combine(appData.Path, "Yuumi"), paths.DataDirectory);
-        Assert.Equal(Path.Combine(appData.Path, "Yuumi", "config.json"), paths.ConfigFilePath);
+        Assert.Equal(Path.Combine(appData.Path, "YuumiX"), paths.DataDirectory);
+        Assert.Equal(Path.Combine(appData.Path, "YuumiX", "config.json"), paths.ConfigFilePath);
+        // 旧版目录必须可探测（一次性迁移的读取来源），但与自己的数据目录互不重叠
+        Assert.Equal(Path.Combine(appData.Path, "Yuumi"), paths.LegacyDataDirectory);
     }
 
     [Fact]
@@ -33,6 +35,8 @@ public sealed class RuntimePathsTests
 
         Assert.True(paths.IsPortable);
         Assert.Equal(Path.Combine(exeDir.Path, "data"), paths.DataDirectory);
+        // 便携版数据目录本就随各自 exe 隔离，没有可探测的旧版目录
+        Assert.Null(paths.LegacyDataDirectory);
     }
 
     /// <summary>
@@ -57,13 +61,14 @@ public sealed class RuntimePathsTests
     }
 
     /// <summary>
-    /// 数据目录必须叫 <c>Yuumi</c> 而不是 <c>YuumiX</c>：
-    /// 迁移期两个版本共用同一份配置是验收前提。
+    /// 数据目录必须叫 <c>YuumiX</c>：两个版本已各自独立，写旧版 Yuumi 的目录会互相覆盖配置。
+    /// 旧目录名仅保留在 <see cref="RuntimePaths.LegacyDataFolderName"/> 供一次性迁移读取。
     /// </summary>
     [Fact]
-    public void DataFolderName_MatchesOriginalApp()
+    public void DataFolderName_IsOwnApp()
     {
-        Assert.Equal("Yuumi", RuntimePaths.DataFolderName);
+        Assert.Equal("YuumiX", RuntimePaths.DataFolderName);
+        Assert.Equal("Yuumi", RuntimePaths.LegacyDataFolderName);
         Assert.Equal("portable.flag", RuntimePaths.PortableMarkerFile);
     }
 }

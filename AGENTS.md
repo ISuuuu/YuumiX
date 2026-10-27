@@ -260,7 +260,7 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 - 主题模式（浅色/深色/跟随系统）、Mica、战绩卡片配色、死亡数字配色 = **保留**的用户配置。
 - **强调色不再由应用配置**：全局跟随系统 Accent。新增任何"品牌色"需求先反问是否为产品决策，不要默认加配置项。
 - **业务色必须响应运行时主题切换**：`Theme.*` 会自动跟随，`palette.*` 依赖的 `IsDark` 不允许只读启动时的 `Application.Current.RequestedTheme`——"跟随系统"模式下运行中切换系统深浅，必须由根元素监听 `ActualThemeChanged` 写回实际主题并触发调色板重算，否则界面深浅混搭。
-- 配置统一存放在数据目录的 `config.json`（路径见 `YuumiX.Core/Runtime/RuntimePaths.cs`，迁移期与旧版 Yuumi 共用）。
+- 配置统一存放在数据目录的 `config.json`（路径见 `YuumiX.Core/Runtime/RuntimePaths.cs`，即 `%APPDATA%/YuumiX`，与旧版 Yuumi 的 `%APPDATA%/Yuumi` 相互独立；首次启动若自己目录还没有配置，会从旧目录一次性复制配置与用户数据——config.json、saved_players.db、search_history.json，旧目录只读不写，见 `LegacyDataMigrator`）。
   新增配置项必须改 `AppConfig`（`YuumiX.Core/Persistence/AppConfig.cs`），且**不得丢弃未知键**（`JsonExtensionData`），否则会破坏与旧版的配置互通；敏感值不得写入仓库内任何文件。
 
 ---

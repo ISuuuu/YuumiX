@@ -7,9 +7,8 @@ namespace YuumiX.Core.Assets;
 /// <summary>
 /// 资源磁盘缓存，对应原 <c>try_read_asset_cache</c> / <c>write_asset_cache</c>。
 ///
-/// 文件名为路径的 FNV-1a 哈希，与 Rust 实现逐字节一致——这一点是刻意的：
-/// Yuumi 与 YuumiX 共用 <c>%APPDATA%/Yuumi</c>，同名哈希意味着两版可以互相复用缓存，
-/// 迁移期来回切换不会退化成「每次都重新下载全站图标」。
+/// 文件名为路径的 FNV-1a 哈希，与 Rust 实现逐字节一致——沿用同一命名方案，
+/// 从旧版 Yuumi 迁移过来的缓存条目（若有）无需改名即可读取。
 ///
 /// 三条硬性行为：
 /// <list type="number">

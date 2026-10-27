@@ -1122,7 +1122,8 @@ public sealed class UpdateService
     /// 覆盖源里必须剔除的用户目录名。
     ///
     /// <c>data</c> 是便携版的数据目录（配置、数据库、缓存），<c>log</c> 是固定日志目录；
-    /// 两者都属于用户资产，不接受被更新包覆盖。安装版数据在 <c>%APPDATA%\Yuumi</c>，
+    /// 两者都属于用户资产，不接受被更新包覆盖。安装版数据在 <c>%APPDATA%\YuumiX</c>
+    /// （旧版 Yuumi 的 <c>%APPDATA%\Yuumi</c> 只读不写，已一次性迁移），
     /// exe 目录下即使出现同名目录也不应被包内内容替换。
     /// </summary>
     private static readonly string[] UserDataDirectoryNames = ["data", "log"];
