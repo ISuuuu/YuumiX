@@ -66,6 +66,26 @@ internal static class ProfileSection
         Action onReloadChallenges)
     {
         var i18n = ui.I18n;
+        var clickToExpand = i18n.T("tools.clickToExpand", "点击展开");
+        var isEn = i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+
+        var spoofQueueLabels = isEn
+            ? new[] { "Ranked Solo/Duo", "Ranked Flex", "TFT" }
+            : (i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.ZhTw
+                ? new[] { "單雙排排位", "靈活排位", "雲頂之弈" }
+                : new[] { "单双排排位", "灵活排位", "云顶之弈" });
+
+        var spoofTierLabels = isEn
+            ? new[] { "Challenger", "Grandmaster", "Master", "Diamond", "Emerald", "Platinum", "Gold", "Silver", "Bronze", "Iron", "Unranked" }
+            : (i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.ZhTw
+                ? new[] { "王者 (Challenger)", "宗師 (Grandmaster)", "大師 (Master)", "鑽石 (Diamond)", "翡翠 (Emerald)", "鉑金 (Platinum)", "黃金 (Gold)", "白銀 (Silver)", "青銅 (Bronze)", "黑鐵 (Iron)", "未定級 (Unranked)" }
+                : new[] { "王者 (Challenger)", "宗师 (Grandmaster)", "大师 (Master)", "钻石 (Diamond)", "翡翠 (Emerald)", "铂金 (Platinum)", "黄金 (Gold)", "白银 (Silver)", "青铜 (Bronze)", "黑铁 (Iron)", "未定级 (Unranked)" });
+
+        var spoofDivisionLabels = isEn
+            ? new[] { "Division I", "Division II", "Division III", "Division IV" }
+            : (i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.ZhTw
+                ? new[] { "第 1 階 (I)", "第 2 階 (II)", "第 3 階 (III)", "第 4 階 (IV)" }
+                : new[] { "第 1 阶 (I)", "第 2 阶 (II)", "第 3 阶 (III)", "第 4 阶 (IV)" });
 
         // ══════════════════════════════════════════════════════
         // 4. 个人主页组
@@ -75,7 +95,7 @@ internal static class ProfileSection
             "signature",
             i18n.T("tools.signature.title", "个性签名"),
             i18n.T("tools.signature.desc", "自定义修改你在客户端好友列表中展示的个性状态签名"),
-            "点击展开",
+            clickToExpand,
             false,
             VStack(8,
                 Body(i18n.T("tools.enterSignaturePlaceholder", "输入你想展示的个性化签名并应用："))
@@ -114,10 +134,10 @@ internal static class ProfileSection
             "profileBg",
             i18n.T("tools.background.title", "生涯背景"),
             i18n.T("tools.background.desc", "在个人生涯主页展示任意指定的英雄皮肤插画背景"),
-            "点击展开",
+            clickToExpand,
             false,
             VStack(12,
-                Body("浏览英雄皮肤并预览应用，或直接输入皮肤 ID：")
+                Body(i18n.T("tools.browseSkinsDesc", "浏览英雄皮肤并预览应用，或直接输入皮肤 ID："))
                     .Foreground(Theme.SecondaryText),
                 SkinPickerView.Render(
                     bg.ChampInput,
@@ -210,31 +230,31 @@ internal static class ProfileSection
             "rankSpoof",
             i18n.T("tools.rankSpoof.title", "段位伪装"),
             i18n.T("tools.rankSpoof.desc", "在本地客户端及好友列表中伪造段位展示 (仅限视觉效果)"),
-            "点击展开",
+            clickToExpand,
             false,
             VStack(12,
                 ToolsVisuals.CardRow(i18n.T("tools.spoofQueueLabel", "排位队列类型:"),
-                    ComboBox(SpoofQueueLabels, spoof.QueueIndex, index =>
+                    ComboBox(spoofQueueLabels, spoof.QueueIndex, index =>
                     {
-                        if (index >= 0 && index < SpoofQueueLabels.Length)
+                        if (index >= 0 && index < spoofQueueLabels.Length)
                         {
                             setSpoof(spoof with { QueueIndex = index });
                         }
                     })
                         .Width(180).AutomationName("伪装队列选择")),
                 ToolsVisuals.CardRow(i18n.T("tools.spoofTierLabel", "伪装段位级别:"),
-                    ComboBox(SpoofTierLabels, spoof.TierIndex, index =>
+                    ComboBox(spoofTierLabels, spoof.TierIndex, index =>
                     {
-                        if (index >= 0 && index < SpoofTierLabels.Length)
+                        if (index >= 0 && index < spoofTierLabels.Length)
                         {
                             setSpoof(spoof with { TierIndex = index });
                         }
                     })
                         .Width(220).AutomationName("伪装段位选择")),
                 ToolsVisuals.CardRow(i18n.T("tools.spoofDivisionLabel", "伪装小段级别 (Division):"),
-                    ComboBox(SpoofDivisionLabels, spoof.DivisionIndex, index =>
+                    ComboBox(spoofDivisionLabels, spoof.DivisionIndex, index =>
                     {
-                        if (index >= 0 && index < SpoofDivisionLabels.Length)
+                        if (index >= 0 && index < spoofDivisionLabels.Length)
                         {
                             setSpoof(spoof with { DivisionIndex = index });
                         }
@@ -315,7 +335,7 @@ internal static class ProfileSection
             "badges",
             i18n.T("tools.badges.title", "挑战勋章与头像框"),
             i18n.T("tools.badges.desc", "装配/卸下展示的挑战勋章、称号与头像框"),
-            "点击展开",
+            clickToExpand,
             false,
             VStack(12,
                 HStack(8,

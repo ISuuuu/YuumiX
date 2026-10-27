@@ -211,7 +211,7 @@ public sealed class SettingsPage : Component
                 setError(null);
                 setSavedAt(DateTime.Now);
 
-                toast.Success("设置已自动保存");
+                toast.Success(services.I18n.T("settings.autoSave", "设置已自动保存"));
                 logger.LogInformation("设置已写回: {Field}（备份 {Backup}）", field, backup is null ? "无" : Path.GetFileName(backup));
             }
             catch (Exception ex)
@@ -219,7 +219,7 @@ public sealed class SettingsPage : Component
                 // 写失败必须让用户看见：静默吞掉会让人以为设置已保存（ConfigStore.Save 的约定）
                 setError(ex.Message);
                 setSavedAt(null);
-                toast.Error($"设置保存失败: {ex.Message}");
+                toast.Error($"{services.I18n.T("settings.saveFailed", "设置保存失败")}: {ex.Message}");
                 logger.LogError(ex, "设置写回失败: {Field}", field);
             }
         }

@@ -26,13 +26,14 @@ internal static class ChampionPickerView
         int maxCount = 5)
     {
         var championMap = allChampions.ToDictionary(c => c.Id);
+        var i18n = Composition.AppHost.Services?.I18n;
 
         // 已选英雄预览行
         Element selectedSection;
         if (selectedIds.Count == 0)
         {
             selectedSection = Border(
-                Caption("未选择任何英雄（按下方列表点击添加；将按添加顺序优先选用）")
+                Caption(i18n?.T("tools.noCandidates", "未选择任何英雄（按下方列表点击添加；将按添加顺序优先选用）") ?? "未选择任何英雄（按下方列表点击添加；将按添加顺序优先选用）")
                     .Foreground(Theme.SecondaryText)
             ).Margin(new Thickness(0, 4, 0, 8));
         }
@@ -72,7 +73,7 @@ internal static class ChampionPickerView
                     Caption($"已选英雄 ({selectedIds.Count}/{maxCount}):")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
-                    Button(Caption("清空全部"), onClearSelection)
+                    Button(Caption(i18n?.T("tools.clearBtn", "清空全部") ?? "清空全部"), onClearSelection)
                         .Padding(4, 0)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .AutomationName("清空已选英雄")
@@ -86,10 +87,10 @@ internal static class ChampionPickerView
             [GridSize.Star(), GridSize.Auto],
             [GridSize.Auto],
             [
-                TextBox(searchQuery, onSearchQueryChanged, "搜索英雄名称、别名或称号...")
+                TextBox(searchQuery, onSearchQueryChanged, i18n?.T("tools.searchChampPlaceholder", "搜索英雄名称、别名或称号...") ?? "搜索英雄名称、别名或称号...")
                     .AutomationName("英雄库搜索")
                     .Grid(row: 0, column: 0),
-                Caption(isLoading ? "正在加载英雄库..." : $"共 {allChampions.Count} 位英雄")
+                Caption(isLoading ? (i18n?.T("tools.loadingChamps", "正在加载英雄库...") ?? "正在加载英雄库...") : $"共 {allChampions.Count} 位英雄")
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center)
                     .Margin(new Thickness(12, 0, 0, 0))

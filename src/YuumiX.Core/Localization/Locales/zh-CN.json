@@ -311,7 +311,8 @@
     "lcuReset": "LCU 监听服务已重置",
     "lcuNotConnected": "LCU 未连接，请先启动英雄联盟客户端",
     "confirm": "确定",
-    "cancel": "取消"
+    "cancel": "取消",
+    "settingsSaved": "设置已自动保存"
   },
   "tools": {
     "title": "其他功能",
@@ -715,7 +716,29 @@
     "spoofDivisionLabel": "伪装小段级别 (Division):",
     "spoofNotice": "应用后好友列表中的名片即时显示此段位",
     "clearAllBadgesBtn": "卸下全部勋章",
-    "clearBorderBtn": "卸下头像框"
+    "clearBorderBtn": "卸下头像框",
+    "clickToExpand": "点击展开",
+    "clearBtn": "清空",
+    "searchChampPlaceholder": "搜索英雄名称、别名或称号...",
+    "loadingChamps": "正在加载英雄数据...",
+    "noChampsFound": "未搜索到相关英雄",
+    "noCandidates": "未配置候选英雄",
+    "spellSelectD": "请选择主技能 (D键)",
+    "spellSelectF": "请选择副技能 (F键)",
+    "spectateLcu": "LCU 方式 (客户端内置观战，失败自动切换 CMD)",
+    "spectateCmd": "CMD 方式 (直接启动客户端进程，绕开限制)",
+    "friendsCountSummary": "共 {total} 人 / 筛选出 {filtered} 人",
+    "searchFriends": "搜索好友...",
+    "selectAll": "全选",
+    "unselectAll": "取消全选",
+    "settingsLocked": "已锁定 (只读保护中)",
+    "settingsUnlocked": "未锁定 (可写入)",
+    "settingsDetecting": "检测中",
+    "settingsLockDesc": "锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{status}]",
+    "browseSkinsDesc": "浏览英雄皮肤并预览应用，或直接输入皮肤 ID：",
+    "enterChampName": "输入英雄名称（如「安妮」）",
+    "getSkinsBtn": "获取皮肤",
+    "statusDesc": "在好友列表中切换你的展示状态（在线 / 离开 / 隐身）"
   },
   "home": {
     "connected": "客户端连接成功 🎉",
@@ -867,7 +890,17 @@
     "dodgeFailed": "秒退失败: {error}",
     "gameModeLabel": "游戏模式",
     "positionLabel": "位置",
-    "dateLabel": "日期"
+    "dateLabel": "日期",
+    "tftInGame": "云顶之弈对局中",
+    "tftDesc": "云顶之弈模式不显示召唤师峡谷数据",
+    "errorTitle": "数据读取异常",
+    "loadingTeamsTitle": "正在读取对局玩家",
+    "loadingTeamsDesc": "正在连接 LCU 获取对局双方玩家信息...",
+    "awaitingLoadTitle": "等待对局开始",
+    "awaitingLoadDesc": "进入选人阶段或对局中后将自动展示双方玩家数据",
+    "demoTitle": "演示数据",
+    "demoDesc": "以上十位召唤师为示例，点击不会跳转生涯与战绩查询",
+    "settingsSaved": "设置已自动保存"
   },
   "career": {
     "summonerInfo": "召唤师信息",

@@ -311,7 +311,8 @@
     "lcuReset": "LCU listener has been reset",
     "lcuNotConnected": "LCU not connected, please start League Client first",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "settingsSaved": "Settings auto-saved"
   },
   "tools": {
     "title": "Tools",
@@ -715,7 +716,29 @@
     "spoofDivisionLabel": "Spoofed division:",
     "spoofNotice": "Updated rank displays instantly on friend list card",
     "clearAllBadgesBtn": "Unequip All Badges",
-    "clearBorderBtn": "Unequip Border"
+    "clearBorderBtn": "Unequip Border",
+    "clickToExpand": "Click to expand",
+    "clearBtn": "Clear",
+    "searchChampPlaceholder": "Search champion by name, alias or title...",
+    "loadingChamps": "Loading champion data...",
+    "noChampsFound": "No matching champions found",
+    "noCandidates": "No candidate champions configured",
+    "spellSelectD": "Select primary spell (D key)",
+    "spellSelectF": "Select secondary spell (F key)",
+    "spectateLcu": "LCU Method (In-client spectate, auto fallback to CMD)",
+    "spectateCmd": "CMD Method (Direct client process, bypass limits)",
+    "friendsCountSummary": "Total {total} / Filtered {filtered}",
+    "searchFriends": "Search friends...",
+    "selectAll": "Select All",
+    "unselectAll": "Deselect All",
+    "settingsLocked": "Locked (Read-only protected)",
+    "settingsUnlocked": "Unlocked (Writable)",
+    "settingsDetecting": "Detecting...",
+    "settingsLockDesc": "Lock in-game settings (PersistedSettings.json) to prevent tampering [{status}]",
+    "browseSkinsDesc": "Browse champion skins to preview, or enter skin ID directly:",
+    "enterChampName": "Enter champion name (e.g. Annie)",
+    "getSkinsBtn": "Get Skins",
+    "statusDesc": "Switch your presence in friends list (Online / Away / Invisible)"
   },
   "home": {
     "connected": "Client Connected Successfully 🎉",
@@ -867,7 +890,17 @@
     "dodgeFailed": "Failed to dodge: {error}",
     "gameModeLabel": "Game Mode",
     "positionLabel": "Position",
-    "dateLabel": "Date"
+    "dateLabel": "Date",
+    "tftInGame": "TFT Match in Progress",
+    "tftDesc": "TFT mode does not show Summoner Rift stats",
+    "errorTitle": "Data Read Error",
+    "loadingTeamsTitle": "Loading Match Players",
+    "loadingTeamsDesc": "Connecting to LCU to fetch players data...",
+    "awaitingLoadTitle": "Waiting for Game to Start",
+    "awaitingLoadDesc": "Player stats will automatically appear when champion select starts",
+    "demoTitle": "Demo Data",
+    "demoDesc": "The 10 summoners above are demo examples, clicking will not navigate",
+    "settingsSaved": "Settings auto-saved"
   },
   "career": {
     "summonerInfo": "Summoner Info",

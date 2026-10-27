@@ -105,21 +105,24 @@ public sealed class GameInfoPage : Component
         // 2. 云顶之弈模式
         if (state.IsTftMode)
         {
-            return RenderPlaceholder("云顶之弈对局中", "云顶之弈模式不显示召唤师峡谷数据", palette);
+            return RenderPlaceholder(
+                services.I18n.T("gameInfo.tftInGame", "云顶之弈对局中"),
+                services.I18n.T("gameInfo.tftDesc", "云顶之弈模式不显示召唤师峡谷数据"),
+                palette);
         }
 
         // 3. 错误状态
         if (!string.IsNullOrEmpty(state.Error))
         {
-            return RenderPlaceholder("数据读取异常", state.Error, palette);
+            return RenderPlaceholder(services.I18n.T("gameInfo.errorTitle", "数据读取异常"), state.Error, palette);
         }
 
         // 4. 等待对局
         if (!state.ShouldShowContent)
         {
             return RenderPlaceholder(
-                "等待对局开始",
-                "进入选人阶段或对局中后将自动展示双方玩家数据",
+                services.I18n.T("gameInfo.awaitingLoadTitle", "等待对局开始"),
+                services.I18n.T("gameInfo.awaitingLoadDesc", "进入选人阶段或对局中后将自动展示双方玩家数据"),
                 palette,
                 DemoButton(() => gameInfoService.LoadDemoState()));
         }
@@ -127,7 +130,10 @@ public sealed class GameInfoPage : Component
         // 5. 正在读取队伍
         if (state.IsLoadingTeams)
         {
-            return RenderPlaceholder("正在读取对局玩家", "正在连接 LCU 获取对局双方玩家信息...", palette);
+            return RenderPlaceholder(
+                services.I18n.T("gameInfo.loadingTeamsTitle", "正在读取对局玩家"),
+                services.I18n.T("gameInfo.loadingTeamsDesc", "正在连接 LCU 获取对局双方玩家信息..."),
+                palette);
         }
 
         // 6. 正常对局渲染
@@ -145,7 +151,9 @@ public sealed class GameInfoPage : Component
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Star()],
             [
-                InfoBar("演示数据", "以上十位召唤师为示例，点击不会跳转生涯与战绩查询")
+                InfoBar(
+                    services.I18n.T("gameInfo.demoTitle", "演示数据"),
+                    services.I18n.T("gameInfo.demoDesc", "以上十位召唤师为示例，点击不会跳转生涯与战绩查询"))
                     .Informational()
                     .Margin(8, 8, 8, 0)
                     .Grid(row: 0),

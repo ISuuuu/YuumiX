@@ -129,21 +129,28 @@ internal static class GameSection
                     }, "标记玩家提醒"))
             ));
 
+        var clickToExpand = i18n.T("tools.clickToExpand", "点击展开");
+        var spectateMethodLabels = new[]
+        {
+            i18n.T("tools.spectateLcu", "LCU 方式 (客户端内置观战，失败自动切换 CMD)"),
+            i18n.T("tools.spectateCmd", "CMD 方式 (直接启动客户端进程，绕开限制)"),
+        };
+
         // 7. 观战卡片
         var spectateCard = ToolsVisuals.ToolCard(
             ui,
             "spectate",
             i18n.T("tools.spectate.title", "观战"),
             i18n.T("tools.spectate.desc", "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)"),
-            "点击展开",
+            clickToExpand,
             false,
             VStack(8,
                 Body(i18n.T("tools.spectateIntro", "输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战："))
                     .Foreground(Theme.SecondaryText),
                 ToolsVisuals.CardRow(i18n.T("tools.spectateMethodLabel", "观战通道:"),
-                    ComboBox(SpectateMethodLabels, spectate.MethodIndex, idx =>
+                    ComboBox(spectateMethodLabels, spectate.MethodIndex, idx =>
                     {
-                        if (idx >= 0 && idx < SpectateMethodLabels.Length)
+                        if (idx >= 0 && idx < spectateMethodLabels.Length)
                         {
                             setSpectate(spectate with { MethodIndex = idx });
                         }
@@ -197,7 +204,11 @@ internal static class GameSection
 
         // 8. 好友管理与僵尸号清理卡片（扫描/删除执行态来自 UseMutation，R7）
         var filteredFriendsCount = FriendCleanerView.FilterFriends(friend.AllFriends, friend.SearchQuery, friend.FilterIndex).Count;
-        var friendCleanerStatus = friend.AllFriends.Count > 0 ? $"共 {friend.AllFriends.Count} 人 / 筛选出 {filteredFriendsCount} 人" : "点击展开";
+        var friendCleanerStatus = friend.AllFriends.Count > 0
+            ? i18n.T("tools.friendsCountSummary", $"共 {friend.AllFriends.Count} 人 / 筛选出 {filteredFriendsCount} 人")
+                .Replace("{total}", friend.AllFriends.Count.ToString())
+                .Replace("{filtered}", filteredFriendsCount.ToString())
+            : clickToExpand;
         var friendCleanerCard = ToolsVisuals.ToolCard(
             ui,
             "friendCleaner",
@@ -309,15 +320,15 @@ internal static class GameSection
 
         var lockStatusText = isSettingsLocked switch
         {
-            true => "已锁定 (只读保护中)",
-            false => "未锁定 (可写入)",
-            null => "检测中",
+            true => i18n.T("tools.settingsLocked", "已锁定 (只读保护中)"),
+            false => i18n.T("tools.settingsUnlocked", "未锁定 (可写入)"),
+            null => i18n.T("tools.settingsDetecting", "检测中"),
         };
 
         var lockSettingsCard = ToolsVisuals.ActionCard(
             ui,
             i18n.T("tools.lockGameSettings.title", "游戏设置锁定"),
-            $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]",
+            i18n.T("tools.settingsLockDesc", $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]").Replace("{status}", lockStatusText),
             Button(isSettingsLocked == true ? i18n.T("tools.unlockBtn", "解除锁定") : i18n.T("tools.lockBtn", "立即锁定"), () =>
             {
                 var nextState = !(isSettingsLocked ?? false);

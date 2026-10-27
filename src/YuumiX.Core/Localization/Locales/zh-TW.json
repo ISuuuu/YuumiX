@@ -311,7 +311,8 @@
     "lcuReset": "LCU 監聽服務已重置",
     "lcuNotConnected": "LCU 未連接，請先啟動英雄聯盟客戶端",
     "confirm": "確定",
-    "cancel": "取消"
+    "cancel": "取消",
+    "settingsSaved": "設置已自動保存"
   },
   "tools": {
     "title": "其他功能",
@@ -712,7 +713,29 @@
     "spoofDivisionLabel": "偽裝小段級別 (Division):",
     "spoofNotice": "應用後好友列表中的名片即時顯示此段位",
     "clearAllBadgesBtn": "卸下全部勳章",
-    "clearBorderBtn": "卸下頭像框"
+    "clearBorderBtn": "卸下頭像框",
+    "clickToExpand": "點擊展開",
+    "clearBtn": "清空",
+    "searchChampPlaceholder": "搜索英雄名稱、別名或稱號...",
+    "loadingChamps": "正在加載英雄數據...",
+    "noChampsFound": "未搜索到相關英雄",
+    "noCandidates": "未配置候選英雄",
+    "spellSelectD": "請選擇主技能 (D鍵)",
+    "spellSelectF": "請選擇副技能 (F鍵)",
+    "spectateLcu": "LCU 方式 (客戶端內置觀戰，失敗自動切換 CMD)",
+    "spectateCmd": "CMD 方式 (直接啟動客戶端進程，繞開限制)",
+    "friendsCountSummary": "共 {total} 人 / 篩選出 {filtered} 人",
+    "searchFriends": "搜索好友...",
+    "selectAll": "全選",
+    "unselectAll": "取消全選",
+    "settingsLocked": "已鎖定 (只讀保護中)",
+    "settingsUnlocked": "未鎖定 (可寫入)",
+    "settingsDetecting": "檢測中",
+    "settingsLockDesc": "鎖定遊戲內配置 (PersistedSettings.json)，防止被意外篡改 [{status}]",
+    "browseSkinsDesc": "瀏覽英雄皮膚並預覽應用，或直接輸入皮膚 ID：",
+    "enterChampName": "輸入英雄名稱（如「安妮」）",
+    "getSkinsBtn": "獲取皮膚",
+    "statusDesc": "在好友列表中切換你的展示狀態（在線 / 離開 / 隱身）"
   },
   "home": {
     "connected": "客戶端連接成功 🎉",
@@ -864,7 +887,17 @@
     "dodgeFailed": "跳game失敗: {error}",
     "gameModeLabel": "遊戲模式",
     "positionLabel": "位置",
-    "dateLabel": "日期"
+    "dateLabel": "日期",
+    "tftInGame": "雲頂之弈對局中",
+    "tftDesc": "雲頂之弈模式不顯示召喚師峽谷數據",
+    "errorTitle": "數據讀取異常",
+    "loadingTeamsTitle": "正在讀取對局玩家",
+    "loadingTeamsDesc": "正在連接 LCU 獲取對局雙方玩家資訊...",
+    "awaitingLoadTitle": "等待對局開始",
+    "awaitingLoadDesc": "進入選人階段或對局中後將自動展示雙方玩家數據",
+    "demoTitle": "演示數據",
+    "demoDesc": "以上十位召喚師為示例，點擊不會跳轉生涯與戰績查詢",
+    "settingsSaved": "設置已自動保存"
   },
   "career": {
     "summonerInfo": "召喚師信息",
