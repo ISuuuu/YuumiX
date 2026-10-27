@@ -3,8 +3,8 @@
 > 本文件对本仓库的**所有**代码改动生效，优先级高于个人偏好与"看起来能跑"。
 > 技术栈固定：**WinUI 3（Windows App SDK 2.5.x）+ Microsoft.UI.Reactor 0.1.0-preview.16 + .NET 10**。
 > 目标是**原生 Fluent Design**：字号、颜色、圆角、间距、控件一律走框架语义层，不手搓视觉。
-> 详细方案见 `docs/ui-native-fluent-plan.md`；架构决策见 `docs/architecture.md` 的 ADR 系列。
-> **注意**：`docs/` 目前在 `.gitignore` 中，不随仓库分发，上述及下文引用的 `docs/*` 文档仅作者本地可见；
+> 详细方案见 `docs/internal/docbak/ui-native-fluent-plan.md`；架构决策见 `docs/internal/docbak/architecture.md` 的 ADR 系列。
+> **注意**：`docs/internal/` 在 `.gitignore` 中，不随仓库分发（`docs/` 用作 GitHub Pages 站点目录），上述及下文引用的文档仅作者本地可见；
 > 克隆仓库的人以本文件为准。
 
 ---
@@ -107,7 +107,7 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 > 因 `Title`/`Subtitle` **不会**自动设置标题层级，必须手写 `.HeadingLevel(...)`（见 §4、§6）。
 
 **最小字号 12px**。任何小于 12 的设计意图一律改为 12 + 降低字重/提高对比度解决，不得靠缩字号。
-**禁止删除/绕过** `docs/ui-native-fluent-plan.md` §5.1 的映射表自行发明新档位。
+**禁止删除/绕过** `docs/internal/docbak/ui-native-fluent-plan.md` §5.1 的映射表自行发明新档位。
 
 ### 1.1 字重：不许手写 `FontWeights.*`
 
@@ -270,7 +270,7 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 - 中文 + conventional commit，带 scope：`feat(settings): ...`、`refactor(ui): ...`、`fix(tools): ...`；跨模块改动不带 scope。
 - 一个批次一个提交，**不混合**"结构重构"与"视觉微调"。
 - 禁止 `--no-verify`；禁止自动 `push`。
-- 提交前 `git status` 确认没有误带构建产物（`bin/`、`obj/`、`.workbuddy/`、`docs/` 均在忽略列表，其中 `docs` 需手动带出到 worktree）。
+- 提交前 `git status` 确认没有误带构建产物（`bin/`、`obj/`、`.workbuddy/`、`docs/internal/` 均在忽略列表，其中 `docs` 需手动带出到 worktree）。
 
 ---
 
@@ -316,12 +316,12 @@ YuumiX/
 │   └── Upload/                      # 对局数据上传队列
 ├── tests/                           # 4 个测试工程（Core / App / SourceScan / Testing.Lcu）
 ├── tools/ScreenCapture/             # 开发辅助（窗口前置 + 截图比对）
-├── docs/                            # 架构规范、验收记录与需求文档（本地，不入库）
+├── docs/                            # GitHub Pages 站点目录；内部文档在 docs/internal/（本地，不入库）
 ├── Directory.Build.props            # 统一 MSBuild 属性与产品元数据
 ├── Directory.Packages.props         # 集中包版本管理（CPM）
 ├── global.json                      # .NET SDK 锁定
 └── YuumiX.slnx                      # 解决方案配置
 ```
 
-- 新增顶层目录或调整既有分层前，先更新本节的目录树与 `docs/architecture.md` 的对应章节。
+- 新增顶层目录或调整既有分层前，先更新本节的目录树与 `docs/internal/docbak/architecture.md` 的对应章节。
 - 上面标注的「禁止 UI 依赖」「禁止复制粘贴视觉构件」等约束，以本文件 §5、§7 为准。

@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="AdNLdqcxwyG63BAMOoD6pD">
+
+<head data-page-node-id="dplUDXxFnU07izdy1Vfe4a">
+  <meta charset="UTF-8" data-page-node-id="LIurDvbNPhIg3DFChMrkKV" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="4U1yBgHKVyXSP5JqVXCTBh" />
+  <title>YuumiX · lol辅助工具</title>
+  <style>
+    :root {
+      --bg: #0E1117;
+      --surface: #161B22;
+      --surface-2: #151A21;
+      --border: rgba(255, 255, 255, .06);
+      --border-strong: rgba(255, 255, 255, .12);
+      --text: #FFFFFF;
+      --text-2: #9BA3AF;
+      --text-3: #B7C0CC;
+      --grad: linear-gradient(135deg, #7B61FF 0%, #4FC3F7 100%);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth
+    }
+
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI Variable', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 120px
+    }
+
+    /* ===== Nav ===== */
+    .nav {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .nav__logo {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .nav__mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--grad);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none
+    }
+
+    .nav__brand {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: .2px
+    }
+
+    .nav__menu {
+      display: flex;
+      align-items: center;
+      gap: 32px
+    }
+
+    .nav__link {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-2);
+      transition: color .2s
+    }
+
+    .nav__link:hover {
+      color: #fff
+    }
+
+    /* ===== Hero ===== */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      gap: 64px;
+      padding: 96px 0
+    }
+
+    .hero__glow {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(40px);
+      pointer-events: none;
+      z-index: 0
+    }
+
+    .hero__glow--1 {
+      width: 560px;
+      height: 560px;
+      right: 120px;
+      top: -200px;
+      background: radial-gradient(circle, rgba(123, 97, 255, .30), transparent 70%)
+    }
+
+    .hero__glow--2 {
+      width: 420px;
+      height: 420px;
+      right: 340px;
+      top: 140px;
+      background: radial-gradient(circle, rgba(79, 195, 247, .22), transparent 70%)
+    }
+
+    .hero__content {
+      position: relative;
+      z-index: 1;
+      flex: 1 1 600px;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      align-items: flex-start
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-3)
+    }
+
+    .pill__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--grad)
+    }
+
+    .hero__title {
+      font-size: 48px;
+      line-height: 56px;
+      font-weight: 700
+    }
+
+    .hero__title em {
+      font-style: normal;
+      font-weight: 800;
+      background: var(--grad);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent
+    }
+
+    .hero__sub {
+      font-size: 18px;
+      line-height: 28px;
+      color: var(--text-2);
+      max-width: 540px
+    }
+
+    .hero__btns {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 14px 24px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform .2s, box-shadow .2s;
+      border: 1px solid transparent
+    }
+
+    .btn--primary {
+      background: var(--grad);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(123, 97, 255, .45)
+    }
+
+    .btn--primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(123, 97, 255, .55)
+    }
+
+    .btn--ghost {
+      background: #1A1F29;
+      color: #fff;
+      border-color: rgba(255, 255, 255, .18)
+    }
+
+    .btn--ghost:hover {
+      border-color: rgba(255, 255, 255, .35)
+    }
+
+    .hero__media {
+      flex: 1 1 536px;
+      max-width: 536px;
+      position: relative;
+      z-index: 1
+    }
+
+    .placeholder {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 16px;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-2);
+      font-size: 14px;
+      letter-spacing: .5px
+    }
+
+    .hero__media .placeholder {
+      aspect-ratio: 536/420;
+      min-height: 420px
+    }
+
+    /* ===== Section heads ===== */
+    .section {
+      padding: 96px 0
+    }
+
+    .section__head {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 48px
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--grad);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent
+    }
+
+    .section__title {
+      font-size: 36px;
+      font-weight: 700
+    }
+
+    .section__sub {
+      font-size: 16px;
+      color: var(--text-2);
+      max-width: 560px
+    }
+
+    /* ===== Features ===== */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px
+    }
+
+    .card__badge {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--grad);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none
+    }
+
+    .card__title {
+      font-size: 16px;
+      font-weight: 700
+    }
+
+    .card__desc {
+      font-size: 14px;
+      line-height: 22px;
+      color: var(--text-2)
+    }
+
+    /* ===== Preview ===== */
+    .preview__media {
+      margin: 0 auto;
+      max-width: 960px
+    }
+
+    .preview__media .placeholder {
+      aspect-ratio: 960/540;
+      min-height: 320px
+    }
+
+    .preview__caption {
+      text-align: center;
+      color: var(--text-2);
+      font-size: 15px;
+      line-height: 24px;
+      max-width: 640px;
+      margin: 24px auto 0
+    }
+
+    /* ===== CTA ===== */
+    .cta {
+      position: relative;
+      overflow: hidden;
+      padding: 96px 0
+    }
+
+    .cta__glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      top: -140px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: radial-gradient(circle, rgba(123, 97, 255, .20), transparent 70%);
+      filter: blur(40px);
+      pointer-events: none
+    }
+
+    .cta__panel {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 64px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px
+    }
+
+    .cta__title {
+      font-size: 36px;
+      font-weight: 700
+    }
+
+    .cta__sub {
+      font-size: 16px;
+      color: var(--text-2)
+    }
+
+    .tags {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center
+    }
+
+    .tag {
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      font-size: 13px;
+      font-weight: 500;
+      color: #C7CED8
+    }
+
+    .btn--lg {
+      padding: 16px 32px;
+      font-size: 16px;
+      border-radius: 12px
+    }
+
+    /* ===== Footer ===== */
+    .footer {
+      border-top: 1px solid var(--border)
+    }
+
+    .footer__row {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 28px 120px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap
+    }
+
+    .footer__left {
+      display: flex;
+      flex-direction: column;
+      gap: 10px
+    }
+
+    .footer__brand {
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .footer__mark {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--grad);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none
+    }
+
+    .footer__copy {
+      font-size: 13px;
+      color: #6B7280
+    }
+
+    .footer__disc {
+      font-size: 13px;
+      color: #7A828E;
+      text-align: right;
+      max-width: 520px
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width:1024px) {
+      .container {
+        padding: 0 64px
+      }
+
+      .footer__row {
+        padding: 28px 64px
+      }
+
+      .hero {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 48px;
+        padding: 72px 0
+      }
+
+      .hero__content,
+      .hero__media {
+        max-width: 100%;
+        width: 100%
+      }
+
+      .hero__media .placeholder {
+        min-height: 320px
+      }
+
+      .features {
+        grid-template-columns: repeat(2, 1fr)
+      }
+
+      .cta__panel {
+        padding: 48px 32px
+      }
+    }
+
+    @media (max-width:640px) {
+      .container {
+        padding: 0 24px
+      }
+
+      .footer__row {
+        padding: 24px
+      }
+
+      .nav__menu {
+        gap: 18px
+      }
+
+      .nav__link {
+        font-size: 14px
+      }
+
+      .hero__title {
+        font-size: 34px;
+        line-height: 42px
+      }
+
+      .hero__sub {
+        font-size: 16px
+      }
+
+      .section {
+        padding: 64px 0
+      }
+
+      .section__title {
+        font-size: 28px
+      }
+
+      .features {
+        grid-template-columns: 1fr
+      }
+
+      .cta__title {
+        font-size: 28px
+      }
+
+      .footer__row {
+        flex-direction: column;
+        align-items: flex-start
+      }
+
+      .footer__disc {
+        text-align: left
+      }
+    }
+  </style>
+</head>
+
+<body data-page-node-id="G59Pg3Ss1NSJ0japt2ec5t">
+
+  <!-- Nav -->
+  <header class="nav container" data-page-node-id="5Dabk0zwstzbLAohEd3XM6">
+    <a class="nav__logo" href="#" data-page-node-id="eYBGIFnS8LlqVlodtUzByy">
+      <span class="nav__mark" data-page-node-id="rBbeot8E3zK4XzPNKaYC90">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" data-page-node-id="EYOx06ThUT77kgQJ7mkdFV">
+          <path d="M12 6.5C9.5 5 6.5 5 4 6V17.5C6.5 16 9.5 16 12 17.5C14.5 16 17.5 16 20 17.5V6C17.5 5 14.5 5 12 6.5Z"
+            stroke="white" stroke-width="1.8" stroke-linejoin="round" data-page-node-id="dFEHof7chEHDvNxTbzDknz" />
+          <path d="M12 6.5V17.5" stroke="white" stroke-width="1.8" data-page-node-id="QU1LJYF3fGt6rudAMeqgMH" />
+          <path d="M16.5 4l.7 1.6L19 6.3l-1.8.7L16.5 8.6 15.8 7.3 14 6.3l1.8-.7L16.5 4Z" fill="white"
+            data-page-node-id="LwQYwtJYDLf95ZB0ljiWo9" />
+        </svg>
+      </span>
+      <span class="nav__brand" data-page-node-id="wYIbYWCjEN46sGyOJ0Hnkc">YuumiX</span>
+    </a>
+    <nav class="nav__menu" data-page-node-id="XJrtuS8bnITdoiAC4xvvFb">
+      <a class="nav__link" href="#features" data-page-node-id="znHPWFDkiXBJZBCGkfrZaE">功能</a>
+      <a class="nav__link" href="#preview" data-page-node-id="fsyXtQAQfidEWso0Rsy34V">截图</a>
+      <a class="nav__link" href="#download" data-page-node-id="3S4pGAtIUD5JsC4qV49HEJ">下载</a>
+      <a class="nav__link" href="#about" data-page-node-id="rKPiBVqcjzczFHCvCoxxOo">关于</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero container" data-page-node-id="hNDI9zgHeCJEB5zTg4Vxzv">
+    <span class="hero__glow hero__glow--1" data-page-node-id="yg7ORFPfjG1pIA8NSztmXH"></span>
+    <span class="hero__glow hero__glow--2" data-page-node-id="rr854DzPw4NfdxWRuGGCQb"></span>
+    <div class="hero__content" data-page-node-id="P0uaNz0lFApN8TbFoPfWxv">
+      <span class="pill" data-page-node-id="oafJBkQLc3Lm4tA6PEy7GR"><span class="pill__dot"
+          data-page-node-id="zkDErp0rfrdKjyf9y5lobw"></span>基于官方 LCU API 驱动</span>
+      <h1 class="hero__title" data-page-node-id="E17YKPimZLF9Yuw4QBDGiM">让你的英雄联盟客户端<br
+          data-page-node-id="sakiLaFyjkgqrHHdBl7Fzz"><em data-page-node-id="oSqSkicyUHFeRcdtgRr57q">更聪明</em></h1>
+      <p class="hero__sub" data-page-node-id="MIpKFiEOmvrvAKxTDKJdLv">基于官方 LCU API 的轻量辅助工具，自动接受对局、查询战绩、极低资源占用，本地安全运行。
+      </p>
+      <div class="hero__btns" data-page-node-id="QUJTlGf1jyUSLSr44IRip3">
+        <a class="btn btn--primary" href="#download" data-page-node-id="dGZCVxbuP5uwZK67opzWu5">免费下载</a>
+        <a class="btn btn--ghost" href="#features" data-page-node-id="0pjLuEvFXo1VEANIHq5S2M">查看功能</a>
+      </div>
+    </div>
+    <div class="hero__media" data-page-node-id="oe17fObtkjWD8PMvHPQVje">
+      <div class="placeholder" data-page-node-id="G86mGYpaePYTgGWEeWiNxH">客户端界面示意图 536 × 420</div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section container" id="features" data-page-node-id="c6eHlkcE59QOcQifeAs49G">
+    <div class="section__head" data-page-node-id="mbEIy5frSfI63KgYAwwXnu">
+      <span class="eyebrow" data-page-node-id="c0ELTWZDkFljfnBZ5Uw7Gy">功能特性</span>
+      <h2 class="section__title" data-page-node-id="LSM4hpOuhAS7ePosc2DspA">为召唤师量身打造的能力</h2>
+      <p class="section__sub" data-page-node-id="WcnMqJcq7dDsisF2TdPuzz">聚焦你真正需要的辅助能力，轻量、安全、不越界。</p>
+    </div>
+    <div class="features" data-page-node-id="VbCKfND5cs9zrrgVzd0RiP">
+      <article class="card" data-page-node-id="w8T4xuYcSQNPMCU6SXJ2rt">
+        <span class="card__badge" data-page-node-id="yp5G8yJL4SxlC94zvRu22s"><svg width="24" height="24"
+            viewBox="0 0 24 24" fill="none" data-page-node-id="bdvewdR7YnGy3UblkubL8C">
+            <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8Z" stroke="white" stroke-width="1.8" stroke-linejoin="round"
+              data-page-node-id="KWejXtHfpGS6YBr9ltKMHw" />
+          </svg></span>
+        <h3 class="card__title" data-page-node-id="Tk8RfEEiuPZFeEHluozEde">自动接受对局</h3>
+        <p class="card__desc" data-page-node-id="gjjMwADz4BVYEgpQSVl9ue">队列就绪时自动接受，不再错过进入游戏的瞬间。</p>
+      </article>
+      <article class="card" data-page-node-id="dylL0nNRTzC6MiSKYMX187">
+        <span class="card__badge" data-page-node-id="RXRnNpvCxDwLCqw7sdUiHi"><svg width="24" height="24"
+            viewBox="0 0 24 24" fill="none" data-page-node-id="x5Kr0EbUSwoXplyYAWqYJ6">
+            <path d="M5 19V11M12 19V5M19 19V13" stroke="white" stroke-width="1.8" stroke-linecap="round"
+              data-page-node-id="Ae5G3bw7YuCfziy4SEzM7M" />
+            <path d="M3 21h18" stroke="white" stroke-width="1.8" stroke-linecap="round"
+              data-page-node-id="wAMfRerqzcJsKAvXtLDKW0" />
+          </svg></span>
+        <h3 class="card__title" data-page-node-id="FYyQHB04YWGXOr3fLqQTxR">战绩查询</h3>
+        <p class="card__desc" data-page-node-id="0CBHtx8fUwyrlm1pUkNwz6">快速查看近期对局、英雄胜率与队友表现。</p>
+      </article>
+      <article class="card" data-page-node-id="kMDjZZH3iB76TRNTrelvku">
+        <span class="card__badge" data-page-node-id="DmpEcKVxPHfQxQNIYguTDF"><svg width="24" height="24"
+            viewBox="0 0 24 24" fill="none" data-page-node-id="KAtIHtahXwiihop705nnoi">
+            <path d="M5 19C5 11 11 5 20 5c0 9-6 15-15 14Z" stroke="white" stroke-width="1.8" stroke-linejoin="round"
+              data-page-node-id="nEYFtXfrIyuyHbV8cTsGh9" />
+            <path d="M5 19c4-4 7-6 11-8" stroke="white" stroke-width="1.8" stroke-linecap="round"
+              data-page-node-id="vFWJEs8JXHYKaIqakBZ70C" />
+          </svg></span>
+        <h3 class="card__title" data-page-node-id="vhTEpP6izrBuEY2NUU2NVj">低资源占用</h3>
+        <p class="card__desc" data-page-node-id="SycqeOhomwYa87rdAQoY1Z">极小内存与 CPU 占用，后台常驻也毫无负担。</p>
+      </article>
+      <article class="card" data-page-node-id="m44Vg6CP54gY0f83717ctY">
+        <span class="card__badge" data-page-node-id="DyxT1OCwznQF3MBu2YUWk9"><svg width="24" height="24"
+            viewBox="0 0 24 24" fill="none" data-page-node-id="F1U6c1F5Gv0VcPwnzwFnE8">
+            <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z" stroke="white" stroke-width="1.8"
+              stroke-linejoin="round" data-page-node-id="7r9DxnujUuQhZwsR0cj1KP" />
+            <path d="M9 12l2 2 4-4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+              data-page-node-id="7jW5iXeH4ZhfK5G9BhZGti" />
+          </svg></span>
+        <h3 class="card__title" data-page-node-id="A1wuzqWdsbWYZoSWFoK6wZ">纯 LCU API 安全通信</h3>
+        <p class="card__desc" data-page-node-id="ipKznnJ4oEWoTgPue8Zk0c">仅通过 Riot 官方 LCU API 通信，不读取密码、不注入进程。</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- Preview -->
+  <section class="section container" id="preview" data-page-node-id="Hoov649Gp4F3q03077WHPE">
+    <div class="section__head" data-page-node-id="677BXQjwvjFMSqiFBKJeFS">
+      <span class="eyebrow" data-page-node-id="vf5deEmquua7BzLvqfjO24">界面预览</span>
+      <h2 class="section__title" data-page-node-id="5Tu9I0tHyvuCGE5CveykHi">一目了然的清爽界面</h2>
+    </div>
+    <div class="preview__media" data-page-node-id="vCSk9j32W2h78Pm0NsQGxq">
+      <div class="placeholder" data-page-node-id="K2E1pj1lQD8tVv02k30lMV">产品截图 960 × 540</div>
+    </div>
+    <p class="preview__caption" data-page-node-id="m2iwxRofUoyIqzf0X8AjuO">主界面集中呈现对局状态、战绩与快捷操作，暗色主题长时间使用更护眼。</p>
+  </section>
+
+  <!-- CTA / Download -->
+  <section class="cta container" id="download" data-page-node-id="Uayo49yMBjRRvtAxnX8IZ1">
+    <span class="cta__glow" data-page-node-id="D5W2pI127cjqD2Mhj0bPyb"></span>
+    <div class="cta__panel" data-page-node-id="cOsaiaXFIcXHDkKWftD2uB">
+      <h2 class="cta__title" data-page-node-id="96DMVr944J86uXtNMeY7U6">现在就让客户端更聪明</h2>
+      <p class="cta__sub" data-page-node-id="eypnR0TN6aGCuQou8BfiM0">完全免费，开源可审计，本地运行不收集任何数据。</p>
+      <div class="tags" data-page-node-id="GChpA8Zb3j4X5Y8PbgHlph">
+        <span class="tag" data-page-node-id="R3WetpQrQgy9lsMxZ3MAZH">Windows 10 / 11</span>
+        <span class="tag" data-page-node-id="38mIrXIHBkbqypxM1faXTc">WinUI 3</span>
+        <span class="tag" data-page-node-id="eW8b5Uj2HUBicYwicejkjm">免费</span>
+      </div>
+      <a class="btn btn--primary btn--lg" href="https://github.com/ISuuuu/YuumiX/releases/latest" data-page-node-id="p6yZq7KjL7EOL40MnoYoFn">免费下载</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer" id="about" data-page-node-id="QJiURDyKvAC8DKXsax7jZx">
+    <div class="footer__row" data-page-node-id="H21HkJKGet2YdVJIxb8MA2">
+      <div class="footer__left" data-page-node-id="i2BFnWcu1lI79h9QKTxNzD">
+        <div class="footer__brand" data-page-node-id="IkSGfS4O568QjrknRFioO6">
+          <span class="footer__mark" data-page-node-id="IgRl2cH77hJDkct5PIDQcS">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" data-page-node-id="jrSCmddh7IV6xhiZjgc32q">
+              <path
+                d="M12 6.5C9.5 5 6.5 5 4 6V17.5C6.5 16 9.5 16 12 17.5C14.5 16 17.5 16 20 17.5V6C17.5 5 14.5 5 12 6.5Z"
+                stroke="white" stroke-width="1.8" stroke-linejoin="round" data-page-node-id="k8GBIcwwe1JcrZKnZFGZ3G" />
+              <path d="M12 6.5V17.5" stroke="white" stroke-width="1.8" data-page-node-id="wPMiQgFVUL8LXhHWQFSYs1" />
+            </svg>
+          </span>
+          <span class="nav__brand" data-page-node-id="opmDLFJKF5PLn7BTTQPhED">YuumiX</span>
+        </div>
+        <span class="footer__copy" data-page-node-id="UcFB6SYXzIgjx1YnWc8IXA">YuumiX · 2026 · 与 Riot Games 无官方关联</span>
+      </div>
+      <p class="footer__disc" data-page-node-id="NLTGctAkGTtlyeiEPFWjsy">本工具仅通过 Riot 官方 LCU API 通信，仅供学习交流使用。</p>
+    </div>
+  </footer>
+
+</body>
+
+</html>
