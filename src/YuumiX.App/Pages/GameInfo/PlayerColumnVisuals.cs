@@ -204,7 +204,8 @@ internal static class PlayerColumnVisuals
         }
         else
         {
-            items.Add(Caption("无段位").Foreground(Theme.DisabledText).VAlign(VerticalAlignment.Center));
+            var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+            items.Add(Caption(isEn ? "Unranked" : "无段位").Foreground(Theme.DisabledText).VAlign(VerticalAlignment.Center));
         }
 
         return HStack(0, items.ToArray());
@@ -230,7 +231,28 @@ internal static class PlayerColumnVisuals
 
     internal static string ShortRank(string? tier, string? division)
     {
-        if (string.IsNullOrEmpty(tier) || tier is "NONE" or "UNRANKED") return "无段位";
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+        if (string.IsNullOrEmpty(tier) || tier is "NONE" or "UNRANKED") return isEn ? "Unranked" : "无段位";
+
+        if (isEn)
+        {
+            string enTier = tier switch
+            {
+                "IRON" => "Iron",
+                "BRONZE" => "Bronze",
+                "SILVER" => "Silver",
+                "GOLD" => "Gold",
+                "PLATINUM" => "Platinum",
+                "EMERALD" => "Emerald",
+                "DIAMOND" => "Diamond",
+                "MASTER" => "Master",
+                "GRANDMASTER" => "Grandmaster",
+                "CHALLENGER" => "Challenger",
+                _ => tier,
+            };
+            return string.IsNullOrEmpty(division) || division is "NA" ? enTier : $"{enTier} {division}";
+        }
+
         string shortTier = tier switch
         {
             "IRON" => "黑铁",

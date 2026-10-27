@@ -200,7 +200,7 @@ internal static class ChampionSection
             autoBanStatus,
             config.Functions.EnableAutoBanChampion,
             VStack(4,
-                ToolsVisuals.CardRow("禁用环节自动禁用设定英雄:",
+                ToolsVisuals.CardRow(i18n.T("tools.enableAutoBanLabel", "禁用环节自动禁用设定英雄:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoBanChampion, v =>
                     {
                         if (v == config.Functions.EnableAutoBanChampion) return;
@@ -295,14 +295,14 @@ internal static class ChampionSection
             int idx = i;
             bool isCurrent = idx == currentLane;
             buttons.Add(
-                Button(LaneLabels[idx], () => onSelectLane(idx))
+                Button(laneLabels[idx], () => onSelectLane(idx))
                     .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
                     .BorderBrush(isCurrent ? Theme.Accent : Theme.ControlStroke)
                     .BorderThickness(isCurrent ? 1.5 : 1)
                     .CornerRadius(YuumiTheme.OverlayRadius)
                     .Padding(8, 4)
                     .Margin(new Thickness(0, 0, 4, 0))
-                    .AutomationName($"分路_{LaneLabels[idx]}")
+                    .AutomationName($"分路_{laneLabels[idx]}")
             );
         }
         return HStack(0, [.. buttons]).Margin(new Thickness(0, 4, 0, 8));

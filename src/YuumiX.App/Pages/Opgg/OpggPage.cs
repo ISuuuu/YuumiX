@@ -249,21 +249,23 @@ public sealed class OpggPage : Component<OpggPageProps>
                     },
                     onApplyRune: async rune =>
                     {
+                        var i18n = services.I18n;
                         try
                         {
                             var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
                             await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
                                 [.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
-                            toast.Success("符文页已应用至客户端");
+                            toast.Success(i18n.T("opgg.runes.appliedSuccess", "符文页已应用至客户端"));
                         }
                         catch (Exception ex)
                         {
-                            toast.Error($"应用符文页失败: {ex.Message}");
+                            toast.Error(i18n.T("opgg.runes.appliedFailed", "应用符文页失败: ") + ex.Message);
                         }
                     },
                     onApplyItemSet: async () =>
                     {
                         if (buildData is null || !selectedChampId.HasValue) return;
+                        var i18n = services.I18n;
                         setIsApplyingItemSet(true);
                         try
                         {
@@ -273,7 +275,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                         }
                         catch (Exception ex)
                         {
-                            toast.Error($"应用出装失败: {ex.Message}");
+                            toast.Error(i18n.T("opgg.items.appliedFailed", "应用出装失败: ") + ex.Message);
                         }
                         finally
                         {
@@ -347,7 +349,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                     // 右侧：游戏版本号
                     string.IsNullOrWhiteSpace(metaVersion)
                         ? Empty().Grid(0, 2)
-                        : Caption($"游戏版本: {metaVersion}")
+                        : Caption($"{i18n?.T("opgg.gameVersion", "游戏版本: ") ?? "游戏版本: "}{metaVersion}")
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(0, 2)
@@ -375,11 +377,12 @@ public sealed class OpggPage : Component<OpggPageProps>
         Action<OpggRunePreset> onApplyRune,
         Action onApplyItemSet)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
         if (loading)
         {
             return VStack(12,
                 ProgressRing().Width(36).Height(36),
-                Body("正在拉取 OP.GG 数据...")
+                Body(i18n?.T("opgg.loadingData", "正在拉取 OP.GG 数据...") ?? "正在拉取 OP.GG 数据...")
                     .Foreground(Theme.SecondaryText)
             )
             .HAlign(HorizontalAlignment.Center)
@@ -396,9 +399,10 @@ public sealed class OpggPage : Component<OpggPageProps>
                 Body(errorMessage)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center),
-                Button("重试", onRetry)
+                Button(i18n?.T("common.retry", "重试") ?? "重试", onRetry)
                     .Width(100)
                     .HAlign(HorizontalAlignment.Center)
+                    .AutomationName("重试")
             )
             .HAlign(HorizontalAlignment.Center)
             .VAlign(VerticalAlignment.Center);

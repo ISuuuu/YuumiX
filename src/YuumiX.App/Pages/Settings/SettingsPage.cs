@@ -49,6 +49,7 @@ public sealed class SettingsPage : Component
         var menu = UseContext(AppHost.MenuContext);
         var updateNotice = UseContext(AppHost.UpdateNoticeContext);
         var config = services.Config;
+        var i18n = services.I18n;
         var toast = UseContext(AppHost.ToastContext)!;
         var window = UseWindow();
 
@@ -122,12 +123,14 @@ public sealed class SettingsPage : Component
                     // 把结果回灌全局状态：侧边栏红点与设置页必须说同一件事。
                     // info 为 null（已是最新）时 Clear 掉红点，避免「查完发现没更新，红点还在呼吸」。
                     updateNotice.Publish(info);
-                    toast.Info(info is null ? "当前已是最新版本" : $"发现新版本 v{info.Version}");
+                    toast.Info(info is null
+                        ? i18n.T("settings.alreadyLatest", "当前已是最新版本")
+                        : i18n.T("settings.newVersionFound", "发现新版本") + $" v{info.Version}");
                 },
                 OnError: (ex, _) =>
                 {
                     setUpdateCheckError(ex.Message);
-                    toast.Error($"检查更新失败: {ex.Message}");
+                    toast.Error(i18n.T("settings.updateCheckFailed", "检查更新失败: ") + ex.Message);
                 }));
 
         var downloadUpdate = UseMutation<YuumiX.Core.Updates.UpdateInfo, string>(
@@ -143,12 +146,12 @@ public sealed class SettingsPage : Component
                 OnSuccess: (path, _) =>
                 {
                     setDownloadedUpdatePath(path);
-                    toast.Success("更新下载完成，可立即安装");
+                    toast.Success(i18n.T("settings.updateDownloadSuccess", "更新下载完成，可立即安装"));
                 },
                 OnError: (ex, _) =>
                 {
                     setUpdateCheckError(ex.Message);
-                    toast.Error($"下载更新失败: {ex.Message}");
+                    toast.Error(i18n.T("settings.updateDownloadFailed", "下载更新失败: ") + ex.Message);
                 }));
 
         UseEffect(
@@ -425,12 +428,14 @@ public sealed class SettingsPage : Component
                         {
                         }
                         logger.LogInformation("已清空游戏资源与 OP.GG 缓存: {Count} 个文件", removed);
-                        toast.Success(removed == 0 ? "缓存目录不存在，无需清除" : $"已清除 {removed} 个缓存文件");
+                        toast.Success(removed == 0
+                            ? i18n.T("settings.clearCacheEmpty", "缓存目录不存在，无需清除")
+                            : i18n.T("settings.clearCacheSuccessCount", "已清除 {count} 个缓存文件").Replace("{count}", removed.ToString()));
                     }
                     catch (Exception ex)
                     {
                         logger.LogWarning(ex, "清除游戏资源缓存失败");
-                        toast.Error($"清除缓存失败: {ex.Message}");
+                        toast.Error(i18n.T("settings.clearCacheFailed", "清除缓存失败: ") + ex.Message);
                     }
                 }),
             ]

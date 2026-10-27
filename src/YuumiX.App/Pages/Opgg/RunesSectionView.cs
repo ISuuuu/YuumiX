@@ -176,9 +176,14 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
 
     private Element RenderPresetsPane(OpggRunePreset activeRune, int selectedIdx, Action<int> onSelect)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var recommendedTitle = i18n?.T("opgg.runes.recommendedTitle", "推荐符文配置") ?? "推荐符文配置";
+        var applyBtnText = i18n?.T("opgg.runes.applyBtn", "设为当前符文页") ?? "设为当前符文页";
+        var matchesUnit = i18n?.T("common.matches", "场") ?? "场";
+
         return Border(
             VStack(8,
-                Caption("推荐符文配置")
+                Caption(recommendedTitle)
                     .Foreground(Theme.SecondaryText)
                     .Margin(new Thickness(4, 0, 0, 4)),
 
@@ -195,7 +200,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                             .SemiBold()
                             .Foreground(Theme.PrimaryText);
 
-                        var playCountText = Caption($"{rune.Play} 场")
+                        var playCountText = Caption($"{rune.Play} {matchesUnit}")
                             .Foreground(Theme.SecondaryText);
 
                         var pickRateText = Caption(OpggVisuals.FormatPercent(rune.PickRate))
@@ -235,9 +240,8 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                 Border(Empty()).Height(6),
 
                 Button(
-                    Caption("设为当前符文页")
-                        .Foreground("#FFFFFF")
-                        ,
+                    Caption(applyBtnText)
+                        .Foreground("#FFFFFF"),
                     () => Props.OnApplyRune(activeRune))
                     .Background(OpggVisuals.ActiveTabGreen)
                     .Height(32)

@@ -70,13 +70,11 @@ internal static class LogNetworkSection
             i18n.T("settings.httpProxyGroup", "软件 HTTP 代理"),
             i18n.T("settings.httpProxyDesc", "软件更新、TFT 数据、OP.GG 服务访问走此 HTTP 代理通道"),
             config.General.EnableHttpProxy ? SettingsStatus.Enabled : SettingsStatus.Disabled,
-            headerControl: ToggleSwitch(config.General.EnableHttpProxy, v =>
+            headerControl: SettingsCardKit.Switch(config.General.EnableHttpProxy, v =>
             {
-                if (v == config.General.EnableHttpProxy) return;
                 config.General.EnableHttpProxy = v;
                 ui.Commit(nameof(GeneralConfig.EnableHttpProxy));
-            }, header: null, onContent: null, offContent: null)
-                .AutomationName("HTTP代理开关"),
+            }, "HTTP代理开关"),
             innerContent: SettingsCardKit.Card(
                 i18n.T("settings.proxyAddress", "代理地址"),
                 i18n.T("settings.proxyAddressDesc", "形如 127.0.0.1:7897；开关关闭时不可编辑"),

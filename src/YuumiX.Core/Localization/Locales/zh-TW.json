@@ -268,7 +268,28 @@
     "remakeCardDesc": "重賽一方的底色（含透明度）",
     "lightDeathDesc": "淺色主題下每局死亡數的顏色",
     "darkDeathDesc": "深色主題下每局死亡數的顏色",
-    "setupUpdateDesc": "安裝版通過 setup 靜默重裝；檢查到新版後手動下載應用"
+    "setupUpdateDesc": "安裝版通過 setup 靜默重裝；檢查到新版後手動下載應用",
+    "notChecked": "尚未檢查",
+    "statusEnabled": "已啟用",
+    "statusDisabled": "未啟用",
+    "statusUnconfigured": "未配置",
+    "statusConnected": "已連接",
+    "statusDisconnected": "未連接",
+    "statusCustom": "自訂",
+    "lolNotRunning": "未檢測到運行中的英雄聯盟客戶端",
+    "updateAlreadyLatest": "目前已是最新版本",
+    "updateFound": "發現新版本",
+    "updateAvailableDesc": "目前 v{current}，可更新至 v{version}",
+    "updateCheckFailed": "檢查更新失敗: ",
+    "updateDownloadSuccess": "更新下載完成，可立即安裝",
+    "updateDownloadFailed": "下載更新失敗: ",
+    "newVersionLabel": "新版本",
+    "currentVersionLabel": "目前版本",
+    "downloadedProgress": "已下載 {progress}",
+    "noAssetForPackage": "該版本未提供適用於目前安裝形態的更新包，請在下方發布頁手動下載。",
+    "clearCacheSuccessCount": "已清除 {count} 個快取檔案",
+    "clearCacheFailed": "清除快取失敗: ",
+    "dpiScaleToast": "介面縮放已設為 {scale}"
   },
   "regions": {
     "HN1": "艾歐尼亞",
@@ -313,9 +334,13 @@
     "lcuNotConnected": "LCU 未連接，請先啟動英雄聯盟客戶端",
     "confirm": "確定",
     "cancel": "取消",
-    "settingsSaved": "設置已自動保存"
+    "settingsSaved": "設置已自動保存",
+    "matches": "場",
+    "retry": "重試"
   },
   "tools": {
+    "on": "開",
+    "off": "關",
     "title": "其他功能",
     "loading": "加載功能模組中...",
     "groupChampSelect": "英雄選擇",
@@ -472,14 +497,16 @@
       "error": "狀態切換異常: {error}",
       "online": "在線",
       "away": "離開",
-      "invisible": "隱身"
+      "invisible": "隱身",
+      "desc": "在好友列表中切換你的展示狀態（在線 / 離開 / 隱身）"
     },
     "badges": {
       "title": "卸下勳章",
       "confirmText": "🏅 確定要清除個人主頁展示的所有挑戰勳章嗎？",
       "success": "勳章已全部卸下",
       "failed": "勳章卸下失敗: {error}",
-      "error": "勳章卸下異常: {error}"
+      "error": "勳章卸下異常: {error}",
+      "desc": "裝配/卸下展示的挑戰勳章、稱號與頭像框"
     },
     "border": {
       "title": "卸下頭像框",
@@ -994,6 +1021,33 @@
     "tabs": {
       "tier": "梯隊",
       "build": "出裝"
+    },
+    "loadingData": "正在拉取 OP.GG 資料...",
+    "runes": {
+      "recommendedTitle": "推薦符文配置",
+      "applyBtn": "設為目前符文頁",
+      "appliedSuccess": "符文頁已套用至客戶端",
+      "appliedFailed": "套用符文頁失敗: "
+    },
+    "items": {
+      "applying": "正在套用出裝...",
+      "applyBtn": "一鍵套用出裝到遊戲推薦頁",
+      "appliedFailed": "套用出裝失敗: ",
+      "starter": "初始裝備",
+      "boots": "鞋子選擇",
+      "core": "核心裝備組合",
+      "last": "可選與推薦裝備"
+    },
+    "tierList": {
+      "champion": "英雄",
+      "winRate": "勝率",
+      "pickRate": "登場率",
+      "banRate": "禁用率",
+      "counters": "劣勢對抗"
+    },
+    "build": {
+      "countersAdvantage": "對抗優勢 (克制)",
+      "countersDisadvantage": "對抗劣勢 (被克制)"
     }
   },
   "tftPage": {

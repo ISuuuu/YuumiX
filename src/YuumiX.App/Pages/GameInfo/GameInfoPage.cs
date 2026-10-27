@@ -214,10 +214,9 @@ public sealed class GameInfoPage : Component
         var currentTeam = isMyTab ? state.MyTeam : state.TheirTeam;
         var myGroups = PremadeAnalyzer.BuildPremadeGroups(state.MyTeam, state.PremadeColorsMy, state.PlayerData);
         var theirGroups = PremadeAnalyzer.BuildPremadeGroups(state.TheirTeam, state.PremadeColorsTheir, state.PlayerData);
-        var isEn = services.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
 
-        var allyLabelText = isEn ? $"Ally ({state.MyTeam.Count})" : $"友方 ({state.MyTeam.Count})";
-        var enemyLabelText = isEn ? $"Enemy ({state.TheirTeam.Count})" : $"敌方 ({state.TheirTeam.Count})";
+        var allyLabelText = services.I18n.T("gameInfo.myTeam", "友方 ({count})").Replace("{count}", state.MyTeam.Count.ToString());
+        var enemyLabelText = services.I18n.T("gameInfo.theirTeam", "敌方 ({count})").Replace("{count}", state.TheirTeam.Count.ToString());
 
         // 左侧队伍 Tab 切换器（带指示下划线与激活色彩）
         var allyTabBtn = Button(
@@ -430,12 +429,15 @@ public sealed class GameInfoPage : Component
 
         bool mySideIsBlue = state.MapSide != "red";
 
+        var allyLabelText = services.I18n.T("gameInfo.myTeam", "友方 ({count})").Replace("{count}", state.MyTeam.Count.ToString());
+        var enemyLabelText = services.I18n.T("gameInfo.theirTeam", "敌方 ({count})").Replace("{count}", state.TheirTeam.Count.ToString());
+
         var allyPill = RenderTeamPill(
-            $"友方 ({state.MyTeam.Count})",
+            allyLabelText,
             mySideIsBlue);
 
         var enemyPill = RenderTeamPill(
-            $"敌方 ({state.TheirTeam.Count})",
+            enemyLabelText,
             !mySideIsBlue);
 
         var myChips = Component<PremadeGroupChipsView, PremadeGroupChipsProps>(

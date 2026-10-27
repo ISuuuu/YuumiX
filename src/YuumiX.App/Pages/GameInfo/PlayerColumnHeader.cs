@@ -105,26 +105,31 @@ internal static class PlayerColumnHeader
     /// <summary>头像正下方「N胜 M负」。缺失统计时降级为胜率或占位，悬停展示常玩位置与英雄分析。</summary>
     private static Element BuildRecordLine(GameInfoPlayer? d, YuumiPalette palette)
     {
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+        var winSuffix = isEn ? "W" : "胜";
+        var lossSuffix = isEn ? "L" : "负";
+        var wrSuffix = isEn ? "WR" : "胜率";
+
         Element el;
         if (d?.WinCount.HasValue == true && d.LossesCount.HasValue)
         {
             el = HStack(3,
-                Caption($"{d.WinCount}胜")
+                Caption($"{d.WinCount}{winSuffix}")
                     .Foreground(palette.WinText)
                     .VAlign(VerticalAlignment.Center),
-                Caption($"{d.LossesCount}负")
+                Caption($"{d.LossesCount}{lossSuffix}")
                     .Foreground(palette.LoseText)
                     .VAlign(VerticalAlignment.Center));
         }
         else if (d?.WinRate.HasValue == true)
         {
             int wr = (int)Math.Round(d.WinRate.Value);
-            el = Caption($"{wr}% 胜率")
+            el = Caption($"{wr}% {wrSuffix}")
                 .Foreground(wr >= 50 ? palette.WinText : palette.LoseText);
         }
         else
         {
-            el = Caption(d?.Loading == true ? "加载中" : " ").Foreground(Theme.DisabledText);
+            el = Caption(d?.Loading == true ? (isEn ? "Loading..." : "加载中") : " ").Foreground(Theme.DisabledText);
         }
 
         string posTip = PlayerColumnVisuals.BuildPosTooltip(d);
@@ -181,11 +186,12 @@ internal static class PlayerColumnHeader
 
         // 第 2 行：几胜几负 + 段位图标与短名 + 熟练度
         var summaryItems = new List<Element>();
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
 
         if (d?.WinCount.HasValue == true && d.LossesCount.HasValue)
         {
-            summaryItems.Add(Caption($"{d.WinCount}胜").Foreground(palette.WinText));
-            summaryItems.Add(Caption($"{d.LossesCount}负").Foreground(palette.LoseText).Margin(4, 0, 4, 0));
+            summaryItems.Add(Caption($"{d.WinCount}{(isEn ? "W" : "胜")}").Foreground(palette.WinText));
+            summaryItems.Add(Caption($"{d.LossesCount}{(isEn ? "L" : "负")}").Foreground(palette.LoseText).Margin(4, 0, 4, 0));
         }
         else if (d?.WinRate.HasValue == true)
         {

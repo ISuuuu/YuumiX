@@ -121,13 +121,14 @@ internal static partial class GeneralSection
     {
         var config = ui.Config;
         var signalr = ui.Services.Services.GetRequiredService<SignalrService>();
+        var i18n = ui.Services.I18n;
 
         string BadgeText(SignalrStatus status) => status.State switch
         {
-            SignalrConnectionState.Connected => "已连接",
-            SignalrConnectionState.Connecting => "连接中",
-            SignalrConnectionState.Error => "连接失败",
-            _ => "未连接",
+            SignalrConnectionState.Connected => i18n.T("settings.cloudConnected", "已连接"),
+            SignalrConnectionState.Connecting => i18n.T("settings.cloudConnecting", "连接中"),
+            SignalrConnectionState.Error => i18n.T("settings.cloudConnectFailed", "连接失败"),
+            _ => i18n.T("settings.cloudDisconnected", "未连接"),
         };
 
         Element BadgeElement(SignalrStatus status)
@@ -149,12 +150,11 @@ internal static partial class GeneralSection
         }
 
         var items = new List<Element>();
-        var i18n = ui.Services.I18n;
         if (config.Functions.LcuRealtimeEnabled)
         {
             items.Add(SettingsCardKit.Card(
-                "SignalR 连接状态",
-                "LCU 实时远程查询通道状态",
+                i18n.T("settings.signalrStatus", "SignalR 连接状态"),
+                i18n.T("settings.signalrStatusDesc", "LCU 实时远程查询通道状态"),
                 BadgeElement(signalrStatus)));
         }
 
@@ -181,7 +181,7 @@ internal static partial class GeneralSection
         if (signalrStatus.State == SignalrConnectionState.Error && !string.IsNullOrEmpty(signalrStatus.Error))
         {
             items.Add(SettingsCardKit.ContentCard(
-                Caption($"连接异常： {signalrStatus.Error}")
+                Caption($"{i18n.T("settings.connectionError", "连接异常: ")}{signalrStatus.Error}")
                     .Foreground(Theme.SystemCritical)));
         }
 
@@ -195,15 +195,13 @@ internal static partial class GeneralSection
                 : string.IsNullOrWhiteSpace(config.General.UploadApiUrl)
                     ? SettingsStatus.Unconfigured
                     : SettingsStatus.Enabled,
-            headerControl: ToggleSwitch(config.Functions.LcuRealtimeEnabled, v =>
+            headerControl: SettingsCardKit.Switch(config.Functions.LcuRealtimeEnabled, v =>
             {
-                if (v == config.Functions.LcuRealtimeEnabled) return;
                 config.Functions.LcuRealtimeEnabled = v;
                 ui.Commit(nameof(FunctionsConfig.LcuRealtimeEnabled));
                 // 即时应用：开启 → 开始连接（徽标经状态流转 connecting），关闭 → 停止
                 _ = signalr.ApplyConfigAsync();
-            }, header: null, onContent: null, offContent: null)
-                .AutomationName("LCU 实时查询开关"),
+            }, "LCU 实时查询开关"),
             innerItems: [.. items]);
     }
 
@@ -218,8 +216,8 @@ internal static partial class GeneralSection
         var updateCardStatus = update.Check.IsPending
             ? i18n.T("settings.checkingUpdate", "检查中")
             : info is { } found
-                ? $"发现新版 v{found.Version}"
-                : update.Checked ? i18n.T("settings.alreadyLatest", "已是最新") : "尚未检查";
+                ? i18n.T("settings.newVersionFound", "发现新版") + $" v{found.Version}"
+                : update.Checked ? i18n.T("settings.alreadyLatest", "已是最新") : i18n.T("settings.notChecked", "尚未检查");
 
         // 主操作卡：已知有更新时，第一落点必须是「下载 / 安装」，而不是让用户再点一次「检查更新」——
         // 版本已经在检查阶段确认过，再检查一次没有任何信息增量。
@@ -231,8 +229,10 @@ internal static partial class GeneralSection
                     .IsEnabled(!update.Check.IsPending)
                     .AutomationName("检查更新按钮"))
             : SettingsCardKit.Card(
-                $"发现新版本 v{info.Version}",
-                $"当前 v{info.CurrentVersion}，可更新到 v{info.Version}",
+                i18n.T("settings.newVersionFound", "发现新版本") + $" v{info.Version}",
+                i18n.T("settings.updateAvailableDesc", "当前 v{current}，可更新到 v{version}")
+                    .Replace("{current}", info.CurrentVersion)
+                    .Replace("{version}", info.Version),
                 PrimaryAction(ui, update, info));
 
         var items = new List<Element> { primaryCard };
@@ -240,15 +240,15 @@ internal static partial class GeneralSection
         if (update.Error is not null)
         {
             items.Add(SettingsCardKit.ContentCard(
-                Body($"检查/下载失败： {update.Error}")
+                Body($"{i18n.T("settings.updateCheckFailed", "检查/下载失败: ")}{update.Error}")
                     .Foreground(Theme.SystemCritical)));
         }
 
         if (info is not null)
         {
             items.Add(SettingsCardKit.ContentCard(VStack(8,
-                SettingsVisuals.InfoRow("新版本", $"v{info.Version}"),
-                SettingsVisuals.InfoRow("当前版本", $"v{info.CurrentVersion}"),
+                SettingsVisuals.InfoRow(i18n.T("settings.newVersionLabel", "新版本"), $"v{info.Version}"),
+                SettingsVisuals.InfoRow(i18n.T("settings.currentVersionLabel", "当前版本"), $"v{info.CurrentVersion}"),
                 // 发布说明可能很长（某些版本带整段 changelog）：限高后可滚动，
                 // 否则一两百行的说明会把整页推下去。
                 string.IsNullOrEmpty(info.Notes)
@@ -261,7 +261,7 @@ internal static partial class GeneralSection
                         .IsTabStop(true),
                 // 只在「想再确认一次」时才需要重新检查：主操作已经上移到标题卡，
                 // 这里放低频动作，避免两个同等重量的按钮抢注意力。
-                Button(update.Check.IsPending ? "检查中..." : "重新检查", () => _ = update.Check.RunAsync(null))
+                Button(update.Check.IsPending ? i18n.T("settings.checkingUpdate", "检查中...") : i18n.T("settings.recheckBtn", "重新检查"), () => _ = update.Check.RunAsync(null))
                     .IsEnabled(!update.Check.IsPending)
                     .AutomationName("重新检查更新按钮"))));
         }
@@ -329,31 +329,35 @@ internal static partial class GeneralSection
     /// </summary>
     private static Element PrimaryAction(SettingsUi ui, UpdateUi update, YuumiX.Core.Updates.UpdateInfo info)
     {
+        var i18n = ui.Services.I18n;
         if (update.DownloadedPath is { } path)
         {
             return Button(
-                    ui.Services.Paths.IsPortable ? "应用更新并重启" : "安装更新并重启",
+                    ui.Services.Paths.IsPortable
+                        ? i18n.T("settings.applyAndRestart", "应用更新并重启")
+                        : i18n.T("settings.installAndRestart", "安装更新并重启"),
                     () => ApplyPendingUpdate(ui, update, path))
                 .AutomationName("安装更新按钮");
         }
 
         if (update.Progress is { } progress)
         {
+            var downloadedStr = $"{progress.Downloaded / 1024.0 / 1024.0:F1} MB";
+            var totalStr = progress.Total is { } total ? $" / {total / 1024.0 / 1024.0:F1} MB" : string.Empty;
             return VStack(4,
                 Progress(progress.Percent ?? 0),
-                Caption($"已下载 {progress.Downloaded / 1024.0 / 1024.0:F1} MB"
-                    + (progress.Total is { } total ? $" / {total / 1024.0 / 1024.0:F1} MB" : string.Empty)));
+                Caption(i18n.T("settings.downloadedProgress", "已下载 {progress}").Replace("{progress}", downloadedStr + totalStr)));
         }
 
         if (info.DownloadUrl is not null)
         {
             // 下载中禁用：进度条出现前有几百毫秒窗口，连点会并发写同一个 .tmp（FileShare.None 直接报错）。
-            return Button("下载更新", () => _ = update.Download.RunAsync(info))
+            return Button(i18n.T("settings.downloadUpdate", "下载更新"), () => _ = update.Download.RunAsync(info))
                 .IsEnabled(!update.Download.IsPending)
                 .AutomationName("下载更新按钮");
         }
 
-        return Caption("该版本未提供适用于当前安装形态的更新包，请在下方发布页手动下载。")
+        return Caption(i18n.T("settings.noAssetForPackage", "该版本未提供适用于当前安装形态的更新包，请在下方发布页手动下载。"))
             .Foreground(Theme.SecondaryText)
             .TextWrapping();
     }

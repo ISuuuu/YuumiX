@@ -83,6 +83,12 @@ public static class AppHost
     public static AppServices Services =>
         _services ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
 
+    /// <summary>安全获取进程级服务实例，未初始化时返回 null（供静态视觉构件与单测安全消费）。</summary>
+    public static AppServices? CurrentServices => _services;
+
+    /// <summary>安全获取多语言服务实例，未初始化时返回 null。</summary>
+    public static YuumiX.Core.Localization.I18nService? CurrentI18n => _services?.I18n;
+
     /// <summary>进程级主题状态。仅供根组件使用（其余组件走 <see cref="ThemeContext"/>）。</summary>
     public static ThemeState Theme =>
         _theme ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
@@ -408,19 +414,36 @@ public static class AppHost
     /// </summary>
     public static void ApplyPrimaryLanguageOverride(string? language)
     {
+        var tag = language switch
+        {
+            "en_US" => "en-US",
+            "zh_TW" => "zh-TW",
+            "zh_CN" => "zh-CN",
+            _ => string.Empty,
+        };
+
         try
         {
-            Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = language switch
-            {
-                "en_US" => "en-US",
-                "zh_TW" => "zh-TW",
-                "zh_CN" => "zh-CN",
-                _ => string.Empty,
-            };
+            Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = tag;
         }
         catch
         {
             // 非打包或平台环境不支持时容错
+        }
+
+        try
+        {
+            if (!string.IsNullOrEmpty(tag))
+            {
+                var culture = new System.Globalization.CultureInfo(tag);
+                System.Globalization.CultureInfo.CurrentUICulture = culture;
+                System.Globalization.CultureInfo.CurrentCulture = culture;
+                System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = culture;
+                System.Globalization.CultureInfo.DefaultThreadCurrentCulture = culture;
+            }
+        }
+        catch
+        {
         }
     }
 

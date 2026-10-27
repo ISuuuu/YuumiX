@@ -268,7 +268,28 @@
     "remakeCardDesc": "Background color for remake match card",
     "lightDeathDesc": "Death numbers color in light theme",
     "darkDeathDesc": "Death numbers color in dark theme",
-    "setupUpdateDesc": "Setup build updates via silent installer overwrite"
+    "setupUpdateDesc": "Setup build updates via silent installer overwrite",
+    "notChecked": "Not checked",
+    "statusEnabled": "Enabled",
+    "statusDisabled": "Disabled",
+    "statusUnconfigured": "Unconfigured",
+    "statusConnected": "Connected",
+    "statusDisconnected": "Disconnected",
+    "statusCustom": "Custom",
+    "lolNotRunning": "League Client is not running",
+    "updateAlreadyLatest": "Already on the latest version",
+    "updateFound": "New version found",
+    "updateAvailableDesc": "Current v{current}, can update to v{version}",
+    "updateCheckFailed": "Check/download failed: ",
+    "updateDownloadSuccess": "Update downloaded, ready to install",
+    "updateDownloadFailed": "Failed to download update: ",
+    "newVersionLabel": "New version",
+    "currentVersionLabel": "Current version",
+    "downloadedProgress": "Downloaded {progress}",
+    "noAssetForPackage": "No update package available for the current install type, please download manually from the releases page below.",
+    "clearCacheSuccessCount": "Cleared {count} cache files",
+    "clearCacheFailed": "Failed to clear cache: ",
+    "dpiScaleToast": "UI scale set to {scale}"
   },
   "regions": {
     "HN1": "Ionia",
@@ -313,9 +334,13 @@
     "lcuNotConnected": "LCU not connected, please start League Client first",
     "confirm": "Confirm",
     "cancel": "Cancel",
-    "settingsSaved": "Settings auto-saved"
+    "settingsSaved": "Settings auto-saved",
+    "matches": "matches",
+    "retry": "Retry"
   },
   "tools": {
+    "on": "On",
+    "off": "Off",
     "title": "Tools",
     "loading": "Loading function modules...",
     "groupChampSelect": "Champion Select",
@@ -475,14 +500,16 @@
       "error": "Status error: {error}",
       "online": "Online",
       "away": "Away",
-      "invisible": "Invisible"
+      "invisible": "Invisible",
+      "desc": "Switch your presence in friends list (Online / Away / Invisible)"
     },
     "badges": {
       "title": "Clear Badges",
       "confirmText": "🏅 Are you sure you want to clear all badges on your profile?",
       "success": "All badges cleared",
       "failed": "Failed to clear badges: {error}",
-      "error": "Clear badges error: {error}"
+      "error": "Clear badges error: {error}",
+      "desc": "Equip or unequip challenge badges, titles, and borders"
     },
     "border": {
       "title": "Clear Border",
@@ -997,6 +1024,33 @@
     "tabs": {
       "tier": "Tier List",
       "build": "Build"
+    },
+    "loadingData": "Fetching OP.GG data...",
+    "runes": {
+      "recommendedTitle": "Recommended Runes",
+      "applyBtn": "Apply as Rune Page",
+      "appliedSuccess": "Rune page applied to League Client",
+      "appliedFailed": "Failed to apply rune page: "
+    },
+    "items": {
+      "applying": "Applying item build...",
+      "applyBtn": "Apply Build to Recommended Items",
+      "appliedFailed": "Failed to apply build: ",
+      "starter": "Starter Items",
+      "boots": "Boots",
+      "core": "Core Items",
+      "last": "Situational & Recommended Items"
+    },
+    "tierList": {
+      "champion": "Champion",
+      "winRate": "Win Rate",
+      "pickRate": "Pick Rate",
+      "banRate": "Ban Rate",
+      "counters": "Counters"
+    },
+    "build": {
+      "countersAdvantage": "Favorable (Counters)",
+      "countersDisadvantage": "Unfavorable (Countered)"
     }
   },
   "tftPage": {

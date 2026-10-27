@@ -63,7 +63,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 0),
 
-                    Caption("英雄")
+                    Caption(Composition.AppHost.Services?.I18n.T("opgg.tierList.champion", "英雄") ?? "英雄")
                         .Foreground(Theme.SecondaryText)
                         .Margin(new Thickness(8, 0, 0, 0))
                         .Grid(0, 1),
@@ -74,17 +74,17 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 2),
 
-                    Caption("胜率")
+                    Caption(Composition.AppHost.Services?.I18n.T("opgg.tierList.winRate", "胜率") ?? "胜率")
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 3),
 
-                    Caption("登场率")
+                    Caption(Composition.AppHost.Services?.I18n.T("opgg.tierList.pickRate", "登场率") ?? "登场率")
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 4),
 
-                    Caption("禁用率")
+                    Caption(Composition.AppHost.Services?.I18n.T("opgg.tierList.banRate", "禁用率") ?? "禁用率")
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 5),
@@ -95,7 +95,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 6),
 
-                    Caption("劣势对抗")
+                    Caption(Composition.AppHost.Services?.I18n.T("opgg.tierList.counters", "劣势对抗") ?? "劣势对抗")
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 7)

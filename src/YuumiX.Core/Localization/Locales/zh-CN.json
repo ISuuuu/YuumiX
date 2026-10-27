@@ -268,7 +268,28 @@
     "remakeCardDesc": "重赛一方的底色（含透明度）",
     "lightDeathDesc": "浅色主题下每局死亡数的颜色",
     "darkDeathDesc": "深色主题下每局死亡数的颜色",
-    "setupUpdateDesc": "安装版通过 setup 静默重装；检查到新版后手动下载应用"
+    "setupUpdateDesc": "安装版通过 setup 静默重装；检查到新版后手动下载应用",
+    "notChecked": "尚未检查",
+    "statusEnabled": "已启用",
+    "statusDisabled": "未启用",
+    "statusUnconfigured": "未配置",
+    "statusConnected": "已连接",
+    "statusDisconnected": "未连接",
+    "statusCustom": "自定义",
+    "lolNotRunning": "未检测到运行中的英雄联盟客户端",
+    "updateAlreadyLatest": "当前已是最新版本",
+    "updateFound": "发现新版本",
+    "updateAvailableDesc": "当前 v{current}，可更新到 v{version}",
+    "updateCheckFailed": "检查更新失败: ",
+    "updateDownloadSuccess": "更新下载完成，可立即安装",
+    "updateDownloadFailed": "下载更新失败: ",
+    "newVersionLabel": "新版本",
+    "currentVersionLabel": "当前版本",
+    "downloadedProgress": "已下载 {progress}",
+    "noAssetForPackage": "该版本未提供适用于当前安装形态的更新包，请在下方发布页手动下载。",
+    "clearCacheSuccessCount": "已清除 {count} 个缓存文件",
+    "clearCacheFailed": "清除缓存失败: ",
+    "dpiScaleToast": "界面缩放已设为 {scale}"
   },
   "regions": {
     "HN1": "艾欧尼亚",
@@ -313,9 +334,13 @@
     "lcuNotConnected": "LCU 未连接，请先启动英雄联盟客户端",
     "confirm": "确定",
     "cancel": "取消",
-    "settingsSaved": "设置已自动保存"
+    "settingsSaved": "设置已自动保存",
+    "matches": "场",
+    "retry": "重试"
   },
   "tools": {
+    "on": "开",
+    "off": "关",
     "title": "其他功能",
     "loading": "加载功能模块中...",
     "groupChampSelect": "英雄选择",
@@ -475,14 +500,16 @@
       "error": "状态切换异常: {error}",
       "online": "在线",
       "away": "离开",
-      "invisible": "隐身"
+      "invisible": "隐身",
+      "desc": "在好友列表中切换你的展示状态（在线 / 离开 / 隐身）"
     },
     "badges": {
       "title": "卸下勋章",
       "confirmText": "🏅 确定要清除个人主页展示的所有挑战勋章吗？",
       "success": "勋章已全部卸下",
       "failed": "勋章卸下失败: {error}",
-      "error": "勋章卸下异常: {error}"
+      "error": "勋章卸下异常: {error}",
+      "desc": "装配/卸下展示的挑战勋章、称号与头像框"
     },
     "border": {
       "title": "卸下头像框",
@@ -997,6 +1024,33 @@
     "tabs": {
       "tier": "梯队",
       "build": "出装"
+    },
+    "loadingData": "正在拉取 OP.GG 数据...",
+    "runes": {
+      "recommendedTitle": "推荐符文配置",
+      "applyBtn": "设为当前符文页",
+      "appliedSuccess": "符文页已应用至客户端",
+      "appliedFailed": "应用符文页失败: "
+    },
+    "items": {
+      "applying": "正在应用出装...",
+      "applyBtn": "一键应用出装到游戏推荐页",
+      "appliedFailed": "应用出装失败: ",
+      "starter": "初始装备",
+      "boots": "鞋子选择",
+      "core": "核心装备组合",
+      "last": "可选与推荐装备"
+    },
+    "tierList": {
+      "champion": "英雄",
+      "winRate": "胜率",
+      "pickRate": "登场率",
+      "banRate": "禁用率",
+      "counters": "劣势对抗"
+    },
+    "build": {
+      "countersAdvantage": "对抗优势 (克制)",
+      "countersDisadvantage": "对抗劣势 (被克制)"
     }
   },
   "tftPage": {
