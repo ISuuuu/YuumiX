@@ -30,8 +30,8 @@ internal static class MatchCardView
     /// </summary>
     public const double CardHeight = 56;
 
-    /// <summary>卡片之间的纵向间隙。</summary>
-    private const double CardGap = 6;
+    /// <summary>卡片之间的纵向间隙（对齐 4px 网格）。</summary>
+    public const double CardGap = 4;
 
     public static Element Render(
         MatchSummary summary,
@@ -85,8 +85,9 @@ internal static class MatchCardView
         }
 
         Element card = Border(HStack(8, champion, middle).VAlign(VerticalAlignment.Center))
-            .Width(CardWidth)
-            .Height(CardHeight)
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Stretch)
+            .Margin(0, 0, 0, CardGap)
             .Padding(8)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(bg)
@@ -107,17 +108,18 @@ internal static class MatchCardView
                 .OnTapped((_, _) => onSelect());
         }
 
-        return VStack(0, card, SearchVisuals.VerticalGap(CardGap)).Width(CardWidth);
+        return card;
     }
 
     /// <summary>
-    /// 列表加载中或空状态的骨架卡：与真实卡片同尺寸，只画一个浅色圆角底块。
+    /// 列表加载中或空状态的骨架卡：与真实卡片同结构，只画一个浅色圆角底块。
     /// </summary>
     public static Element Skeleton(YuumiPalette? palette = null)
     {
         var border = Border(Empty())
-            .Width(CardWidth)
-            .Height(CardHeight)
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Stretch)
+            .Margin(0, 0, 0, CardGap)
             .CornerRadius(YuumiTheme.OverlayRadius);
 
         if (palette is not null)
@@ -133,6 +135,6 @@ internal static class MatchCardView
                 .WithBorder(Theme.CardStroke, 1);
         }
 
-        return VStack(0, border, SearchVisuals.VerticalGap(CardGap)).Width(CardWidth);
+        return border;
     }
 }

@@ -186,11 +186,14 @@ internal static class MatchDetailView
 
         return Border(
                 ScrollViewer(VStack(12, blocks.ToArray()).Padding(12))
-                    .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch))
+                    .IsTabStop(true)
+                    .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+                    .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch))
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
-            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
     }
 
     /// <summary>未选中任何对局时的占位：保持面板存在，避免整页在「有/无选中」之间跳动。</summary>

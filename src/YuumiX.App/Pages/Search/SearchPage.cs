@@ -279,24 +279,36 @@ public sealed class SearchPage : Component<SearchPageProps>
         // 列表卡片：ScrollViewer 自适应滚动并支持完全自定义的选中边框与胜负色，
         // 彻底消除 ListView 原生控件的蓝色选中矩形和焦点边框干扰。
         // 每项各自重新 Provide 上下文，保证卡片内的 LcuImage 正确获取服务容器。
+        // 列表固定以 10 局为基准进行 Star 等分：
+        // 达到 10 局时均匀占满全部垂直可用高度；不足 10 局时依然保持 1/10 等分行高，下方自然留白。
+        int slotCount = Math.Max(10, visible.Count);
+        var matchRows = new GridSize[slotCount];
+        Array.Fill(matchRows, GridSize.Star());
+
         Element list = visible.Count == 0
             ? SearchChrome.SkeletonList(status, summonerResolved, summoner is not null, palette)
-            : ScrollViewer(VStack(0, visible.Select(summary =>
-              {
-                  bool isSelected = summary.GameId == currentGameId;
-                  return MatchCardView.Render(
-                      summary,
-                      palette,
-                      isSelected: isSelected,
-                      onSelect: () =>
-                      {
-                          if (summary.GameId != selectedGameId) setSelectedGameId(summary.GameId);
-                      })
-                      .Provide(AppHost.Context, services);
-              }).ToArray()).Width(MatchCardView.CardWidth))
-              .HAlign(HorizontalAlignment.Left);
+            : Grid(
+                [GridSize.Star()],
+                matchRows,
+                visible.Select((summary, i) =>
+                {
+                    bool isSelected = summary.GameId == currentGameId;
+                    return MatchCardView.Render(
+                        summary,
+                        palette,
+                        isSelected: isSelected,
+                        onSelect: () =>
+                        {
+                            if (summary.GameId != selectedGameId) setSelectedGameId(summary.GameId);
+                        })
+                        .WithKey($"match_{summary.GameId}")
+                        .Grid(row: i, column: 0)
+                        .Provide(AppHost.Context, services);
+                }).ToArray())
+              .VAlign(VerticalAlignment.Stretch)
+              .HAlign(HorizontalAlignment.Stretch);
 
-        // 左列：列表吃剩余高度（自身滚动），分页条固定在底部。
+        // 左列：列表吃剩余高度（自身由 10 局网格占满），分页条固定在底部。
         // Grid 的签名是 Grid(columns, rows, children)——第一个数组是**列**，写反会静默错乱（历史踩坑）。
         Element leftColumn = Grid(
                 [GridSize.Star()],
@@ -304,7 +316,9 @@ public sealed class SearchPage : Component<SearchPageProps>
                 [
                     list.Grid(row: 0, column: 0),
                     SearchChrome.Pager(pageIndex, hasMore, setPageIndex).Grid(row: 1, column: 0),
-                ]);
+                ])
+            .VAlign(VerticalAlignment.Stretch)
+            .HAlign(HorizontalAlignment.Stretch);
 
         void OnCopyGameId(long gameId) => SearchEffects.CopyGameId(gameId, setNotice);
 
@@ -318,7 +332,9 @@ public sealed class SearchPage : Component<SearchPageProps>
             [GridSize.Px(ListWidth), GridSize.Star()],
             [GridSize.Star()],
             [
-                leftColumn.Grid(row: 0, column: 0),
+                leftColumn
+                    .Margin(0, 0, 8, 0)
+                    .Grid(row: 0, column: 0),
                 MatchDetailView.Render(
                     detail,
                     current,
@@ -329,7 +345,9 @@ public sealed class SearchPage : Component<SearchPageProps>
                     onClickPlayerPuuid: OnClickPlayerPuuid,
                     onClickPlayerSummonerId: OnClickPlayerSummonerId)
                 .Grid(row: 0, column: 1),
-            ]);
+            ])
+            .VAlign(VerticalAlignment.Stretch)
+            .HAlign(HorizontalAlignment.Stretch);
 
         // 提交搜索：名字空时只更新提示，不清空当前已显示的战绩（否则一次手滑就把列表清空）。
         void SubmitSearch(string? targetPuuid = null, long targetGameId = 0)
@@ -408,6 +426,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                     content.Grid(row: 1, column: 0),
                 ])
             .Padding(12)
-            .HAlign(HorizontalAlignment.Stretch);
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Stretch);
     }
 }

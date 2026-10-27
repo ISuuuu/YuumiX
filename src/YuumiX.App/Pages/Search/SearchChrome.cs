@@ -212,10 +212,16 @@ internal static class SearchChrome
         var skeletons = new Element[SkeletonCount];
         for (var i = 0; i < skeletons.Length; i++)
         {
-            skeletons[i] = MatchCardView.Skeleton(palette);
+            skeletons[i] = MatchCardView.Skeleton(palette)
+                .WithKey($"skeleton_{i}")
+                .Grid(row: i, column: 0);
         }
 
-        // 骨架自带上下的间隙（见 MatchCardView.Skeleton），这里不再额外加间距
-        return VStack(0, skeletons).Width(MatchCardView.CardWidth);
+        var rows = new GridSize[SkeletonCount];
+        Array.Fill(rows, GridSize.Star());
+
+        return Grid([GridSize.Star()], rows, skeletons)
+            .VAlign(VerticalAlignment.Stretch)
+            .HAlign(HorizontalAlignment.Stretch);
     }
 }
