@@ -155,8 +155,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         if (isSelf)
         {
             nameRowItems.Add(
-                Badge.Create(Caption("我").Foreground(Theme.Accent), Theme.SubtleFill, padH: 2.5, padV: 0.5)
-                    .Margin(4, 0, 0, 0)
+                Badge.Create(Caption("我").Foreground(Theme.Accent), Theme.SubtleFill, padH: 3, padV: 1)
+                    .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center));
         }
 
@@ -166,7 +166,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                 Caption(Icons.View)
                     .FontFamily(Icons.FontFamily)
                     .Foreground(AssetColors.AmberDeep)
-                    .Margin(4, 0, 0, 0)
+                    .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("战绩已隐藏")));
         }
@@ -179,8 +179,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             string fateFg = isAlly ? palette.WinText : palette.LoseText;
 
             nameRowItems.Add(
-                Badge.Create(Caption(fateText).Foreground(fateFg), fateBg, padH: 2.5, padV: 0.5)
-                    .Margin(4, 0, 0, 0)
+                Badge.Create(Caption(fateText).Foreground(fateFg), fateBg, padH: 3, padV: 1)
+                    .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
         }
@@ -191,7 +191,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             nameRowItems.Add(
                 FateBadgeVisuals.BuildSavedBadge(savedInfo)
-                    .Margin(4, 0, 0, 0));
+                    .Margin(3, 0, 0, 0));
         }
 
         if (d?.Streak is { Count: >= 2 })
@@ -201,8 +201,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             string streakBg = d.Streak.IsWin ? palette.WinBg : palette.LoseBg;
 
             nameRowItems.Add(
-                Badge.Create(Caption(streakText).Foreground(streakFg), streakBg, padH: 2.5, padV: 0.5)
-                    .Margin(4, 0, 0, 0)
+                Badge.Create(Caption(streakText).Foreground(streakFg), streakBg, padH: 3, padV: 1)
+                    .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock(d.Streak.IsWin ? $"{d.Streak.Count}连胜" : $"{d.Streak.Count}连败")));
         }
@@ -344,7 +344,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                         .Background(AssetColors.AmberFaint)
                         .CornerRadius(YuumiTheme.ControlRadius)
                         .Padding(4, 1)
-                        .Margin(4, 0, 0, 0)
+                        .Margin(3, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
                         .WithToolTip(TextBlock("招牌/绝活英雄 (熟练度排名前三且≥1万分，或累计≥10万分)"))
                 );
@@ -356,7 +356,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                         .Background(palette.LoseBg)
                         .CornerRadius(YuumiTheme.ControlRadius)
                         .Padding(4, 1)
-                        .Margin(4, 0, 0, 0)
+                        .Margin(3, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
                         .WithToolTip(TextBlock("练英雄/新手状态 (熟练度≤1级或点数<5000，近期少用或初次尝试)"))
                 );
@@ -399,7 +399,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     string champTip = $"出场 {topChamp.Games} 次{posDesc}\n{topChamp.WinRate}% 胜率 · {topChamp.Wins}胜 {topChamp.Losses}负 · KDA {topChamp.Kda}";
 
                     var champBadge = Border(champImg)
-                        .Margin(4, 0, 0, 0)
+                        .Margin(2, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
                         .WithToolTip(TextBlock(champTip));
 
@@ -415,7 +415,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     HStack(0, rightItems.ToArray()).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 1).VAlign(VerticalAlignment.Center),
                 ]
             )
-            .Margin(0, 4, 0, 0);
+            .Margin(0, 6, 0, 0);
         }
 
         Element fullContent = bottomBar is not null
@@ -442,8 +442,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
     private static Element RankLine(RankedQueueEntry queue, bool isFlex, YuumiPalette palette)
     {
         Element badge = isFlex
-            ? Badge.Create(Caption("灵活").Foreground(palette.WinText), palette.WinBg, padH: 2, padV: 0.5)
-            : Badge.Create(Caption("单双").Foreground(AssetColors.BlueEssence), AssetColors.BlueFaint, padH: 2, padV: 0.5);
+            ? Badge.Create(Caption("灵活").Foreground(palette.WinText), palette.WinBg, padH: 3, padV: 1)
+            : Badge.Create(Caption("单双").Foreground(AssetColors.BlueEssence), AssetColors.BlueFaint, padH: 3, padV: 1);
 
         return Grid(
             [GridSize.Auto, GridSize.Auto, GridSize.Star()],

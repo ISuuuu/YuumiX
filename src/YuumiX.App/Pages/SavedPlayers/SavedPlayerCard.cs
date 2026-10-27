@@ -167,7 +167,7 @@ internal static class SavedPlayerCard
             .Background(Theme.CardBackground)
             .WithBorder(palette.LoseAccent, 1)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Margin(0, 8, 0, 0);
+            .Margin(0, 8, 0, 2);
         }
 
         // 编辑行
@@ -192,7 +192,7 @@ internal static class SavedPlayerCard
                     .AutomationName("取消")
                     .Padding(12, 4)
             )
-            .Margin(0, 8, 0, 0);
+            .Margin(0, 8, 0, 2);
         }
 
         // 展开对局列表
@@ -224,7 +224,7 @@ internal static class SavedPlayerCard
                         Caption(FormatTime(g.UpdateAt))
                             .Foreground(Theme.SecondaryText)
                     )
-                    .Margin(0, 0, 0, 0)
+                    .Margin(0, 2, 0, 2)
                 ).ToList();
 
                 if (encounteredGames.Count < encounteredTotal)
@@ -236,7 +236,7 @@ internal static class SavedPlayerCard
                                 .Padding(8, 4)
                                 .AutomationName("加载更多对局记录")
                         )
-                        .Margin(0, 4, 0, 0)
+                        .Margin(0, 4, 0, 2)
                     );
                 }
 
@@ -244,10 +244,10 @@ internal static class SavedPlayerCard
                     4,
                     Caption("相遇对局历史：")
                         .Foreground(Theme.SecondaryText)
-                        .Margin(0, 8, 0, 0),
-                    VStack(gameRows.ToArray()).Spacing(4)
+                        .Margin(0, 8, 0, 2),
+                    VStack(gameRows.ToArray()).Spacing(2)
                 )
-                .Margin(0, 4, 0, 0);
+                .Margin(0, 4, 0, 2);
             }
         }
 

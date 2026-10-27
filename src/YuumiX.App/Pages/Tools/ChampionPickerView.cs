@@ -53,7 +53,7 @@ internal static class ChampionPickerView
                             Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, Size: 24, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                             Caption(name).VAlign(VerticalAlignment.Center),
                             Button(Caption(Icons.Cancel).FontFamily(Icons.FontFamily), () => onToggleChampion(id))
-                                .Padding(4, 0)
+                                .Padding(4, 2)
                                 .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                                 .Foreground(Theme.SecondaryText)
                                 .AutomationName($"移除_{name}")
@@ -73,7 +73,7 @@ internal static class ChampionPickerView
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
                     Button(Caption("清空全部"), onClearSelection)
-                        .Padding(4, 0)
+                        .Padding(6, 2)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .AutomationName("清空已选英雄")
                 ),

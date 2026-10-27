@@ -245,7 +245,7 @@ internal static class ProfileSection
         Element clearBadgesAction = confirm.ClearBadges
             ? (Element)HStack(6,
                 Caption("🏅 确定清除所有勋章？").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                Button(Caption("取消"), () => setConfirm(confirm with { ClearBadges = false })).Padding(4, 0).AutomationName("取消卸下勋章"),
+                Button(Caption("取消"), () => setConfirm(confirm with { ClearBadges = false })).Padding(6, 2).AutomationName("取消卸下勋章"),
                 Button(Caption("确认卸下"), async () =>
                 {
                     setConfirm(confirm with { ClearBadges = false });
@@ -258,13 +258,13 @@ internal static class ProfileSection
                     {
                         ui.Toast.Error($"卸下勋章失败: {ex.Message}");
                     }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(4, 0).AutomationName("确认卸下勋章"))
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下勋章"))
             : (Element)Button("卸下全部勋章", () => setConfirm(confirm with { ClearBadges = true })).AutomationName("卸下勋章");
 
         Element clearBorderAction = confirm.ClearBorder
             ? (Element)HStack(6,
                 Caption("🖼️ 确定清除头像框？").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                Button(Caption("取消"), () => setConfirm(confirm with { ClearBorder = false })).Padding(4, 0).AutomationName("取消卸下头像框"),
+                Button(Caption("取消"), () => setConfirm(confirm with { ClearBorder = false })).Padding(6, 2).AutomationName("取消卸下头像框"),
                 Button(Caption("确认卸下"), async () =>
                 {
                     setConfirm(confirm with { ClearBorder = false });
@@ -277,7 +277,7 @@ internal static class ProfileSection
                     {
                         ui.Toast.Error($"卸下头像框失败: {ex.Message}");
                     }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(4, 0).AutomationName("确认卸下头像框"))
+                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下头像框"))
             : (Element)Button("卸下头像框", () => setConfirm(confirm with { ClearBorder = true })).AutomationName("卸下头像框");
 
         var badgesCard = ToolsVisuals.ToolCard(

@@ -95,7 +95,7 @@ internal static class PlayerColumnHeader
         var header = Border(body)
             .BorderThickness(new Thickness(0, 0, 0, 1))
             .BorderBrush(Theme.CardStroke)
-            .Padding(8, 4);
+            .Padding(8, 6);
 
         return premadeColor is null
             ? header.Background(Theme.SubtleFill)
@@ -185,7 +185,7 @@ internal static class PlayerColumnHeader
         if (d?.WinCount.HasValue == true && d.LossesCount.HasValue)
         {
             summaryItems.Add(Caption($"{d.WinCount}胜").Foreground(palette.WinText));
-            summaryItems.Add(Caption($"{d.LossesCount}负").Foreground(palette.LoseText).Margin(4, 0, 4, 0));
+            summaryItems.Add(Caption($"{d.LossesCount}负").Foreground(palette.LoseText).Margin(2, 0, 4, 0));
         }
         else if (d?.WinRate.HasValue == true)
         {

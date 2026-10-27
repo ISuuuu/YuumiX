@@ -92,7 +92,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                         .SemiBold()
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
-                    .Padding(4, 0)
+                    .Padding(4, 1)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.CardBackground)
                     .WithBorder(Theme.CardStroke, 1)

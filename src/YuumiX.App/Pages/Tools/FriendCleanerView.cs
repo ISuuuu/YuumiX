@@ -201,7 +201,7 @@ internal static class FriendCleanerView
                         })
                         .Foreground(entry.Friend.Availability == "chat" ? Theme.Ref("SystemFillColorSuccessBrush") : Theme.SecondaryText)
                     )
-                    .Padding(4, 0)
+                    .Padding(6, 2)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
                     .VAlign(VerticalAlignment.Center)

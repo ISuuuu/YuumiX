@@ -139,7 +139,7 @@ internal static class ChallengePreferencesView
                                 Caption(b.CurrentLevel)
                                     .Foreground(Theme.Accent)
                             )
-                            .Padding(4, 0)
+                            .Padding(6, 2)
                             .CornerRadius(YuumiTheme.ControlRadius)
                             .Background(Theme.Ref("CardBackgroundFillColorDefaultBrush"))
                             .VAlign(VerticalAlignment.Center)

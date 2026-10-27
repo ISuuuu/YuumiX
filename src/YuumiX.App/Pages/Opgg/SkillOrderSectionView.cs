@@ -43,7 +43,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
                 ]
             )
         )
-        .Margin(new Thickness(12, 4, 12, 4))
+        .Margin(new Thickness(12, 6, 12, 6))
         .Padding(new Thickness(16, 8, 16, 8))
         .CornerRadius(YuumiTheme.OverlayRadius)
         .Background(Theme.CardBackground)

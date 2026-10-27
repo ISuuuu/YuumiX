@@ -40,7 +40,7 @@ internal static class ToolsVisuals
     public static Element GroupHeader(string title) =>
         Subtitle(title)
             .HeadingLevel(AutomationHeadingLevel.Level2)
-            .Margin(new Thickness(4, 16, 0, 4));
+            .Margin(new Thickness(4, 16, 0, 6));
 
     public static Element CardRow(string label, Element control) =>
         Grid(
@@ -83,7 +83,7 @@ internal static class ToolsVisuals
                         Body(title).Foreground(Theme.PrimaryText),
                         Body(description)
                             .Foreground(Theme.SecondaryText)
-                            .Margin(new Thickness(0, 4, 0, 0))
+                            .Margin(new Thickness(0, 3, 0, 0))
                     ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
                     Guard(ui, control)
@@ -126,7 +126,7 @@ internal static class ToolsVisuals
                     Body(title).Foreground(Theme.PrimaryText),
                     Body(description)
                         .Foreground(Theme.SecondaryText)
-                        .Margin(new Thickness(0, 4, 0, 0))
+                        .Margin(new Thickness(0, 3, 0, 0))
                 ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
 
                 // 右侧状态摘要

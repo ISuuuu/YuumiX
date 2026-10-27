@@ -273,7 +273,7 @@ internal static class RecentSummaryView
             .SemiBold()
             .HAlign(HorizontalAlignment.Center);
         var badge = Border(gamesText)
-            .Padding(4, 0)
+            .Padding(4, 1)
             .CornerRadius(YuumiTheme.ControlRadius)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom);

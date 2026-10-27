@@ -126,7 +126,7 @@ internal static class CareerProfileHeader
         {
             actionButtons.Add(Button(Caption("返回我的生涯"), onBackToSelf)
                 .Height(28)
-                .Padding(16, 0)
+                .Padding(16, 5)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .AutomationName("返回我的生涯"));
         }
@@ -134,12 +134,12 @@ internal static class CareerProfileHeader
         actionButtons.Add(Button(Caption("刷新"), onRefresh)
             .AutomationName("刷新")
             .Height(28)
-            .Padding(16, 0)
+            .Padding(16, 5)
             .CornerRadius(YuumiTheme.OverlayRadius));
         actionButtons.Add(Button(Caption("历史战绩"), onHistory)
             .AutomationName("历史战绩")
             .Height(28)
-            .Padding(16, 0)
+            .Padding(16, 5)
             .CornerRadius(YuumiTheme.OverlayRadius));
 
         Element actions = VStack(8, actionButtons.ToArray())

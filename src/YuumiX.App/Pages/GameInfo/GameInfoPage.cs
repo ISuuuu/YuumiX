@@ -30,11 +30,17 @@ public sealed class GameInfoPage : Component
     /// <summary>队伍页签高度：旧版 <c>.tab-btn</c> 为 padding 14 + 文案 + 2px 下划线 ≈ 46，取 44。</summary>
     private const double TeamTabHeight = 44;
 
-    /// <summary>阵营胶囊高度：旧版 <c>.side-pill</c> font 0.7rem + padding 3×9 ≈ 20。</summary>
-    private const double TeamPillHeight = 20;
+    /// <summary>阵营胶囊高度：沿用网格改造前的 26（配 <see cref="TeamPillPadV"/> 的垂直内边距）。</summary>
+    private const double TeamPillHeight = 26;
 
-    /// <summary>视图分段按钮高度：旧版 <c>.segment-btn</c> font 0.72rem + padding 4×10 ≈ 22。</summary>
-    private const double SegmentButtonHeight = 22;
+    /// <summary>阵营胶囊垂直内边距：胶囊保留垂直留白，不压成 0，高度由固定高 + 居中承载。</summary>
+    private const double TeamPillPadV = 3;
+
+    /// <summary>视图分段按钮高度：沿用网格改造前的 28（配 <see cref="SegmentButtonPadV"/>）。</summary>
+    private const double SegmentButtonHeight = 28;
+
+    /// <summary>视图分段按钮垂直内边距：同上，保留垂直留白。</summary>
+    private const double SegmentButtonPadV = 4;
 
     public override Element Render()
     {
@@ -334,7 +340,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .Height(44)
-        .Padding(12, 4, 12, 4)
+        .Padding(12, 6, 12, 6)
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .BorderBrush(Theme.CardStroke);
 
@@ -449,7 +455,7 @@ public sealed class GameInfoPage : Component
             )
         )
         .Height(44)
-        .Padding(12, 4, 12, 4)
+        .Padding(12, 6, 12, 6)
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .BorderBrush(Theme.CardStroke);
 
@@ -583,7 +589,7 @@ public sealed class GameInfoPage : Component
             .CornerRadius(YuumiTheme.PillRadius)
             .Background(dotColor)
             .VAlign(VerticalAlignment.Center)
-            .Margin(0, 0, 4, 0);
+            .Margin(0, 0, 5, 0);
 
         var label = Caption(text)
             .Foreground(fgColor)
@@ -599,7 +605,7 @@ public sealed class GameInfoPage : Component
                 .BorderBrush(borderColor)
                 .BorderThickness(new Thickness(1))
                 .CornerRadius(YuumiTheme.PillRadius)
-                .Padding(8, 0)
+                .Padding(8, TeamPillPadV)
                 .Height(TeamPillHeight);
         }
 
@@ -608,7 +614,7 @@ public sealed class GameInfoPage : Component
             .BorderBrush(borderColor)
             .BorderThickness(new Thickness(1))
             .CornerRadius(YuumiTheme.PillRadius)
-            .Padding(8, 0)
+            .Padding(8, TeamPillPadV)
             .Height(TeamPillHeight);
     }
 
@@ -646,7 +652,7 @@ public sealed class GameInfoPage : Component
             .AutomationName("按队伍模式")
             .BorderThickness(new Thickness(0))
             .CornerRadius(YuumiTheme.ControlRadius)
-            .Padding(8, 0)
+            .Padding(8, SegmentButtonPadV)
             .Height(SegmentButtonHeight);
 
         var allContent = HStack(4,
@@ -665,7 +671,7 @@ public sealed class GameInfoPage : Component
             .AutomationName("全部战绩模式")
             .BorderThickness(new Thickness(0))
             .CornerRadius(YuumiTheme.ControlRadius)
-            .Padding(8, 0)
+            .Padding(8, SegmentButtonPadV)
             .Height(SegmentButtonHeight);
 
         return Border(

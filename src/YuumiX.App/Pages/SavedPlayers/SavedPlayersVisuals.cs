@@ -50,10 +50,10 @@ internal static class SavedPlayersVisuals
                     8,
                     Button(Caption("导入标记"), onImport)
                         .AutomationName("导入标记")
-                        .Padding(12, 4),
+                        .Padding(12, 5),
                     Button(Caption("导出标记"), onExport)
                         .AutomationName("导出标记")
-                        .Padding(12, 4)
+                        .Padding(12, 5)
                 )
                 .VerticalAlignment(VerticalAlignment.Center)
                 .Grid(column: 1),
@@ -98,7 +98,7 @@ internal static class SavedPlayersVisuals
             var isSelected = filter == key;
             var btn = Button(Caption(label), () => setFilter(key))
                 .AutomationName(label)
-                .Padding(12, 4);
+                .Padding(12, 5);
 
             return isSelected
                 ? btn.Background(Theme.Accent)
@@ -169,7 +169,7 @@ internal static class SavedPlayersVisuals
                         .Foreground(Theme.SecondaryText)
                         .HorizontalAlignment(HorizontalAlignment.Center),
                     Button(Caption("清空搜索条件"), onClearSearch)
-                        .Padding(12, 4)
+                        .Padding(12, 5)
                         .HorizontalAlignment(HorizontalAlignment.Center)
                         .AutomationName("清空搜索条件")
                 )

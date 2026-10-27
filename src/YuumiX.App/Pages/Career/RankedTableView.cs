@@ -65,8 +65,8 @@ internal static class RankedTableView
             HeaderCell("胜点", ColLpWidth),
             HeaderCell("赛季最高", ColHighestWidth),
             HeaderCell("上赛季结算", ColPreviousWidth))
-            // 旧版 `.rank-table th/td` 的内边距是 6×16；6 不在 4px 网格上，取 8。
-            .Padding(16, 8);
+            // 旧版 `.rank-table th/td` 的内边距是 6×16；6 属 1–7px 光学微调档，按原值保留。
+            .Padding(16, 6);
 
         return CareerVisuals.Card(
             VStack(0,
@@ -116,6 +116,6 @@ internal static class RankedTableView
             DataCell(leaguePoints, ColLpWidth),
             DataCell(highest, ColHighestWidth, foreground: Theme.SecondaryText),
             DataCell(previous, ColPreviousWidth, foreground: Theme.SecondaryText))
-            .Padding(16, 8);
+            .Padding(16, 6);
     }
 }

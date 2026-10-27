@@ -208,7 +208,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         {
             topRowColumns.Add(GridSize.Auto);
             topRowElements.Add(
-                PlayerColumnVisuals.BuildPositionIcon(inferredPos, 11).Margin(4, 0, 4, 0)
+                PlayerColumnVisuals.BuildPositionIcon(inferredPos, 11).Margin(2, 0, 2, 0)
                     .Grid(row: 0, column: topCol));
             topCol++;
         }
@@ -224,7 +224,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .WithBorder(Theme.CardStroke, 1)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Padding(4, 1)
-                    .Margin(4, 0, 4, 0)
+                    .Margin(3, 0, 3, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("你曾参与本场对局"))
                     .Grid(row: 0, column: topCol));

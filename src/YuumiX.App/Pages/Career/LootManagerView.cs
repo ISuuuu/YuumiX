@@ -129,7 +129,7 @@ internal static class LootManagerView
                     Caption("🔑"),
                     Caption($"x{loot.TotalKeys}").SemiBold().Foreground(CareerVisuals.GoldColor))
                 .VAlign(VerticalAlignment.Center))
-                .Padding(8, 4)
+                .Padding(8, 3)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x1F))
                 .WithBorder(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x33), 1)
@@ -294,7 +294,7 @@ internal static class LootManagerView
                     Caption("🔵"),
                     Caption(loot.BlueEssence.ToString(CultureInfo.InvariantCulture)).SemiBold().Foreground(CareerVisuals.BlueEssenceColor))
                 .VAlign(VerticalAlignment.Center))
-                .Padding(8, 4)
+                .Padding(8, 6)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.BlueEssenceColor, 0x1A))
                 .WithBorder(CareerVisuals.WithAlpha(CareerVisuals.BlueEssenceColor, 0x33), 1),
@@ -302,7 +302,7 @@ internal static class LootManagerView
                     Caption("🔶"),
                     Caption(loot.OrangeEssence.ToString(CultureInfo.InvariantCulture)).SemiBold().Foreground(CareerVisuals.OrangeEssenceColor))
                 .VAlign(VerticalAlignment.Center))
-                .Padding(8, 4)
+                .Padding(8, 6)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.OrangeEssenceColor, 0x1A))
                 .WithBorder(CareerVisuals.WithAlpha(CareerVisuals.OrangeEssenceColor, 0x33), 1))
@@ -433,7 +433,7 @@ internal static class LootManagerView
                     Caption($"正在处理... ({progress.Current}/{progress.Total}) {progress.ItemName}: {progress.RewardDesc}")
                         .Foreground(Theme.Accent)
                         .VAlign(VerticalAlignment.Center)))
-                .Padding(8, 4)
+                .Padding(8, 6)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(Theme.SubtleFill)
                 .WithBorder(Theme.Accent, 1);
@@ -444,7 +444,7 @@ internal static class LootManagerView
                 Caption(operationNotice)
                     .TextWrapping()
                     .Foreground(CareerVisuals.WinText))
-                .Padding(8, 4)
+                .Padding(8, 6)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x1A))
                 .WithBorder(CareerVisuals.WinText, 1);
