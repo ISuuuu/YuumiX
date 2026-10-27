@@ -46,7 +46,7 @@ internal sealed record GateRule(
 
         new(
             "SpacingOff4Grid",
-            "间距不在 4px 网格上（栈内 <8px 微间距除外）：工厂参数、with 赋值与 HStack/VStack 首参都必须是 4 的倍数（AGENTS.md §3）",
+            "布局间距不符合 4px 规则：≥8 必须是 4 的倍数，1–7 仅允许整数微调；小数与 9/10/11/13/14/15 一律拦截（AGENTS.md §3）",
             CleanupBatch: "R16",
             ExcludeTheming: false,
             IsSpacingOffGrid),
@@ -88,7 +88,7 @@ internal sealed record GateRule(
     {
         foreach (Match call in SpacingCallPattern.Matches(line))
         {
-            if (HasOffGridNumber(ExtractCallArgs(line, call.Index + call.Length - 1)))
+            if (HasDisallowedNumber(ExtractCallArgs(line, call.Index + call.Length - 1)))
             {
                 return true;
             }
@@ -96,7 +96,7 @@ internal sealed record GateRule(
 
         foreach (Match assign in SpacingAssignPattern.Matches(line))
         {
-            if (IsOffGrid(assign.Groups["value"].Value))
+            if (!IsAllowedSpacing(assign.Groups["value"].Value))
             {
                 return true;
             }
@@ -104,7 +104,7 @@ internal sealed record GateRule(
 
         foreach (Match stack in StackGapPattern.Matches(line))
         {
-            if (!IsAllowedStackGap(stack.Groups["value"].Value))
+            if (!IsAllowedSpacing(stack.Groups["value"].Value))
             {
                 return true;
             }
@@ -137,11 +137,11 @@ internal sealed record GateRule(
         return line[(openParenIndex + 1)..];
     }
 
-    private static bool HasOffGridNumber(string text)
+    private static bool HasDisallowedNumber(string text)
     {
         foreach (Match number in NumberPattern.Matches(text))
         {
-            if (IsOffGrid(number.Value))
+            if (!IsAllowedSpacing(number.Value))
             {
                 return true;
             }
@@ -150,13 +150,12 @@ internal sealed record GateRule(
         return false;
     }
 
-    private static bool IsOffGrid(string value) =>
-        Math.Abs(double.Parse(value, System.Globalization.CultureInfo.InvariantCulture)) % 4 > 1e-9;
-
-    // 栈内 <8px 是图标与文字的微对齐值，不参与 4 网格；≥8px 与布局间距同口径。
-    private static bool IsAllowedStackGap(string value)
+    // 4 的倍数，或 1–7 的整数微调值（控件内边距、图标/文字间距）。
+    // 小数一律拒绝：亚像素偏移会让 DirectWrite 失去像素网格拟合（AGENTS.md §1.2）。
+    private static bool IsAllowedSpacing(string value)
     {
-        var gap = double.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
-        return gap % 4 == 0 || (gap >= 1 && gap <= 8);
+        var spacing = double.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+        return spacing % 4 == 0 ||
+               (spacing >= 1 && spacing <= 7 && spacing == Math.Floor(spacing));
     }
 }
