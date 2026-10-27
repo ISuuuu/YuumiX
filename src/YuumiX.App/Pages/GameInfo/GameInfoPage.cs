@@ -647,7 +647,7 @@ public sealed class GameInfoPage : Component
         .BorderBrush(Theme.CardStroke)
         .BorderThickness(new Thickness(1))
         .CornerRadius(YuumiTheme.OverlayRadius)
-        .Padding(0);
+        .Padding(2);
     }
 
     private static GameInfoPlayer? FindPlayerData(

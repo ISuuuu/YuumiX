@@ -21,7 +21,7 @@ internal static class SavedPlayersVisuals
                 Caption($"{totalCount}")
                     .SemiBold()
                     .Foreground(Theme.Accent)
-                    .Margin(4, 0),
+                    .Margin(4, 1),
                 Theme.CardBackground,
                 Theme.Accent)
               .VerticalAlignment(VerticalAlignment.Center)
@@ -75,7 +75,7 @@ internal static class SavedPlayersVisuals
         var clearBtn = !string.IsNullOrEmpty(searchDraft)
             ? Button(Caption("✕"), onClearSearch)
                 .AutomationName("清空搜索")
-                .Padding(4, 0)
+                .Padding(4, 2)
                 .VerticalAlignment(VerticalAlignment.Center)
             : null;
 

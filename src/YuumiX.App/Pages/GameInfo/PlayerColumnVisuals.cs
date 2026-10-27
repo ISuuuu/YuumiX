@@ -163,7 +163,7 @@ internal static class PlayerColumnVisuals
                         .Foreground(isAlly ? palette.WinText : palette.LoseText))
                     .Background(isAlly ? palette.WinBg : palette.LoseBg)
                     .CornerRadius(YuumiTheme.ControlRadius)
-                    .Padding(4, 0)
+                    .Padding(4, 1)
                     .Margin(4, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
@@ -219,7 +219,7 @@ internal static class PlayerColumnVisuals
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.CardStroke, 1)
             .CornerRadius(YuumiTheme.ControlRadius)
-            .Padding(4, 0)
+            .Padding(4, 1)
             .VAlign(VerticalAlignment.Center)
             .WithToolTip(TextBlock($"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)"));
     }

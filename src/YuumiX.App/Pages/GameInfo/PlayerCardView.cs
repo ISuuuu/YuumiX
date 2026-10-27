@@ -99,7 +99,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             )
             .Background(AssetColors.BadgeDark)
             .CornerRadius(YuumiTheme.ControlRadius)
-            .Padding(4, 0)
+            .Padding(4, 1)
             .HAlign(HorizontalAlignment.Center)
             .VAlign(VerticalAlignment.Bottom)
             .Margin(0, 0, 0, -4);
@@ -359,7 +359,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     )
                     .Background(Theme.SubtleFill)
                     .CornerRadius(YuumiTheme.ControlRadius)
-                    .Padding(4, 0)
+                    .Padding(4, 1)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock(masteryTip))
                 );
@@ -371,7 +371,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     Border(Caption("招牌").Foreground(AssetColors.Amber))
                         .Background(AssetColors.AmberFaint)
                         .CornerRadius(YuumiTheme.ControlRadius)
-                        .Padding(4, 0)
+                        .Padding(4, 1)
                         .Margin(4, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
                         .WithToolTip(TextBlock("招牌/绝活英雄 (熟练度排名前三且≥1万分，或累计≥10万分)"))
@@ -383,7 +383,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     Border(Caption("练英雄").Foreground(palette.LoseText))
                         .Background(palette.LoseBg)
                         .CornerRadius(YuumiTheme.ControlRadius)
-                        .Padding(4, 0)
+                        .Padding(4, 1)
                         .Margin(4, 0, 0, 0)
                         .VAlign(VerticalAlignment.Center)
                         .WithToolTip(TextBlock("练英雄/新手状态 (熟练度≤1级或点数<5000，近期少用或初次尝试)"))
@@ -409,7 +409,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                 )
                 .Background(Theme.SubtleFill)
                 .CornerRadius(YuumiTheme.ControlRadius)
-                .Padding(4, 0)
+                .Padding(4, 1)
                 .WithToolTip(TextBlock(posTip));
 
                 rightItems.Add(posPill);

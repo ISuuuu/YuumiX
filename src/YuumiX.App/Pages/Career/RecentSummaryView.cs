@@ -192,7 +192,7 @@ internal static class RecentSummaryView
                     .Foreground(Theme.PrimaryText),
                 tm.Tag is not null
                     ? Border(Caption(tm.Tag).Foreground(Theme.Accent))
-                        .Padding(4, 0)
+                        .Padding(4, 1)
                         .CornerRadius(YuumiTheme.ControlRadius)
                         .Background(Theme.SubtleFill)
                     : Empty()
@@ -245,7 +245,7 @@ internal static class RecentSummaryView
     private static Element PositionChip(RecentPositionStat position, YuumiPalette palette) =>
         Border(Caption($"{CareerVisuals.PositionText(position.Position)} {position.Percentage}%")
                 .Foreground(Theme.Accent))
-            .Padding(8, 0)
+            .Padding(8, 2)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.CardStroke, 1)
