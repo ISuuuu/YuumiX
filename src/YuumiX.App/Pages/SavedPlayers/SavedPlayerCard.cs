@@ -36,8 +36,9 @@ internal static class SavedPlayerCard
             Component<LcuImage, LcuImageProps>(
                 new LcuImageProps($"/lol-game-data/assets/v1/profile-icons/{player.ProfileIconId}.jpg", 40, 20)),
             player.ChampionId > 0
-                ? Component<LcuImage, LcuImageProps>(
-                    new LcuImageProps($"/lol-game-data/assets/v1/champion-icons/{player.ChampionId}.png", 32, 16))
+                ? // 英雄图标 = Riot 原生方 tile（ControlRadius），与生涯/战绩页一致；仅召唤师头像保留圆形
+                  Component<LcuImage, LcuImageProps>(
+                    new LcuImageProps($"/lol-game-data/assets/v1/champion-icons/{player.ChampionId}.png", 32, YuumiTheme.ControlRadius))
                 : null
         )
         .VerticalAlignment(VerticalAlignment.Center)

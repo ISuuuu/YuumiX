@@ -15,7 +15,7 @@ namespace YuumiX.App.Pages.Search;
 /// </summary>
 internal static class MatchCardView
 {
-    /// <summary>英雄头像边长（圆形，半径取一半）。</summary>
+    /// <summary>英雄头像边长（Riot 原生方 tile，4px 控件圆角）。</summary>
     private const double ChampionSize = 36;
 
     /// <summary>
@@ -39,8 +39,10 @@ internal static class MatchCardView
         bool isSelected = false,
         Action? onSelect = null)
     {
+        // 英雄图标按 Riot 原生方 tile 呈现：圆形裁剪会切进图标自带的暗角晕影，
+        // 露出一圈脏边（常用英雄条已有同样问题，见 RecentSummaryView.ChampionCell）。
         Element champion = SearchVisuals.Icon(
-            SearchVisuals.ChampionIcon(summary.ChampionId), ChampionSize, ChampionSize / 2);
+            SearchVisuals.ChampionIcon(summary.ChampionId), ChampionSize, YuumiTheme.ControlRadius);
 
         Element middle = VStack(2,
             Caption(summary.QueueName)
