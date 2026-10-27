@@ -45,9 +45,15 @@ internal static class LogNetworkSection
                 ui.Commit(nameof(GeneralConfig.LogLevel));
             }).Width(160).AutomationName("日志等级选择"));
 
+        var logDirPrompt = i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs
+            ? $"Stored at {ui.Services.Paths.LogDirectory}"
+            : (i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.ZhTw
+                ? $"存放於 {ui.Services.Paths.LogDirectory}"
+                : $"存放于 {ui.Services.Paths.LogDirectory}");
+
         var logDirCard = SettingsCardKit.Card(
             i18n.T("settings.logFileTitle", "日志文件"),
-            $"存放于 {ui.Services.Paths.LogDirectory}",
+            logDirPrompt,
             Button(i18n.T("settings.openFolderBtn", "打开目录"), () =>
             {
                 try

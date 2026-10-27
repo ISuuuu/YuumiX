@@ -1102,5 +1102,13 @@
     "searchPlaceholder": "Search summoner name, TagLine, or tags...",
     "searchEmpty": "No players found matching \"{keyword}\"",
     "clearSearch": "Clear Search"
+  },
+  "replay": {
+    "btn": "Replay",
+    "watch": "Watch",
+    "checking": "Checking...",
+    "downloading": "Downloading...",
+    "unavailable": "Unavailable",
+    "retry": "Retry"
   }
 }

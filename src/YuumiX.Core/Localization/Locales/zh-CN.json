@@ -1102,5 +1102,13 @@
     "searchPlaceholder": "搜索召唤师名称、TagLine 或标记...",
     "searchEmpty": "未找到与 “{keyword}” 相关的玩家",
     "clearSearch": "清空搜索"
+  },
+  "replay": {
+    "btn": "回放",
+    "watch": "观看回放",
+    "checking": "检查中…",
+    "downloading": "下载中…",
+    "unavailable": "不可用",
+    "retry": "重试"
   }
 }
