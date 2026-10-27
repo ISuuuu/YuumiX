@@ -223,7 +223,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .Background(Theme.SubtleFill)
                     .WithBorder(Theme.CardStroke, 1)
                     .CornerRadius(YuumiTheme.ControlRadius)
-                    .Padding(4, 0)
+                    .Padding(4, 1)
                     .Margin(4, 0, 4, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("你曾参与本场对局"))

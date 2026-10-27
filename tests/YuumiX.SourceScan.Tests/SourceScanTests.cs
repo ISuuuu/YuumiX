@@ -36,7 +36,7 @@ public sealed class SourceScanTests
     public void FontSizeLiteral_NoViolationsOutsideWhitelist() => AssertRuleConformance("FontSizeLiteral");
 
     [Fact]
-    public void Spacing_AllOn4GridOrWhitelisted() => AssertRuleConformance("SpacingOff4Grid");
+    public void Spacing_AllConformOrWhitelisted() => AssertRuleConformance("SpacingOff4Grid");
 
     [Fact]
     public void BareFluentFontFamily_NoViolationsOutsideWhitelist() => AssertRuleConformance("BareFluentFontFamily");
@@ -124,9 +124,17 @@ public sealed class SourceScanTests
     [InlineData("FontSizeLiteral", "Caption(\"x\").ApplyStyle(\"CaptionTextBlockStyle\")", false)]
     [InlineData("SpacingOff4Grid", ".Margin(0, 10, 0, 0)", true)]
     [InlineData("SpacingOff4Grid", ".Padding(3, 0.5)", true)]
-    [InlineData("SpacingOff4Grid", ".Margin(0, 0, isTenCol ? 4 : 6, 0)", true)]
+    [InlineData("SpacingOff4Grid", ".Margin(0, 0, isTenCol ? 4 : 9, 0)", true)]
     [InlineData("SpacingOff4Grid", ".Margin(0, 8, 0, 16)", false)]
     [InlineData("SpacingOff4Grid", ".Padding(left: 8)", false)]
+    [InlineData("SpacingOff4Grid", ".Padding(4, 2)", false)]
+    [InlineData("SpacingOff4Grid", ".Padding(8, 5, 8, 6)", false)]
+    [InlineData("SpacingOff4Grid", ".Margin(6, 1)", false)]
+    [InlineData("SpacingOff4Grid", ".Padding(9, 0)", true)]
+    [InlineData("SpacingOff4Grid", ".Spacing(6)", false)]
+    [InlineData("SpacingOff4Grid", "VStack(6, blocks)", false)]
+    [InlineData("SpacingOff4Grid", "VStack(6.5, blocks)", true)]
+    [InlineData("SpacingOff4Grid", "VStack(10, blocks)", true)]
     [InlineData("SpacingOff4Grid", ") with { ColumnSpacing = 12 }", false)]
     [InlineData("SpacingOff4Grid", ") with { ColumnSpacing = 10 }", true)]
     [InlineData("SpacingOff4Grid", ".Margin(0, 0, 0, CardGap2)", false)]

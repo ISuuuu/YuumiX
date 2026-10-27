@@ -119,7 +119,7 @@ internal static class ChampionMasteryView
             HStack(6,
                 BodyLarge(heroName).SemiBold().VAlign(VerticalAlignment.Center),
                 Border(Caption($"Lv. {heroLevel}").SemiBold().Foreground(Theme.Accent))
-                    .Padding(4, 0)
+                    .Padding(4, 2)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.SubtleFill)
                     .VAlign(VerticalAlignment.Center)),
@@ -308,7 +308,7 @@ internal static class ChampionMasteryView
                         .SemiBold()
                         .Foreground(Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Center))
-                    .Padding(4, 0)
+                    .Padding(4, 1)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(Theme.CardBackground)
                     .WithBorder(Theme.CardStroke, 1)
@@ -362,7 +362,7 @@ internal static class ChampionMasteryView
         var badges = new List<Element>
         {
             Border(Caption($"里程碑 {item.ChampionSeasonMilestone}").Foreground(Theme.SecondaryText))
-                .Padding(4, 0)
+                .Padding(4, 1)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(Theme.SubtleFill)
                 .WithBorder(Theme.CardStroke, 1),
@@ -372,7 +372,7 @@ internal static class ChampionMasteryView
         {
             badges.Add(Border(Caption(grade)
                     .Foreground(CareerVisuals.GoldColor))
-                .Padding(4, 0)
+                .Padding(4, 1)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(CareerVisuals.WithAlpha(CareerVisuals.GoldColor, 0x1F)));
         }
@@ -380,7 +380,7 @@ internal static class ChampionMasteryView
         Element chestBtn = Border(HStack(3,
                 Caption("可获宝箱").Foreground(Theme.Accent),
                 Caption("📦")))
-            .Padding(4, 0)
+            .Padding(4, 2)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.CardStroke, 1);

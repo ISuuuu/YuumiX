@@ -148,7 +148,7 @@ internal static class PlayerColumnHeader
                 Border(Caption(FateBadgeVisuals.GetBadgeText(d)).Foreground(isAlly ? palette.WinText : palette.LoseText))
                     .Background(isAlly ? palette.WinBg : palette.LoseBg)
                     .CornerRadius(YuumiTheme.ControlRadius)
-                    .Padding(4, 0)
+                    .Padding(4, 1)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(FateBadgeVisuals.BuildToolTip(d)));
         }

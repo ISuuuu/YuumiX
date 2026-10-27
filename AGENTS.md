@@ -67,7 +67,7 @@ dotnet test tests/YuumiX.SourceScan.Tests/YuumiX.SourceScan.Tests.csproj -p:Plat
 >   （禁 `ScrollView`、`FontWeights`、`ContentDialog.ShowAsync`、`SyncWinUiAccentResources`），
 >   配合 App 项目 `TreatWarningsAsErrors`，引用即构建失败
 >   （`REACTOR_THEME_001` 是既有 `NoWarn` 例外，新增例外须评审）。
-> - 模式级：`tests/YuumiX.SourceScan.Tests` 扫源码拦截硬编码 8 位 ARGB、字号字面量、非 4 倍数布局间距（栈内 <8px 微间距除外）、
+> - 模式级：`tests/YuumiX.SourceScan.Tests` 扫源码拦截硬编码 8 位 ARGB、字号字面量、非 4 倍数布局间距（1–7px 整数光学微调除外）、
 >   裸字形字体名、从文案反推状态；存量白名单见 `GateWhitelist.json`，目前为空。
 > - 暂无自动门禁、靠评审把关：空 catch（§10）、`.CornerRadius(数字)` 字面量（§3）。
 
@@ -184,8 +184,10 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 - 头像/等级环等胶囊元素的第三档是 `YuumiTheme.PillRadius`。
 - **禁止**在 `.CornerRadius(...)` 里写数字字面量（当前存量为 0，由此保持）；需要主题资源形态时用 `ThemeResource.CornerRadius("ControlCornerRadius")`。
   注意 `Theme.ControlCornerRadius` 在 Reactor API 中**不存在**，不要猜。
-- 布局间距只用 4 的倍数：4/8/12/16/20/24/32，禁止 9、10、11、13、14、15 这类数值。
-  `HStack`/`VStack` 内 <8px 的图标/文字微间距可自由取值（1–8）；≥8px 仍走 4 的倍数。存量已清零，由 SourceScan 测试 `SpacingOff4Grid` 拦截。
+- 间距以 4px 网格为基准：4/8/12/16/20/24/32，禁止 9、10、11、13、14、15 这类数值。
+  1–7px 的**整数**保留给控件内边距、图标/文字微间距等光学微调（WinUI 按钮默认 `Padding(8,5,8,6)` 即属此类）；小数一律禁止（亚像素偏移会让 DirectWrite 失去像素网格拟合）。
+  该约束管的是元素之间的节奏与控件内边距，**不约束控件自身尺寸**（`Width`/`Height`/`Min*`/`Max*`）：图标/头像的 18/22/30 等尺寸由资产与内容推导，新增非标准尺寸须注释来源。
+  存量已清零，由 SourceScan 测试 `SpacingOff4Grid` 拦截。
 - 卡片内边距统一 `16`（`SettingsCard` 已内置，无需手写）。
 
 ---

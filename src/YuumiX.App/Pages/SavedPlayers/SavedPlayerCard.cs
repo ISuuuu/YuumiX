@@ -59,7 +59,7 @@ internal static class SavedPlayerCard
                 !string.IsNullOrEmpty(player.Tag)
                     ? Border(
                         Caption(player.Tag)
-                            .Margin(4, 0)
+                            .Margin(4, 1)
                       )
                       .Background(Theme.Accent)
                       .CornerRadius(YuumiTheme.ControlRadius)
@@ -69,7 +69,7 @@ internal static class SavedPlayerCard
                     ? Border(
                         Caption(modeName)
                             .Foreground(Theme.SecondaryText)
-                            .Margin(4, 0)
+                            .Margin(4, 1)
                       )
                       .Background(Theme.CardBackground)
                       .WithBorder(Theme.CardStroke, 1)
@@ -80,7 +80,7 @@ internal static class SavedPlayerCard
                     ? Border(
                         Caption($"相遇 {player.EncounterCount} 次")
                             .Foreground(Theme.Accent)
-                            .Margin(4, 0)
+                            .Margin(4, 1)
                       )
                       .Background(Theme.CardBackground)
                       .WithBorder(Theme.Accent, 1)
@@ -129,7 +129,7 @@ internal static class SavedPlayerCard
         )
         .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(0)
-        .Padding(4, 0)
+        .Padding(4, 2)
         .HorizontalAlignment(HorizontalAlignment.Stretch)
         .HorizontalContentAlignment(HorizontalAlignment.Left)
         .AutomationName($"查看 {player.SummonerName} 的相遇对局历史");
