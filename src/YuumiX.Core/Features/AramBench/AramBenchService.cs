@@ -63,6 +63,12 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
     /// <summary>等待会话确认交换生效的上限。超过即视为"LCU 静默不生效"。</summary>
     private static readonly TimeSpan SwapVerifyTimeout = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// LCU 返回非 2xx（如 500、400、409）时，观察是否有换人推流在数十毫秒内实际生效的短缓冲期。
+    /// 解决客户端偶尔返回 500 异常但底层换人事务已成功提交的时序竞争问题。
+    /// </summary>
+    private static readonly TimeSpan FailureGracePeriod = TimeSpan.FromMilliseconds(350);
+
     /// <summary>可用英雄列表的重试次数与间隔（旧实现：3 次、每次 2 秒）。</summary>
     private const int PickableRetryCount = 3;
     private static readonly TimeSpan PickableRetryDelay = TimeSpan.FromSeconds(2);
@@ -99,6 +105,7 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
     private bool _inChampSelect;
     private bool _benchEnabled;
     private bool _protected;
+    private ITimer? _protectionTimer;
     private bool _pickableLoaded;
     private bool _pickableFetching;
     private DateTimeOffset _sessionStartedAt = DateTimeOffset.MinValue;
@@ -161,6 +168,12 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
                 return AramBenchSwapOutcome.NoSession;
             }
 
+            // 目标英雄当前已经手持（例如网络延时、快速连点），无需重复发起请求与等待
+            if (championId == _myChampionId)
+            {
+                return AramBenchSwapOutcome.Swapped;
+            }
+
             // 未拥有校验在发请求前做：LCU 对不可用英雄的响应语焉不详，
             // 提前拦下能给用户一句明确的原因。
             if (!IsPickableLocked(championId))
@@ -191,19 +204,35 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
 
             if (!response.IsSuccess)
             {
-                ClearPendingSwap(championId);
-
-                // 404 = 会话已结束（换人结算/退出选人），其余非 2xx 基本都是保护期拦截。
+                // 404 = 会话已结束（换人结算/退出选人）
                 if (response.IsNotFound)
                 {
+                    ClearPendingSwap(championId);
                     _logger?.LogDebug("板凳席交换时选人会话已结束: {ChampionId}", championId);
                     return AramBenchSwapOutcome.NoSession;
                 }
 
                 _logger?.LogInformation(
-                    "板凳席交换被拒绝: {ChampionId}，HTTP {StatusCode}",
+                    "板凳席交换请求未成功: {ChampionId}，HTTP {StatusCode}，Body: {Body}",
                     championId,
-                    response.StatusCode);
+                    response.StatusCode,
+                    response.Body);
+
+                // LCU 偶尔在返回非 2xx（如 500 RPC 异常或限流）的同时，底层事务仍会在数十至数百毫秒内生效推流；
+                // 因此给一个短暂的观察缓冲（350ms），若推流在短时间内确认了当前手持已变为目标英雄，依然认定为生效。
+                var verifiedOnFailure = await Task
+                    .WhenAny(completion.Task, Task.Delay(FailureGracePeriod, _time, CancellationToken.None))
+                    .ConfigureAwait(false) == completion.Task;
+
+                ClearPendingSwap(championId);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (verifiedOnFailure)
+                {
+                    _logger?.LogInformation("板凳席交换已在异常缓冲期内确认生效: {ChampionId}", championId);
+                    return AramBenchSwapOutcome.Swapped;
+                }
+
                 return AramBenchSwapOutcome.Protected;
             }
 
@@ -414,7 +443,8 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
         int myChampionId = Math.Max(me?.ChampionId ?? 0, me?.ChampionPickIntent ?? 0);
         TrackMyChampionLocked(myChampionId);
 
-        _protected = IsProtectedPhaseLocked(session.Timer);
+        _protected = IsProtectedPhaseLocked(session.Timer, out var remainingProtection);
+        ScheduleProtectionTimerLocked(remainingProtection);
 
         // 可用英雄列表一次选人只需成功一次；失败由 FetchPickableIdsAsync 内部重试
         return _benchEnabled && !_pickableLoaded && !_pickableFetching;
@@ -432,9 +462,15 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
 
         bool confirmed = false;
 
+        // 如果手持英雄发生了变更（换人）：旧英雄退回到板凳席，新旧英雄均视为专属拥有，在保护期内保持点亮
+        if (_myChampionId > 0 && _myChampionId != championId)
+        {
+            _unlocked.Add(_myChampionId);
+            _unlocked.Add(championId);
+        }
+
         if (_pendingSwapId == championId)
         {
-            // 交换真正生效：经会话确认手持变为目标英雄，目标英雄与换下的旧英雄加入解锁集合，动态点亮为亮色
             _unlocked.Add(championId);
             if (_myChampionId > 0 && _myChampionId != championId)
             {
@@ -451,8 +487,10 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
         return confirmed;
     }
 
-    private bool IsProtectedPhaseLocked(ChampSelectTimer? timer)
+    private bool IsProtectedPhaseLocked(ChampSelectTimer? timer, out TimeSpan remainingProtection)
     {
+        remainingProtection = TimeSpan.Zero;
+
         // FINALIZATION（最后确认阶段）一律放开：此时队友保护期已过，抢谁的看手速
         if (string.Equals(timer?.Phase, "FINALIZATION", StringComparison.OrdinalIgnoreCase))
         {
@@ -462,11 +500,71 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
         if (timer?.TotalTimeInPhase is ulong total && total > 0)
         {
             ulong left = Math.Min(timer.AdjustedTimeLeftInPhase ?? total, total);
-            return TimeSpan.FromMilliseconds(total - left) < ProtectionWindow;
+            var elapsed = TimeSpan.FromMilliseconds(total - left);
+            if (elapsed < ProtectionWindow)
+            {
+                remainingProtection = ProtectionWindow - elapsed;
+                return true;
+            }
+
+            return false;
         }
 
         // 拿不到完整 timer 时退回本机计时：会话首次出现即视为阶段开始
-        return _time.GetUtcNow() - _sessionStartedAt < ProtectionWindow;
+        var localElapsed = _time.GetUtcNow() - _sessionStartedAt;
+        if (localElapsed < ProtectionWindow)
+        {
+            remainingProtection = ProtectionWindow - localElapsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ScheduleProtectionTimerLocked(TimeSpan remaining)
+    {
+        if (!_protected || remaining <= TimeSpan.Zero)
+        {
+            _protectionTimer?.Dispose();
+            _protectionTimer = null;
+            return;
+        }
+
+        if (_protectionTimer is null)
+        {
+            _protectionTimer = _time.CreateTimer(
+                _ => OnProtectionTimerTick(),
+                null,
+                remaining,
+                Timeout.InfiniteTimeSpan);
+        }
+        else
+        {
+            _protectionTimer.Change(remaining, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private void OnProtectionTimerTick()
+    {
+        bool changed = false;
+        lock (_gate)
+        {
+            if (!_inChampSelect || !_protected)
+            {
+                return;
+            }
+
+            _protected = false;
+            _protectionTimer?.Dispose();
+            _protectionTimer = null;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            _logger?.LogDebug("板凳席保护期已满 15 秒，自动开放全部可用英雄");
+            Publish();
+        }
     }
 
     private bool IsPickableLocked(int championId) =>
@@ -477,6 +575,8 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
         _inChampSelect = false;
         _benchEnabled = false;
         _protected = false;
+        _protectionTimer?.Dispose();
+        _protectionTimer = null;
         _bench = [];
         _pickable.Clear();
         _pickableLoaded = false;
@@ -697,6 +797,11 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
         }
 
         _disposed = true;
+        lock (_gate)
+        {
+            _protectionTimer?.Dispose();
+            _protectionTimer = null;
+        }
         _eventSubscription.Dispose();
         _connectionSubscription.Dispose();
         _states.Complete();

@@ -210,6 +210,80 @@ public sealed class AramBenchServiceTests
     }
 
     [Fact]
+    public async Task Swap_WhenTargetIsCurrentChampion_ReturnsSwappedImmediatelyWithoutRequest()
+    {
+        using var harness = new Harness(pickable: [11, 22]);
+        harness.PublishSession(Session(myChampionId: 11, bench: [11, 22]));
+
+        var outcome = await harness.Service.SwapAsync(11);
+
+        Assert.Equal(AramBenchSwapOutcome.Swapped, outcome);
+        Assert.DoesNotContain(harness.Transport.Requests, request => request.Path.Contains("bench/swap", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Swap_LcuReturns500_ConfirmedBySessionWithinGracePeriod_ReturnsSwapped()
+    {
+        using var harness = new Harness(pickable: [11, 22]);
+        harness.Transport.Handler = request =>
+        {
+            if (request.Path.EndsWith("/bench/swap/22", StringComparison.Ordinal))
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(50);
+                    harness.PublishSession(Session(myChampionId: 22, bench: [11, 22], left: 24000));
+                });
+                return new LcuResponse(500, "{\"errorCode\":\"INTERNAL_SERVER_ERROR\"}");
+            }
+
+            return new LcuResponse(200, "[11,22]");
+        };
+
+        harness.PublishSession(Session(myChampionId: 11, bench: [11, 22], left: 25000));
+
+        var outcome = await harness.Service.SwapAsync(22);
+
+        Assert.Equal(AramBenchSwapOutcome.Swapped, outcome);
+        Assert.True(harness.Service.Current.IsProtected);
+        Assert.All(harness.Service.Current.Champions, champion => Assert.True(champion.Clickable));
+    }
+
+    [Fact]
+    public void Session_InGameSwapOrRoll_TracksPreviousChampionAsUnlocked()
+    {
+        using var harness = new Harness(pickable: [11, 22, 33]);
+        harness.PublishSession(Session(myChampionId: 11, bench: [22, 33], left: 25000));
+        Assert.All(harness.Service.Current.Champions, champion => Assert.False(champion.Clickable));
+
+        // 玩家在游戏客户端内 roll 或与队友换，当前手持变为 22，换下的 11 扔到板凳席
+        harness.PublishSession(Session(myChampionId: 22, bench: [11, 33], left: 24000));
+
+        // 11 是此前手持过的专属英雄，保护期内依然解锁可点
+        var champion11 = Assert.Single(harness.Service.Current.Champions, c => c.ChampionId == 11);
+        Assert.True(champion11.Clickable);
+
+        // 33 从未持有过，仍在保护期置灰
+        var champion33 = Assert.Single(harness.Service.Current.Champions, c => c.ChampionId == 33);
+        Assert.False(champion33.Clickable);
+    }
+
+    [Fact]
+    public async Task Session_InProtection_TimerExpires_PublishesUnprotectedState()
+    {
+        using var harness = new Harness(pickable: [11, 22]);
+        // total 30000, 15 秒保护期在 left <= 15000 结束。left = 15050ms 代表还有 50ms 到期
+        harness.PublishSession(Session(myChampionId: 11, bench: [11, 22], total: 30000, left: 15050));
+        Assert.True(harness.Service.Current.IsProtected);
+
+        // 等待定时器触发
+        await Task.Delay(150);
+
+        Assert.False(harness.Service.Current.IsProtected);
+        Assert.All(harness.Service.Current.Champions, champion => Assert.True(champion.Clickable));
+    }
+
+    [Fact]
     public void Phase_LeavingChampSelect_ResetsToIdle()
     {
         using var harness = new Harness(pickable: [11]);
