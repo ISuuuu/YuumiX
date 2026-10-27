@@ -53,6 +53,7 @@ AppUpdatesURL=https://github.com/ISuuuu/YuumiX/releases
 DefaultDirName={localappdata}\Programs\YuumiX
 DefaultGroupName=YuumiX
 DisableProgramGroupPage=yes
+DisableDirPage=no
 PrivilegesRequired=lowest
 OutputDir={#OutputDir}
 OutputBaseFilename=YuumiX_v{#Version}_x64-setup

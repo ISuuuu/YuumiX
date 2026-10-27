@@ -29,7 +29,7 @@
 
 从 [Releases](https://github.com/ISuuuu/YuumiX/releases) 下载，两种形态均无需预装运行时：
 
-- **安装版** `YuumiX_v<版本>_x64-setup.exe`：双击安装到当前用户的 `%LOCALAPPDATA%\Programs\YuumiX`，不弹 UAC，自动创建开始菜单入口与卸载项。
+- **安装版** `YuumiX_v<版本>_x64-setup.exe`：默认安装到当前用户的 `%LOCALAPPDATA%\Programs\YuumiX`（不弹 UAC，安装时可自由选择其他盘符或路径），自动创建开始菜单入口与卸载项。
 - **便携版** `YuumiX_v<版本>_portable.zip`：解压后运行 `YuumiX-portable\YuumiX.exe`，删除目录即完全卸载。
 
 运行要求 Windows 10 1809（17763）及以上、x64，推荐 Windows 11。发布包未做代码签名，首次运行需在 SmartScreen 提示中点「更多信息 → 仍要运行」。

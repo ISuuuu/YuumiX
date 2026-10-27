@@ -339,8 +339,8 @@ jobs:
           > 本版本提供两种分发形态，按需选一种即可：
           > - **便携版** `YuumiX_v*_portable.zip`：解压后运行 `YuumiX-portable\YuumiX.exe`，
           >   数据保存在 `YuumiX-portable\data\`，删除整个目录即完全卸载。
-          > - **安装版** `YuumiX_v*_x64-setup.exe`：安装到当前用户目录（无需管理员权限），
-          >   自动创建开始菜单与卸载项，数据保存在 `%APPDATA%\Yuumi`（与旧版 Yuumi 共用）。
+          > - **安装版** `YuumiX_v*_x64-setup.exe`：默认安装到当前用户目录（无需管理员权限，安装时可自由选择其他盘符或路径），
+          >   自动创建开始菜单与卸载项，数据保存在 `%APPDATA%\YuumiX`。
           > 两种形态都可使用应用内「设置 → 软件更新」自动比对 GitHub Releases 并提示新版本。
 
           ## 运行要求
