@@ -32,6 +32,15 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
         var (polling, setPolling) = UseState(false, threadSafe: true);
         var (notice, setNotice) = UseState<string?>(null, threadSafe: true);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         // 轮询回放状态
         UseEffect(
             () =>
@@ -226,42 +235,50 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
 
     private static ButtonElement RenderNormal(string status, string? notice, Action onClick)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var replayText = i18n?.T("replay.btn", "回放") ?? "回放";
+        var watchText = i18n?.T("replay.watch", "观看回放") ?? "观看回放";
+        var checkingText = i18n?.T("replay.checking", "检查中…") ?? "检查中…";
+        var downloadingText = i18n?.T("replay.downloading", "下载中…") ?? "下载中…";
+        var unavailableText = i18n?.T("replay.unavailable", "不可用") ?? "不可用";
+        var retryText = i18n?.T("replay.retry", "重试") ?? "重试";
+
         return status switch
         {
             "checking" =>
-                Button(HStack(6, ProgressRing().Width(14).Height(14), Caption("检查中…")), onClick)
+                Button(HStack(6, ProgressRing().Width(14).Height(14), Caption(checkingText)), onClick)
                     .Height(28)
                     .Padding(8, 0)
-                    .AutomationName("回放检查中"),
+                    .AutomationName(checkingText),
             "downloading" =>
-                Button(HStack(6, ProgressRing().Width(14).Height(14), Caption("下载中…")), onClick)
+                Button(HStack(6, ProgressRing().Width(14).Height(14), Caption(downloadingText)), onClick)
                     .Height(28)
                     .Padding(8, 0)
-                    .AutomationName("回放下载中"),
+                    .AutomationName(downloadingText),
             "watch" =>
-                Button(HStack(6, Glyph(Icons.Play, CareerVisuals.WinText), Caption("观看回放")), onClick)
+                Button(HStack(6, Glyph(Icons.Play, CareerVisuals.WinText), Caption(watchText)), onClick)
                     .Height(28)
                     .Padding(8, 0)
-                    .AutomationName("观看回放"),
+                    .AutomationName(watchText),
             "unsupported" =>
-                Button(HStack(6, Glyph(Icons.Cancel), Caption("不可用")), onClick)
+                Button(HStack(6, Glyph(Icons.Cancel), Caption(unavailableText)), onClick)
                     .Height(28)
                     .Padding(8, 0)
                     .IsEnabled(false)
-                    .AutomationName("回放不可用")
-                    .WithToolTip(TextBlock(notice ?? "该对局回放不可用")),
+                    .AutomationName(unavailableText)
+                    .WithToolTip(TextBlock(notice ?? unavailableText)),
             "error" =>
-                Button(HStack(6, Glyph(Icons.Error, CareerVisuals.LoseText), Caption("重试")), onClick)
+                Button(HStack(6, Glyph(Icons.Error, CareerVisuals.LoseText), Caption(retryText)), onClick)
                     .Height(28)
                     .Padding(8, 0)
-                    .AutomationName("重试")
-                    .WithToolTip(TextBlock(notice ?? "下载失败，点击重试")),
+                    .AutomationName(retryText)
+                    .WithToolTip(TextBlock(notice ?? retryText)),
             _ =>
-                Button(HStack(6, Glyph(Icons.Replay), Caption("回放")), onClick)
+                Button(HStack(6, Glyph(Icons.Replay), Caption(replayText)), onClick)
                     .Height(28)
                     .Padding(8, 0)
-                    .AutomationName("回放")
-                    .WithToolTip(TextBlock("回放")),
+                    .AutomationName(replayText)
+                    .WithToolTip(TextBlock(replayText)),
         };
     }
 }

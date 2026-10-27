@@ -78,6 +78,15 @@ public sealed class CareerPage : Component<CareerPageProps>
             },
             0);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         // 连接态走订阅值而非 lcu.CurrentState：客户端启动/退出必须让本页重渲染，
         // 否则离线占位会停在进页那一刻的判断上（客户端启动后仍是一张空页）。
         var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);

@@ -65,25 +65,50 @@ internal static class ProfileSection
         bool challengesLoading,
         Action onReloadChallenges)
     {
+        var i18n = ui.I18n;
+        var clickToExpand = i18n.T("tools.clickToExpand", "点击展开");
+        var isEn = i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+
+        var spoofQueueLabels = isEn
+            ? new[] { "Ranked Solo/Duo", "Ranked Flex", "TFT" }
+            : (i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.ZhTw
+                ? new[] { "單雙排排位", "靈活排位", "雲頂之弈" }
+                : new[] { "单双排排位", "灵活排位", "云顶之弈" });
+
+        var spoofTierLabels = isEn
+            ? new[] { "Challenger", "Grandmaster", "Master", "Diamond", "Emerald", "Platinum", "Gold", "Silver", "Bronze", "Iron", "Unranked" }
+            : (i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.ZhTw
+                ? new[] { "王者 (Challenger)", "宗師 (Grandmaster)", "大師 (Master)", "鑽石 (Diamond)", "翡翠 (Emerald)", "鉑金 (Platinum)", "黃金 (Gold)", "白銀 (Silver)", "青銅 (Bronze)", "黑鐵 (Iron)", "未定級 (Unranked)" }
+                : new[] { "王者 (Challenger)", "宗师 (Grandmaster)", "大师 (Master)", "钻石 (Diamond)", "翡翠 (Emerald)", "铂金 (Platinum)", "黄金 (Gold)", "白银 (Silver)", "青铜 (Bronze)", "黑铁 (Iron)", "未定级 (Unranked)" });
+
+        var spoofDivisionLabels = isEn
+            ? new[] { "Division I", "Division II", "Division III", "Division IV" }
+            : (i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.ZhTw
+                ? new[] { "第 1 階 (I)", "第 2 階 (II)", "第 3 階 (III)", "第 4 階 (IV)" }
+                : new[] { "第 1 阶 (I)", "第 2 阶 (II)", "第 3 阶 (III)", "第 4 阶 (IV)" });
+
         // ══════════════════════════════════════════════════════
         // 4. 个人主页组
         // ══════════════════════════════════════════════════════
         var signatureCard = ToolsVisuals.ToolCard(
             ui,
-            "signature", "个性签名", "自定义修改你在客户端好友列表中展示的个性状态签名", "点击展开",
+            "signature",
+            i18n.T("tools.signature.title", "个性签名"),
+            i18n.T("tools.signature.desc", "自定义修改你在客户端好友列表中展示的个性状态签名"),
+            clickToExpand,
             false,
             VStack(8,
-                Body("输入你想展示的个性化签名并应用：")
+                Body(i18n.T("tools.enterSignaturePlaceholder", "输入你想展示的个性化签名并应用："))
                     .Foreground(Theme.SecondaryText),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        TextBox(draft.Signature, v => setDraft(draft with { Signature = v }), "输入新个性签名内容...")
+                        TextBox(draft.Signature, v => setDraft(draft with { Signature = v }), i18n.T("tools.enterSignaturePlaceholder", "输入新个性签名内容..."))
                             .Margin(new Thickness(0, 0, 8, 0))
                             .AutomationName("签名内容输入")
                             .Grid(row: 0, column: 0),
-                        Button("更新签名", async () =>
+                        Button(i18n.T("tools.updateSignatureBtn", "更新签名"), async () =>
                         {
                             if (string.IsNullOrWhiteSpace(draft.Signature))
                             {
@@ -106,10 +131,13 @@ internal static class ProfileSection
 
         var profileBgCard = ToolsVisuals.ToolCard(
             ui,
-            "profileBg", "生涯背景", "在个人生涯主页展示任意指定的英雄皮肤插画背景", "点击展开",
+            "profileBg",
+            i18n.T("tools.background.title", "生涯背景"),
+            i18n.T("tools.background.desc", "在个人生涯主页展示任意指定的英雄皮肤插画背景"),
+            clickToExpand,
             false,
             VStack(12,
-                Body("浏览英雄皮肤并预览应用，或直接输入皮肤 ID：")
+                Body(i18n.T("tools.browseSkinsDesc", "浏览英雄皮肤并预览应用，或直接输入皮肤 ID："))
                     .Foreground(Theme.SecondaryText),
                 SkinPickerView.Render(
                     bg.ChampInput,
@@ -171,11 +199,11 @@ internal static class ProfileSection
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        TextBox(draft.SkinId, v => setDraft(draft with { SkinId = v }), "或直接输入皮肤 ID，如 1001")
+                        TextBox(draft.SkinId, v => setDraft(draft with { SkinId = v }), i18n.T("tools.skinIdPlaceholder", "或直接输入皮肤 ID，如 1001"))
                             .Margin(new Thickness(0, 0, 8, 0))
                             .AutomationName("皮肤ID输入")
                             .Grid(row: 0, column: 0),
-                        Button("直接应用皮肤 ID", async () =>
+                        Button(i18n.T("tools.applySkinIdBtn", "直接应用皮肤 ID"), async () =>
                         {
                             if (!int.TryParse(draft.SkinId.Trim(), out var skinId))
                             {
@@ -199,24 +227,45 @@ internal static class ProfileSection
 
         var rankSpoofCard = ToolsVisuals.ToolCard(
             ui,
-            "rankSpoof", "段位伪装", "在本地客户端及好友列表中伪造段位展示 (仅限视觉效果)", "点击展开",
+            "rankSpoof",
+            i18n.T("tools.rankSpoof.title", "段位伪装"),
+            i18n.T("tools.rankSpoof.desc", "在本地客户端及好友列表中伪造段位展示 (仅限视觉效果)"),
+            clickToExpand,
             false,
             VStack(12,
-                ToolsVisuals.CardRow("排位队列类型:",
-                    ComboBox(SpoofQueueLabels, spoof.QueueIndex, index => setSpoof(spoof with { QueueIndex = index }))
+                ToolsVisuals.CardRow(i18n.T("tools.spoofQueueLabel", "排位队列类型:"),
+                    ComboBox(spoofQueueLabels, spoof.QueueIndex, index =>
+                    {
+                        if (index >= 0 && index < spoofQueueLabels.Length)
+                        {
+                            setSpoof(spoof with { QueueIndex = index });
+                        }
+                    })
                         .Width(180).AutomationName("伪装队列选择")),
-                ToolsVisuals.CardRow("伪装段位级别:",
-                    ComboBox(SpoofTierLabels, spoof.TierIndex, index => setSpoof(spoof with { TierIndex = index }))
+                ToolsVisuals.CardRow(i18n.T("tools.spoofTierLabel", "伪装段位级别:"),
+                    ComboBox(spoofTierLabels, spoof.TierIndex, index =>
+                    {
+                        if (index >= 0 && index < spoofTierLabels.Length)
+                        {
+                            setSpoof(spoof with { TierIndex = index });
+                        }
+                    })
                         .Width(220).AutomationName("伪装段位选择")),
-                ToolsVisuals.CardRow("伪装小段级别 (Division):",
-                    ComboBox(SpoofDivisionLabels, spoof.DivisionIndex, index => setSpoof(spoof with { DivisionIndex = index }))
+                ToolsVisuals.CardRow(i18n.T("tools.spoofDivisionLabel", "伪装小段级别 (Division):"),
+                    ComboBox(spoofDivisionLabels, spoof.DivisionIndex, index =>
+                    {
+                        if (index >= 0 && index < spoofDivisionLabels.Length)
+                        {
+                            setSpoof(spoof with { DivisionIndex = index });
+                        }
+                    })
                         .Width(180).IsEnabled(!isApexTier).AutomationName("伪装小段选择")),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        Body("应用后好友列表中的名片即时显示此段位").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
-                        Button("应用伪装", async () =>
+                        Body(i18n.T("tools.spoofNotice", "应用后好友列表中的名片即时显示此段位")).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
+                        Button(i18n.T("tools.applySpoofBtn", "应用伪装"), async () =>
                         {
                             var q = SpoofQueues[spoof.QueueIndex];
                             var t = SpoofTiers[spoof.TierIndex];
@@ -236,17 +285,18 @@ internal static class ProfileSection
 
         var onlineStatusCard = ToolsVisuals.ActionCard(
             ui,
-            "在线状态切换", "在好友列表中切换你的展示状态（在线 / 离开 / 隐身）",
+            i18n.T("tools.status.title", "在线状态切换"),
+            i18n.T("tools.status.desc", "在好友列表中切换你的展示状态（在线 / 离开 / 隐身）"),
             HStack(8,
-                StatusButton(ui, "在线", "chat", "已切换为在线状态", "设为在线"),
-                StatusButton(ui, "离开", "away", "已切换为离开状态", "设为离开"),
-                StatusButton(ui, "隐身", "offline", "已切换为隐身离线状态", "设为隐身")));
+                StatusButton(ui, i18n.T("tools.statusOnline", "在线"), "chat", "已切换为在线状态", "设为在线"),
+                StatusButton(ui, i18n.T("tools.statusAway", "离开"), "away", "已切换为离开状态", "设为离开"),
+                StatusButton(ui, i18n.T("tools.statusOffline", "隐身"), "offline", "已切换为隐身离线状态", "设为隐身")));
 
         Element clearBadgesAction = confirm.ClearBadges
             ? (Element)HStack(6,
                 Caption("🏅 确定清除所有勋章？").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                Button(Caption("取消"), () => setConfirm(confirm with { ClearBadges = false })).Padding(6, 2).AutomationName("取消卸下勋章"),
-                Button(Caption("确认卸下"), async () =>
+                Button(Caption(i18n.T("common.cancel", "取消")), () => setConfirm(confirm with { ClearBadges = false })).Padding(6, 2).AutomationName("取消卸下勋章"),
+                Button(Caption(i18n.T("common.confirm", "确认卸下")), async () =>
                 {
                     setConfirm(confirm with { ClearBadges = false });
                     try
@@ -259,13 +309,13 @@ internal static class ProfileSection
                         ui.Toast.Error($"卸下勋章失败: {ex.Message}");
                     }
                 }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下勋章"))
-            : (Element)Button("卸下全部勋章", () => setConfirm(confirm with { ClearBadges = true })).AutomationName("卸下勋章");
+            : (Element)Button(i18n.T("tools.clearAllBadgesBtn", "卸下全部勋章"), () => setConfirm(confirm with { ClearBadges = true })).AutomationName("卸下勋章");
 
         Element clearBorderAction = confirm.ClearBorder
             ? (Element)HStack(6,
                 Caption("🖼️ 确定清除头像框？").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                Button(Caption("取消"), () => setConfirm(confirm with { ClearBorder = false })).Padding(6, 2).AutomationName("取消卸下头像框"),
-                Button(Caption("确认卸下"), async () =>
+                Button(Caption(i18n.T("common.cancel", "取消")), () => setConfirm(confirm with { ClearBorder = false })).Padding(6, 2).AutomationName("取消卸下头像框"),
+                Button(Caption(i18n.T("common.confirm", "确认卸下")), async () =>
                 {
                     setConfirm(confirm with { ClearBorder = false });
                     try
@@ -278,11 +328,14 @@ internal static class ProfileSection
                         ui.Toast.Error($"卸下头像框失败: {ex.Message}");
                     }
                 }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下头像框"))
-            : (Element)Button("卸下头像框", () => setConfirm(confirm with { ClearBorder = true })).AutomationName("卸下头像框");
+            : (Element)Button(i18n.T("tools.clearBorderBtn", "卸下头像框"), () => setConfirm(confirm with { ClearBorder = true })).AutomationName("卸下头像框");
 
         var badgesCard = ToolsVisuals.ToolCard(
             ui,
-            "badges", "挑战勋章与头像框", "装配/卸下展示的挑战勋章、称号与头像框", "点击展开",
+            "badges",
+            i18n.T("tools.badges.title", "挑战勋章与头像框"),
+            i18n.T("tools.badges.desc", "装配/卸下展示的挑战勋章、称号与头像框"),
+            clickToExpand,
             false,
             VStack(12,
                 HStack(8,

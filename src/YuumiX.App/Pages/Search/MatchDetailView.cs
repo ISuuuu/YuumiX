@@ -197,14 +197,21 @@ internal static class MatchDetailView
     }
 
     /// <summary>未选中任何对局时的占位：保持面板存在，避免整页在「有/无选中」之间跳动。</summary>
-    private static Element EmptyPanel(YuumiPalette palette) =>
-        Border(Caption("在左侧选择一局以查看详情").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
+    private static Element EmptyPanel(YuumiPalette palette)
+    {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var text = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs
+            ? "Select a match on the left to view details"
+            : "在左侧选择一局以查看详情";
+
+        return Border(Caption(text).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
             .Padding(24)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
+    }
 
     /// <summary>骨架里的灰块：统一底色与圆角，尺寸由调用方给。</summary>
     private static Element Block(double width, double height, double radius = 4) =>
@@ -342,17 +349,27 @@ internal static class MatchDetailView
         string tint = team.Win ? palette.WinBg : palette.LoseBg;
         string border = team.Win ? palette.WinBorder : palette.LoseBorder;
 
+        var i18n = Composition.AppHost.Services?.I18n;
+        var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+
+        var itemsHeader = isAugment
+            ? (isEn ? "Augments / Items" : "强化 / 装备")
+            : (isEn ? "Items" : "装备");
+        var csHeader = isEn ? "CS" : "补刀";
+        var goldHeader = isEn ? "Gold" : "金币";
+        var dmgHeader = isEn ? "Damage" : "输出";
+
         Element header = Border(
                 Grid(
                     columns,
                     [GridSize.Auto],
                     [
-                        TeamSummary(team, accent, palette).Grid(row: 0, column: 0),
-                        ColumnLabel(isAugment ? "强化 / 装备" : "装备", 1, palette, HorizontalAlignment.Left),
+                        TeamSummary(team, accent, palette, isEn).Grid(row: 0, column: 0),
+                        ColumnLabel(itemsHeader, 1, palette, HorizontalAlignment.Left),
                         ColumnLabel("KDA", 2, palette, HorizontalAlignment.Center),
-                        ColumnLabel("补刀", 3, palette, HorizontalAlignment.Center),
-                        ColumnLabel("金币", 4, palette, HorizontalAlignment.Right),
-                        ColumnLabel("输出", 5, palette, HorizontalAlignment.Right),
+                        ColumnLabel(csHeader, 3, palette, HorizontalAlignment.Center),
+                        ColumnLabel(goldHeader, 4, palette, HorizontalAlignment.Right),
+                        ColumnLabel(dmgHeader, 5, palette, HorizontalAlignment.Right),
                     ]))
             .Padding(6)
             .Background(tint)
@@ -408,20 +425,21 @@ internal static class MatchDetailView
     }
 
     /// <summary>表头左侧：胜方/败方 + 击杀数 + 六项团队目标彩色图标（对齐旧版 D7）。</summary>
-    private static Element TeamSummary(MatchDetailTeam team, string accent, YuumiPalette palette)
+    private static Element TeamSummary(MatchDetailTeam team, string accent, YuumiPalette palette, bool isEn = false)
     {
         int teamId = team.TeamId; // 100 or 200
+        var winText = isEn ? (team.Win ? "Victory" : "Defeat") : (team.Win ? "胜方" : "败方");
 
         return HStack(8,
-            BodyStrong(team.Win ? "胜方" : "败方")
+            BodyStrong(winText)
                 .Foreground(accent)
                 .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center),
-            ResourceItem("kills.png", team.Kills, "击杀", palette),
-            ResourceItem($"tower-{teamId}.png", team.TowerKills, "防御塔", palette),
-            ResourceItem($"dragon-{teamId}.png", team.DragonKills, "巨龙", palette),
-            ResourceItem($"baron-{teamId}.png", team.BaronKills, "纳什男爵", palette),
-            ResourceItem($"herald-{teamId}.png", team.RiftHeraldKills, "峡谷先锋", palette),
-            ResourceItem($"inhibitor-{teamId}.png", team.InhibitorKills, "水晶", palette));
+            ResourceItem("kills.png", team.Kills, isEn ? "Kills" : "击杀", palette),
+            ResourceItem($"tower-{teamId}.png", team.TowerKills, isEn ? "Towers" : "防御塔", palette),
+            ResourceItem($"dragon-{teamId}.png", team.DragonKills, isEn ? "Dragons" : "巨龙", palette),
+            ResourceItem($"baron-{teamId}.png", team.BaronKills, isEn ? "Baron" : "纳什男爵", palette),
+            ResourceItem($"herald-{teamId}.png", team.RiftHeraldKills, isEn ? "Rift Herald" : "峡谷先锋", palette),
+            ResourceItem($"inhibitor-{teamId}.png", team.InhibitorKills, isEn ? "Inhibitors" : "水晶", palette));
     }
 
     /// <summary>列名：按指定对齐方式对齐到各自数据列，保证表头与数字同一条基线。</summary>

@@ -75,6 +75,9 @@ public sealed class AppServices : IAsyncDisposable
     public Features.Notice.NoticeService NoticeService =>
         Services.GetRequiredService<Features.Notice.NoticeService>();
 
+    /// <summary>多语言本地化服务。</summary>
+    public Localization.I18nService I18n => Services.GetRequiredService<Localization.I18nService>();
+
     /// <summary>
     /// 进程级关闭令牌。所有后台循环（LCU 轮询、WebSocket 重连）必须监听它，
     /// 否则窗口关闭后进程退不掉——后台任务会把 CLR 拖住。
@@ -114,6 +117,11 @@ public sealed class AppServices : IAsyncDisposable
         collection.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
         collection.AddSingleton(store);
         collection.AddSingleton(config);
+
+        // ── 多语言本地化服务 ──────────────────────────────────────
+        collection.AddSingleton(provider => new Localization.I18nService(
+            provider.GetRequiredService<AppConfig>().Personalization.Language,
+            provider.GetService<ILogger<Localization.I18nService>>()));
 
         collection.AddSingleton<ILcuProcessSource>(_ => new WindowsLcuProcessSource());
         collection.AddSingleton(provider => new LcuProcessFinder(

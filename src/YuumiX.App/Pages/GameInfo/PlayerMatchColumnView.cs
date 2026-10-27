@@ -204,11 +204,13 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         );
 
         var inferredPos = m.Position ?? MatchStatsCalculator.InferMatchPosition(m);
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+        var queueName = Search.SearchFilters.TranslateQueueLabel(m.QueueName, isEn);
 
         // 卡片顶部：模式名称 + 位置 + 「同局」标记 + 日期（带 ToolTip，§2.3.3）
         var topRowElements = new List<Element>
         {
-            Caption(m.QueueName)
+            Caption(queueName)
                 .Foreground(Theme.SecondaryText)
                 .TextTrimming(TextTrimming.CharacterEllipsis)
                 .Grid(row: 0, column: 0)

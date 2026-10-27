@@ -22,21 +22,24 @@ internal static class AboutSection
 
     public static Element Render(SettingsUi ui)
     {
+        var i18n = ui.Services.I18n;
+        var isEn = i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+
         return SettingsCardKit.Expander(
-            "关于 YuumiX",
-            $"当前版本 {AppVersion} · 运行环境与存储位置",
+            i18n.T("settings.aboutTitle", "关于 YuumiX"),
+            isEn ? $"Current {AppVersion} · Runtime & Storage" : $"当前版本 {AppVersion} · 运行环境与存储位置",
             SettingsStatus.Custom,
             headerControl: null,
             innerContent: VStack(12,
-                SettingsVisuals.InfoRow("应用版本", AppVersion),
-                SettingsVisuals.InfoRow("配置版本", $"v{ui.Config.Version}"),
-                SettingsVisuals.InfoRow("配置文件", ui.Services.ConfigStore.FilePath),
-                SettingsVisuals.InfoRow("数据目录", ui.Services.Paths.DataDirectory),
-                SettingsVisuals.InfoRow("便携模式", SettingsVisuals.OnOff(ui.Services.Paths.IsPortable)),
-                SettingsVisuals.InfoRow("日志目录", ui.Services.Paths.LogDirectory),
-                SettingsVisuals.InfoRow("写回备份", $"{ui.Services.ConfigStore.ListBackups().Count} 份（保留最近 {ConfigStore.MaxBackups} 份）"),
+                SettingsVisuals.InfoRow(i18n.T("settings.appVersion", "应用版本"), AppVersion),
+                SettingsVisuals.InfoRow(i18n.T("settings.configVersion", "配置版本"), $"v{ui.Config.Version}"),
+                SettingsVisuals.InfoRow(i18n.T("settings.configFile", "配置文件"), ui.Services.ConfigStore.FilePath),
+                SettingsVisuals.InfoRow(i18n.T("settings.dataDirectory", "数据目录"), ui.Services.Paths.DataDirectory),
+                SettingsVisuals.InfoRow(i18n.T("settings.portableMode", "便携模式"), ui.Config.General.EnableCheckUpdate ? i18n.T("settings.enabled", "已开启") : i18n.T("settings.disabled", "已关闭")),
+                SettingsVisuals.InfoRow(i18n.T("settings.logDirectory", "日志目录"), ui.Services.Paths.LogDirectory),
+                SettingsVisuals.InfoRow(i18n.T("settings.backups", "写回备份"), isEn ? $"{ui.Services.ConfigStore.ListBackups().Count} backups (max {ConfigStore.MaxBackups})" : $"{ui.Services.ConfigStore.ListBackups().Count} 份（保留最近 {ConfigStore.MaxBackups} 份）"),
                 HStack(8,
-                    Button("开源仓库", () =>
+                    Button(i18n.T("settings.aboutRepository", "开源仓库"), () =>
                     {
                         try
                         {

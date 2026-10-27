@@ -74,17 +74,19 @@ internal static class RankedTableView
 
     public static Element Render(RankedStats stats, YuumiPalette palette)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+
         Element header = Grid(Columns, Rows,
             [
-                At(HeaderCell("类型"), 0),
-                At(HeaderCell("总场次"), 1),
-                At(HeaderCell("胜率"), 2),
-                At(HeaderCell("胜场"), 3),
-                At(HeaderCell("负场"), 4),
-                At(HeaderCell("段位"), 5),
-                At(HeaderCell("胜点"), 6),
-                At(HeaderCell("赛季最高"), 7),
-                At(HeaderCell("上赛季结算"), 8),
+                At(HeaderCell(i18n?.T("career.type", "类型") ?? "类型"), 0),
+                At(HeaderCell(i18n?.T("career.totalGames", "总场次") ?? "总场次"), 1),
+                At(HeaderCell(i18n?.T("career.winRate", "胜率") ?? "胜率"), 2),
+                At(HeaderCell(i18n?.T("career.winsLabel", "胜场") ?? "胜场"), 3),
+                At(HeaderCell(i18n?.T("career.lossesLabel", "负场") ?? "负场"), 4),
+                At(HeaderCell(i18n?.T("career.tier", "段位") ?? "段位"), 5),
+                At(HeaderCell(i18n?.T("career.lp", "胜点") ?? "胜点"), 6),
+                At(HeaderCell(i18n?.T("career.highest", "赛季最高") ?? "赛季最高"), 7),
+                At(HeaderCell(i18n?.T("career.prevSeason", "上赛季结算") ?? "上赛季结算"), 8),
             ])
             .MinHeight(RowMinHeight);
 
@@ -92,9 +94,9 @@ internal static class RankedTableView
             VStack(0,
                 header,
                 Divider(),
-                Row("单双排位", stats.SoloDuo, palette),
+                Row(i18n?.T("gameInfo.soloRank", "单双排位") ?? "单双排位", stats.SoloDuo, palette),
                 Divider(),
-                Row("灵活排位", stats.Flex, palette)),
+                Row(i18n?.T("gameInfo.flexRank", "灵活排位") ?? "灵活排位", stats.Flex, palette)),
             // 旧版表格是满宽出血（wrapper 无内边距，留白全部来自单元格）
             padding: 0);
     }

@@ -20,13 +20,14 @@ internal static partial class GeneralSection
     private static Element LolPathCard(SettingsUi ui, PathEditUi? pathEdit, Action<int, bool, string> requestPathCommit)
     {
         var config = ui.Config;
+        var i18n = ui.Services.I18n;
         var lolPathStatus = config.General.LolPath.Count == 0
-            ? "未配置"
-            : $"已设置 {config.General.LolPath.Count} 个路径";
+            ? i18n.T("settings.pathNotSet", "未配置")
+            : i18n.T("settings.pathSetCount", "已设置 {count} 个路径").Replace("{count}", config.General.LolPath.Count.ToString());
 
         return SettingsCardKit.Expander(
-            "英雄联盟客户端路径",
-            "设置英雄联盟客户端所在目录的路径",
+            i18n.T("settings.lolPathGroup", "英雄联盟客户端路径"),
+            i18n.T("settings.lolPathDesc", "设置英雄联盟客户端所在目录的路径"),
             config.General.LolPath.Count == 0 ? SettingsStatus.Unconfigured : SettingsStatus.Custom,
             headerControl: null,
             innerContent: LolPathEditor(ui, pathEdit, requestPathCommit),
@@ -51,9 +52,9 @@ internal static partial class GeneralSection
         }
 
         Element input = isWeGame
-            ? TextBox(textValue, v => requestPathCommit(index, true, v), "WeGame 安装目录")
+            ? TextBox(textValue, v => requestPathCommit(index, true, v), ui.Services.I18n.T("settings.wegameDirPlaceholder", "WeGame 安装目录"))
                 .AutomationName("WeGame 路径")
-            : TextBox(textValue, v => requestPathCommit(index, false, v), "英雄联盟客户端安装目录")
+            : TextBox(textValue, v => requestPathCommit(index, false, v), ui.Services.I18n.T("settings.clientDirPlaceholder", "英雄联盟客户端安装目录"))
                 .AutomationName($"客户端路径 {index + 1}");
 
         var rowChildren = new List<Element>();
@@ -112,39 +113,39 @@ internal static partial class GeneralSection
         {
             // 空列表提示（对齐旧 pathEmpty 文案）
             rows.Count == 0
-                ? Caption("暂无客户端路径").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).Margin(top: 4, bottom: 8)
+                ? Caption(ui.Services.I18n.T("settings.pathEmpty", "暂无客户端路径")).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).Margin(top: 4, bottom: 8)
                 : VStack(0, [.. rows]),
         };
 
         // 说明文案
-        content.Add(Caption("启动时将自动检测并提取客户端锁文件凭据；支持配置多个安装目录")
+        content.Add(Caption(ui.Services.I18n.T("settings.lolPathHint", "启动时将自动检测并提取客户端锁文件凭据；支持配置多个安装目录"))
             .Foreground(Theme.SecondaryText)
             .Margin(top: 4, bottom: 8));
 
         // 操作按钮行：自动检测 / 浏览文件夹 / 添加 WeGame 启动项
         content.Add(HStack(8,
-            Button("自动检测", async () =>
+            Button(ui.Services.I18n.T("settings.detectBtn", "自动检测"), async () =>
             {
                 var detected = await Task.Run(() => ui.Services.Services
                     .GetRequiredService<LolPathDetector>()
                     .DetectLolPath());
                 if (detected is null)
                 {
-                    ui.Toast.Error("未检测到运行中的英雄联盟客户端");
+                    ui.Toast.Error(ui.Services.I18n.T("settings.lolNotRunning", "未检测到运行中的英雄联盟客户端"));
                     return;
                 }
 
                 if (config.General.LolPath.Contains(detected, StringComparer.Ordinal))
                 {
-                    ui.Toast.Info("该路径已存在");
+                    ui.Toast.Info(ui.Services.I18n.T("settings.pathAlreadyExists", "该路径已存在"));
                     return;
                 }
 
                 config.General.LolPath.Add(detected);
                 ui.Commit(nameof(GeneralConfig.LolPath));
-                ui.Toast.Success($"已添加: {detected}");
+                ui.Toast.Success(ui.Services.I18n.T("settings.pathAdded", "已添加: {path}").Replace("{path}", detected));
             }).AutomationName("自动检测客户端路径"),
-            Button("浏览文件夹", async () =>
+            Button(ui.Services.I18n.T("settings.browseBtn", "浏览文件夹"), async () =>
             {
                 var picked = await Services.FolderPickerService.PickFolderAsync();
                 if (picked is null)
@@ -156,19 +157,19 @@ internal static partial class GeneralSection
                 var normalized = LolPathDetector.NormalizePath(picked);
                 if (config.General.LolPath.Contains(normalized, StringComparer.Ordinal))
                 {
-                    ui.Toast.Info("该路径已存在");
+                    ui.Toast.Info(ui.Services.I18n.T("settings.pathAlreadyExists", "该路径已存在"));
                     return;
                 }
 
                 config.General.LolPath.Add(normalized);
                 ui.Commit(nameof(GeneralConfig.LolPath));
-                ui.Toast.Success($"已添加: {normalized}");
+                ui.Toast.Success(ui.Services.I18n.T("settings.pathAdded", "已添加: {path}").Replace("{path}", normalized));
             }).AutomationName("浏览客户端文件夹"),
-            Button("添加 WeGame 启动项", async () =>
+            Button(ui.Services.I18n.T("settings.wegameAddBtn", "添加 WeGame 启动项"), async () =>
             {
                 if (config.General.LolPath.Contains(AppConfig.WeGameMarker))
                 {
-                    ui.Toast.Info("WeGame 启动项已存在");
+                    ui.Toast.Info(ui.Services.I18n.T("settings.wegameAlreadyExists", "WeGame 启动项已存在"));
                     return;
                 }
 
@@ -177,14 +178,14 @@ internal static partial class GeneralSection
                     .DetectWeGameDirectory());
                 if (detected is null)
                 {
-                    ui.Toast.Error("未检测到 WeGame 安装路径，请先安装 WeGame");
+                    ui.Toast.Error(ui.Services.I18n.T("settings.wegameNotInstalled", "未检测到 WeGame 安装路径，请先安装 WeGame"));
                     return;
                 }
 
                 config.General.LolPath.Add(AppConfig.WeGameMarker);
                 config.General.WegamePath = detected;
                 ui.Commit(nameof(GeneralConfig.LolPath));
-                ui.Toast.Success($"已添加 WeGame 启动项 ({detected})");
+                ui.Toast.Success(ui.Services.I18n.T("settings.wegameAdded", "已添加 WeGame 启动项") + $" ({detected})");
             }).AutomationName("添加 WeGame 启动项")).HAlign(HorizontalAlignment.Right));
 
         return VStack(4, [.. content]);

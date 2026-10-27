@@ -75,6 +75,15 @@ public sealed class GameInfoPage : Component
             },
             0);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         var (state, setState) = UseState(gameInfoService.CurrentState, threadSafe: true);
         UseEffect(
             () =>
@@ -148,21 +157,24 @@ public sealed class GameInfoPage : Component
         // 2. 云顶之弈模式
         if (state.IsTftMode)
         {
-            return RenderPlaceholder("云顶之弈对局中", "云顶之弈模式不显示召唤师峡谷数据", palette);
+            return RenderPlaceholder(
+                services.I18n.T("gameInfo.tftInGame", "云顶之弈对局中"),
+                services.I18n.T("gameInfo.tftDesc", "云顶之弈模式不显示召唤师峡谷数据"),
+                palette);
         }
 
         // 3. 错误状态
         if (!string.IsNullOrEmpty(state.Error))
         {
-            return RenderPlaceholder("数据读取异常", state.Error, palette);
+            return RenderPlaceholder(services.I18n.T("gameInfo.errorTitle", "数据读取异常"), state.Error, palette);
         }
 
         // 4. 等待对局
         if (!state.ShouldShowContent)
         {
             return RenderPlaceholder(
-                "等待对局开始",
-                "进入选人阶段或对局中后将自动展示双方玩家数据",
+                services.I18n.T("gameInfo.awaitingLoadTitle", "等待对局开始"),
+                services.I18n.T("gameInfo.awaitingLoadDesc", "进入选人阶段或对局中后将自动展示双方玩家数据"),
                 palette,
                 DemoButton(() => gameInfoService.LoadDemoState()));
         }
@@ -187,12 +199,17 @@ public sealed class GameInfoPage : Component
     /// 「预览演示对局」：读的是内置假数据，不经过 LCU，因此离线态与等待对局态都能用。
     /// 抽成独立构件是因为离线态改由 <see cref="LcuOfflineState"/> 承载，两处需要同一个按钮。
     /// </summary>
-    private static Element DemoButton(Action onDemoClick) =>
-        Button(Caption("预览演示对局"), onDemoClick)
-            .AutomationName("预览演示对局")
+    private static Element DemoButton(Action onDemoClick)
+    {
+        var i18n = AppHost.Services?.I18n;
+        var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+        var text = isEn ? "Demo" : (i18n?.T("gameInfo.previewDemo", "预览演示对局") ?? "预览演示对局");
+        return Button(Caption(text), onDemoClick)
+            .AutomationName(text)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Margin(0, 12, 0, 0)
             .HAlign(HorizontalAlignment.Center);
+    }
 
     private static Element RenderPlaceholder(string title, string subtitle, YuumiPalette palette, Element? extra = null)
     {
@@ -233,14 +250,17 @@ public sealed class GameInfoPage : Component
         var myGroups = PremadeAnalyzer.BuildPremadeGroups(state.MyTeam, state.PremadeColorsMy, state.PlayerData);
         var theirGroups = PremadeAnalyzer.BuildPremadeGroups(state.TheirTeam, state.PremadeColorsTheir, state.PlayerData);
 
+        var allyLabelText = services.I18n.T("gameInfo.myTeam", "友方 ({count})").Replace("{count}", state.MyTeam.Count.ToString());
+        var enemyLabelText = services.I18n.T("gameInfo.theirTeam", "敌方 ({count})").Replace("{count}", state.TheirTeam.Count.ToString());
+
         // 左侧队伍 Tab 切换器（带指示下划线与激活色彩）
         // 结构对齐旧版 `.tab-btn`：44 高的等宽格子 + 贴底 2px 指示线（旧版用 border-bottom 实现），
         // 而不是「文字下方紧跟一条线」——后者会把整条页签压到 30 高。
         var allyTabBtn = Button(
-            TeamTabContent($"友方 ({state.MyTeam.Count})", isMyTab),
+            TeamTabContent(allyLabelText, isMyTab),
             () => service.SetActiveTab("my")
         )
-        .AutomationName($"友方队伍 ({state.MyTeam.Count})")
+        .AutomationName(allyLabelText)
         .Background(isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
         .CornerRadius(YuumiTheme.SquareRadius)
@@ -249,10 +269,10 @@ public sealed class GameInfoPage : Component
         .HAlign(HorizontalAlignment.Stretch);
 
         var enemyTabBtn = Button(
-            TeamTabContent($"敌方 ({state.TheirTeam.Count})", !isMyTab),
+            TeamTabContent(enemyLabelText, !isMyTab),
             () => service.SetActiveTab("their")
         )
-        .AutomationName($"敌方队伍 ({state.TheirTeam.Count})")
+        .AutomationName(enemyLabelText)
         .Background(!isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
         .CornerRadius(YuumiTheme.SquareRadius)
@@ -343,14 +363,14 @@ public sealed class GameInfoPage : Component
         bool mySideIsBlue = state.MapSide != "red";
 
         var allyPill = RenderTeamPill(
-            $"友方 ({state.MyTeam.Count})",
+            allyLabelText,
             mySideIsBlue,
             isClickable: true,
             onClick: () => service.SetActiveTab("my"),
             isActive: isMyTab);
 
         var enemyPill = RenderTeamPill(
-            $"敌方 ({state.TheirTeam.Count})",
+            enemyLabelText,
             !mySideIsBlue,
             isClickable: true,
             onClick: () => service.SetActiveTab("their"),
@@ -474,12 +494,15 @@ public sealed class GameInfoPage : Component
 
         bool mySideIsBlue = state.MapSide != "red";
 
+        var allyLabelText = services.I18n.T("gameInfo.myTeam", "友方 ({count})").Replace("{count}", state.MyTeam.Count.ToString());
+        var enemyLabelText = services.I18n.T("gameInfo.theirTeam", "敌方 ({count})").Replace("{count}", state.TheirTeam.Count.ToString());
+
         var allyPill = RenderTeamPill(
-            $"友方 ({state.MyTeam.Count})",
+            allyLabelText,
             mySideIsBlue);
 
         var enemyPill = RenderTeamPill(
-            $"敌方 ({state.TheirTeam.Count})",
+            enemyLabelText,
             !mySideIsBlue);
 
         var myChips = Component<PremadeGroupChipsView, PremadeGroupChipsProps>(
@@ -695,13 +718,16 @@ public sealed class GameInfoPage : Component
     private static Element RenderSegmentedControl(int currentColumns, Action<int> onSelect, YuumiPalette palette)
     {
         bool isFive = currentColumns == 5;
+        var i18n = AppHost.Services?.I18n;
+        var showTeamText = i18n?.T("gameInfo.showTeam", "按队伍") ?? "按队伍";
+        var showAllText = i18n?.T("gameInfo.showAll", "全部战绩") ?? "全部战绩";
 
         var teamContent = HStack(4,
             Caption(Icons.People)
                 .FontFamily(Icons.FontFamily)
                 .Foreground(isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
-            Caption("按队伍")
+            Caption(showTeamText)
                 .Foreground(isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
         );
@@ -720,7 +746,7 @@ public sealed class GameInfoPage : Component
                 .FontFamily(Icons.FontFamily)
                 .Foreground(!isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
-            Caption("全部战绩")
+            Caption(showAllText)
                 .Foreground(!isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
         );

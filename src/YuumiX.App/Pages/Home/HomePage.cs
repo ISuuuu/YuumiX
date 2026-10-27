@@ -44,6 +44,15 @@ public sealed class HomePage : Component
             },
             0);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
         UseEffect(
             () =>
@@ -79,11 +88,12 @@ public sealed class HomePage : Component
         var creds = connState.Credentials;
         var pid = creds?.ProcessId ?? 0;
         var port = creds?.Port ?? 0;
+        var i18n = AppHost.Services?.I18n;
 
         var centerContent = VStack(
             24,
             // 居中大标题
-            Title("客户端连接成功 🎉")
+            Title(i18n?.T("home.connected", "客户端连接成功 🎉") ?? "客户端连接成功 🎉")
                 .HorizontalAlignment(HorizontalAlignment.Center),
 
             // 居中卡片展示 PID 与 Port

@@ -38,16 +38,20 @@ public enum SettingsStatus
 /// </summary>
 public static class SettingsCardKit
 {
-    /// <summary>状态的中文文案。</summary>
-    public static string StatusText(SettingsStatus status) => status switch
+    /// <summary>状态的语义文案（自动跟随多语言）。</summary>
+    public static string StatusText(SettingsStatus status)
     {
-        SettingsStatus.Enabled => "已启用",
-        SettingsStatus.Disabled => "未启用",
-        SettingsStatus.Unconfigured => "未配置",
-        SettingsStatus.Connected => "已连接",
-        SettingsStatus.Disconnected => "未连接",
-        _ => "自定义",
-    };
+        var i18n = Composition.AppHost.CurrentI18n;
+        return status switch
+        {
+            SettingsStatus.Enabled => i18n?.T("settings.statusEnabled", "已启用") ?? "已启用",
+            SettingsStatus.Disabled => i18n?.T("settings.statusDisabled", "未启用") ?? "未启用",
+            SettingsStatus.Unconfigured => i18n?.T("settings.statusUnconfigured", "未配置") ?? "未配置",
+            SettingsStatus.Connected => i18n?.T("settings.statusConnected", "已连接") ?? "已连接",
+            SettingsStatus.Disconnected => i18n?.T("settings.statusDisconnected", "未连接") ?? "未连接",
+            _ => i18n?.T("settings.statusCustom", "自定义") ?? "自定义",
+        };
+    }
 
     /// <summary>状态的语义色：成功/提醒两类状态用系统语义色，未启用与未配置退为次要文本色。</summary>
     public static ThemeRef StatusColor(SettingsStatus status) => status switch
@@ -85,6 +89,28 @@ public static class SettingsCardKit
             content: content.HAlign(HorizontalAlignment.Stretch))
         .HAlign(HorizontalAlignment.Stretch);
 
+    /// <summary>原生开关控件封装：自动注入多语言开/关文本，避免未显式设置时回退系统默认语言。</summary>
+    public static Element Switch(
+        bool value,
+        Action<bool> onChanged,
+        string? automationName = null)
+    {
+        var i18n = Composition.AppHost.CurrentI18n;
+        var onText = i18n?.T("tools.on", "开") ?? "开";
+        var offText = i18n?.T("tools.off", "关") ?? "关";
+
+        return ToggleSwitch(value, next =>
+            {
+                if (next == value)
+                {
+                    return;
+                }
+
+                onChanged(next);
+            }, header: null, onContent: onText, offContent: offText)
+            .AutomationName(automationName ?? string.Empty);
+    }
+
     /// <summary>开关卡片：<c>ToggleSwitch</c> 进 content 槽位，状态由开关本身表达，不再写状态文本。</summary>
     public static Element Toggle(
         string header,
@@ -95,16 +121,7 @@ public static class SettingsCardKit
         Card(
             header,
             description,
-            ToggleSwitch(value, next =>
-                {
-                    if (next == value)
-                    {
-                        return;
-                    }
-
-                    onChanged(next);
-                }, header: null, onContent: null, offContent: null)
-                .AutomationName(automationName ?? header));
+            Switch(value, onChanged, automationName ?? header));
 
     /// <summary>数值卡片：保留产品自定义的紧凑步进器（原生 NumberBox 更笨重）。</summary>
     public static Element Stepper(

@@ -24,16 +24,37 @@ internal static class SearchFilters
         ("自定义模式", m => m.QueueId is 0 or 3100 || m.QueueName.Contains("自定义", StringComparison.Ordinal)),
     ];
 
+    internal static string TranslateQueueLabel(string label, bool isEn)
+    {
+        if (!isEn) return label;
+        return label switch
+        {
+            "全部" => "All",
+            "匹配模式" => "Normal",
+            "单双排位" => "Ranked Solo",
+            "灵活排位" => "Ranked Flex",
+            "极地大乱斗" => "ARAM",
+            "海克斯大乱斗" => "Hextech ARAM",
+            "经典海斗" => "Classic ARAM",
+            "斗魂竞技场" => "Arena",
+            "快速模式" => "Quickplay",
+            "人机对战" => "Co-op vs AI",
+            "自定义模式" => "Custom",
+            _ => label,
+        };
+    }
+
     /// <summary>
     /// 筛选下拉的选项：预置主流模式（全部、匹配模式、单双排位、灵活排位、极地大乱斗等），
     /// 同时去重追加列表中出现的特殊/娱乐模式。
     /// </summary>
     internal static string[] BuildLabels(IReadOnlyList<MatchSummary> matches)
     {
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
         var labels = new List<string>(QueueDefs.Length);
         foreach (var (label, _) in QueueDefs)
         {
-            labels.Add(label);
+            labels.Add(TranslateQueueLabel(label, isEn));
         }
 
         foreach (MatchSummary summary in matches)
@@ -42,7 +63,7 @@ internal static class SearchFilters
                 && !labels.Contains(summary.QueueName, StringComparer.Ordinal)
                 && !QueueDefs.Any(def => def.Matcher(summary)))
             {
-                labels.Add(summary.QueueName);
+                labels.Add(TranslateQueueLabel(summary.QueueName, isEn));
             }
         }
 

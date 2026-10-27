@@ -124,11 +124,11 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
                     // 胜率 / 登场率 / 禁用率 三列
                     HStack(12,
-                        StatCol("胜率", OpggVisuals.FormatPercent(stats?.WinRate)),
+                        StatCol(Composition.AppHost.Services?.I18n.T("opgg.tierList.winRate", "胜率") ?? "胜率", OpggVisuals.FormatPercent(stats?.WinRate)),
                         Divider(),
-                        StatCol("登场率", OpggVisuals.FormatPercent(stats?.PickRate)),
+                        StatCol(Composition.AppHost.Services?.I18n.T("opgg.tierList.pickRate", "登场率") ?? "登场率", OpggVisuals.FormatPercent(stats?.PickRate)),
                         Divider(),
-                        StatCol("禁用率", OpggVisuals.FormatPercent(stats?.BanRate))
+                        StatCol(Composition.AppHost.Services?.I18n.T("opgg.tierList.banRate", "禁用率") ?? "禁用率", OpggVisuals.FormatPercent(stats?.BanRate))
                     )
                     .VAlign(VerticalAlignment.Center)
                     .Margin(new Thickness(0, 0, 16, 0))
@@ -235,7 +235,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 VStack(1,
                     Caption(OpggVisuals.FormatRatio(s.Win, s.Play))
                         .SemiBold(),
-                    Caption($"{s.Play} 场")
+                    Caption($"{s.Play} {Composition.AppHost.Services?.I18n.T("common.matches", "场") ?? "场"}")
                         .Foreground(Theme.SecondaryText)
                 )
                 .Margin(new Thickness(8, 0, 0, 0))
@@ -267,6 +267,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
             .Take(5)
             .ToList();
 
+        var i18n = Composition.AppHost.Services?.I18n;
         return Border(
             Grid(
                 [GridSize.Star(), GridSize.Px(1), GridSize.Star()],
@@ -274,7 +275,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 [
                     // 左列：克制
                     VStack(6,
-                        Caption("对抗优势 (克制)")
+                        Caption(i18n?.T("opgg.build.countersAdvantage", "对抗优势 (克制)") ?? "对抗优势 (克制)")
                             .Foreground(OpggVisuals.WinGreen),
 
                         VStack(4,
@@ -292,7 +293,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
                     // 右列：被克制
                     VStack(6,
-                        Caption("对抗劣势 (被克制)")
+                        Caption(i18n?.T("opgg.build.countersDisadvantage", "对抗劣势 (被克制)") ?? "对抗劣势 (被克制)")
                             .Foreground(OpggVisuals.LossRed),
 
                         VStack(4,
@@ -334,7 +335,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                     .Grid(0, 1),
 
                 HStack(8,
-                    Caption($"{c.Play} 场")
+                    Caption($"{c.Play} {Composition.AppHost.Services?.I18n.T("common.matches", "场") ?? "场"}")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
                     Caption(OpggVisuals.FormatRatio(c.Win, c.Play))

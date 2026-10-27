@@ -133,8 +133,18 @@ internal static class SearchVisuals
     public static Element VerticalGap(double height) => Border(Empty()).Height(height).Width(1);
 
     /// <summary>胜负文案：重开优先于胜负（重开局也有 win 字段，显示"胜利"会误导）。</summary>
-    public static string ResultText(MatchSummary summary) =>
-        summary.Remake ? "重开" : summary.Win ? "胜利" : "失败";
+    public static string ResultText(MatchSummary summary)
+    {
+        var i18n = Composition.AppHost.Services?.I18n;
+        if (summary.Remake)
+        {
+            return i18n?.T("career.remake", "重开") ?? "重开";
+        }
+
+        return summary.Win
+            ? (i18n?.T("career.victory", "胜利") ?? "胜利")
+            : (i18n?.T("career.defeat", "失败") ?? "失败");
+    }
 
     /// <summary>卡片底色：取配置里的三套颜色（ADR-12），与设置页配色项一一对应。</summary>
     public static string CardBackground(YuumiPalette palette, MatchSummary summary) =>

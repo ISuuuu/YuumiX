@@ -32,6 +32,15 @@ public sealed class OpggPage : Component<OpggPageProps>
         var (tier, setTier) = UseState(OpggTier.EmeraldPlus);
         var (position, setPosition) = UseState(OpggPosition.Mid);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         var (selectedChampId, setSelectedChampId) = UseState<int?>(Props.InitialChampionId);
         var (tierItems, setTierItems) = UseState<IReadOnlyList<TierListItem>>(Array.Empty<TierListItem>());
         var (buildData, setBuildData) = UseState<OpggBuildData?>(null);
@@ -240,21 +249,23 @@ public sealed class OpggPage : Component<OpggPageProps>
                     },
                     onApplyRune: async rune =>
                     {
+                        var i18n = services.I18n;
                         try
                         {
                             var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
                             await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
                                 [.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
-                            toast.Success("符文页已应用至客户端");
+                            toast.Success(i18n.T("opgg.runes.appliedSuccess", "符文页已应用至客户端"));
                         }
                         catch (Exception ex)
                         {
-                            toast.Error($"应用符文页失败: {ex.Message}");
+                            toast.Error(i18n.T("opgg.runes.appliedFailed", "应用符文页失败: ") + ex.Message);
                         }
                     },
                     onApplyItemSet: async () =>
                     {
                         if (buildData is null || !selectedChampId.HasValue) return;
+                        var i18n = services.I18n;
                         setIsApplyingItemSet(true);
                         try
                         {
@@ -264,7 +275,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                         }
                         catch (Exception ex)
                         {
-                            toast.Error($"应用出装失败: {ex.Message}");
+                            toast.Error(i18n.T("opgg.items.appliedFailed", "应用出装失败: ") + ex.Message);
                         }
                         finally
                         {
@@ -281,6 +292,10 @@ public sealed class OpggPage : Component<OpggPageProps>
 
     private static Element RenderHeader(string currentView, int? selectedChampId, string? metaVersion, Action<string> onSelectView)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var tierTabText = i18n?.T("opgg.tabs.tier", "梯队") ?? "梯队";
+        var buildTabText = i18n?.T("opgg.tabs.build", "出装") ?? "出装";
+
         return Border(
             Grid(
                 [GridSize.Auto, GridSize.Star(), GridSize.Auto],
@@ -304,8 +319,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                         // 「梯队」Tab
                         Button(
                             currentView == "tier"
-                                ? BodyStrong("梯队").Foreground("#FFFFFF")
-                                : BodyStrong("梯队"),
+                                ? BodyStrong(tierTabText).Foreground("#FFFFFF")
+                                : BodyStrong(tierTabText),
                             () => onSelectView("tier"))
                             .Background(currentView == "tier" ? OpggVisuals.ActiveTabGreen : "transparent")
                             .Height(30)
@@ -315,8 +330,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                         // 「出装」Tab
                         Button(
                             currentView == "build"
-                                ? BodyStrong("出装").Foreground("#FFFFFF")
-                                : BodyStrong("出装"),
+                                ? BodyStrong(buildTabText).Foreground("#FFFFFF")
+                                : BodyStrong(buildTabText),
                             () =>
                             {
                                 if (selectedChampId.HasValue) onSelectView("build");
@@ -334,7 +349,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                     // 右侧：游戏版本号
                     string.IsNullOrWhiteSpace(metaVersion)
                         ? Empty().Grid(0, 2)
-                        : Caption($"游戏版本: {metaVersion}")
+                        : Caption($"{i18n?.T("opgg.gameVersion", "游戏版本: ") ?? "游戏版本: "}{metaVersion}")
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(0, 2)
@@ -362,11 +377,12 @@ public sealed class OpggPage : Component<OpggPageProps>
         Action<OpggRunePreset> onApplyRune,
         Action onApplyItemSet)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
         if (loading)
         {
             return VStack(12,
                 ProgressRing().Width(36).Height(36),
-                Body("正在拉取 OP.GG 数据...")
+                Body(i18n?.T("opgg.loadingData", "正在拉取 OP.GG 数据...") ?? "正在拉取 OP.GG 数据...")
                     .Foreground(Theme.SecondaryText)
             )
             .HAlign(HorizontalAlignment.Center)
@@ -383,9 +399,10 @@ public sealed class OpggPage : Component<OpggPageProps>
                 Body(errorMessage)
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center),
-                Button("重试", onRetry)
+                Button(i18n?.T("common.retry", "重试") ?? "重试", onRetry)
                     .Width(100)
                     .HAlign(HorizontalAlignment.Center)
+                    .AutomationName("重试")
             )
             .HAlign(HorizontalAlignment.Center)
             .VAlign(VerticalAlignment.Center);

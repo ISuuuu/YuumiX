@@ -20,32 +20,59 @@ internal static class FunctionSection
     public static Element Render(SettingsUi ui)
     {
         var config = ui.Config;
+        var i18n = ui.Services.I18n;
 
         return VStack(8,
-            SettingsCardKit.Stepper("LCU API 并发数", "与客户端通信的并发请求数（推荐 5，范围 1–8）。过大会导致客户端闪退 · 重启后生效", Math.Clamp(config.Functions.ApiConcurrencyNumber, ApiConcurrencyMin, ApiConcurrencyMax), ApiConcurrencyMin, ApiConcurrencyMax, v =>
-            {
-                config.Functions.ApiConcurrencyNumber = v;
-                ui.Commit(nameof(FunctionsConfig.ApiConcurrencyNumber));
-            }, ui.Palette),
-            SettingsCardKit.Stepper("默认对局数量", "调整在个人生涯界面中显示的最大对局数量（范围 1–50）", Math.Clamp(config.Functions.CareerGamesNumber, CareerGamesMin, CareerGamesMax), CareerGamesMin, CareerGamesMax, v =>
-            {
-                config.Functions.CareerGamesNumber = v;
-                ui.Commit(nameof(FunctionsConfig.CareerGamesNumber));
-            }, ui.Palette),
-            SettingsCardKit.Toggle("对局信息过滤", "基于你当前游戏模式（地图/队列）筛选战绩，只显示相同模式的玩家历史数据", config.Functions.GameInfoFilter, v =>
-            {
-                config.Functions.GameInfoFilter = v;
-                ui.Commit(nameof(FunctionsConfig.GameInfoFilter));
-            }),
-            SettingsCardKit.Toggle("保留对局信息界面内容", "保留上一局的对局信息内容直到下一次对局开始", config.Functions.EnableReserveGameinfo, v =>
-            {
-                config.Functions.EnableReserveGameinfo = v;
-                ui.Commit(nameof(FunctionsConfig.EnableReserveGameinfo));
-            }),
-            SettingsCardKit.Toggle("对局详情中显示段位", "在搜索界面对局详情界面中显示段位，启动该选项将影响加载界面的速度", config.Functions.ShowTierInGameInfo, v =>
-            {
-                config.Functions.ShowTierInGameInfo = v;
-                ui.Commit(nameof(FunctionsConfig.ShowTierInGameInfo));
-            }));
+            SettingsCardKit.Stepper(
+                i18n.T("settings.lcuConcurrencyTitle", "LCU API 并发数"),
+                i18n.T("settings.lcuConcurrencyDesc", "与客户端通信的并发请求数（推荐 5，范围 1–8）。过大会导致客户端闪退 · 重启后生效"),
+                Math.Clamp(config.Functions.ApiConcurrencyNumber, ApiConcurrencyMin, ApiConcurrencyMax),
+                ApiConcurrencyMin,
+                ApiConcurrencyMax,
+                v =>
+                {
+                    config.Functions.ApiConcurrencyNumber = v;
+                    ui.Commit(nameof(FunctionsConfig.ApiConcurrencyNumber));
+                },
+                ui.Palette),
+            SettingsCardKit.Stepper(
+                i18n.T("settings.defaultGamesTitle", "默认对局数量"),
+                i18n.T("settings.defaultGamesDesc", "调整在个人生涯界面中显示的最大对局数量（范围 1–50）"),
+                Math.Clamp(config.Functions.CareerGamesNumber, CareerGamesMin, CareerGamesMax),
+                CareerGamesMin,
+                CareerGamesMax,
+                v =>
+                {
+                    config.Functions.CareerGamesNumber = v;
+                    ui.Commit(nameof(FunctionsConfig.CareerGamesNumber));
+                },
+                ui.Palette),
+            SettingsCardKit.Toggle(
+                i18n.T("settings.gameInfoFilterTitle", "对局信息过滤"),
+                i18n.T("settings.gameInfoFilterDesc", "基于你当前游戏模式（地图/队列）筛选战绩，只显示相同模式的玩家历史数据"),
+                config.Functions.GameInfoFilter,
+                v =>
+                {
+                    config.Functions.GameInfoFilter = v;
+                    ui.Commit(nameof(FunctionsConfig.GameInfoFilter));
+                }),
+            SettingsCardKit.Toggle(
+                i18n.T("settings.reserveGameInfoTitle", "保留对局信息界面内容"),
+                i18n.T("settings.reserveGameInfoDesc", "保留上一局的对局信息内容直到下一次对局开始"),
+                config.Functions.EnableReserveGameinfo,
+                v =>
+                {
+                    config.Functions.EnableReserveGameinfo = v;
+                    ui.Commit(nameof(FunctionsConfig.EnableReserveGameinfo));
+                }),
+            SettingsCardKit.Toggle(
+                i18n.T("settings.showTierInGameInfoTitle", "对局详情中显示段位"),
+                i18n.T("settings.showTierInGameInfoDesc", "在搜索界面对局详情界面中显示段位，启动该选项将影响加载界面的速度"),
+                config.Functions.ShowTierInGameInfo,
+                v =>
+                {
+                    config.Functions.ShowTierInGameInfo = v;
+                    ui.Commit(nameof(FunctionsConfig.ShowTierInGameInfo));
+                }));
     }
 }

@@ -50,7 +50,9 @@ public sealed class SettingsPage : Component
         var menu = UseContext(AppHost.MenuContext);
         var updateNotice = UseContext(AppHost.UpdateNoticeContext);
         var config = services.Config;
+        var i18n = services.I18n;
         var toast = UseContext(AppHost.ToastContext)!;
+        var window = UseWindow();
 
         // threadSafe: true —— 保存与重渲染的调用点虽在 UI 线程，但保留统一语义，
         // 以免将来把写回挪到线程池时漏改（ADR-07 的成本是崩溃，不是降级）。
@@ -138,12 +140,14 @@ public sealed class SettingsPage : Component
                     // 把结果回灌全局状态：侧边栏红点与设置页必须说同一件事。
                     // info 为 null（已是最新）时 Clear 掉红点，避免「查完发现没更新，红点还在呼吸」。
                     updateNotice.Publish(info);
-                    toast.Info(info is null ? "当前已是最新版本" : $"发现新版本 v{info.Version}");
+                    toast.Info(info is null
+                        ? i18n.T("settings.alreadyLatest", "当前已是最新版本")
+                        : i18n.T("settings.newVersionFound", "发现新版本") + $" v{info.Version}");
                 },
                 OnError: (ex, _) =>
                 {
                     setUpdateCheckError(ex.Message);
-                    toast.Error($"检查更新失败: {ex.Message}");
+                    toast.Error(i18n.T("settings.updateCheckFailed", "检查更新失败: ") + ex.Message);
                 }));
 
         var downloadUpdate = UseMutation<YuumiX.Core.Updates.UpdateInfo, string>(
@@ -159,12 +163,12 @@ public sealed class SettingsPage : Component
                 OnSuccess: (path, _) =>
                 {
                     setDownloadedUpdatePath(path);
-                    toast.Success("更新下载完成，可立即安装");
+                    toast.Success(i18n.T("settings.updateDownloadSuccess", "更新下载完成，可立即安装"));
                 },
                 OnError: (ex, _) =>
                 {
                     setUpdateCheckError(ex.Message);
-                    toast.Error($"下载更新失败: {ex.Message}");
+                    toast.Error(i18n.T("settings.updateDownloadFailed", "下载更新失败: ") + ex.Message);
                 }));
 
         UseEffect(
@@ -206,6 +210,16 @@ public sealed class SettingsPage : Component
             },
             0);
 
+        // 多语言切换订阅：语言变更时刷新本页文本与标题
+        var (currentLang, setCurrentLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setCurrentLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         // 单次写回：先落盘（必要时备份），成功与失败都只改状态，不抛给渲染流程。
         // savedAt/error 的值不参与渲染，但承担 Commit 后的重渲染触发（error 兼任首次保存
         // 即失败时的失败路径触发器）；备份文件名只进日志，不再另设死状态。
@@ -217,7 +231,7 @@ public sealed class SettingsPage : Component
                 setError(null);
                 setSavedAt(DateTime.Now);
 
-                toast.Success("设置已自动保存");
+                toast.Success(services.I18n.T("settings.autoSave", "设置已自动保存"));
                 logger.LogInformation("设置已写回: {Field}（备份 {Backup}）", field, backup is null ? "无" : Path.GetFileName(backup));
             }
             catch (Exception ex)
@@ -225,7 +239,7 @@ public sealed class SettingsPage : Component
                 // 写失败必须让用户看见：静默吞掉会让人以为设置已保存（ConfigStore.Save 的约定）
                 setError(ex.Message);
                 setSavedAt(null);
-                toast.Error($"设置保存失败: {ex.Message}");
+                toast.Error($"{services.I18n.T("settings.saveFailed", "设置保存失败")}: {ex.Message}");
                 logger.LogError(ex, "设置写回失败: {Field}", field);
             }
         }
@@ -259,7 +273,7 @@ public sealed class SettingsPage : Component
         Microsoft.UI.Dispatching.DispatcherQueue Dispatcher() =>
             dispatcherRef.Current ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
-        var ui = new SettingsUi(config, services, toast, theme, menu, updateNotice, palette, logger, Commit, setError);
+        var ui = new SettingsUi(config, services, toast, theme, menu, updateNotice, palette, logger, Commit, setError, window);
 
         // ── 防抖 effect：序号每变一次就重置定时器，只有最后一次会真正落盘 ────────
         // 定时器回调在线程池，写盘与改状态一律 TryEnqueue 回 UI 线程（ADR-12 决策一）。
@@ -337,36 +351,36 @@ public sealed class SettingsPage : Component
         var mainScroll = ScrollViewer(
             VStack(8,
                 // 页面标题比分组标题（Subtitle 20）高一级，保持视觉层级。
-                Title("设置")
+                Title(services.I18n.T("settings.title", "设置"))
                     .HeadingLevel(AutomationHeadingLevel.Level1)
                     .Margin(bottom: 8),
 
                 // 1. 功能
-                SettingsVisuals.GroupHeader("功能"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.groupFeatures", "功能")),
                 FunctionSection.Render(ui),
 
                 // 2. OP.GG
-                SettingsVisuals.GroupHeader("OP.GG"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.opggGroup", "OP.GG")),
                 OpggSection.Render(ui),
 
                 // 3. 通用设置
-                SettingsVisuals.GroupHeader("通用设置"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.generalGroup", "通用设置")),
                 GeneralSection.Render(ui, pathEdit, RequestPathCommit, cloudText, RequestCloudTextCommit, signalrStatus, update, () => setClearDialogOpen(true)),
 
                 // 4. 高级与隐藏
-                SettingsVisuals.GroupHeader("高级与隐藏"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.advancedGroup", "高级与隐藏")),
                 AdvancedSection.Render(ui),
 
                 // 5. 日志与网络
-                SettingsVisuals.GroupHeader("日志与网络"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.logNetworkGroup", "日志与网络")),
                 LogNetworkSection.Render(ui, proxyDraftRef),
 
                 // 6. 外观与个性化
-                SettingsVisuals.GroupHeader("外观与个性化"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.personalizationGroup", "外观与个性化")),
                 AppearanceSection.Render(ui, RequestColorCommit),
 
                 // 7. 关于
-                SettingsVisuals.GroupHeader("关于"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.aboutTitle", "关于")),
                 AboutSection.Render(ui)
             )
             // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
@@ -399,13 +413,13 @@ public sealed class SettingsPage : Component
                 // new Microsoft.UI.Reactor.Core.ContentDialogElement(...) 能编译但在挂载时抛
                 // InvalidOperationException（No handler is registered for element type ...）。
                 (ContentDialog(
-                    "清除缓存",
-                    Body("确定要清除所有游戏资源缓存吗？清除后需要重新加载游戏资源。")
+                    services.I18n.T("settings.clearCacheTitle", "清除缓存"),
+                    Body(services.I18n.T("settings.clearCacheConfirm", "确定要清除所有游戏资源缓存吗？清除后需要重新加载游戏资源。"))
                         .TextWrapping(),
-                    primaryButtonText: "确定") with
+                    primaryButtonText: services.I18n.T("common.confirm", "确定")) with
                 {
                     IsOpen = clearDialogOpen,
-                    CloseButtonText = "取消",
+                    CloseButtonText = services.I18n.T("common.cancel", "取消"),
                 })
                 // 对话框宿主在 XamlRoot 的 Popup 里，不在根 Grid 的视觉树内，
                 // 且 ContentDialogElement 的 Modifiers（.RequestedTheme）只作用在主树不可见的占位 StackPanel 上，
@@ -431,12 +445,14 @@ public sealed class SettingsPage : Component
                         {
                         }
                         logger.LogInformation("已清空游戏资源与 OP.GG 缓存: {Count} 个文件", removed);
-                        toast.Success(removed == 0 ? "缓存目录不存在，无需清除" : $"已清除 {removed} 个缓存文件");
+                        toast.Success(removed == 0
+                            ? i18n.T("settings.clearCacheEmpty", "缓存目录不存在，无需清除")
+                            : i18n.T("settings.clearCacheSuccessCount", "已清除 {count} 个缓存文件").Replace("{count}", removed.ToString()));
                     }
                     catch (Exception ex)
                     {
                         logger.LogWarning(ex, "清除游戏资源缓存失败");
-                        toast.Error($"清除缓存失败: {ex.Message}");
+                        toast.Error(i18n.T("settings.clearCacheFailed", "清除缓存失败: ") + ex.Message);
                     }
                 }),
             ]

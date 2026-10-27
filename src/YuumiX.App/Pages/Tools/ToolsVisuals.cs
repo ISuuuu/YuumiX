@@ -27,7 +27,8 @@ internal sealed record ToolsUi(
     bool IsLcuConnected,
     ISet<string> ExpandedKeys,
     Action<string> ToggleExpanded,
-    Action<string> Commit);
+    Action<string> Commit,
+    YuumiX.Core.Localization.I18nService I18n);
 
 /// <summary>跨分节共享的二次确认开关（快速重启客户端 / 卸下勋章 / 卸下头像框）。</summary>
 internal sealed record ConfirmUi(bool RestartClient, bool ClearBadges, bool ClearBorder);
@@ -58,7 +59,12 @@ internal static class ToolsVisuals
     // 离线守卫：客户端没开时开关一律禁用。旧系统是整页 opacity 0.5 + pointer-events:none，
     // 本版改为按控件禁用——半透明叠在 Mica + 半透明卡片上会把 12~14px 中文压成灰雾（见 OfflineBanner 注释）。
     public static Element CleanToggle(ToolsUi ui, bool value, Action<bool> onChange, string? automationName = null) =>
-        ToggleSwitch(value, v => onChange(v), header: null, onContent: null, offContent: null)
+        ToggleSwitch(
+            value,
+            v => onChange(v),
+            header: null,
+            onContent: ui.I18n.T("tools.on", "开"),
+            offContent: ui.I18n.T("tools.off", "关"))
             .MinWidth(0)
             .HAlign(HorizontalAlignment.Right)
             .IsEnabled(ui.IsLcuConnected)

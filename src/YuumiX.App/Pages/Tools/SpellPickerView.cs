@@ -27,15 +27,18 @@ internal static class SpellPickerView
         int dId = selectedSpellIds.ElementAtOrDefault(0);
         int fId = selectedSpellIds.ElementAtOrDefault(1);
 
-        string dName = spellMap.TryGetValue(dId, out var sD) ? sD.Name : (dId > 0 ? $"ID:{dId}" : "未配置");
+        var i18n = Composition.AppHost.Services?.I18n;
+        var notConfigured = i18n?.T("settings.pathNotSet", "未配置") ?? "未配置";
+
+        string dName = spellMap.TryGetValue(dId, out var sD) ? sD.Name : (dId > 0 ? $"ID:{dId}" : notConfigured);
         string dIcon = spellMap.TryGetValue(dId, out var sD2) ? sD2.IconPath : $"/lol-game-data/assets/v1/summoner-spells/{dId}.png";
 
-        string fName = spellMap.TryGetValue(fId, out var sF) ? sF.Name : (fId > 0 ? $"ID:{fId}" : "未配置");
+        string fName = spellMap.TryGetValue(fId, out var sF) ? sF.Name : (fId > 0 ? $"ID:{fId}" : notConfigured);
         string fIcon = spellMap.TryGetValue(fId, out var sF2) ? sF2.IconPath : $"/lol-game-data/assets/v1/summoner-spells/{fId}.png";
 
         Element dSlot = Button(
             HStack(8,
-                Caption("D 键:").VAlign(VerticalAlignment.Center),
+                Caption("D:").VAlign(VerticalAlignment.Center),
                 Component<LcuImage, LcuImageProps>(new LcuImageProps(dIcon, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                 Caption(dName).VAlign(VerticalAlignment.Center)
             ),
@@ -51,7 +54,7 @@ internal static class SpellPickerView
 
         Element fSlot = Button(
             HStack(8,
-                Caption("F 键:").VAlign(VerticalAlignment.Center),
+                Caption("F:").VAlign(VerticalAlignment.Center),
                 Component<LcuImage, LcuImageProps>(new LcuImageProps(fIcon, Size: 28, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                 Caption(fName).VAlign(VerticalAlignment.Center)
             ),
@@ -64,10 +67,14 @@ internal static class SpellPickerView
         .Padding(12, 6)
         .AutomationName("F键技能槽位");
 
+        var slotPrompt = activeSlot == 0
+            ? (i18n?.T("tools.spellSelectD", "（正在设置 D 键技能，点击下方替换）") ?? "（正在设置 D 键技能，点击下方替换）")
+            : (i18n?.T("tools.spellSelectF", "（正在设置 F 键技能，点击下方替换）") ?? "（正在设置 F 键技能，点击下方替换）");
+
         Element slotsHeader = HStack(0,
             dSlot,
             fSlot,
-            Caption(activeSlot == 0 ? "（正在设置 D 键技能，点击下方替换）" : "（正在设置 F 键技能，点击下方替换）")
+            Caption(slotPrompt)
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
                 .Margin(new Thickness(12, 0, 0, 0))

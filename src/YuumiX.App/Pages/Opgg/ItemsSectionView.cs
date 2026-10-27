@@ -60,10 +60,15 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
     private Element RenderApplyBar()
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var btnText = Props.IsApplying
+            ? (i18n?.T("opgg.items.applying", "正在应用出装...") ?? "正在应用出装...")
+            : (i18n?.T("opgg.items.applyBtn", "一键应用出装到游戏推荐页") ?? "一键应用出装到游戏推荐页");
+
         // 与符文区的「设为当前符文页」按钮同款观感：实心绿底白字；
         // 原先的 12% 半透明绿底叠在卡片上会发灰，描边包裹层也显得多余。
         return Button(
-            BodyStrong(Props.IsApplying ? "正在应用出装..." : "一键应用出装到游戏推荐页")
+            BodyStrong(btnText)
                 .Foreground("#FFFFFF"),
             Props.OnApplyItemSet)
             .IsEnabled(!Props.IsApplying)
@@ -76,6 +81,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
     private Element RenderStarterAndBoots(bool hasStarter, bool hasBoots)
     {
         if (!hasStarter && !hasBoots) return Empty();
+        var i18n = Composition.AppHost.Services?.I18n;
 
         return Grid(
             [GridSize.Star(), GridSize.Px(1), GridSize.Star()],
@@ -83,7 +89,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
             [
                 // 左侧初始装备
                 VStack(6,
-                    Caption("初始装备")
+                    Caption(i18n?.T("opgg.items.starter", "初始装备") ?? "初始装备")
                         .Foreground(Theme.SecondaryText),
                     VStack(4,
                         (Props.StarterItems ?? []).Take(3).Select((item, idx) => RenderItemRow(item).WithKey($"starter-{idx}")).ToArray()
@@ -100,7 +106,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
                 // 右侧鞋子
                 VStack(6,
-                    Caption("鞋子选择")
+                    Caption(i18n?.T("opgg.items.boots", "鞋子选择") ?? "鞋子选择")
                         .Foreground(Theme.SecondaryText),
                     VStack(4,
                         (Props.Boots ?? []).Take(3).Select((item, idx) => RenderItemRow(item).WithKey($"boots-{idx}")).ToArray()
@@ -113,10 +119,13 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
     private Element RenderCoreItems()
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var matchesUnit = i18n?.T("common.matches", "场") ?? "场";
+
         return VStack(8,
             Border(Empty()).Height(1).Background(Theme.CardStroke),
 
-            Caption("核心装备组合")
+            Caption(i18n?.T("opgg.items.core", "核心装备组合") ?? "核心装备组合")
                 .Foreground(Theme.SecondaryText),
 
             VStack(6,
@@ -138,7 +147,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
                                     Caption(OpggVisuals.FormatRatio(item.Win, item.Play))
                                         .SemiBold()
                                         .HAlign(HorizontalAlignment.Right),
-                                    Caption($"{item.Play} 场")
+                                    Caption($"{item.Play} {matchesUnit}")
                                         .Foreground(Theme.SecondaryText)
                                         .HAlign(HorizontalAlignment.Right)
                                 )
@@ -160,10 +169,12 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
     private Element RenderLastItems()
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+
         return VStack(8,
             Border(Empty()).Height(1).Background(Theme.CardStroke),
 
-            Caption("可选与推荐装备")
+            Caption(i18n?.T("opgg.items.last", "可选与推荐装备") ?? "可选与推荐装备")
                 .Foreground(Theme.SecondaryText),
 
             HStack(6,

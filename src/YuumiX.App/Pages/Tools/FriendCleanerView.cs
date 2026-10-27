@@ -43,25 +43,56 @@ internal static class FriendCleanerView
         Action onStartScan,
         YuumiPalette palette)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+
+        var filterLabels = isEn
+            ? new[]
+            {
+                "Offline > 180 days",
+                "Offline > 360 days",
+                "Offline > 90 days",
+                "Never played (0 games)",
+                "🔒 Hidden History (Protected)",
+                "All Friends",
+            }
+            : (i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.ZhTw
+                ? new[]
+                {
+                    "超過 180 天未打遊戲",
+                    "超過 360 天未打遊戲",
+                    "超過 90 天未打遊戲",
+                    "從未打過遊戲 (0場)",
+                    "🔒 戰績已隱藏 (安全保護)",
+                    "全部好友",
+                }
+                : FilterLabels);
+
         // 筛选逻辑
         var filtered = FilterFriends(allFriends, searchQuery, filterIndex);
+
+        var searchPlaceholder = isEn ? "Search friend name, Riot ID, or note..." : "搜索好友昵称、Riot ID 或备注...";
+        var rescanText = isEn ? (isScanning ? $"Scanning ({scanCompleted}/{scanTotal})" : "Rescan Friends") : (isScanning ? $"扫描中 ({scanCompleted}/{scanTotal})" : "重新扫描好友");
 
         Element filterBar = Grid(
             [GridSize.Star(), GridSize.Auto, GridSize.Auto],
             [GridSize.Auto],
             [
-                TextBox(searchQuery, onSearchQueryChanged, "搜索好友昵称、Riot ID 或备注...")
+                TextBox(searchQuery, onSearchQueryChanged, searchPlaceholder)
                     .Margin(new Thickness(0, 0, 8, 0))
                     .AutomationName("好友搜索框")
                     .Grid(row: 0, column: 0),
 
-                ComboBox(FilterLabels, filterIndex, onFilterIndexChanged)
+                ComboBox(filterLabels, filterIndex, idx =>
+                {
+                    if (idx >= 0 && idx < filterLabels.Length) onFilterIndexChanged(idx);
+                })
                     .Width(200)
                     .Margin(new Thickness(0, 0, 8, 0))
                     .AutomationName("好友筛选下拉")
                     .Grid(row: 0, column: 1),
 
-                Button(isScanning ? $"扫描中 ({scanCompleted}/{scanTotal})" : "重新扫描好友", onStartScan)
+                Button(rescanText, onStartScan)
                     .IsEnabled(!isScanning && !isDeleting)
                     .AutomationName("重新扫描好友")
                     .Grid(row: 0, column: 2),
@@ -73,17 +104,21 @@ internal static class FriendCleanerView
         Element actionToolbar;
         if (isConfirmingDelete)
         {
+            var confirmDeletePrompt = isEn
+                ? $"⚠️ Are you sure you want to delete {selectedCount} selected friends permanently? This cannot be undone."
+                : $"⚠️ 确定要从游戏好友列表中彻底删除选中的 {selectedCount} 位好友吗？此操作无法撤销。";
+
             actionToolbar = Border(
                 HStack(12,
-                    Caption($"⚠️ 确定要从游戏好友列表中彻底删除选中的 {selectedCount} 位好友吗？此操作无法撤销。")
+                    Caption(confirmDeletePrompt)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .VAlign(VerticalAlignment.Center),
-                    Button("确认删除", onConfirmDelete)
+                    Button(isEn ? "Confirm Delete" : "确认删除", onConfirmDelete)
                         .Background(Theme.Ref("SystemFillColorCriticalBrush"))
                         .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                         .IsEnabled(!isDeleting)
                         .AutomationName("确认批量删除"),
-                    Button("取消", onCancelDelete)
+                    Button(isEn ? "Cancel" : "取消", onCancelDelete)
                         .AutomationName("取消批量删除")
                 )
             )
@@ -95,19 +130,26 @@ internal static class FriendCleanerView
         }
         else
         {
+            var selectAllText = isEn ? "Select All" : "全选当前筛选";
+            var deselectText = isEn ? "Deselect" : "取消选择";
+            var deleteSelectedText = isDeleting
+                ? (isEn ? "Deleting..." : "正在删除...")
+                : (isEn ? $"Delete Selected ({selectedCount})" : $"批量清理选中的好友 ({selectedCount})");
+            var filterCountText = isEn ? $"Showing {filtered.Count} friends" : $"当前筛选显示 {filtered.Count} 位好友";
+
             actionToolbar = HStack(12,
-                Button("全选当前筛选", onSelectAllFiltered)
+                Button(selectAllText, onSelectAllFiltered)
                     .IsEnabled(!isScanning && filtered.Count > 0)
                     .AutomationName("全选好友"),
-                Button("取消选择", onClearSelection)
+                Button(deselectText, onClearSelection)
                     .IsEnabled(selectedCount > 0)
                     .AutomationName("取消选择好友"),
-                Button(isDeleting ? "正在删除..." : $"批量清理选中的好友 ({selectedCount})", onPromptDelete)
+                Button(deleteSelectedText, onPromptDelete)
                     .Background(selectedCount > 0 ? Theme.Ref("SystemFillColorCriticalBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
                     .Foreground(selectedCount > 0 ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                     .IsEnabled(!isScanning && !isDeleting && selectedCount > 0)
                     .AutomationName("批量清理好友"),
-                Caption($"当前筛选显示 {filtered.Count} 位好友")
+                Caption(filterCountText)
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center)
                     .Margin(new Thickness(8, 0, 0, 0))

@@ -54,6 +54,15 @@ public sealed class ToolsPage : Component
         var (error, setError) = UseState<string?>(null, threadSafe: true);
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         // 记录展开的卡片 key 集合（默认全部收起，对齐原版设计）
         var initialExpanded = UseMemo(() => new HashSet<string>(), 0);
         var (expandedKeys, setExpandedKeys) = UseState(initialExpanded, threadSafe: true);
@@ -235,7 +244,7 @@ public sealed class ToolsPage : Component
 
         var ui = new ToolsUi(
             config, palette, toast, toolsService, friendCleanerService, lcuConnection, logger,
-            isLcuConnected, expandedKeys, ToggleExpanded, Commit);
+            isLcuConnected, expandedKeys, ToggleExpanded, Commit, services.I18n);
 
         // 原实现的 feedbackBanner（错误/保存横幅）建而未渲染、actionFeedback 从未被写入，均按死代码删除；
         // savedAt/error 保留——值虽不参与渲染，但 Commit 靠它们变更触发重渲染（替代旧 Rerender 踢法），
@@ -248,26 +257,26 @@ public sealed class ToolsPage : Component
         // 且与滚动位置无关（offset=0 时同样偏软）。判定为 ScrollPresenter 内容层渲染所致。
         var mainScroll = ScrollViewer(
             VStack(8,
-                Title("其他功能")
+                Title(services.I18n.T("tools.title", "其他功能"))
                     .HeadingLevel(AutomationHeadingLevel.Level1)
                     .Margin(new Thickness(0, 0, 0, 8)),
 
                 offlineBanner ?? Empty(),
 
                 // 1. 英雄选择
-                ToolsVisuals.GroupHeader("英雄选择"),
+                ToolsVisuals.GroupHeader(services.I18n.T("tools.groupChampSelect", "英雄选择")),
                 ChampionSection.Render(ui, championSt, setChampionSt, champions, championsLoading, spells, spellsRes.IsLoading()),
 
                 // 2. 游戏
-                ToolsVisuals.GroupHeader("游戏"),
+                ToolsVisuals.GroupHeader(services.I18n.T("tools.groupGame", "游戏")),
                 GameSection.Render(ui, spectate, setSpectate, friend, setFriend, scanFriends, deleteFriends, isSettingsLocked, setIsSettingsLocked),
 
                 // 3. 客户端
-                ToolsVisuals.GroupHeader("客户端"),
+                ToolsVisuals.GroupHeader(services.I18n.T("tools.groupClient", "客户端")),
                 ClientSection.Render(ui, confirm, setConfirm),
 
                 // 4. 个人主页
-                ToolsVisuals.GroupHeader("个人主页"),
+                ToolsVisuals.GroupHeader(services.I18n.T("tools.groupProfile", "个人主页")),
                 ProfileSection.Render(ui, draft, setDraft, bg, setBg, spoof, setSpoof, confirm, setConfirm, badge, setBadge, champions, challenges, challengesLoading, () => setChallengesTick(challengesTick + 1))
             )
             // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。

@@ -16,6 +16,12 @@ internal static class SavedPlayersVisuals
     /// <summary>顶部标题、胶囊 Badge 与导入/导出按钮组</summary>
     internal static Element RenderHeader(long totalCount, Action onImport, Action onExport, YuumiPalette palette)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var title = i18n?.T("savedPlayersPage.title", "路人集") ?? "路人集";
+        var desc = i18n?.T("savedPlayersPage.desc", "对局结束后自动记录同局的队友与对手，可添加标记以便选人阶段提醒") ?? "对局结束后自动记录同局的队友与对手，可添加标记以便选人阶段提醒";
+        var importBtnText = i18n?.T("savedPlayersPage.import", "导入标记") ?? "导入标记";
+        var exportBtnText = i18n?.T("savedPlayersPage.export", "导出标记") ?? "导出标记";
+
         var badge = totalCount > 0
             ? Badge.Create(
                 Caption($"{totalCount}")
@@ -34,11 +40,11 @@ internal static class SavedPlayersVisuals
                 // 左侧标题与说明
                 HStack(
                     8,
-                    Subtitle("路人集"),
+                    Subtitle(title),
                     badge,
                     Body("·")
                         .Foreground(Theme.SecondaryText),
-                    Caption("对局结束后自动记录同局的队友与对手，可添加标记以便选人阶段提醒")
+                    Caption(desc)
                         .Foreground(Theme.SecondaryText)
                         .VerticalAlignment(VerticalAlignment.Center)
                 )
@@ -48,11 +54,11 @@ internal static class SavedPlayersVisuals
                 // 右侧导入/导出操作
                 HStack(
                     8,
-                    Button(Caption("导入标记"), onImport)
-                        .AutomationName("导入标记")
+                    Button(Caption(importBtnText), onImport)
+                        .AutomationName(importBtnText)
                         .Padding(12, 5),
-                    Button(Caption("导出标记"), onExport)
-                        .AutomationName("导出标记")
+                    Button(Caption(exportBtnText), onExport)
+                        .AutomationName(exportBtnText)
                         .Padding(12, 5)
                 )
                 .VerticalAlignment(VerticalAlignment.Center)
@@ -72,6 +78,12 @@ internal static class SavedPlayersVisuals
         Action<string> setFilter,
         YuumiPalette palette)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var placeholder = i18n?.T("savedPlayersPage.searchPlaceholder", "搜索召唤师名称、TagLine 或标记...") ?? "搜索召唤师名称、TagLine 或标记...";
+        var filterAllText = i18n?.T("savedPlayersPage.filterAll", "全部") ?? "全部";
+        var filterTaggedText = i18n?.T("savedPlayersPage.filterTagged", "标记玩家") ?? "标记玩家";
+        var filterMultipleText = i18n?.T("savedPlayersPage.filterMultiple", "多次相遇") ?? "多次相遇";
+
         var clearBtn = !string.IsNullOrEmpty(searchDraft)
             ? Button(Caption("✕"), onClearSearch)
                 .AutomationName("清空搜索")
@@ -84,7 +96,7 @@ internal static class SavedPlayersVisuals
             TextBox(
                 searchDraft,
                 onSearchInput,
-                "搜索召唤师名称、TagLine 或标记..."
+                placeholder
             )
             .AutomationName("搜索召唤师名称、TagLine 或标记")
             .Width(280)
@@ -107,9 +119,9 @@ internal static class SavedPlayersVisuals
 
         var filterGroup = HStack(
             6,
-            FilterButton("全部", "all"),
-            FilterButton("标记玩家", "tagged"),
-            FilterButton("多次相遇", "multiple")
+            FilterButton(filterAllText, "all"),
+            FilterButton(filterTaggedText, "tagged"),
+            FilterButton(filterMultipleText, "multiple")
         );
 
         return Grid(

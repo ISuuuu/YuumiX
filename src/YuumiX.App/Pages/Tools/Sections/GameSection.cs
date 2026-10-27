@@ -64,6 +64,10 @@ internal static class GameSection
         Action<bool?> setSettingsLocked)
     {
         var config = ui.Config;
+        var i18n = ui.I18n;
+
+        var enabledText = i18n.T("tools.enabledText", "已启用");
+        var disabledText = i18n.T("tools.disabledText", "未启用");
 
         // 6. 自动游戏流程卡片
         var autoFlowEnabled = config.Functions.EnableAutoHandleInvite
@@ -71,52 +75,52 @@ internal static class GameSection
             || config.Functions.EnableAutoPlayAgain
             || config.Functions.EnableAutoAramTeamSide
             || config.Functions.EnableAutoTagReminder;
-        var autoFlowStatus = autoFlowEnabled ? "已启用" : "未启用";
+        var autoFlowStatus = autoFlowEnabled ? enabledText : disabledText;
 
         var autoGameflowCard = ToolsVisuals.ToolCard(
             ui,
             "autoGameflow",
-            "自动游戏流程",
-            "自动处理邀请、点赞、再来一局与 ARAM 报边",
+            i18n.T("tools.autoGameflow.title", "自动游戏流程"),
+            i18n.T("tools.autoGameflow.desc", "自动处理邀请、点赞、再来一局与 ARAM 报边"),
             autoFlowStatus,
             autoFlowEnabled,
             VStack(4,
-                ToolsVisuals.CardRow("自动接受好友邀请:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoInviteLabel", "自动接受好友邀请:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoHandleInvite, v =>
                     {
                         if (v == config.Functions.EnableAutoHandleInvite) return;
                         config.Functions.EnableAutoHandleInvite = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoHandleInvite));
                     }, "自动接受邀请")),
-                ToolsVisuals.CardRow("对局结束后自动点赞:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoHonorLabel", "对局结束后自动点赞:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoHonor, v =>
                     {
                         if (v == config.Functions.EnableAutoHonor) return;
                         config.Functions.EnableAutoHonor = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoHonor));
                     }, "自动点赞")),
-                ToolsVisuals.CardRow("对局结束后自动再来一局:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoPlayAgainLabel", "对局结束后自动再来一局:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoPlayAgain, v =>
                     {
                         if (v == config.Functions.EnableAutoPlayAgain) return;
                         config.Functions.EnableAutoPlayAgain = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoPlayAgain));
                     }, "自动再来一局")),
-                ToolsVisuals.CardRow("ARAM 选人时自动报边:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoAramSideLabel", "ARAM 选人时自动报边:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoAramTeamSide, v =>
                     {
                         if (v == config.Functions.EnableAutoAramTeamSide) return;
                         config.Functions.EnableAutoAramTeamSide = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoAramTeamSide));
                     }, "ARAM报边")),
-                ToolsVisuals.CardRow("报边消息对队友可见:",
+                ToolsVisuals.CardRow(i18n.T("tools.aramSideVisibleLabel", "报边消息对队友可见:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.AramTeamSideVisibleToTeam, v =>
                     {
                         if (v == config.Functions.AramTeamSideVisibleToTeam) return;
                         config.Functions.AramTeamSideVisibleToTeam = v;
                         ui.Commit(nameof(FunctionsConfig.AramTeamSideVisibleToTeam));
                     }, "报边队友可见")),
-                ToolsVisuals.CardRow("选人阶段自动提醒标记玩家:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoTagReminderLabel", "选人阶段自动提醒标记玩家:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoTagReminder, v =>
                     {
                         if (v == config.Functions.EnableAutoTagReminder) return;
@@ -125,30 +129,43 @@ internal static class GameSection
                     }, "标记玩家提醒"))
             ));
 
+        var clickToExpand = i18n.T("tools.clickToExpand", "点击展开");
+        var spectateMethodLabels = new[]
+        {
+            i18n.T("tools.spectateLcu", "LCU 方式 (客户端内置观战，失败自动切换 CMD)"),
+            i18n.T("tools.spectateCmd", "CMD 方式 (直接启动客户端进程，绕开限制)"),
+        };
+
         // 7. 观战卡片
         var spectateCard = ToolsVisuals.ToolCard(
             ui,
             "spectate",
-            "观战",
-            "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)",
-            "点击展开",
+            i18n.T("tools.spectate.title", "观战"),
+            i18n.T("tools.spectate.desc", "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)"),
+            clickToExpand,
             false,
             VStack(8,
-                Body("输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战：")
+                Body(i18n.T("tools.spectateIntro", "输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战："))
                     .Foreground(Theme.SecondaryText),
-                ToolsVisuals.CardRow("观战通道:",
-                    ComboBox(SpectateMethodLabels, spectate.MethodIndex, idx => setSpectate(spectate with { MethodIndex = idx }))
+                ToolsVisuals.CardRow(i18n.T("tools.spectateMethodLabel", "观战通道:"),
+                    ComboBox(spectateMethodLabels, spectate.MethodIndex, idx =>
+                    {
+                        if (idx >= 0 && idx < spectateMethodLabels.Length)
+                        {
+                            setSpectate(spectate with { MethodIndex = idx });
+                        }
+                    })
                         .Width(340)
                         .AutomationName("观战方式选择")),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        TextBox(spectate.Name, v => setSpectate(spectate with { Name = v }), "输入召唤师名称，如 Hide on bush#KR1")
+                        TextBox(spectate.Name, v => setSpectate(spectate with { Name = v }), i18n.T("tools.spectateTargetPlaceholder", "输入召唤师名称，如 Hide on bush#KR1"))
                             .Margin(new Thickness(0, 0, 8, 0))
                             .AutomationName("观战目标输入")
                             .Grid(row: 0, column: 0),
-                        Button("启动观战", async () =>
+                        Button(i18n.T("tools.launchSpectateBtn", "启动观战"), async () =>
                         {
                             if (string.IsNullOrWhiteSpace(spectate.Name))
                             {
@@ -187,12 +204,16 @@ internal static class GameSection
 
         // 8. 好友管理与僵尸号清理卡片（扫描/删除执行态来自 UseMutation，R7）
         var filteredFriendsCount = FriendCleanerView.FilterFriends(friend.AllFriends, friend.SearchQuery, friend.FilterIndex).Count;
-        var friendCleanerStatus = friend.AllFriends.Count > 0 ? $"共 {friend.AllFriends.Count} 人 / 筛选出 {filteredFriendsCount} 人" : "点击展开";
+        var friendCleanerStatus = friend.AllFriends.Count > 0
+            ? i18n.T("tools.friendsCountSummary", $"共 {friend.AllFriends.Count} 人 / 筛选出 {filteredFriendsCount} 人")
+                .Replace("{total}", friend.AllFriends.Count.ToString())
+                .Replace("{filtered}", filteredFriendsCount.ToString())
+            : clickToExpand;
         var friendCleanerCard = ToolsVisuals.ToolCard(
             ui,
             "friendCleaner",
-            "好友管理与僵尸号清理",
-            "扫描好友列表，筛选并批量清理长期未上线的离线好友 (支持安全保护)",
+            i18n.T("tools.friendCleaner.title", "好友管理与僵尸号清理"),
+            i18n.T("tools.friendCleaner.desc", "扫描好友列表，筛选并批量清理长期未上线的离线好友 (支持安全保护)"),
             friendCleanerStatus,
             friend.AllFriends.Count > 0,
             FriendCleanerView.Render(
@@ -236,7 +257,9 @@ internal static class GameSection
             ));
 
         var benchOverlayCard = ToolsVisuals.ActionCard(
-            ui, "大乱斗板凳席悬浮窗", "在大乱斗选人阶段显示半透明置顶悬浮窗，可无 CD 抢板凳席英雄",
+            ui,
+            i18n.T("tools.benchOverlay.title", "大乱斗板凳席悬浮窗"),
+            i18n.T("tools.benchOverlay.desc", "在大乱斗选人阶段显示半透明置顶悬浮窗，可无 CD 抢板凳席英雄"),
             ToolsVisuals.CleanToggle(ui, config.Functions.EnableBenchOverlay, v =>
             {
                 if (v == config.Functions.EnableBenchOverlay) return;
@@ -245,7 +268,9 @@ internal static class GameSection
             }, "大乱斗悬浮窗开关"));
 
         var autoReconnectCard = ToolsVisuals.ActionCard(
-            ui, "自动重连", "当你意外掉线退出游戏时自动重新连接",
+            ui,
+            i18n.T("tools.autoReconnect.title", "自动重连"),
+            i18n.T("tools.autoReconnect.desc", "当你意外掉线退出游戏时自动重新连接"),
             ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoReconnect, v =>
             {
                 if (v == config.Functions.EnableAutoReconnect) return;
@@ -254,26 +279,31 @@ internal static class GameSection
             }, "自动重连开关"));
 
         var autoLobbyCard = ToolsVisuals.ToolCard(
-            ui, "autoLobby", "自动创建大厅", "启动 LOL 客户端后自动创建默认模式的大厅", config.Functions.EnableAutoCreateLobby ? "已启用" : "未启用",
+            ui,
+            "autoLobby",
+            i18n.T("tools.autoCreateLobby.title", "自动创建大厅"),
+            i18n.T("tools.autoCreateLobby.desc", "启动 LOL 客户端后自动创建默认模式的大厅"),
+            config.Functions.EnableAutoCreateLobby ? enabledText : disabledText,
             config.Functions.EnableAutoCreateLobby,
             VStack(4,
-                ToolsVisuals.CardRow("客户端就绪后自动拉入指定大厅房间:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoLobbyRoomLabel", "客户端就绪后自动拉入指定大厅房间:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoCreateLobby, v =>
                     {
                         if (v == config.Functions.EnableAutoCreateLobby) return;
                         config.Functions.EnableAutoCreateLobby = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoCreateLobby));
                     }, "自动创建大厅开关")),
-                ToolsVisuals.CardRow("默认模式选择:",
+                ToolsVisuals.CardRow(i18n.T("tools.defaultModeLabel", "默认模式选择:"),
                     ComboBox(LobbyModeLabels, IndexOfLobbyMode(config.Functions.DefaultGameMode), idx =>
                     {
+                        if (idx < 0 || idx >= LobbyModes.Length) return;
                         var mode = LobbyModes[idx];
                         if (mode == config.Functions.DefaultGameMode) return;
                         config.Functions.DefaultGameMode = mode;
                         ui.Commit(nameof(FunctionsConfig.DefaultGameMode));
                     }).Width(220).HAlign(HorizontalAlignment.Right).IsEnabled(config.Functions.EnableAutoCreateLobby).AutomationName("默认队列选择")),
                 HStack(8,
-                    Button("立即创建该模式大厅", async () =>
+                    Button(i18n.T("tools.createLobbyBtn", "立即创建该模式大厅"), async () =>
                     {
                         try
                         {
@@ -290,15 +320,16 @@ internal static class GameSection
 
         var lockStatusText = isSettingsLocked switch
         {
-            true => "已锁定 (只读保护中)",
-            false => "未锁定 (可写入)",
-            null => "检测中",
+            true => i18n.T("tools.settingsLocked", "已锁定 (只读保护中)"),
+            false => i18n.T("tools.settingsUnlocked", "未锁定 (可写入)"),
+            null => i18n.T("tools.settingsDetecting", "检测中"),
         };
 
         var lockSettingsCard = ToolsVisuals.ActionCard(
             ui,
-            "游戏设置锁定", $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]",
-            Button(isSettingsLocked == true ? "解除锁定" : "立即锁定", () =>
+            i18n.T("tools.lockGameSettings.title", "游戏设置锁定"),
+            i18n.T("tools.settingsLockDesc", $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]").Replace("{status}", lockStatusText),
+            Button(isSettingsLocked == true ? i18n.T("tools.unlockBtn", "解除锁定") : i18n.T("tools.lockBtn", "立即锁定"), () =>
             {
                 var nextState = !(isSettingsLocked ?? false);
                 try

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor.Core;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
+using YuumiX.App.Windowing;
 using YuumiX.Core;
 using YuumiX.Core.Lcu;
 
@@ -41,6 +42,12 @@ public static class AppHost
     public static readonly Context<ThemeState> ThemeContext = new(null!, "ThemeState");
 
     /// <summary>
+    /// 界面缩放状态上下文键。与 <see cref="ThemeContext"/> 同理在根组件上 Provide 一次；
+    /// AppShell 订阅该状态以驱动 Viewbox 内容视口响应式等比缩放。
+    /// </summary>
+    public static readonly Context<ScaleState> ScaleContext = new(null!, "ScaleState");
+
+    /// <summary>
     /// 侧边栏菜单可见性状态上下文。与 <see cref="ThemeContext"/> 同理在根组件上 Provide 一次；
     /// 「隐藏菜单」这类影响全局菜单的配置由它承载，而不是寄望配置自身有变更通知。
     /// </summary>
@@ -68,6 +75,7 @@ public static class AppHost
 
     private static AppServices? _services;
     private static ThemeState? _theme;
+    private static ScaleState? _scale;
     private static MenuVisibilityState? _menu;
     private static UpdateNoticeState? _updateNotice;
 
@@ -75,9 +83,19 @@ public static class AppHost
     public static AppServices Services =>
         _services ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
 
+    /// <summary>安全获取进程级服务实例，未初始化时返回 null（供静态视觉构件与单测安全消费）。</summary>
+    public static AppServices? CurrentServices => _services;
+
+    /// <summary>安全获取多语言服务实例，未初始化时返回 null。</summary>
+    public static YuumiX.Core.Localization.I18nService? CurrentI18n => _services?.I18n;
+
     /// <summary>进程级主题状态。仅供根组件使用（其余组件走 <see cref="ThemeContext"/>）。</summary>
     public static ThemeState Theme =>
         _theme ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
+
+    /// <summary>进程级界面缩放状态。仅供根组件使用（其余组件走 <see cref="ScaleContext"/>）。</summary>
+    public static ScaleState Scale =>
+        _scale ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
 
     /// <summary>进程级菜单可见性状态。仅供根组件使用（其余组件走 <see cref="MenuContext"/>）。</summary>
     public static MenuVisibilityState Menu =>
@@ -105,6 +123,11 @@ public static class AppHost
             ex => _services.LoggerFactory
                 .CreateLogger<ThemeState>()
                 .LogError(ex, "主题订阅者抛异常"));
+        _scale = new ScaleState(
+            _services.Config.Personalization.DpiScale,
+            ex => _services.LoggerFactory
+                .CreateLogger<ScaleState>()
+                .LogError(ex, "界面缩放订阅者抛异常"));
         _menu = new MenuVisibilityState(
             _services.Config.Functions,
             ex => _services.LoggerFactory
@@ -114,6 +137,8 @@ public static class AppHost
             ex => _services.LoggerFactory
                 .CreateLogger<UpdateNoticeState>()
                 .LogError(ex, "更新提示订阅者抛异常"));
+
+        ApplyPrimaryLanguageOverride(_services.Config.Personalization.Language);
         _services.Services.GetRequiredService<LcuConnection>().Start(_services.ShutdownToken);
         _services.Services.GetRequiredService<YuumiX.Core.Automation.AutomationHost>().Start(_services.ShutdownToken);
 
@@ -383,6 +408,44 @@ public static class AppHost
             $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases/download/v{raw}/YuumiX_{raw}_x64-setup.exe");
     }
 #endif
+
+    /// <summary>
+    /// 将系统级 WinUI 3 原生控件（如 ColorPicker 滑块文本、右键菜单等）的本地化资源覆盖为当前配置语言。
+    /// </summary>
+    public static void ApplyPrimaryLanguageOverride(string? language)
+    {
+        var tag = language switch
+        {
+            "en_US" => "en-US",
+            "zh_TW" => "zh-TW",
+            "zh_CN" => "zh-CN",
+            _ => string.Empty,
+        };
+
+        try
+        {
+            Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = tag;
+        }
+        catch
+        {
+            // 非打包或平台环境不支持时容错
+        }
+
+        try
+        {
+            if (!string.IsNullOrEmpty(tag))
+            {
+                var culture = new System.Globalization.CultureInfo(tag);
+                System.Globalization.CultureInfo.CurrentUICulture = culture;
+                System.Globalization.CultureInfo.CurrentCulture = culture;
+                System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = culture;
+                System.Globalization.CultureInfo.DefaultThreadCurrentCulture = culture;
+            }
+        }
+        catch
+        {
+        }
+    }
 
     /// <summary>释放服务与日志。</summary>
     public static async ValueTask ShutdownAsync()

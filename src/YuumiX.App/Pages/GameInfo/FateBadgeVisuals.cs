@@ -20,7 +20,13 @@ internal static class FateBadgeVisuals
     /// </summary>
     public static string GetBadgeText(GameInfoPlayer d)
     {
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
         bool isAlly = d.FateFlag == "ally";
+        if (isEn)
+        {
+            return !d.FateIsLastGame ? "Ex" : (isAlly ? "Ally" : "Enemy");
+        }
+
         return !d.FateIsLastGame ? "曾" : (isAlly ? "友" : "敌");
     }
 

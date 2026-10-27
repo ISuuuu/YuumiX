@@ -26,13 +26,14 @@ internal static class ChampionPickerView
         int maxCount = 5)
     {
         var championMap = allChampions.ToDictionary(c => c.Id);
+        var i18n = Composition.AppHost.Services?.I18n;
 
         // 已选英雄预览行
         Element selectedSection;
         if (selectedIds.Count == 0)
         {
             selectedSection = Border(
-                Caption("未选择任何英雄（按下方列表点击添加；将按添加顺序优先选用）")
+                Caption(i18n?.T("tools.noCandidates", "未选择任何英雄（按下方列表点击添加；将按添加顺序优先选用）") ?? "未选择任何英雄（按下方列表点击添加；将按添加顺序优先选用）")
                     .Foreground(Theme.SecondaryText)
             ).Margin(new Thickness(0, 4, 0, 8));
         }
@@ -67,12 +68,15 @@ internal static class ChampionPickerView
                 );
             }
 
+            var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+            var selectedPrefix = isEn ? "Selected" : "已选英雄";
+
             selectedSection = VStack(4,
                 HStack(8,
-                    Caption($"已选英雄 ({selectedIds.Count}/{maxCount}):")
+                    Caption($"{selectedPrefix} ({selectedIds.Count}/{maxCount}):")
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
-                    Button(Caption("清空全部"), onClearSelection)
+                    Button(Caption(i18n?.T("tools.clearBtn", "清空全部") ?? "清空全部"), onClearSelection)
                         .Padding(6, 2)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
                         .AutomationName("清空已选英雄")
@@ -81,15 +85,18 @@ internal static class ChampionPickerView
             ).Margin(new Thickness(0, 4, 0, 8));
         }
 
+        var isEnPicker = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+        var totalChampsText = isEnPicker ? $"{allChampions.Count} champions" : $"共 {allChampions.Count} 位英雄";
+
         // 搜索栏
         Element searchBar = Grid(
             [GridSize.Star(), GridSize.Auto],
             [GridSize.Auto],
             [
-                TextBox(searchQuery, onSearchQueryChanged, "搜索英雄名称、别名或称号...")
+                TextBox(searchQuery, onSearchQueryChanged, i18n?.T("tools.searchChampPlaceholder", "搜索英雄名称、别名或称号...") ?? "搜索英雄名称、别名或称号...")
                     .AutomationName("英雄库搜索")
                     .Grid(row: 0, column: 0),
-                Caption(isLoading ? "正在加载英雄库..." : $"共 {allChampions.Count} 位英雄")
+                Caption(isLoading ? (i18n?.T("tools.loadingChamps", "正在加载英雄库...") ?? "正在加载英雄库...") : totalChampsText)
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center)
                     .Margin(new Thickness(12, 0, 0, 0))
@@ -99,10 +106,11 @@ internal static class ChampionPickerView
 
         if (isLoading && allChampions.Count == 0)
         {
+            var loadingWaitText = isEnPicker ? "Fetching champion data from client, please wait..." : "正在从客户端拉取英雄数据，请稍候...";
             return VStack(0,
                 selectedSection,
                 searchBar,
-                Caption("正在从客户端拉取英雄数据，请稍候...").Foreground(Theme.SecondaryText).Margin(new Thickness(0, 16, 0, 16))
+                Caption(loadingWaitText).Foreground(Theme.SecondaryText).Margin(new Thickness(0, 16, 0, 16))
             );
         }
 

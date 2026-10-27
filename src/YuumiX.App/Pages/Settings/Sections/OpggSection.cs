@@ -13,18 +13,27 @@ internal static class OpggSection
     public static Element Render(SettingsUi ui)
     {
         var config = ui.Config;
+        var i18n = ui.Services.I18n;
 
         return VStack(8,
-            SettingsCardKit.Toggle("自动显示 OP.GG 窗口", "在英雄选择开始时自动显示 OP.GG 窗口", config.Functions.AutoShowOpgg, v =>
-            {
-                config.Functions.AutoShowOpgg = v;
-                ui.Commit(nameof(FunctionsConfig.AutoShowOpgg));
-            }),
-            SettingsCardKit.Toggle("置顶 OP.GG 窗口", "在英雄选择时将 OP.GG 窗口置顶", config.Functions.EnableOpggOnTop, v =>
-            {
-                config.Functions.EnableOpggOnTop = v;
-                OpggWindowHost.UpdateAlwaysOnTop(v);
-                ui.Commit(nameof(FunctionsConfig.EnableOpggOnTop));
-            }));
+            SettingsCardKit.Toggle(
+                i18n.T("settings.autoShowOpggTitle", "自动显示 OP.GG 窗口"),
+                i18n.T("settings.autoShowOpggDesc", "在英雄选择开始时自动显示 OP.GG 窗口"),
+                config.Functions.AutoShowOpgg,
+                v =>
+                {
+                    config.Functions.AutoShowOpgg = v;
+                    ui.Commit(nameof(FunctionsConfig.AutoShowOpgg));
+                }),
+            SettingsCardKit.Toggle(
+                i18n.T("settings.pinOpggTitle", "置顶 OP.GG 窗口"),
+                i18n.T("settings.pinOpggDesc", "在英雄选择时将 OP.GG 窗口置顶"),
+                config.Functions.EnableOpggOnTop,
+                v =>
+                {
+                    config.Functions.EnableOpggOnTop = v;
+                    OpggWindowHost.UpdateAlwaysOnTop(v);
+                    ui.Commit(nameof(FunctionsConfig.EnableOpggOnTop));
+                }));
     }
 }

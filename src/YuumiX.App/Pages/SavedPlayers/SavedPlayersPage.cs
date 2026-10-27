@@ -55,6 +55,15 @@ public sealed class SavedPlayersPage : Component
             },
             0);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         // 全局 Toast 服务（R5）：队列由 AppShell 提供并在其 ToastHost 呈现
         var toast = UseContext(AppHost.ToastContext)!;
 
