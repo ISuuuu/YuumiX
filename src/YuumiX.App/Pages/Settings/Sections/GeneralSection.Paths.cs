@@ -20,13 +20,14 @@ internal static partial class GeneralSection
     private static Element LolPathCard(SettingsUi ui, PathEditUi? pathEdit, Action<int, bool, string> requestPathCommit)
     {
         var config = ui.Config;
+        var i18n = ui.Services.I18n;
         var lolPathStatus = config.General.LolPath.Count == 0
-            ? "未配置"
+            ? i18n.T("settings.pathNotSet", "未配置")
             : $"已设置 {config.General.LolPath.Count} 个路径";
 
         return SettingsCardKit.Expander(
-            "英雄联盟客户端路径",
-            "设置英雄联盟客户端所在目录的路径",
+            i18n.T("settings.lolPathGroup", "英雄联盟客户端路径"),
+            i18n.T("settings.lolPathDesc", "设置英雄联盟客户端所在目录的路径"),
             config.General.LolPath.Count == 0 ? SettingsStatus.Unconfigured : SettingsStatus.Custom,
             headerControl: null,
             innerContent: LolPathEditor(ui, pathEdit, requestPathCommit),
@@ -112,7 +113,7 @@ internal static partial class GeneralSection
         {
             // 空列表提示（对齐旧 pathEmpty 文案）
             rows.Count == 0
-                ? Caption("暂无客户端路径").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).Margin(top: 4, bottom: 8)
+                ? Caption(ui.Services.I18n.T("settings.pathEmpty", "暂无客户端路径")).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).Margin(top: 4, bottom: 8)
                 : VStack(0, [.. rows]),
         };
 
@@ -123,7 +124,7 @@ internal static partial class GeneralSection
 
         // 操作按钮行：自动检测 / 浏览文件夹 / 添加 WeGame 启动项
         content.Add(HStack(8,
-            Button("自动检测", async () =>
+            Button(ui.Services.I18n.T("settings.detectBtn", "自动检测"), async () =>
             {
                 var detected = await Task.Run(() => ui.Services.Services
                     .GetRequiredService<LolPathDetector>()
@@ -144,7 +145,7 @@ internal static partial class GeneralSection
                 ui.Commit(nameof(GeneralConfig.LolPath));
                 ui.Toast.Success($"已添加: {detected}");
             }).AutomationName("自动检测客户端路径"),
-            Button("浏览文件夹", async () =>
+            Button(ui.Services.I18n.T("settings.browseBtn", "浏览文件夹"), async () =>
             {
                 var picked = await Services.FolderPickerService.PickFolderAsync();
                 if (picked is null)
@@ -164,7 +165,7 @@ internal static partial class GeneralSection
                 ui.Commit(nameof(GeneralConfig.LolPath));
                 ui.Toast.Success($"已添加: {normalized}");
             }).AutomationName("浏览客户端文件夹"),
-            Button("添加 WeGame 启动项", async () =>
+            Button(ui.Services.I18n.T("settings.wegameAddBtn", "添加 WeGame 启动项"), async () =>
             {
                 if (config.General.LolPath.Contains(AppConfig.WeGameMarker))
                 {

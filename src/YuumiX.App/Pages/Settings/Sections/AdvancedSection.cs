@@ -16,11 +16,12 @@ internal static class AdvancedSection
     {
         var config = ui.Config;
         var menu = ui.Menu;
+        var i18n = ui.Services.I18n;
 
         var hideMenuEnabled = config.Functions.HideTft || config.Functions.HideSavedPlayers;
         var hideMenuCard = SettingsCardKit.Expander(
-            "隐藏菜单",
-            "控制侧边栏云顶之弈与路人集功能入口的显隐",
+            i18n.T("settings.hideMenuTitle", "隐藏菜单"),
+            i18n.T("settings.hideMenuDesc", "控制侧边栏云顶之弈与路人集功能入口的显隐"),
             hideMenuEnabled ? SettingsStatus.Enabled : SettingsStatus.Disabled,
             // 两项入口的公共开关：关掉即同时显示两个入口，单项仍可在展开区单独控制。
             headerControl: ToggleSwitch(hideMenuEnabled, v =>
@@ -34,17 +35,19 @@ internal static class AdvancedSection
                 .AutomationName("隐藏菜单开关"),
             innerItems:
             [
-                SettingsCardKit.Card("隐藏云顶之弈入口", "侧边栏不显示云顶之弈功能入口",
+                SettingsCardKit.Card(
+                    i18n.T("settings.hideMenuOptionTft", "隐藏云顶之弈入口"),
+                    "侧边栏不显示云顶之弈功能入口",
                     ToggleSwitch(config.Functions.HideTft, v =>
                     {
                         if (v == config.Functions.HideTft) return;
                         config.Functions.HideTft = v;
-                        // 先推给 AppShell（立即生效），再落盘；写盘失败时侧边栏也已更新，
-                        // 与颜色设置「先应用主题后防抖写盘」的语义一致。
                         menu.Apply(config.Functions.HideTft, config.Functions.HideSavedPlayers);
                         ui.Commit(nameof(FunctionsConfig.HideTft));
                     }, header: null, onContent: null, offContent: null).AutomationName("隐藏云顶之弈")),
-                SettingsCardKit.Card("隐藏路人集入口", "侧边栏不显示路人集功能入口",
+                SettingsCardKit.Card(
+                    i18n.T("settings.hideMenuOptionSavedPlayers", "隐藏路人集入口"),
+                    "侧边栏不显示路人集功能入口",
                     ToggleSwitch(config.Functions.HideSavedPlayers, v =>
                     {
                         if (v == config.Functions.HideSavedPlayers) return;
@@ -55,8 +58,8 @@ internal static class AdvancedSection
             ]);
 
         var screenshotCard = SettingsCardKit.Expander(
-            "多杀自动截图",
-            "对局中达成多杀或超神时自动保存精彩瞬间",
+            i18n.T("settings.screenshotGroup", "多杀自动截图"),
+            i18n.T("settings.enableScreenshotOnMultikillDesc", "对局中达成多杀或超神时自动保存精彩瞬间"),
             config.Functions.EnableScreenshotOnMultikill ? SettingsStatus.Enabled : SettingsStatus.Disabled,
             headerControl: ToggleSwitch(config.Functions.EnableScreenshotOnMultikill, v =>
             {
@@ -68,14 +71,19 @@ internal static class AdvancedSection
             // 开关关闭时子项不可编辑（对齐旧 ScreenshotSection.vue 的「开启后才显示」）
             innerItems:
             [
-                SettingsCardKit.Card("截图触发事件", "达成以下任一事件时保存截图",
-                        HStack(12,
-                            ScreenshotLevelCheckBox(ui, 3, "三杀"),
-                            ScreenshotLevelCheckBox(ui, 4, "四杀"),
-                            ScreenshotLevelCheckBox(ui, 5, "五杀"),
-                            ScreenshotLevelCheckBox(ui, 8, "超神")))
+                SettingsCardKit.Card(
+                    i18n.T("settings.screenshotLevelsTitle", "截图触发事件"),
+                    i18n.T("settings.screenshotLevelsDesc", "达成以下任一事件时保存截图"),
+                    HStack(12,
+                        ScreenshotLevelCheckBox(ui, 3, i18n.T("settings.tripleKill", "三杀")),
+                        ScreenshotLevelCheckBox(ui, 4, i18n.T("settings.quadraKill", "四杀")),
+                        ScreenshotLevelCheckBox(ui, 5, i18n.T("settings.pentaKill", "五杀")),
+                        ScreenshotLevelCheckBox(ui, 8, i18n.T("settings.legendary", "超神"))))
                     .IsEnabled(config.Functions.EnableScreenshotOnMultikill),
-                SettingsCardKit.Card("截图保存位置", "截图文件写入的目录", ScreenshotSavePathRow(ui))
+                SettingsCardKit.Card(
+                    i18n.T("settings.screenshotSavePathTitle", "截图保存位置"),
+                    i18n.T("settings.screenshotSavePathDesc", "截图文件写入的目录"),
+                    ScreenshotSavePathRow(ui))
                     .IsEnabled(config.Functions.EnableScreenshotOnMultikill),
             ]);
 
@@ -120,7 +128,7 @@ internal static class AdvancedSection
                 .Width(240)
                 .IsReadOnly()
                 .AutomationName("截图保存目录"),
-            Button("浏览", async () =>
+            Button(ui.Services.I18n.T("settings.browseBtn", "浏览"), async () =>
             {
                 var picked = await Services.FolderPickerService.PickFolderAsync();
                 if (picked is null)
@@ -132,7 +140,7 @@ internal static class AdvancedSection
                 ui.Commit(nameof(FunctionsConfig.ScreenshotSavePath));
                 ui.Toast.Success("已成功更新截图保存目录");
             }).AutomationName("浏览截图目录"),
-            Button("打开目录", () =>
+            Button(ui.Services.I18n.T("settings.openScreenshotFolderBtn", "打开目录"), () =>
             {
                 try
                 {

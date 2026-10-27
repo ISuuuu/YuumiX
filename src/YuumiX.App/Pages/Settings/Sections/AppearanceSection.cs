@@ -32,9 +32,27 @@ internal static class AppearanceSection
         var config = ui.Config;
         var i18n = ui.Services.I18n;
 
+        var themeModeLabels = new[]
+        {
+            i18n.T("settings.themeModeLight", "浅色"),
+            i18n.T("settings.themeModeDark", "深色"),
+            i18n.T("settings.themeModeAuto", "跟随系统"),
+        };
+        var dpiScaleLabels = new[]
+        {
+            i18n.T("settings.dpiScaleAuto", "跟随系统"),
+            "100%", "125%", "150%",
+        };
+        var languageLabels = new[]
+        {
+            i18n.T("settings.langAuto", "跟随系统"),
+            "简体中文", "繁體中文", "English",
+        };
+
         var themeModeCard = SettingsCardKit.Card(
-            i18n.T("settings.themeModeTitle", "主题模式"), "浅色 / 深色 / 跟随系统主题自适应切换",
-            ComboBox(ThemeModeLabels, SettingsVisuals.IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
+            i18n.T("settings.themeModeTitle", "主题模式"),
+            i18n.T("settings.themeModeDesc", "浅色 / 深色 / 跟随系统主题自适应切换"),
+            ComboBox(themeModeLabels, SettingsVisuals.IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
             {
                 config.Personalization.ThemeMode = ThemeModeValues[index];
                 ui.Theme.Apply(config.Personalization);
@@ -42,11 +60,12 @@ internal static class AppearanceSection
             }).Width(160).AutomationName("主题模式选择"));
 
         var dpiScaleCard = SettingsCardKit.Card(
-            i18n.T("settings.dpiScaleTitle", "界面缩放"), i18n.T("settings.dpiScaleDesc", "调整应用界面基础显示比例与窗口尺寸"),
-            ComboBox(DpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
+            i18n.T("settings.dpiScaleTitle", "界面缩放"),
+            i18n.T("settings.dpiScaleDesc", "调整应用界面基础显示比例与窗口尺寸"),
+            ComboBox(dpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
             {
                 var scaleValue = DpiScaleValues[index];
-                var scaleLabel = DpiScaleLabels[index];
+                var scaleLabel = dpiScaleLabels[index];
                 config.Personalization.DpiScale = scaleValue;
                 ui.Commit(nameof(PersonalizationConfig.DpiScale));
                 AppHost.Scale.SetScale(scaleValue);
@@ -65,8 +84,9 @@ internal static class AppearanceSection
             }).Width(160).AutomationName("界面缩放选择"));
 
         var languageCard = SettingsCardKit.Card(
-            i18n.T("settings.langTitle", "语言设置"), i18n.T("settings.langDesc", "选择应用界面显示语言"),
-            ComboBox(LanguageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
+            i18n.T("settings.langTitle", "语言设置"),
+            i18n.T("settings.langDesc", "选择应用界面显示语言"),
+            ComboBox(languageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
             {
                 var lang = LanguageValues[index];
                 config.Personalization.Language = lang;
@@ -76,12 +96,16 @@ internal static class AppearanceSection
             }).Width(160).AutomationName("语言选择"));
 
         return VStack(8,
-            SettingsCardKit.Toggle(i18n.T("settings.micaTitle", "Mica 背景"), "使用系统亚克力/云母材质作为窗口背景 · 即时生效", config.Personalization.MicaEnabled, v =>
-            {
-                config.Personalization.MicaEnabled = v;
-                ui.Theme.Apply(config.Personalization);
-                ui.Commit(nameof(PersonalizationConfig.MicaEnabled));
-            }),
+            SettingsCardKit.Toggle(
+                i18n.T("settings.micaTitle", "Mica 背景"),
+                i18n.T("settings.micaDesc", "使用系统亚克力/云母材质作为窗口背景 · 即时生效"),
+                config.Personalization.MicaEnabled,
+                v =>
+                {
+                    config.Personalization.MicaEnabled = v;
+                    ui.Theme.Apply(config.Personalization);
+                    ui.Commit(nameof(PersonalizationConfig.MicaEnabled));
+                }),
             themeModeCard,
             dpiScaleCard,
             languageCard,

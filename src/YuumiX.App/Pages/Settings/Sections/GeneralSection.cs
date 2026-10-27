@@ -149,6 +149,7 @@ internal static partial class GeneralSection
         }
 
         var items = new List<Element>();
+        var i18n = ui.Services.I18n;
         if (config.Functions.LcuRealtimeEnabled)
         {
             items.Add(SettingsCardKit.Card(
@@ -157,7 +158,9 @@ internal static partial class GeneralSection
                 BadgeElement(signalrStatus)));
         }
 
-        items.Add(SettingsCardKit.Card("服务器 API 地址", "对局数据上传的服务端地址",
+        items.Add(SettingsCardKit.Card(
+            i18n.T("settings.uploadUrlTitle", "服务器 API 地址"),
+            i18n.T("settings.uploadUrlDesc", "对局数据上传的服务端地址"),
             TextBox(
                 cloud.Url ?? config.General.UploadApiUrl,
                 v => requestCloudTextCommit(v, null),
@@ -165,11 +168,13 @@ internal static partial class GeneralSection
                 .Width(240)
                 .AutomationName("服务器 API 地址")));
 
-        items.Add(SettingsCardKit.Card("userid", "上报数据使用的用户标识",
+        items.Add(SettingsCardKit.Card(
+            i18n.T("settings.licenseKeyTitle", "userid"),
+            i18n.T("settings.licenseKeyDesc", "上报数据使用的用户标识"),
             TextBox(
                 cloud.UserId ?? config.General.SignalrUserId,
                 v => requestCloudTextCommit(null, v),
-                "留空默认使用 lcu_user_001")
+                i18n.T("settings.useridPlaceholder", "留空默认使用 lcu_user_001"))
                 .Width(240)
                 .AutomationName("SignalR userid")));
 
@@ -181,8 +186,8 @@ internal static partial class GeneralSection
         }
 
         return SettingsCardKit.Expander(
-            "云端服务",
-            "对局数据上传与 LCU 实时远程查询（SignalR）",
+            i18n.T("settings.cloudServiceTitle", "云端服务"),
+            i18n.T("settings.cloudServiceDesc", "对局数据上传与 LCU 实时远程查询（SignalR）"),
             config.Functions.LcuRealtimeEnabled
                 ? signalrStatus.State == SignalrConnectionState.Connected
                     ? SettingsStatus.Connected
@@ -206,21 +211,23 @@ internal static partial class GeneralSection
     private static Element UpdateCard(SettingsUi ui, UpdateUi update)
     {
         var info = update.Info;
+        var i18n = ui.Services.I18n;
 
         // 「尚未检查」必须与「已是最新」区分开：两者 Info 都是 null，
         // 单看 Info 会让刚装好的用户以为已经确认过没有新版本。
         var updateCardStatus = update.Check.IsPending
-            ? "检查中"
+            ? i18n.T("settings.checkingUpdate", "检查中")
             : info is { } found
                 ? $"发现新版 v{found.Version}"
-                : update.Checked ? "已是最新" : "尚未检查";
+                : update.Checked ? i18n.T("settings.alreadyLatest", "已是最新") : "尚未检查";
 
         // 主操作卡：已知有更新时，第一落点必须是「下载 / 安装」，而不是让用户再点一次「检查更新」——
         // 版本已经在检查阶段确认过，再检查一次没有任何信息增量。
         var primaryCard = info is null
             ? SettingsCardKit.Card(
-                "检查更新", "手动检查并下载新版本",
-                Button(update.Check.IsPending ? "检查中..." : "检查更新", () => _ = update.Check.RunAsync(null))
+                i18n.T("settings.checkUpdateTitle", "检查更新"),
+                i18n.T("settings.checkUpdateDesc", "手动检查并下载新版本"),
+                Button(update.Check.IsPending ? i18n.T("settings.checkingUpdate", "检查中...") : i18n.T("settings.checkUpdateBtn", "检查更新"), () => _ = update.Check.RunAsync(null))
                     .IsEnabled(!update.Check.IsPending)
                     .AutomationName("检查更新按钮"))
             : SettingsCardKit.Card(
