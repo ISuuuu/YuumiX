@@ -184,11 +184,19 @@ internal static class MatchDetailView
             }
         }
 
-        return Border(
-                ScrollViewer(VStack(12, blocks.ToArray()).Padding(12))
-                    .IsTabStop(true)
-                    .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
-                    .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch))
+        var detailGrid = (Grid(
+            [GridSize.Star()],
+            [GridSize.Auto, GridSize.Star(), GridSize.Star()],
+            [
+                blocks[0].Grid(row: 0, column: 0),
+                blocks[1].Grid(row: 1, column: 0),
+                blocks[2].Grid(row: 2, column: 0),
+            ]) with { RowSpacing = 8 })
+            .Padding(12)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
+
+        return Border(detailGrid)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
@@ -245,19 +253,37 @@ internal static class MatchDetailView
             .Padding(6);
 
         // 选手行数按标准局 5 人：详情到达后真实表格也是 5 行，行数一致才不会跳。
-        var rows = new List<Element>(5);
+        var rows = new GridSize[5];
+        Array.Fill(rows, GridSize.Star());
+
+        var items = new List<Element>(5);
         for (int i = 0; i < 5; i++)
         {
-            rows.Add(Border(Empty())
-                .Height(RowHeight)
-                .Background(Theme.SubtleFill));
+            items.Add(Border(Empty())
+                .MinHeight(RowHeight)
+                .Background(Theme.SubtleFill)
+                .Margin(0, 0, 0, i < 4 ? 1 : 0)
+                .HAlign(HorizontalAlignment.Stretch)
+                .VAlign(VerticalAlignment.Stretch)
+                .Grid(row: i, column: 0));
         }
 
-        return Border(VStack(0, header, VStack(0, rows.ToArray())))
+        return Border(
+                Grid(
+                    [GridSize.Star()],
+                    [GridSize.Auto, GridSize.Star()],
+                    [
+                        header.Grid(row: 0, column: 0),
+                        Grid([GridSize.Star()], rows, items.ToArray())
+                            .HAlign(HorizontalAlignment.Stretch)
+                            .VAlign(VerticalAlignment.Stretch)
+                            .Grid(row: 1, column: 0),
+                    ]))
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
-            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
     }
 
     /// <summary>
@@ -375,15 +401,15 @@ internal static class MatchDetailView
             .Background(tint)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 
-        var rows = new List<Element>(team.Players.Count * 2);
+        int playerCount = Math.Max(1, team.Players.Count);
+        var rowDefs = new GridSize[playerCount];
+        Array.Fill(rowDefs, GridSize.Star());
+
+        var playerRows = new List<Element>(team.Players.Count);
         for (var i = 0; i < team.Players.Count; i++)
         {
-            if (i > 0)
-            {
-                rows.Add(SearchVisuals.Divider(Theme.DividerStroke));
-            }
-
-            rows.Add(PlayerRow(
+            bool isLast = i == team.Players.Count - 1;
+            playerRows.Add(PlayerRow(
                 team.Players[i],
                 team,
                 catalog,
@@ -393,18 +419,30 @@ internal static class MatchDetailView
                 isAugment,
                 currentSearchPuuid,
                 onClickPlayerPuuid,
-                onClickPlayerSummonerId));
+                onClickPlayerSummonerId,
+                isLast)
+                .Grid(row: i, column: 0));
         }
 
         Element body = team.Players.Count == 0
             ? Border(Caption("无参与者数据").Foreground(Theme.SecondaryText)).Padding(12)
-            : VStack(0, rows.ToArray());
+            : Grid([GridSize.Star()], rowDefs, playerRows.ToArray())
+                .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+                .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
 
-        return Border(VStack(0, header, body))
+        return Border(
+                Grid(
+                    [GridSize.Star()],
+                    [GridSize.Auto, GridSize.Star()],
+                    [
+                        header.Grid(row: 0, column: 0),
+                        body.Grid(row: 1, column: 0),
+                    ]))
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(border, 1)
-            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
     }
 
     /// <summary>单项队伍资源（彩色小图标 + 数字 + tooltip）。</summary>
@@ -465,7 +503,8 @@ internal static class MatchDetailView
         bool isAugment,
         string? currentSearchPuuid,
         Action<string, SummonerProfile?>? onClickPlayerPuuid,
-        Action<long>? onClickPlayerSummonerId)
+        Action<long>? onClickPlayerSummonerId,
+        bool isLast = false)
     {
         bool isQueriedPlayer = !string.IsNullOrEmpty(currentSearchPuuid)
             && string.Equals(player.Puuid, currentSearchPuuid, StringComparison.Ordinal);
@@ -629,16 +668,32 @@ internal static class MatchDetailView
                         goldCell.Grid(row: 0, column: 4),
                         damageCell.Grid(row: 0, column: 5),
                     ]))
-            .Height(RowHeight)
+            .MinHeight(RowHeight)
             .Padding(6)
             .CornerRadius(isQueriedPlayer ? 4 : 0)
-            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
 
         rowBorder = isQueriedPlayer
             ? rowBorder.Background(team.Win ? palette.WinBg : palette.LoseBg)
                        .WithBorder(team.Win ? palette.WinBorder : palette.LoseBorder, 1)
             : rowBorder.Background(Theme.CardBackground);
 
-        return rowBorder;
+        if (isLast || isQueriedPlayer)
+        {
+            return rowBorder;
+        }
+
+        return Grid(
+            [GridSize.Star()],
+            [GridSize.Star()],
+            [
+                rowBorder.Grid(row: 0, column: 0),
+                SearchVisuals.Divider(Theme.DividerStroke)
+                    .VAlign(VerticalAlignment.Bottom)
+                    .Grid(row: 0, column: 0),
+            ])
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Stretch);
     }
 }

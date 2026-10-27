@@ -403,7 +403,7 @@ public sealed class SearchPage : Component<SearchPageProps>
             return LcuOfflineState.Render();
         }
 
-        return Grid(
+        return (Grid(
                 [GridSize.Star()],
                 [GridSize.Auto, GridSize.Star()],
                 [
@@ -433,7 +433,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                             enabled => SearchEffects.ApplyUploadToggle(services, uploadQueue, enabled, setUploadOn, setNotice)))
                         .Grid(row: 0, column: 0),
                     content.Grid(row: 1, column: 0),
-                ])
+                ]) with { RowSpacing = 8 })
             .Padding(12)
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Stretch);
