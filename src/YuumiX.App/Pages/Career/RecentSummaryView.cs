@@ -267,30 +267,29 @@ internal static class RecentSummaryView
             : $"英雄 {champion.ChampionId}";
         string posText = champion.PrimaryPosition is { } p ? CareerVisuals.PositionText(p) : "--";
 
-        // 胜率徽章着色：优=胜利绿 / 低=灰蓝（裁决 D5）/ 中=强调底。业务色（string）与
-        // 语义令牌（ThemeRef）无法共存于同一三元，底色与前景各自在元素级分支。
+        // 胜率徽章着色：优=胜利绿 / 低=灰蓝（裁决 D5）/ 中=强调 accent。业务色只用于前景数字；
+        // 底色必须不透明（半透明底压在图标自带暗角上数字看不清），走 Theme 令牌保证深浅/高对比三态成立。
         var gamesText = Caption(champion.Games.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .SemiBold()
             .HAlign(HorizontalAlignment.Center);
         var badge = Border(gamesText)
-            .Padding(4, 1)
+            .Padding(3, 0)
             .CornerRadius(YuumiTheme.ControlRadius)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom);
         if (wr >= 60)
         {
             gamesText = gamesText.Foreground(CareerVisuals.WinText);
-            badge = badge.Background(CareerVisuals.WithAlpha(CareerVisuals.WinText, 0x33));
         }
         else if (wr < 45)
         {
             gamesText = gamesText.Foreground(LowWinRateColor);
-            badge = badge.Background(CareerVisuals.WithAlpha(LowWinRateColor, 0x33));
         }
         else
         {
             gamesText = gamesText.Foreground(Theme.Accent);
-            badge = badge.Background(Theme.SubtleFill);
         }
 
         Element cell = Grid(
@@ -300,7 +299,7 @@ internal static class RecentSummaryView
                 Search.SearchVisuals.Icon(
                     Search.SearchVisuals.ChampionIcon(champion.ChampionId),
                     ChampionSize,
-                    ChampionSize / 2),
+                    YuumiTheme.ControlRadius),
                 badge,
             ])
             .Width(ChampionSize)

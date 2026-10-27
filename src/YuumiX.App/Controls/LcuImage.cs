@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Xaml.Media.Imaging;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.Core.Assets;
@@ -83,7 +84,22 @@ public sealed class LcuImage : Component<LcuImageProps>
         Element img = Image(uri)
             .Width(Props.Size)
             .Height(Props.Size)
-            .AutomationName($"图标：{Props.AssetPath}");
+            .AutomationName($"图标：{Props.AssetPath}")
+            .Set(image =>
+            {
+                // LCU 图标源图（英雄头像原生 120px+）远大于显示边长，不限制解码尺寸时
+                // 由 GPU 按非整数倍双线性缩小，轮廓边缘发虚发糊。按目标逻辑边长预解码
+                // （DecodePixelType.Logical 默认值，含 DPI 归算，WIC 高质量插值），
+                // 渲染端 1:1 贴图，边缘保持干净。
+                // Set 每次重渲染都会重放（§5.12），已设置过解码尺寸就不再写。
+                if (image.Source is not BitmapImage bmp || bmp.DecodePixelWidth > 0)
+                {
+                    return;
+                }
+
+                // 只约束宽度、不设 DecodePixelHeight，非正方形源图可保持纵横比不被拉变形。
+                bmp.DecodePixelWidth = Math.Max(1, (int)Math.Round(Props.Size));
+            });
 
         if (Props.CornerRadius > 0)
         {

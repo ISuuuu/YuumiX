@@ -50,8 +50,9 @@ public static class Icons
     /// <summary>循环箭头：「修复无限加载」动作项。</summary>
     public const string Refresh = "\uE72C";
 
-    /// <summary>消息：公告入口 / 公告弹窗标题。</summary>
-    public const string Notice = "\uE7E7";
+    /// <summary>消息：公告入口 / 公告弹窗标题。用 E8BD（Message）而非 E7E7：
+    /// E7E7 是实心墨块字形，与侧边栏/弹窗里其余细线描边风格的 Segoe 字形观感不一致。</summary>
+    public const string Notice = "\uE8BD";
 
     // —— 通用状态 ——
 
