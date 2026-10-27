@@ -74,8 +74,10 @@ internal static class AppearanceSection
             "语言设置", "选择应用界面显示语言（多语言适配中 · 重启后生效）",
             ComboBox(LanguageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
             {
-                config.Personalization.Language = LanguageValues[index];
+                var lang = LanguageValues[index];
+                config.Personalization.Language = lang;
                 ui.Commit(nameof(PersonalizationConfig.Language));
+                ui.Services.I18n.SetLanguage(lang);
             }).Width(160).AutomationName("语言选择"));
 
         return VStack(8,
