@@ -2,6 +2,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.App.Windowing;
@@ -43,6 +44,7 @@ internal static class AppearanceSection
                 var scaleLabel = DpiScaleLabels[index];
                 config.Personalization.DpiScale = scaleValue;
                 ui.Commit(nameof(PersonalizationConfig.DpiScale));
+                AppHost.Scale.SetScale(scaleValue);
 
                 var window = ui.Window ?? ReactorApp.PrimaryWindow;
                 if (window is not null)

@@ -348,6 +348,35 @@ public sealed class AppShell : Component
             },
             1);
 
+        // 界面缩放状态是本页的重渲染来源之一：设置页切「界面缩放」后，
+        // ScaleState 通过 EventStream 推过来，驱动内容视口等比缩放。
+        // threadSafe: true —— 推送可能来自保存完成的回调线程（ADR-07）。
+        var (scaleFactor, setScaleFactor) = UseState(AppHost.Scale.Current, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = AppHost.Scale.Subscribe(setScaleFactor);
+                return () => subscription.Dispose();
+            },
+            0);
+
+        // 内容视口尺寸（DIP）：监听 row 1 视口容器的实际尺寸，驱动 Viewbox 等比缩放计算。
+        var (viewportSize, setViewportSize) = UseState<(double Width, double Height)>((0, 0), threadSafe: true);
+        var lastReportedSizeRef = UseRef<(double Width, double Height)>((0, 0));
+        var sizeChangedHandler = UseRef<Action<object, SizeChangedEventArgs>?>(null);
+        sizeChangedHandler.Current ??= (_, e) =>
+        {
+            if (e.NewSize.Width > 0 && e.NewSize.Height > 0)
+            {
+                var (lastW, lastH) = lastReportedSizeRef.Current;
+                if (Math.Abs(e.NewSize.Width - lastW) >= 0.5 || Math.Abs(e.NewSize.Height - lastH) >= 0.5)
+                {
+                    lastReportedSizeRef.Current = (e.NewSize.Width, e.NewSize.Height);
+                    setViewportSize((e.NewSize.Width, e.NewSize.Height));
+                }
+            }
+        };
+
         // 侧边栏召唤师信息卡片的数据源（对应旧版 sidebar-bottom 的 user-card）。
         // 客户端连上后拉取当前召唤师；未登录时在后台持续探测，一旦登录或状态变更立即响应；断线即清空。
         // threadSafe: true —— 拉取在后台线程完成，回调直接封送回 UI 线程（ADR-07）。
@@ -823,31 +852,78 @@ public sealed class AppShell : Component
             IsBackButtonVisible = false,
         };
 
+        var contentContainer = Grid(
+            [GridSize.Star()],
+            [GridSize.Star()],
+            [
+                navigationView,
+                // 更新红点：与导航栏同格、后绘制压在其上；IsHitTestVisible=false 让点击穿透到
+                // 「设置」菜单项本身——点红点等于点设置，不需要额外的事件处理。
+                updateOverlay,
+                // 全局 Toast 宿主（R5）：压在页面内容之上，队列由 ToastContext 提供。
+                Component<ToastHost>(),
+                // 大乱斗板凳席悬浮窗的显隐协调者：不产生视觉输出，只把 LCU 状态翻译成窗口开关。
+                Component<AramBenchOverlayCoordinator>(),
+                // 公告弹窗：右下角覆盖层（对应旧版 NoticePopup 的 position: fixed）。
+                // 挂在最外层 Grid 上，压在页面内容之上、与 Toast 同层。
+                noticeVisible
+                    ? Component<NoticePopupView, NoticePopupProps>(
+                        new NoticePopupProps(() => setShowNotice(false)))
+                    : Empty(),
+            ]
+        );
+
+        Element contentArea;
+        if (scaleFactor > 1.0)
+        {
+            var (w, h) = viewportSize;
+            if (w <= 0 || h <= 0)
+            {
+                var (initialW, initialH) = WindowMetrics.CalculateWindowSize(AppHost.Scale.CurrentDpiScale);
+                w = initialW;
+                h = Math.Max(400, initialH - 32);
+            }
+
+            var scaledContent = contentContainer
+                .Width(w / scaleFactor)
+                .Height(h / scaleFactor);
+
+            contentArea = Viewbox(scaledContent)
+                .Stretch(Stretch.Fill)
+                .HAlign(HorizontalAlignment.Stretch)
+                .VAlign(VerticalAlignment.Stretch);
+        }
+        else
+        {
+            contentArea = contentContainer
+                .Width(double.NaN)
+                .Height(double.NaN)
+                .HAlign(HorizontalAlignment.Stretch)
+                .VAlign(VerticalAlignment.Stretch);
+        }
+
+        var contentHost = Grid(
+            [GridSize.Star()],
+            [GridSize.Star()],
+            [contentArea])
+            .Grid(row: 1)
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Stretch)
+            .OnSizeChanged(sizeChangedHandler.Current!);
+
         var root = Grid(
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Star()],
             [
                 titleBar.Grid(row: 0),
-                navigationView.Grid(row: 1),
-                // 更新红点：与导航栏同格、后绘制压在其上；IsHitTestVisible=false 让点击穿透到
-                // 「设置」菜单项本身——点红点等于点设置，不需要额外的事件处理。
-                updateOverlay.Grid(row: 1),
-                // 全局 Toast 宿主（R5）：压在页面内容之上，队列由 ToastContext 提供。
-                Component<ToastHost>().Grid(row: 1),
-                // 大乱斗板凳席悬浮窗的显隐协调者：不产生视觉输出，只把 LCU 状态翻译成窗口开关。
-                Component<AramBenchOverlayCoordinator>().Grid(row: 1),
-                // 公告弹窗：右下角覆盖层（对应旧版 NoticePopup 的 position: fixed）。
-                // 挂在最外层 Grid 上，压在页面内容之上、与 Toast 同层。
-                noticeVisible
-                    ? Component<NoticePopupView, NoticePopupProps>(
-                        new NoticePopupProps(() => setShowNotice(false))).Grid(row: 1)
-                    : Empty(),
+                contentHost,
             ]
         )
         .Backdrop(palette.Backdrop)
         .RequestedTheme(palette.ElementTheme)
         .Provide(AppHost.Context, services)
         .Provide(AppHost.ThemeContext, AppHost.Theme)
+        .Provide(AppHost.ScaleContext, AppHost.Scale)
         .Provide(AppHost.UpdateNoticeContext, updateNotice)
         .Provide(AppHost.ToastContext, toastQueue);
 
