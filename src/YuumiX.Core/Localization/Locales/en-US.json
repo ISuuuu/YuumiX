@@ -602,7 +602,75 @@
       "SILVER": "Silver",
       "BRONZE": "Bronze",
       "IRON": "Iron"
-    }
+    },
+    "lanes": {
+      "default": "Default",
+      "top": "Top",
+      "jungle": "Jungle",
+      "mid": "Mid",
+      "bot": "Bot",
+      "support": "Support"
+    },
+    "spectateMethods": [
+      "LCU Method (In-client spectate, auto fallback to CMD)",
+      "CMD Method (Direct client process, bypass limits)"
+    ],
+    "lobbyModes": [
+      "ARAM Hextech (2400)",
+      "ARAM Classic (2450)",
+      "ARAM (450)",
+      "Normal Blind/Draft (430)",
+      "Ranked Solo/Duo (420)",
+      "Ranked Flex (440)",
+      "URF (900)",
+      "One for All (1020)",
+      "Nexus Blitz (1300)",
+      "Arena (1700)",
+      "Classic (4300)"
+    ],
+    "friendFilters": [
+      "All",
+      "> 7 days offline",
+      "> 30 days offline",
+      "> 90 days offline",
+      "> 180 days offline",
+      "> 365 days offline"
+    ],
+    "statusOptions": [
+      "Online",
+      "Away",
+      "Offline"
+    ],
+    "tierOptions": [
+      "Unranked",
+      "Iron",
+      "Bronze",
+      "Silver",
+      "Gold",
+      "Platinum",
+      "Emerald",
+      "Diamond",
+      "Master",
+      "Grandmaster",
+      "Challenger"
+    ],
+    "queueOptions": [
+      "Ranked Solo/Duo",
+      "Ranked Flex"
+    ],
+    "scanBtn": "Scan Friends",
+    "batchDeleteBtn": "Batch Delete",
+    "lockBtn": "Lock Settings",
+    "unlockBtn": "Unlock Settings",
+    "saveSignatureBtn": "Save Signature",
+    "saveBackgroundBtn": "Save Skin",
+    "applySpoofBtn": "Apply Spoof",
+    "openLootBtn": "Open All Loot",
+    "enabledText": "Enabled",
+    "disabledText": "Disabled",
+    "statusOnline": "Online",
+    "statusAway": "Away",
+    "statusOffline": "Invisible"
   },
   "home": {
     "connected": "Client Connected Successfully 🎉",

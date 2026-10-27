@@ -602,7 +602,75 @@
       "SILVER": "不屈白银",
       "BRONZE": "英勇黄铜",
       "IRON": "坚韧黑铁"
-    }
+    },
+    "lanes": {
+      "default": "默认",
+      "top": "上单 (Top)",
+      "jungle": "打野 (Jungle)",
+      "mid": "中单 (Mid)",
+      "bot": "下路 (Bot)",
+      "support": "辅助 (Support)"
+    },
+    "spectateMethods": [
+      "LCU 方式 (客户端内置观战，失败自动切换 CMD)",
+      "CMD 方式 (直接启动客户端进程，绕开限制)"
+    ],
+    "lobbyModes": [
+      "海克斯大乱斗 (2400)",
+      "经典海斗 (2450)",
+      "极地大乱斗 (450)",
+      "匹配模式 (430)",
+      "单双排位 (420)",
+      "灵活排位 (440)",
+      "无限火力 (900)",
+      "克隆模式 (1020)",
+      "极限闪击 (1300)",
+      "斗魂竞技场 (1700)",
+      "经典模式 (4300)"
+    ],
+    "friendFilters": [
+      "全部",
+      "大于 7 天未登录",
+      "大于 30 天未登录",
+      "大于 90 天未登录",
+      "大于 180 天未登录",
+      "大于 365 天未登录"
+    ],
+    "statusOptions": [
+      "在线 (Online)",
+      "离开 (Away)",
+      "离线 (Offline)"
+    ],
+    "tierOptions": [
+      "未定级",
+      "黑铁",
+      "黄铜",
+      "白银",
+      "黄金",
+      "铂金",
+      "翡翠",
+      "钻石",
+      "大师",
+      "宗师",
+      "王者"
+    ],
+    "queueOptions": [
+      "单双排位",
+      "灵活排位"
+    ],
+    "scanBtn": "扫描好友",
+    "batchDeleteBtn": "批量删除",
+    "lockBtn": "锁定设置",
+    "unlockBtn": "解锁设置",
+    "saveSignatureBtn": "保存签名",
+    "saveBackgroundBtn": "保存背景皮肤",
+    "applySpoofBtn": "应用伪造",
+    "openLootBtn": "一键开启战利品",
+    "enabledText": "已启用",
+    "disabledText": "未启用",
+    "statusOnline": "在线",
+    "statusAway": "离开",
+    "statusOffline": "隐身"
   },
   "home": {
     "connected": "客户端连接成功 🎉",

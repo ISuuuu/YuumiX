@@ -18,13 +18,16 @@ internal static class ClientSection
 {
     public static Element Render(ToolsUi ui, ConfirmUi confirm, Action<ConfirmUi> setConfirm)
     {
+        var i18n = ui.I18n;
+
         // ══════════════════════════════════════════════════════
         // 3. 客户端组
         // ══════════════════════════════════════════════════════
         var fixWindowCard = ToolsVisuals.ActionCard(
             ui,
-            "修复客户端窗口", "修复客户端错误的窗口大小与黑边缩放（重设 LeagueClientUx 尺寸）",
-            Button("立即修复", async () =>
+            i18n.T("tools.fixWindow.title", "修复客户端窗口"),
+            i18n.T("tools.fixWindow.desc", "修复客户端错误的窗口大小与黑边缩放（重设 LeagueClientUx 尺寸）"),
+            Button(i18n.T("common.confirm", "立即修复"), async () =>
             {
                 try
                 {
@@ -39,14 +42,15 @@ internal static class ClientSection
 
         var restartClientCard = ToolsVisuals.ActionCard(
             ui,
-            "快速重启客户端", "重新引导 LeagueClientUx，无需重新排队或重新输入账号密码",
+            i18n.T("tools.restartClient.title", "快速重启客户端"),
+            i18n.T("tools.restartClient.desc", "重新引导 LeagueClientUx，无需重新排队或重新输入账号密码"),
             // 这一组是 HStack 而不是单个控件，ActionCard 的 IsEnabled 对 StackPanel 无效，
             // 因此三个按钮各自再禁一次（客户端没开时重启/取消都无从谈起）。
             confirm.RestartClient
                 ? HStack(8,
                     Caption("⚡ 确定重启客户端？无需重登").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                    Button(Caption("取消"), () => setConfirm(confirm with { RestartClient = false })).Padding(8, 4).IsEnabled(ui.IsLcuConnected).AutomationName("取消重启客户端"),
-                    Button(Caption("确认重启"), () =>
+                    Button(Caption(i18n.T("common.cancel", "取消")), () => setConfirm(confirm with { RestartClient = false })).Padding(8, 4).IsEnabled(ui.IsLcuConnected).AutomationName("取消重启客户端"),
+                    Button(Caption(i18n.T("common.confirm", "确认重启")), () =>
                     {
                         setConfirm(confirm with { RestartClient = false });
                         _ = SendLcuAsync(ui, async t =>
@@ -59,7 +63,7 @@ internal static class ClientSection
                     .Padding(8, 4)
                     .IsEnabled(ui.IsLcuConnected)
                     .AutomationName("确认重启客户端"))
-                : Button("重启客户端", () => setConfirm(confirm with { RestartClient = true })).IsEnabled(ui.IsLcuConnected).AutomationName("快速重启客户端"));
+                : Button(i18n.T("tools.restartClient.title", "重启客户端"), () => setConfirm(confirm with { RestartClient = true })).IsEnabled(ui.IsLcuConnected).AutomationName("快速重启客户端"));
 
         return VStack(8, fixWindowCard, restartClientCard);
     }

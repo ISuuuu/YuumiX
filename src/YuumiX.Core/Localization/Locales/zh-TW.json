@@ -599,7 +599,75 @@
       "SILVER": "不屈白銀",
       "BRONZE": "英勇黃銅",
       "IRON": "堅韌黑鐵"
-    }
+    },
+    "lanes": {
+      "default": "默認",
+      "top": "上路 (Top)",
+      "jungle": "打野 (Jungle)",
+      "mid": "中路 (Mid)",
+      "bot": "下路 (Bot)",
+      "support": "輔助 (Support)"
+    },
+    "spectateMethods": [
+      "LCU 方式 (客戶端內置觀戰，失敗自動切換 CMD)",
+      "CMD 方式 (直接啟動客戶端進程，繞開限制)"
+    ],
+    "lobbyModes": [
+      "海克斯大亂鬥 (2400)",
+      "經典海鬥 (2450)",
+      "極地大亂鬥 (450)",
+      "匹配模式 (430)",
+      "單雙排位 (420)",
+      "靈活排位 (440)",
+      "無限火力 (900)",
+      "克隆模式 (1020)",
+      "極限閃擊 (1300)",
+      "鬥魂競技場 (1700)",
+      "經典模式 (4300)"
+    ],
+    "friendFilters": [
+      "全部",
+      "大於 7 天未登錄",
+      "大於 30 天未登錄",
+      "大於 90 天未登錄",
+      "大於 180 天未登錄",
+      "大於 365 天未登錄"
+    ],
+    "statusOptions": [
+      "在線 (Online)",
+      "離開 (Away)",
+      "離線 (Offline)"
+    ],
+    "tierOptions": [
+      "未定級",
+      "黑鐵",
+      "黃銅",
+      "白銀",
+      "黃金",
+      "鉑金",
+      "翡翠",
+      "鑽石",
+      "大師",
+      "宗師",
+      "王者"
+    ],
+    "queueOptions": [
+      "單雙排位",
+      "靈活排位"
+    ],
+    "scanBtn": "掃描好友",
+    "batchDeleteBtn": "批量刪除",
+    "lockBtn": "鎖定設置",
+    "unlockBtn": "解鎖設置",
+    "saveSignatureBtn": "保存簽名",
+    "saveBackgroundBtn": "保存背景皮膚",
+    "applySpoofBtn": "應用偽造",
+    "openLootBtn": "一鍵開啟戰利品",
+    "enabledText": "已啟用",
+    "disabledText": "未啟用",
+    "statusOnline": "在線",
+    "statusAway": "離開",
+    "statusOffline": "隱身"
   },
   "home": {
     "connected": "客戶端連接成功 🎉",

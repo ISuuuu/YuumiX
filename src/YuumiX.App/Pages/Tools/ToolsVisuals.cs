@@ -27,7 +27,8 @@ internal sealed record ToolsUi(
     bool IsLcuConnected,
     ISet<string> ExpandedKeys,
     Action<string> ToggleExpanded,
-    Action<string> Commit);
+    Action<string> Commit,
+    YuumiX.Core.Localization.I18nService I18n);
 
 /// <summary>跨分节共享的二次确认开关（快速重启客户端 / 卸下勋章 / 卸下头像框）。</summary>
 internal sealed record ConfirmUi(bool RestartClient, bool ClearBadges, bool ClearBorder);

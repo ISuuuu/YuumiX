@@ -64,6 +64,10 @@ internal static class GameSection
         Action<bool?> setSettingsLocked)
     {
         var config = ui.Config;
+        var i18n = ui.I18n;
+
+        var enabledText = i18n.T("tools.enabledText", "已启用");
+        var disabledText = i18n.T("tools.disabledText", "未启用");
 
         // 6. 自动游戏流程卡片
         var autoFlowEnabled = config.Functions.EnableAutoHandleInvite
@@ -71,13 +75,13 @@ internal static class GameSection
             || config.Functions.EnableAutoPlayAgain
             || config.Functions.EnableAutoAramTeamSide
             || config.Functions.EnableAutoTagReminder;
-        var autoFlowStatus = autoFlowEnabled ? "已启用" : "未启用";
+        var autoFlowStatus = autoFlowEnabled ? enabledText : disabledText;
 
         var autoGameflowCard = ToolsVisuals.ToolCard(
             ui,
             "autoGameflow",
-            "自动游戏流程",
-            "自动处理邀请、点赞、再来一局与 ARAM 报边",
+            i18n.T("tools.autoGameflow.title", "自动游戏流程"),
+            i18n.T("tools.autoGameflow.desc", "自动处理邀请、点赞、再来一局与 ARAM 报边"),
             autoFlowStatus,
             autoFlowEnabled,
             VStack(4,
@@ -129,15 +133,21 @@ internal static class GameSection
         var spectateCard = ToolsVisuals.ToolCard(
             ui,
             "spectate",
-            "观战",
-            "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)",
+            i18n.T("tools.spectate.title", "观战"),
+            i18n.T("tools.spectate.desc", "观战同大区玩家正在进行的实时游戏 (支持 CMD 与 LCU 双通道)"),
             "点击展开",
             false,
             VStack(8,
                 Body("输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战：")
                     .Foreground(Theme.SecondaryText),
                 ToolsVisuals.CardRow("观战通道:",
-                    ComboBox(SpectateMethodLabels, spectate.MethodIndex, idx => setSpectate(spectate with { MethodIndex = idx }))
+                    ComboBox(SpectateMethodLabels, spectate.MethodIndex, idx =>
+                    {
+                        if (idx >= 0 && idx < SpectateMethodLabels.Length)
+                        {
+                            setSpectate(spectate with { MethodIndex = idx });
+                        }
+                    })
                         .Width(340)
                         .AutomationName("观战方式选择")),
                 Grid(
@@ -191,8 +201,8 @@ internal static class GameSection
         var friendCleanerCard = ToolsVisuals.ToolCard(
             ui,
             "friendCleaner",
-            "好友管理与僵尸号清理",
-            "扫描好友列表，筛选并批量清理长期未上线的离线好友 (支持安全保护)",
+            i18n.T("tools.friendCleaner.title", "好友管理与僵尸号清理"),
+            i18n.T("tools.friendCleaner.desc", "扫描好友列表，筛选并批量清理长期未上线的离线好友 (支持安全保护)"),
             friendCleanerStatus,
             friend.AllFriends.Count > 0,
             FriendCleanerView.Render(
@@ -236,7 +246,9 @@ internal static class GameSection
             ));
 
         var benchOverlayCard = ToolsVisuals.ActionCard(
-            ui, "大乱斗板凳席悬浮窗", "在大乱斗选人阶段显示半透明置顶悬浮窗，可无 CD 抢板凳席英雄",
+            ui,
+            i18n.T("tools.benchOverlay.title", "大乱斗板凳席悬浮窗"),
+            i18n.T("tools.benchOverlay.desc", "在大乱斗选人阶段显示半透明置顶悬浮窗，可无 CD 抢板凳席英雄"),
             ToolsVisuals.CleanToggle(ui, config.Functions.EnableBenchOverlay, v =>
             {
                 if (v == config.Functions.EnableBenchOverlay) return;
@@ -245,7 +257,9 @@ internal static class GameSection
             }, "大乱斗悬浮窗开关"));
 
         var autoReconnectCard = ToolsVisuals.ActionCard(
-            ui, "自动重连", "当你意外掉线退出游戏时自动重新连接",
+            ui,
+            i18n.T("tools.autoReconnect.title", "自动重连"),
+            i18n.T("tools.autoReconnect.desc", "当你意外掉线退出游戏时自动重新连接"),
             ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoReconnect, v =>
             {
                 if (v == config.Functions.EnableAutoReconnect) return;
@@ -254,7 +268,11 @@ internal static class GameSection
             }, "自动重连开关"));
 
         var autoLobbyCard = ToolsVisuals.ToolCard(
-            ui, "autoLobby", "自动创建大厅", "启动 LOL 客户端后自动创建默认模式的大厅", config.Functions.EnableAutoCreateLobby ? "已启用" : "未启用",
+            ui,
+            "autoLobby",
+            i18n.T("tools.autoCreateLobby.title", "自动创建大厅"),
+            i18n.T("tools.autoCreateLobby.desc", "启动 LOL 客户端后自动创建默认模式的大厅"),
+            config.Functions.EnableAutoCreateLobby ? enabledText : disabledText,
             config.Functions.EnableAutoCreateLobby,
             VStack(4,
                 ToolsVisuals.CardRow("客户端就绪后自动拉入指定大厅房间:",
@@ -267,6 +285,7 @@ internal static class GameSection
                 ToolsVisuals.CardRow("默认模式选择:",
                     ComboBox(LobbyModeLabels, IndexOfLobbyMode(config.Functions.DefaultGameMode), idx =>
                     {
+                        if (idx < 0 || idx >= LobbyModes.Length) return;
                         var mode = LobbyModes[idx];
                         if (mode == config.Functions.DefaultGameMode) return;
                         config.Functions.DefaultGameMode = mode;
@@ -297,7 +316,8 @@ internal static class GameSection
 
         var lockSettingsCard = ToolsVisuals.ActionCard(
             ui,
-            "游戏设置锁定", $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]",
+            i18n.T("tools.lockGameSettings.title", "游戏设置锁定"),
+            $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]",
             Button(isSettingsLocked == true ? "解除锁定" : "立即锁定", () =>
             {
                 var nextState = !(isSettingsLocked ?? false);

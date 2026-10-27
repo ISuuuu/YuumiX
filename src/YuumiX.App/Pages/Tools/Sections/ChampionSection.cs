@@ -66,17 +66,21 @@ internal static class ChampionSection
         bool spellsLoading)
     {
         var config = ui.Config;
+        var i18n = ui.I18n;
+
+        var enabledText = i18n.T("tools.enabledText", "已启用");
+        var disabledText = i18n.T("tools.disabledText", "未启用");
 
         // 1. 自动接受对局卡片
         var autoAcceptStatus = config.Functions.EnableAutoAcceptMatching
-            ? $"已启用，延迟: {config.Functions.AutoAcceptMatchingDelay} 秒"
-            : "未启用";
+            ? $"{enabledText} ({config.Functions.AutoAcceptMatchingDelay}s)"
+            : disabledText;
 
         var autoAcceptCard = ToolsVisuals.ToolCard(
             ui,
             "autoAccept",
-            "自动接受对局",
-            "在你设置的秒数之后自动接受对局匹配",
+            i18n.T("tools.autoAccept.title", "自动接受对局"),
+            i18n.T("tools.autoAccept.desc", "在你设置的秒数之后自动接受对局匹配"),
             autoAcceptStatus,
             config.Functions.EnableAutoAcceptMatching,
             VStack(4,
@@ -105,13 +109,13 @@ internal static class ChampionSection
 
         // 2. 自动接受交换请求卡片
         var autoSwapEnabled = config.Functions.AutoAcceptCeilSwap || config.Functions.AutoAcceptChampTrade;
-        var autoSwapStatus = autoSwapEnabled ? "已启用" : "未启用";
+        var autoSwapStatus = autoSwapEnabled ? enabledText : disabledText;
 
         var autoSwapCard = ToolsVisuals.ToolCard(
             ui,
             "autoSwap",
-            "自动接受交换请求",
-            "自动接受队友的交换楼层或英雄的请求",
+            i18n.T("tools.autoSwap.title", "自动接受交换请求"),
+            i18n.T("tools.autoSwap.desc", "自动接受队友的交换楼层或英雄的请求"),
             autoSwapStatus,
             autoSwapEnabled,
             VStack(4,
@@ -133,13 +137,13 @@ internal static class ChampionSection
 
         // 3. 自动选用/预选英雄卡片
         var autoHoverEnabled = config.Functions.EnableAutoSelectChampion || config.Functions.EnableAutoHoverChampion;
-        var autoHoverStatus = autoHoverEnabled ? "已启用" : "未启用";
+        var autoHoverStatus = autoHoverEnabled ? enabledText : disabledText;
 
         var autoHoverCard = ToolsVisuals.ToolCard(
             ui,
             "autoHover",
-            "自动选用/预选英雄",
-            "在你进入英雄选择时自动亮起/预选英雄",
+            i18n.T("tools.autoHover.title", "自动选用/预选英雄"),
+            i18n.T("tools.autoHover.desc", "在你进入英雄选择时自动亮起/预选英雄"),
             autoHoverStatus,
             autoHoverEnabled,
             VStack(4,
@@ -173,7 +177,7 @@ internal static class ChampionSection
                     }, "对局信息秒退按钮")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
                 Caption("分路预选候选英雄库:").Foreground(Theme.SecondaryText),
-                LaneTabs(st.PickLaneIndex, idx => set(st with { PickLaneIndex = idx })),
+                LaneTabs(ui, st.PickLaneIndex, idx => set(st with { PickLaneIndex = idx })),
                 ChampionPickerView.Render(
                     champions,
                     GetPickListByLane(config.Functions, st.PickLaneIndex),
@@ -186,13 +190,13 @@ internal static class ChampionSection
             ));
 
         // 4. 自动禁用英雄卡片
-        var autoBanStatus = config.Functions.EnableAutoBanChampion ? "已启用" : "未启用";
+        var autoBanStatus = config.Functions.EnableAutoBanChampion ? enabledText : disabledText;
 
         var autoBanCard = ToolsVisuals.ToolCard(
             ui,
             "autoBan",
-            "自动禁用英雄",
-            "在你的禁用环节开始时自动禁用英雄",
+            i18n.T("tools.autoBan.title", "自动禁用英雄"),
+            i18n.T("tools.autoBan.desc", "在你的禁用环节开始时自动禁用英雄"),
             autoBanStatus,
             config.Functions.EnableAutoBanChampion,
             VStack(4,
@@ -226,7 +230,7 @@ internal static class ChampionSection
                         "自动禁用延迟")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
                 Caption("分路禁用候选英雄库:").Foreground(Theme.SecondaryText),
-                LaneTabs(st.BanLaneIndex, idx => set(st with { BanLaneIndex = idx })),
+                LaneTabs(ui, st.BanLaneIndex, idx => set(st with { BanLaneIndex = idx })),
                 ChampionPickerView.Render(
                     champions,
                     GetBanListByLane(config.Functions, st.BanLaneIndex),
@@ -244,8 +248,8 @@ internal static class ChampionSection
         var autoSpellsCard = ToolsVisuals.ToolCard(
             ui,
             "autoSpells",
-            "自动设置召唤师技能",
-            "当你的英雄选择开始时自动设置召唤师技能",
+            i18n.T("tools.autoSpells.title", "自动设置召唤师技能"),
+            i18n.T("tools.autoSpells.desc", "当你的英雄选择开始时自动设置召唤师技能"),
             autoSpellsStatus,
             config.Functions.EnableAutoSetSpells,
             VStack(4,
@@ -258,7 +262,7 @@ internal static class ChampionSection
                     }, "自动召唤师技能")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
                 Caption("分路召唤师技能组:").Foreground(Theme.SecondaryText),
-                LaneTabs(st.SpellLaneIndex, idx => set(st with { SpellLaneIndex = idx })),
+                LaneTabs(ui, st.SpellLaneIndex, idx => set(st with { SpellLaneIndex = idx })),
                 SpellPickerView.Render(
                     spells,
                     GetSpellListByLane(config.Functions, st.SpellLaneIndex),
@@ -272,10 +276,21 @@ internal static class ChampionSection
         return VStack(8, autoAcceptCard, autoSwapCard, autoHoverCard, autoBanCard, autoSpellsCard);
     }
 
-    private static Element LaneTabs(int currentLane, Action<int> onSelectLane)
+    private static Element LaneTabs(ToolsUi ui, int currentLane, Action<int> onSelectLane)
     {
+        var i18n = ui.I18n;
+        string[] laneLabels =
+        [
+            i18n.T("tools.lanes.default", "默认"),
+            i18n.T("tools.lanes.top", "上单 (Top)"),
+            i18n.T("tools.lanes.jungle", "打野 (Jungle)"),
+            i18n.T("tools.lanes.mid", "中单 (Mid)"),
+            i18n.T("tools.lanes.bot", "下路 (Bot)"),
+            i18n.T("tools.lanes.support", "辅助 (Support)"),
+        ];
+
         var buttons = new List<Element>();
-        for (int i = 0; i < LaneLabels.Length; i++)
+        for (int i = 0; i < laneLabels.Length; i++)
         {
             int idx = i;
             bool isCurrent = idx == currentLane;

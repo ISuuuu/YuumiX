@@ -244,7 +244,7 @@ public sealed class ToolsPage : Component
 
         var ui = new ToolsUi(
             config, palette, toast, toolsService, friendCleanerService, lcuConnection, logger,
-            isLcuConnected, expandedKeys, ToggleExpanded, Commit);
+            isLcuConnected, expandedKeys, ToggleExpanded, Commit, services.I18n);
 
         // 原实现的 feedbackBanner（错误/保存横幅）建而未渲染、actionFeedback 从未被写入，均按死代码删除；
         // savedAt/error 保留——值虽不参与渲染，但 Commit 靠它们变更触发重渲染（替代旧 Rerender 踢法），
