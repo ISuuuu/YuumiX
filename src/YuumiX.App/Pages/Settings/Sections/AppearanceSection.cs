@@ -106,6 +106,7 @@ internal static class AppearanceSection
                 var lang = LanguageValues[index];
                 config.Personalization.Language = lang;
                 ui.Commit(nameof(PersonalizationConfig.Language));
+                AppHost.ApplyPrimaryLanguageOverride(lang);
                 ui.Services.I18n.SetLanguage(lang);
                 ui.Toast.Success(i18n.T("settings.langSaved", "语言已更新并即时生效"));
             }).Width(160).AutomationName("语言选择"));

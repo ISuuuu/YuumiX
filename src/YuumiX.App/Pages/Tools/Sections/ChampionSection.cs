@@ -84,7 +84,7 @@ internal static class ChampionSection
             autoAcceptStatus,
             config.Functions.EnableAutoAcceptMatching,
             VStack(4,
-                ToolsVisuals.CardRow("在对局找到后接受对局前延迟的秒数:",
+                ToolsVisuals.CardRow(i18n.T("tools.acceptDelayLabel", "在对局找到后接受对局前延迟的秒数:"),
                     CompactStepperControl.Render(
                         config.Functions.AutoAcceptMatchingDelay,
                         0,
@@ -98,7 +98,7 @@ internal static class ChampionSection
                         },
                         ui.Palette,
                         "自动接受延迟")),
-                ToolsVisuals.CardRow("启用自动接受对局:",
+                ToolsVisuals.CardRow(i18n.T("tools.enableAutoAcceptLabel", "启用自动接受对局:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoAcceptMatching, v =>
                     {
                         if (v == config.Functions.EnableAutoAcceptMatching) return;
@@ -119,14 +119,14 @@ internal static class ChampionSection
             autoSwapStatus,
             autoSwapEnabled,
             VStack(4,
-                ToolsVisuals.CardRow("自动接受楼层交换请求:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoAcceptSwapCeil", "自动接受楼层交换请求:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.AutoAcceptCeilSwap, v =>
                     {
                         if (v == config.Functions.AutoAcceptCeilSwap) return;
                         config.Functions.AutoAcceptCeilSwap = v;
                         ui.Commit(nameof(FunctionsConfig.AutoAcceptCeilSwap));
                     }, "自动接受楼层交换")),
-                ToolsVisuals.CardRow("自动接受英雄交换请求:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoAcceptSwapChamp", "自动接受英雄交换请求:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.AutoAcceptChampTrade, v =>
                     {
                         if (v == config.Functions.AutoAcceptChampTrade) return;
@@ -147,28 +147,28 @@ internal static class ChampionSection
             autoHoverStatus,
             autoHoverEnabled,
             VStack(4,
-                ToolsVisuals.CardRow("启用自动亮起/预选:",
+                ToolsVisuals.CardRow(i18n.T("tools.enableHoverLabel", "启用自动亮起/预选:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoHoverChampion, v =>
                     {
                         if (v == config.Functions.EnableAutoHoverChampion) return;
                         config.Functions.EnableAutoHoverChampion = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoHoverChampion));
                     }, "启用自动预选")),
-                ToolsVisuals.CardRow("在结束时确认选择 (防秒退):",
+                ToolsVisuals.CardRow(i18n.T("tools.confirmOnTimeoutLabel", "在结束时确认选择 (防秒退):"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.AutoSelectConfirmOnTimeout, v =>
                     {
                         if (v == config.Functions.AutoSelectConfirmOnTimeout) return;
                         config.Functions.AutoSelectConfirmOnTimeout = v;
                         ui.Commit(nameof(FunctionsConfig.AutoSelectConfirmOnTimeout));
                     }, "超时自动确认")),
-                ToolsVisuals.CardRow("选人阶段自动选择英雄:",
+                ToolsVisuals.CardRow(i18n.T("tools.enableAutoPickLabel", "选人阶段自动选择英雄:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoSelectChampion, v =>
                     {
                         if (v == config.Functions.EnableAutoSelectChampion) return;
                         config.Functions.EnableAutoSelectChampion = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoSelectChampion));
                     }, "自动选择英雄")),
-                ToolsVisuals.CardRow("在对局信息中显示秒退按钮:",
+                ToolsVisuals.CardRow(i18n.T("tools.showDodgeBtnLabel", "在对局信息中显示秒退按钮:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableDodgeInGameInfo, v =>
                     {
                         if (v == config.Functions.EnableDodgeInGameInfo) return;
@@ -176,7 +176,7 @@ internal static class ChampionSection
                         ui.Commit(nameof(FunctionsConfig.EnableDodgeInGameInfo));
                     }, "对局信息秒退按钮")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
-                Caption("分路预选候选英雄库:").Foreground(Theme.SecondaryText),
+                Caption(i18n.T("tools.pickCandidatesLabel", "分路预选候选英雄库:")).Foreground(Theme.SecondaryText),
                 LaneTabs(ui, st.PickLaneIndex, idx => set(st with { PickLaneIndex = idx })),
                 ChampionPickerView.Render(
                     champions,
@@ -207,14 +207,14 @@ internal static class ChampionSection
                         config.Functions.EnableAutoBanChampion = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoBanChampion));
                     }, "自动禁用开关")),
-                ToolsVisuals.CardRow("避开队友已预选的英雄 (假禁用):",
+                ToolsVisuals.CardRow(i18n.T("tools.pretendBanLabel", "避开队友已预选的英雄 (假禁用):"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.PretendBan, v =>
                     {
                         if (v == config.Functions.PretendBan) return;
                         config.Functions.PretendBan = v;
                         ui.Commit(nameof(FunctionsConfig.PretendBan));
                     }, "避开队友预选")),
-                ToolsVisuals.CardRow("自动禁用前等待延迟 (秒):",
+                ToolsVisuals.CardRow(i18n.T("tools.banDelayLabel", "自动禁用前等待延迟 (秒):"),
                     CompactStepperControl.RenderDouble(
                         config.Functions.AutoBanDelay,
                         0,
@@ -229,7 +229,7 @@ internal static class ChampionSection
                         ui.Palette,
                         "自动禁用延迟")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
-                Caption("分路禁用候选英雄库:").Foreground(Theme.SecondaryText),
+                Caption(i18n.T("tools.banCandidatesLabel", "分路禁用候选英雄库:")).Foreground(Theme.SecondaryText),
                 LaneTabs(ui, st.BanLaneIndex, idx => set(st with { BanLaneIndex = idx })),
                 ChampionPickerView.Render(
                     champions,
@@ -243,7 +243,7 @@ internal static class ChampionSection
             ));
 
         // 5. 自动设置召唤师技能卡片
-        var autoSpellsStatus = config.Functions.EnableAutoSetSpells ? "已启用" : "未启用";
+        var autoSpellsStatus = config.Functions.EnableAutoSetSpells ? enabledText : disabledText;
 
         var autoSpellsCard = ToolsVisuals.ToolCard(
             ui,
@@ -253,7 +253,7 @@ internal static class ChampionSection
             autoSpellsStatus,
             config.Functions.EnableAutoSetSpells,
             VStack(4,
-                ToolsVisuals.CardRow("锁定英雄后自动写入配置好的技能组:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoSetSpellsLabel", "锁定英雄后自动写入配置好的技能组:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoSetSpells, v =>
                     {
                         if (v == config.Functions.EnableAutoSetSpells) return;
@@ -261,7 +261,7 @@ internal static class ChampionSection
                         ui.Commit(nameof(FunctionsConfig.EnableAutoSetSpells));
                     }, "自动召唤师技能")),
                 Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
-                Caption("分路召唤师技能组:").Foreground(Theme.SecondaryText),
+                Caption(i18n.T("tools.spellsByLaneLabel", "分路召唤师技能组:")).Foreground(Theme.SecondaryText),
                 LaneTabs(ui, st.SpellLaneIndex, idx => set(st with { SpellLaneIndex = idx })),
                 SpellPickerView.Render(
                     spells,

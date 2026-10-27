@@ -131,6 +131,8 @@ public static class AppHost
             ex => _services.LoggerFactory
                 .CreateLogger<UpdateNoticeState>()
                 .LogError(ex, "更新提示订阅者抛异常"));
+
+        ApplyPrimaryLanguageOverride(_services.Config.Personalization.Language);
         _services.Services.GetRequiredService<LcuConnection>().Start(_services.ShutdownToken);
         _services.Services.GetRequiredService<YuumiX.Core.Automation.AutomationHost>().Start(_services.ShutdownToken);
 
@@ -400,6 +402,27 @@ public static class AppHost
             $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases/download/v{raw}/YuumiX_{raw}_x64-setup.exe");
     }
 #endif
+
+    /// <summary>
+    /// 将系统级 WinUI 3 原生控件（如 ColorPicker 滑块文本、右键菜单等）的本地化资源覆盖为当前配置语言。
+    /// </summary>
+    public static void ApplyPrimaryLanguageOverride(string? language)
+    {
+        try
+        {
+            Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = language switch
+            {
+                "en_US" => "en-US",
+                "zh_TW" => "zh-TW",
+                "zh_CN" => "zh-CN",
+                _ => string.Empty,
+            };
+        }
+        catch
+        {
+            // 非打包或平台环境不支持时容错
+        }
+    }
 
     /// <summary>释放服务与日志。</summary>
     public static async ValueTask ShutdownAsync()

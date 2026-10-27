@@ -85,42 +85,42 @@ internal static class GameSection
             autoFlowStatus,
             autoFlowEnabled,
             VStack(4,
-                ToolsVisuals.CardRow("自动接受好友邀请:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoInviteLabel", "自动接受好友邀请:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoHandleInvite, v =>
                     {
                         if (v == config.Functions.EnableAutoHandleInvite) return;
                         config.Functions.EnableAutoHandleInvite = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoHandleInvite));
                     }, "自动接受邀请")),
-                ToolsVisuals.CardRow("对局结束后自动点赞:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoHonorLabel", "对局结束后自动点赞:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoHonor, v =>
                     {
                         if (v == config.Functions.EnableAutoHonor) return;
                         config.Functions.EnableAutoHonor = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoHonor));
                     }, "自动点赞")),
-                ToolsVisuals.CardRow("对局结束后自动再来一局:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoPlayAgainLabel", "对局结束后自动再来一局:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoPlayAgain, v =>
                     {
                         if (v == config.Functions.EnableAutoPlayAgain) return;
                         config.Functions.EnableAutoPlayAgain = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoPlayAgain));
                     }, "自动再来一局")),
-                ToolsVisuals.CardRow("ARAM 选人时自动报边:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoAramSideLabel", "ARAM 选人时自动报边:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoAramTeamSide, v =>
                     {
                         if (v == config.Functions.EnableAutoAramTeamSide) return;
                         config.Functions.EnableAutoAramTeamSide = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoAramTeamSide));
                     }, "ARAM报边")),
-                ToolsVisuals.CardRow("报边消息对队友可见:",
+                ToolsVisuals.CardRow(i18n.T("tools.aramSideVisibleLabel", "报边消息对队友可见:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.AramTeamSideVisibleToTeam, v =>
                     {
                         if (v == config.Functions.AramTeamSideVisibleToTeam) return;
                         config.Functions.AramTeamSideVisibleToTeam = v;
                         ui.Commit(nameof(FunctionsConfig.AramTeamSideVisibleToTeam));
                     }, "报边队友可见")),
-                ToolsVisuals.CardRow("选人阶段自动提醒标记玩家:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoTagReminderLabel", "选人阶段自动提醒标记玩家:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoTagReminder, v =>
                     {
                         if (v == config.Functions.EnableAutoTagReminder) return;
@@ -138,9 +138,9 @@ internal static class GameSection
             "点击展开",
             false,
             VStack(8,
-                Body("输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战：")
+                Body(i18n.T("tools.spectateIntro", "输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战："))
                     .Foreground(Theme.SecondaryText),
-                ToolsVisuals.CardRow("观战通道:",
+                ToolsVisuals.CardRow(i18n.T("tools.spectateMethodLabel", "观战通道:"),
                     ComboBox(SpectateMethodLabels, spectate.MethodIndex, idx =>
                     {
                         if (idx >= 0 && idx < SpectateMethodLabels.Length)
@@ -154,11 +154,11 @@ internal static class GameSection
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        TextBox(spectate.Name, v => setSpectate(spectate with { Name = v }), "输入召唤师名称，如 Hide on bush#KR1")
+                        TextBox(spectate.Name, v => setSpectate(spectate with { Name = v }), i18n.T("tools.spectateTargetPlaceholder", "输入召唤师名称，如 Hide on bush#KR1"))
                             .Margin(new Thickness(0, 0, 8, 0))
                             .AutomationName("观战目标输入")
                             .Grid(row: 0, column: 0),
-                        Button("启动观战", async () =>
+                        Button(i18n.T("tools.launchSpectateBtn", "启动观战"), async () =>
                         {
                             if (string.IsNullOrWhiteSpace(spectate.Name))
                             {
@@ -275,14 +275,14 @@ internal static class GameSection
             config.Functions.EnableAutoCreateLobby ? enabledText : disabledText,
             config.Functions.EnableAutoCreateLobby,
             VStack(4,
-                ToolsVisuals.CardRow("客户端就绪后自动拉入指定大厅房间:",
+                ToolsVisuals.CardRow(i18n.T("tools.autoLobbyRoomLabel", "客户端就绪后自动拉入指定大厅房间:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoCreateLobby, v =>
                     {
                         if (v == config.Functions.EnableAutoCreateLobby) return;
                         config.Functions.EnableAutoCreateLobby = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoCreateLobby));
                     }, "自动创建大厅开关")),
-                ToolsVisuals.CardRow("默认模式选择:",
+                ToolsVisuals.CardRow(i18n.T("tools.defaultModeLabel", "默认模式选择:"),
                     ComboBox(LobbyModeLabels, IndexOfLobbyMode(config.Functions.DefaultGameMode), idx =>
                     {
                         if (idx < 0 || idx >= LobbyModes.Length) return;
@@ -292,7 +292,7 @@ internal static class GameSection
                         ui.Commit(nameof(FunctionsConfig.DefaultGameMode));
                     }).Width(220).HAlign(HorizontalAlignment.Right).IsEnabled(config.Functions.EnableAutoCreateLobby).AutomationName("默认队列选择")),
                 HStack(8,
-                    Button("立即创建该模式大厅", async () =>
+                    Button(i18n.T("tools.createLobbyBtn", "立即创建该模式大厅"), async () =>
                     {
                         try
                         {
@@ -318,7 +318,7 @@ internal static class GameSection
             ui,
             i18n.T("tools.lockGameSettings.title", "游戏设置锁定"),
             $"锁定游戏内配置 (PersistedSettings.json)，防止被意外篡改 [{lockStatusText}]",
-            Button(isSettingsLocked == true ? "解除锁定" : "立即锁定", () =>
+            Button(isSettingsLocked == true ? i18n.T("tools.unlockBtn", "解除锁定") : i18n.T("tools.lockBtn", "立即锁定"), () =>
             {
                 var nextState = !(isSettingsLocked ?? false);
                 try
