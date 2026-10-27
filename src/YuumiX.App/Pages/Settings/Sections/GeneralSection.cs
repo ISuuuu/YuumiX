@@ -266,8 +266,10 @@ internal static partial class GeneralSection
                     .AutomationName("重新检查更新按钮"))));
         }
 
-        items.Add(SettingsCardKit.Card("开源发布页", "在浏览器中打开 GitHub Releases",
-            Button("前往 GitHub Releases", () =>
+        items.Add(SettingsCardKit.Card(
+            i18n.T("settings.releasesPage", "开源发布页"),
+            i18n.T("settings.releasesDesc", "在浏览器中打开 GitHub Releases"),
+            Button(i18n.T("settings.goToReleases", "前往 GitHub Releases"), () =>
             {
                 try
                 {
@@ -284,11 +286,13 @@ internal static partial class GeneralSection
                 }
             }).AutomationName("前往 GitHub Releases")));
 
+        var updateDesc = ui.Services.Paths.IsPortable
+            ? i18n.T("settings.portableUpdateDesc", "便携版通过 zip 覆盖方式更新；检查到新版后手动下载应用")
+            : i18n.T("settings.setupUpdateDesc", "安装版通过 setup 静默重装；检查到新版后手动下载应用");
+
         return SettingsCardKit.Expander(
-            "软件更新",
-            ui.Services.Paths.IsPortable
-                ? "便携版通过 zip 覆盖方式更新；检查到新版后手动下载应用"
-                : "安装版通过 setup 静默重装；检查到新版后手动下载应用",
+            i18n.T("settings.softwareUpdateGroup", "软件更新"),
+            updateDesc,
             SettingsStatus.Custom,
             headerControl: null,
             innerItems: [.. items],

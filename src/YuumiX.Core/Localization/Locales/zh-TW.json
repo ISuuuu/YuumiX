@@ -267,7 +267,8 @@
     "loseCardDesc": "失敗一方的底色（含透明度）",
     "remakeCardDesc": "重賽一方的底色（含透明度）",
     "lightDeathDesc": "淺色主題下每局死亡數的顏色",
-    "darkDeathDesc": "深色主題下每局死亡數的顏色"
+    "darkDeathDesc": "深色主題下每局死亡數的顏色",
+    "setupUpdateDesc": "安裝版通過 setup 靜默重裝；檢查到新版後手動下載應用"
   },
   "regions": {
     "HN1": "艾歐尼亞",

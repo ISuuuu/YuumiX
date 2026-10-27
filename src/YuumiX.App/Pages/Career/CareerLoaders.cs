@@ -29,6 +29,7 @@ internal static class CareerLoaders
     /// </summary>
     internal static (string[] Labels, string[] ModeNames) BuildFilterLabels(IReadOnlyList<MatchSummary> matches)
     {
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (MatchSummary m in matches)
         {
@@ -38,13 +39,15 @@ internal static class CareerLoaders
             }
         }
 
-        var labels = new List<string> { $"全部 ({matches.Count})" };
+        var allPrefix = isEn ? "All" : "全部";
+        var labels = new List<string> { $"{allPrefix} ({matches.Count})" };
         var modes = new List<string> { string.Empty };
 
         // 实际有战绩的模式按场数倒序
         foreach (var kvp in counts.OrderByDescending(p => p.Value))
         {
-            labels.Add($"{kvp.Key} ({kvp.Value})");
+            var translatedName = Search.SearchFilters.TranslateQueueLabel(kvp.Key, isEn);
+            labels.Add($"{translatedName} ({kvp.Value})");
             modes.Add(kvp.Key);
         }
 

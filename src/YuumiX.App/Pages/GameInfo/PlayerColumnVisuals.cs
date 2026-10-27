@@ -249,15 +249,32 @@ internal static class PlayerColumnVisuals
         return string.IsNullOrEmpty(division) || division is "NA" ? shortTier : $"{shortTier}{division}";
     }
 
-    internal static string ShortPosition(MatchPosition? pos) => pos switch
+    internal static string ShortPosition(MatchPosition? pos)
     {
-        MatchPosition.Top => "上",
-        MatchPosition.Jungle => "野",
-        MatchPosition.Middle => "中",
-        MatchPosition.Bottom => "下",
-        MatchPosition.Utility => "辅",
-        _ => string.Empty,
-    };
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+        if (isEn)
+        {
+            return pos switch
+            {
+                MatchPosition.Top => "Top",
+                MatchPosition.Jungle => "Jgl",
+                MatchPosition.Middle => "Mid",
+                MatchPosition.Bottom => "Bot",
+                MatchPosition.Utility => "Sup",
+                _ => string.Empty,
+            };
+        }
+
+        return pos switch
+        {
+            MatchPosition.Top => "上",
+            MatchPosition.Jungle => "野",
+            MatchPosition.Middle => "中",
+            MatchPosition.Bottom => "下",
+            MatchPosition.Utility => "辅",
+            _ => string.Empty,
+        };
+    }
 
     internal static string BuildRankDetailedTooltip(GameInfoPlayer? d, ChampionMasteryDetail? mastery)
     {

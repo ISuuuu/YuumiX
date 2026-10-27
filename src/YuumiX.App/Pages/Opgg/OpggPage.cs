@@ -32,6 +32,15 @@ public sealed class OpggPage : Component<OpggPageProps>
         var (tier, setTier) = UseState(OpggTier.EmeraldPlus);
         var (position, setPosition) = UseState(OpggPosition.Mid);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         var (selectedChampId, setSelectedChampId) = UseState<int?>(Props.InitialChampionId);
         var (tierItems, setTierItems) = UseState<IReadOnlyList<TierListItem>>(Array.Empty<TierListItem>());
         var (buildData, setBuildData) = UseState<OpggBuildData?>(null);
@@ -281,6 +290,10 @@ public sealed class OpggPage : Component<OpggPageProps>
 
     private static Element RenderHeader(string currentView, int? selectedChampId, string? metaVersion, Action<string> onSelectView)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var tierTabText = i18n?.T("opgg.tabs.tier", "梯队") ?? "梯队";
+        var buildTabText = i18n?.T("opgg.tabs.build", "出装") ?? "出装";
+
         return Border(
             Grid(
                 [GridSize.Auto, GridSize.Star(), GridSize.Auto],
@@ -304,8 +317,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                         // 「梯队」Tab
                         Button(
                             currentView == "tier"
-                                ? BodyStrong("梯队").Foreground("#FFFFFF")
-                                : BodyStrong("梯队"),
+                                ? BodyStrong(tierTabText).Foreground("#FFFFFF")
+                                : BodyStrong(tierTabText),
                             () => onSelectView("tier"))
                             .Background(currentView == "tier" ? OpggVisuals.ActiveTabGreen : "transparent")
                             .Height(30)
@@ -315,8 +328,8 @@ public sealed class OpggPage : Component<OpggPageProps>
                         // 「出装」Tab
                         Button(
                             currentView == "build"
-                                ? BodyStrong("出装").Foreground("#FFFFFF")
-                                : BodyStrong("出装"),
+                                ? BodyStrong(buildTabText).Foreground("#FFFFFF")
+                                : BodyStrong(buildTabText),
                             () =>
                             {
                                 if (selectedChampId.HasValue) onSelectView("build");

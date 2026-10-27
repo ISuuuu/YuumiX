@@ -126,7 +126,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                     .Grid(row: 0, column: 3),
                 // 上传开关只在配好服务器地址时出现（旧 Search.vue 的 v-if="General.UploadApiUrl"）
                 p.UploadConfigured
-                    ? CheckBox(p.UploadEnabled, p.OnUploadToggle, "上传对局")
+                    ? CheckBox(p.UploadEnabled, p.OnUploadToggle, i18n?.T("settings.autoUploadTitle", "上传对局") ?? "上传对局")
                         .AutomationName("上传对局开关")
                         .Grid(row: 0, column: 4)
                     : Empty().Grid(row: 0, column: 4),

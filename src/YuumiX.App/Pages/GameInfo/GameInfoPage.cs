@@ -168,7 +168,8 @@ public sealed class GameInfoPage : Component
     private static Element DemoButton(Action onDemoClick)
     {
         var i18n = AppHost.Services?.I18n;
-        var text = i18n?.T("gameInfo.previewDemo", "预览演示对局") ?? "预览演示对局";
+        var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+        var text = isEn ? "Demo" : (i18n?.T("gameInfo.previewDemo", "预览演示对局") ?? "预览演示对局");
         return Button(Caption(text), onDemoClick)
             .AutomationName(text)
             .CornerRadius(YuumiTheme.ControlRadius)
@@ -213,11 +214,15 @@ public sealed class GameInfoPage : Component
         var currentTeam = isMyTab ? state.MyTeam : state.TheirTeam;
         var myGroups = PremadeAnalyzer.BuildPremadeGroups(state.MyTeam, state.PremadeColorsMy, state.PlayerData);
         var theirGroups = PremadeAnalyzer.BuildPremadeGroups(state.TheirTeam, state.PremadeColorsTheir, state.PlayerData);
+        var isEn = services.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+
+        var allyLabelText = isEn ? $"Ally ({state.MyTeam.Count})" : $"友方 ({state.MyTeam.Count})";
+        var enemyLabelText = isEn ? $"Enemy ({state.TheirTeam.Count})" : $"敌方 ({state.TheirTeam.Count})";
 
         // 左侧队伍 Tab 切换器（带指示下划线与激活色彩）
         var allyTabBtn = Button(
             VStack(0,
-                Caption($"友方 ({state.MyTeam.Count})")
+                Caption(allyLabelText)
                     .Foreground(isMyTab ? Theme.AccentText : Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
@@ -227,7 +232,7 @@ public sealed class GameInfoPage : Component
             ),
             () => service.SetActiveTab("my")
         )
-        .AutomationName($"友方队伍 ({state.MyTeam.Count})")
+        .AutomationName(allyLabelText)
         .Background(isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
         .CornerRadius(YuumiTheme.SquareRadius)
@@ -236,7 +241,7 @@ public sealed class GameInfoPage : Component
 
         var enemyTabBtn = Button(
             VStack(0,
-                Caption($"敌方 ({state.TheirTeam.Count})")
+                Caption(enemyLabelText)
                     .Foreground(!isMyTab ? Theme.AccentText : Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center),
                 Border(Empty())
@@ -246,7 +251,7 @@ public sealed class GameInfoPage : Component
             ),
             () => service.SetActiveTab("their")
         )
-        .AutomationName($"敌方队伍 ({state.TheirTeam.Count})")
+        .AutomationName(enemyLabelText)
         .Background(!isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
         .CornerRadius(YuumiTheme.SquareRadius)
@@ -307,14 +312,14 @@ public sealed class GameInfoPage : Component
         bool mySideIsBlue = state.MapSide != "red";
 
         var allyPill = RenderTeamPill(
-            $"友方 ({state.MyTeam.Count})",
+            allyLabelText,
             mySideIsBlue,
             isClickable: true,
             onClick: () => service.SetActiveTab("my"),
             isActive: isMyTab);
 
         var enemyPill = RenderTeamPill(
-            $"敌方 ({state.TheirTeam.Count})",
+            enemyLabelText,
             !mySideIsBlue,
             isClickable: true,
             onClick: () => service.SetActiveTab("their"),

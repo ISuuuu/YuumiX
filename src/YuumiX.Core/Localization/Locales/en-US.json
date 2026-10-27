@@ -267,7 +267,8 @@
     "loseCardDesc": "Background color for loss match card",
     "remakeCardDesc": "Background color for remake match card",
     "lightDeathDesc": "Death numbers color in light theme",
-    "darkDeathDesc": "Death numbers color in dark theme"
+    "darkDeathDesc": "Death numbers color in dark theme",
+    "setupUpdateDesc": "Setup build updates via silent installer overwrite"
   },
   "regions": {
     "HN1": "Ionia",
