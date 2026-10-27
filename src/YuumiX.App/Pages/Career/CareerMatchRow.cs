@@ -31,7 +31,15 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     /// <summary>英雄头像：旧版 `.champ-avatar` 52×52（卡内最高元素，决定行高）。</summary>
     private const double ChampionSize = 52;
 
-    private const double ItemSize = 22;
+    /// <summary>装备格：旧版 `.item-slot` / `.ward-slot` 28×28，格间距 2（`.items-grid { gap: 2px }`）。</summary>
+    private const double ItemSize = 28;
+    private const double ItemGap = 2;
+
+    /// <summary>海克斯强化格：旧版 `.augment-slot` 22×22（与装备格尺寸不同，不能共用 <see cref="ItemSize"/>）。</summary>
+    private const double AugmentSize = 22;
+
+    /// <summary>召唤师技能与基石符文：旧版 `.spell-slot` / `.rune-slot` 22×22。</summary>
+    private const double SpellSize = 22;
 
     /// <summary>
     /// 行高：旧版 `.match-card` 固定 82 = 52（头像）+ 14×2（padding）+ 1×2（border）。
@@ -39,9 +47,19 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     /// </summary>
     private const double RowHeight = 82;
 
-    private const double ResultWidth = 115;
+    /// <summary>
+    /// 结果列：旧版 `.result-panel { min-width: 90px }`。取 96 让「海克斯大乱斗」等最长模式名
+    /// 在 12px 下不换行（90 会贴着边框），仍比原 115 窄 19，与旧版占比一致。
+    /// </summary>
+    private const double ResultWidth = 96;
+
+    /// <summary>KDA 列：旧版 `.kda-panel { min-width: 105px }`。</summary>
     private const double KdaWidth = 105;
-    private const double CsWidth = 56;
+
+    /// <summary>补刀列：旧版 `.cs-panel` 44 + `margin-right: 6`，合计视觉宽 50，取 52。</summary>
+    private const double CsWidth = 52;
+
+    /// <summary>金币列：旧版 `.gold-panel { min-width: 62px }`，取 64。</summary>
     private const double GoldWidth = 64;
 
     /// <summary>海克斯大乱斗两个队列：强化列只在这里显示、基石符文在这里隐藏（旧版 MatchCard.vue 同规则）。</summary>
@@ -102,22 +120,28 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .Width(ChampionSize)
             .Height(ChampionSize);
 
-        // 召唤师技能（上下两个小图标）；2400/2450 队列下方放基石符文，其余模式隐藏
-        var spellsChildren = new List<Element>
-        {
-            Search.SearchVisuals.SpellIcon(catalog, summary.Spell1Id, 21),
-            Search.SearchVisuals.SpellIcon(catalog, summary.Spell2Id, 21),
-        };
+        // 召唤师技能（上下两个小图标）+ 基石符文
+        // 旧版 `.spells-runes` 是 flex row（gap 3）：左列 `.spells-col` 竖排两个技能，
+        // 符文 `.rune-slot` 在**右侧**独立一格。此前把符文接在技能下方（VStack 第三行），
+        // 整块会高出一格、与旧版形状不符。
+        Element spellsCol = VStack(2,
+            Search.SearchVisuals.SpellIcon(catalog, summary.Spell1Id, SpellSize),
+            Search.SearchVisuals.SpellIcon(catalog, summary.Spell2Id, SpellSize));
 
         // 符文：仅非强化队列显示；RuneId=0 不渲染（SGP 大乱斗恒 0，与无符文等价）
-        if (!IsAugmentQueue(summary.QueueId) && summary.RuneId > 0)
+        string? runePath = null;
+        if (!IsAugmentQueue(summary.QueueId) && summary.RuneId > 0
+            && catalog.Runes.TryGetValue(summary.RuneId, out string? runeIcon))
         {
-            string? runePath = catalog.Runes.TryGetValue(summary.RuneId, out string? icon) ? icon : null;
-            spellsChildren.Add(Search.SearchVisuals.Icon(runePath, 21, 10));
+            runePath = runeIcon;
         }
 
-        Element spells = VStack(2, spellsChildren.ToArray())
-            .VAlign(VerticalAlignment.Center);
+        Element spells = runePath is null
+            ? spellsCol.VAlign(VerticalAlignment.Center)
+            : HStack(3,
+                    spellsCol,
+                    Search.SearchVisuals.Icon(runePath, SpellSize, 10))
+                .VAlign(VerticalAlignment.Center);
 
         // 结果与模式列
         Element result = VStack(2,
@@ -170,7 +194,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 .ToArray()));
         }
 
-        itemChildren.Add(HStack(3, items));
+        itemChildren.Add(HStack(ItemGap, items));
 
         Element itemSlots = HStack(4, itemChildren.ToArray())
             .VAlign(VerticalAlignment.Center);
@@ -300,5 +324,5 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
 
     /// <summary>海克斯强化图标：紫色边框小格，悬停 tooltip 显示名称（旧版 .augment-slot 样式）。</summary>
     private static Element AugmentIcon(GameDataCatalog catalog, int augmentId) =>
-        Search.SearchVisuals.AugmentIcon(catalog, augmentId, ItemSize);
+        Search.SearchVisuals.AugmentIcon(catalog, augmentId, AugmentSize);
 }

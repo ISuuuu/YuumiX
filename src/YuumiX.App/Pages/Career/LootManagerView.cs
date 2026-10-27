@@ -30,7 +30,15 @@ public sealed record LootConfirmDialog(
 /// </summary>
 internal static class LootManagerView
 {
-    private const double CardWidth = 220;
+    /// <summary>
+    /// 4 列栅格单卡宽。栅格排在 <c>Card(padding: 16)</c> 内部，容器内边距必须扣掉：
+    /// (1000 − 32 − 3×12)/4 = 233，4 张加间隙正好等于卡片内容宽 968。
+    /// 此前写死 220（总宽 916）比「生涯战绩」窄 84，整页右侧留白、与另两个页签对不齐。
+    /// </summary>
+    private static readonly double CardWidth = CareerVisuals.GridCardWidth(4, 16);
+
+    /// <summary>战利品各区块卡片的内边距（旧版 16）。</summary>
+    private const double SectionPadding = 16;
 
     /// <summary>类型筛选项，顺序对齐旧版：全部/英雄/皮肤/表情/守卫/图标/永恒星碑/材料宝箱（裁决：补 ETERNAL）。</summary>
     public static readonly string[] TypeFilters =
@@ -117,9 +125,11 @@ internal static class LootManagerView
         Action onOpenAll,
         Action<OpenableLootItem>? onOpenItem)
     {
-        const double TotalWidth = 916;
+        // 头部左右分栏的基准宽 = 卡片内容宽（1000 − 16×2），与外侧 Card 同宽，
+        // 这样「刷新列表」与「全部开启」分列首尾，正好贴住卡片左右内边距。
+        double totalWidth = CareerVisuals.CardInnerWidth(SectionPadding);
         const double RightBtnWidth = 110;
-        double leftHeaderWidth = TotalWidth - RightBtnWidth;
+        double leftHeaderWidth = totalWidth - RightBtnWidth;
 
         Element leftHeader = HStack(12,
             BodyStrong("📦 材料")
@@ -167,7 +177,7 @@ internal static class LootManagerView
                 }
             }
 
-            rows.Add(HStack(12, rowCards.ToArray()).WithKey($"mat_row_{i}"));
+            rows.Add(HStack(CareerVisuals.CardGap, rowCards.ToArray()).WithKey($"mat_row_{i}"));
         }
 
         if (rows.Count == 0)
@@ -181,7 +191,7 @@ internal static class LootManagerView
 
         return CareerVisuals.Card(
             VStack(16, header, VStack(12, rows.ToArray())),
-            padding: 16);
+            padding: SectionPadding);
     }
 
     private static Element MaterialCard(
@@ -278,9 +288,9 @@ internal static class LootManagerView
         LootOperationProgress? progress,
         string? operationNotice)
     {
-        const double TotalWidth = 916;
+        double totalWidth = CareerVisuals.CardInnerWidth(SectionPadding);
         const double CurrencyWidth = 320;
-        double leftHeaderWidth = TotalWidth - CurrencyWidth;
+        double leftHeaderWidth = totalWidth - CurrencyWidth;
 
         // 头部：标题与精粹余额左右分离
         Element leftHeader = HStack(12,
@@ -358,7 +368,7 @@ internal static class LootManagerView
                 }
             }
 
-            rows.Add(HStack(12, rowCards.ToArray()).WithKey($"inv_row_{i}"));
+            rows.Add(HStack(CareerVisuals.CardGap, rowCards.ToArray()).WithKey($"inv_row_{i}"));
         }
 
         // 统计选中项
@@ -483,7 +493,7 @@ internal static class LootManagerView
 
         return CareerVisuals.Card(
             VStack(16, sectionChildren.ToArray()),
-            padding: 16);
+            padding: SectionPadding);
     }
 
     private static Element InventoryCard(

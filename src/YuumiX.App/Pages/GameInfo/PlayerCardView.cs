@@ -424,7 +424,9 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
 
         var card = Border(fullContent)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Padding(8, 8);
+            // 旧版 `.player-card { padding: 6px 8px }`：纵向 6（此前 8 会让每张卡高 4 DIP，
+            // 5 张叠起来偏移 20，左面板底部最后一张会被挤出可视区）。
+            .Padding(8, 6);
 
         return premadeColor is null
             ? card.Background(Theme.SubtleFill).WithBorder(Theme.CardStroke, 1)

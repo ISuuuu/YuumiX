@@ -27,8 +27,11 @@ internal static class PlayerColumnHeader
     /// <summary>10 列头像尺寸（旧版紧凑模式 26px，此处取 28 保证 12px 文字旁留白）。</summary>
     private const double TenColumnAvatarSize = 28;
 
-    /// <summary>胜率竖条宽度与高度（旧版 3px 宽、与头像同高、自底向上填充）。</summary>
-    private const double WinRateBarWidth = 3;
+    /// <summary>
+    /// 胜率竖条宽度（旧版 <c>.wr-bar { width: 4px; border-radius: 2px }</c>，
+    /// 与头像同高、自底向上填充）。此前 3px 比旧版细一档，10 列并排时整行观感偏轻。
+    /// </summary>
+    private const double WinRateBarWidth = 4;
 
     public static Element Render(
         PlayerMatchColumnProps props,

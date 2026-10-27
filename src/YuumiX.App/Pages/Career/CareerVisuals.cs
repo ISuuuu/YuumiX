@@ -18,6 +18,34 @@ namespace YuumiX.App.Pages.Career;
 internal static class CareerVisuals
 {
     /// <summary>
+    /// 生涯页正文列宽（DIP）。三个页签（生涯战绩 / 战利品 / 英雄熟练度）**共用这一个值**，
+    /// 页签切换时左右边界才不会跳。
+    ///
+    /// 此前各页签各自写死内部宽度：战利品与熟练度按 916 排（4 张 220 的卡 + 3×12 间距），
+    /// 于是比铺满 1000 的生涯战绩整体窄 84 且靠左，切页签就能看到内容宽度变化。
+    /// 现在所有区块都以 <see cref="ContentWidth"/> 为基准反算自己的可用宽，改一处即可整体对齐。
+    /// </summary>
+    public const double ContentWidth = 1000;
+
+    /// <summary>卡片的横向间距（战利品 / 熟练度的多列卡片栅格）。</summary>
+    public const double CardGap = 12;
+
+    /// <summary>
+    /// 卡片内部可用宽（用于「卡片里再左右分栏」的头部行）。
+    /// 卡片外框宽恒为 <see cref="ContentWidth"/>，内容宽 = 1000 − 左右内边距。
+    /// </summary>
+    public static double CardInnerWidth(double padding) => ContentWidth - padding * 2;
+
+    /// <summary>
+    /// 等分栅格里的单卡宽。<paramref name="containerPadding"/> 是**外层卡片**的内边距：
+    /// 0 表示直接排在正文列里（如熟练度的汇总卡与英雄网格），16 表示排在一张
+    /// <see cref="Card(Element, double)"/> 内部（如战利品的材料/库存区块）。
+    /// 不区分这两者会让「卡内栅格」比容器宽出 2×padding 而被裁掉。
+    /// </summary>
+    public static double GridCardWidth(int columns, double containerPadding) =>
+        (CardInnerWidth(containerPadding) - CardGap * (columns - 1)) / columns;
+
+    /// <summary>
     /// 头像资源路径。LCU 的头像同时提供 <c>.jpg</c>（旧接口）与 <c>.png</c>（新版本）；
     /// 这里沿用原实现的 <c>.jpg</c>，与 <c>LcuAssetSource</c> 的路径白名单一致。
     /// </summary>
@@ -191,7 +219,9 @@ internal static class CareerVisuals
 
             setTab(target);
         })
-        .Height(30)
+        // 旧版 `.career-tab-item`：padding 6×16 + 字号 0.88rem（14.08）→ 实际行高 33。
+        // 横向 16 走 Padding，纵向由 Height 固定（6 的上下内边距换成 33 的盒子，光标与命中区一致）。
+        .Height(33)
         .Padding(16, 0)
         .CornerRadius(YuumiTheme.OverlayRadius)
         .AutomationName(label);

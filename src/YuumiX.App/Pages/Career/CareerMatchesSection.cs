@@ -16,7 +16,17 @@ namespace YuumiX.App.Pages.Career;
 /// </summary>
 internal static class CareerMatchesSection
 {
-    internal static Element Render(
+    /// <summary>
+    /// 「生涯战绩」页签的两段内容：<see cref="Header"/>（排位表 + 近期对局看板，**固定在页面顶部**）、
+    /// <see cref="List"/>（战绩卡片列表，**唯一可滚动的区域**）。
+    ///
+    /// 拆成两段而不是一个 VStack，是因为页面要求「滚动时锁定近期对局及以上内容，只滚战绩」：
+    /// 调用方把 Header 放进固定行、List 包进 ScrollViewer 放进 Star 行。若这里继续返回整体，
+    /// 页签切换后只能整页滚动，头部会被推走。
+    /// </summary>
+    internal readonly record struct MatchesParts(Element Header, Element List);
+
+    internal static MatchesParts Render(
         RankedStats ranked,
         RecentFormSummary summary,
         GameDataCatalog catalog,
@@ -33,8 +43,13 @@ internal static class CareerMatchesSection
         Action<RecentTeammate> onClickTeammate,
         Action<MatchSummary> onOpenMatchInSearch)
     {
-        // 旧版：排位表与近期看板各有 1rem（16）的下外边距，卡片列表之间 gap 10（4px 网格取 8）
-        return VStack(16,
+        // 旧版：排位表与近期看板各有 1rem（16）的下外边距。
+        // 战绩卡片列表的步进是 92 = 卡片 82 + 行距 10（MatchHistoryTab.vue 的 VIRTUAL_ITEM_HEIGHT），
+        // 10 不在 4px 网格上，因此拆成「VStack 8 + 行内 margin 2」凑出同一节奏。
+        const double MatchRowGap = 10;
+        const double StackGap = 8;
+
+        Element header = VStack(16,
             RankedTableView.Render(ranked, palette),
             RecentSummaryView.Render(
                 summary,
@@ -46,11 +61,13 @@ internal static class CareerMatchesSection
                 onRecentTeammates: onRecentTeammates,
                 teammates: teammates,
                 loadingTeammates: loadingTeammates,
-                onClickTeammate: onClickTeammate),
-            visibleMatches.Count > 0
-                ? VStack(8, visibleMatches
+                onClickTeammate: onClickTeammate));
+
+        Element list = visibleMatches.Count > 0
+            ? VStack(StackGap, visibleMatches
                     .Select(match => Component<CareerMatchRow, CareerMatchRowProps>(
                         new CareerMatchRowProps(match, catalog, palette, () => onOpenMatchInSearch(match)))
+                        .Margin(0, 0, 0, MatchRowGap - StackGap)
                         .WithKey(match.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                     .ToArray())
                 : CareerVisuals.Card(
@@ -59,6 +76,8 @@ internal static class CareerMatchesSection
                         : filter == 0
                             ? "没有可显示的对局（客户端未连接，或该账号近期没有对局）"
                             : "该队列下没有近期对局"),
-                    padding: 16));
+                    padding: 16);
+
+        return new MatchesParts(header, list);
     }
 }

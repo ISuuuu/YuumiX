@@ -14,7 +14,14 @@ namespace YuumiX.App.Pages.Career;
 /// </summary>
 internal static class ChampionMasteryView
 {
-    private const double CardWidth = 220;
+    /// <summary>4 列栅格单卡宽。取自 <see cref="CareerVisuals.GridCardWidth"/>：本页栅格直接排在正文列里
+    /// （没有外层卡片），所以容器内边距传 0，得 (1000 − 3×12)/4 = 241，4 张正好铺满。
+    /// 此前写死 220 只占 916，比「生涯战绩」窄 84，切页签能看出宽度跳变。
+    /// </summary>
+    private static readonly double CardWidth = CareerVisuals.GridCardWidth(4, 0);
+
+    /// <summary>工具栏卡片的内边距（旧版 10，属 1–7px 之外的既有值，保持不动）。</summary>
+    private const double BarPadding = 10;
 
     private static readonly string[] ChestOptions =
     [
@@ -133,7 +140,7 @@ internal static class ChampionMasteryView
                 BodyStrong($"+{eligibleChests} 可得").Foreground(CareerVisuals.WinText).VAlign(VerticalAlignment.Center)),
             "本赛段里程碑宝箱追踪");
 
-        return HStack(12,
+        return HStack(CareerVisuals.CardGap,
             card1.Width(CardWidth),
             card2.Width(CardWidth),
             card3.Width(CardWidth),
@@ -184,15 +191,17 @@ internal static class ChampionMasteryView
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
 
-        const double TotalBarWidth = 916;
+        // 工具栏外框与「生涯战绩」的排位表同宽（撑满正文列）：Card 内边距 10，
+        // 因此内容宽 = 1000 − 20。此前写死 916，整条工具栏右侧短一截。
+        double totalBarWidth = CareerVisuals.CardInnerWidth(BarPadding);
         const double RightToolbarWidth = 270;
-        double leftToolbarWidth = TotalBarWidth - RightToolbarWidth;
+        double leftToolbarWidth = totalBarWidth - RightToolbarWidth;
 
         return CareerVisuals.Card(
             HStack(0,
                 leftToolbar.Width(leftToolbarWidth),
                 rightToolbar.Width(RightToolbarWidth)),
-            padding: 10);
+            padding: BarPadding);
     }
 
     public static IReadOnlyList<ChampionMasteryItem> FilterAndSort(
@@ -282,7 +291,7 @@ internal static class ChampionMasteryView
                 }
             }
 
-            rows.Add(HStack(12, rowCards.ToArray()).WithKey($"row_{i}"));
+            rows.Add(HStack(CareerVisuals.CardGap, rowCards.ToArray()).WithKey($"row_{i}"));
         }
 
         return VStack(12, rows.ToArray());

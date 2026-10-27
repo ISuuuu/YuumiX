@@ -9,45 +9,64 @@ namespace YuumiX.App.Pages.Career;
 
 /// <summary>
 /// 排位段位表，对应原 <c>MatchHistoryTab.vue</c> 的 <c>.rank-table</c>。
-/// 采用精准宽度 HStack 布局，严格对齐 docs/pic/生涯.png 设计，杜绝多列重叠。
+///
+/// <para><b>列宽必须等分铺满，不能用固定宽度</b></para>
+/// 旧版是 <c>&lt;table width:100%&gt;</c> + <c>table-layout:auto</c>，9 列在 1000 DIP 的正文列内
+/// 自动均分（每列约 111）。此前实现写了 9 个固定宽度常量、合计 900，
+/// 结果表格右端恒定空出约 100 DIP 且不随窗口宽度变化——这是「表格偏左、右侧留白」的直接原因。
+/// 改为 <c>GridSize.Star()</c> ×9 后与旧版一致：等分、随正文列宽伸缩。
+///
+/// <para><b>行高</b></para>
+/// 旧版 <c>.rank-table th/td</c>：<c>padding: 6px 16px</c> + 单元格字号 0.82rem（13.12），
+/// 旧版截图实测表格卡片 305→407 共 102（三行 33 / 35 / 34）。这里用 <c>Body(14)</c>——语义层里最接近的字号档
+/// （<c>Caption(12)</c> 会矮 5 DIP，13.12 无对应工厂）——并用 <see cref="RowMinHeight"/> 固定行高，
+/// 保证行步进与旧版一致且不依赖字体行高的换算细节。
 /// </summary>
 internal static class RankedTableView
 {
-    private const double ColTypeWidth = 105;
-    private const double ColGamesWidth = 85;
-    private const double ColWinRateWidth = 85;
-    private const double ColWinsWidth = 80;
-    private const double ColLossesWidth = 80;
-    private const double ColTierWidth = 150;
-    private const double ColLpWidth = 85;
-    private const double ColHighestWidth = 115;
-    private const double ColPreviousWidth = 115;
+    /// <summary>旧版 9 列：类型 / 总场次 / 胜率 / 胜场 / 负场 / 段位 / 胜点 / 赛季最高 / 上赛季结算。</summary>
+    private const int ColumnCount = 9;
 
-    private static Element HeaderCell(string text, double width) =>
-        Caption(text)
-            .Width(width)
+    /// <summary>单元格内边距：旧版 <c>.rank-table th/td { padding: 6px 16px }</c>（6 属 1–7px 光学微调档）。</summary>
+    private const double CellPadH = 16;
+    private const double CellPadV = 6;
+
+    /// <summary>
+    /// 行步进 33：旧版截图实测三行 33 / 35 / 34（表头 305→338、数据行 338→373、373→407），
+    /// 整表 102。本实现每行另带 1 DIP 分隔线与外框（+4），取 33 时整表 103，与旧版差 1。
+    /// 取 34 会到 106，比旧版高 4。
+    /// </summary>
+    private const double RowMinHeight = 33;
+
+    /// <summary>9 列等分：对应旧版 <c>table-layout:auto</c> 在固定宽度下的均分结果。</summary>
+    private static readonly GridSize[] Columns = Enumerable.Repeat(GridSize.Star(), ColumnCount).ToArray();
+
+    private static readonly GridSize[] Rows = [GridSize.Auto];
+
+    private static Element At(Element content, int column) => content.Grid(row: 0, column: column);
+
+    private static Element HeaderCell(string text) =>
+        Body(text)
             .Foreground(Theme.SecondaryText)
             .TextAlignment(TextAlignment.Center)
-            .VAlign(VerticalAlignment.Center);
-
-    private static Element DataCell(string text, double width, ThemeRef foreground)
-    {
-        return Caption(text)
-            .Width(width)
-            .TextAlignment(TextAlignment.Center)
+            .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Center)
+            .Padding(CellPadH, CellPadV);
+
+    private static Element DataCell(string text, ThemeRef foreground) =>
+        DataCell(text)
             .Foreground(foreground);
-    }
 
-    private static Element DataCell(string text, double width, string? foreground = null)
-    {
-        var tb = Caption(text)
-            .Width(width)
+    private static Element DataCell(string text, string literalColor) =>
+        DataCell(text)
+            .Foreground(literalColor);
+
+    private static Element DataCell(string text) =>
+        Body(text)
             .TextAlignment(TextAlignment.Center)
-            .VAlign(VerticalAlignment.Center);
-
-        return foreground is null ? tb : tb.Foreground(foreground);
-    }
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Center)
+            .Padding(CellPadH, CellPadV);
 
     /// <summary>分隔线：1 DIP 的浅色横线。</summary>
     private static Element Divider() =>
@@ -55,18 +74,19 @@ internal static class RankedTableView
 
     public static Element Render(RankedStats stats, YuumiPalette palette)
     {
-        Element header = HStack(0,
-            HeaderCell("类型", ColTypeWidth),
-            HeaderCell("总场次", ColGamesWidth),
-            HeaderCell("胜率", ColWinRateWidth),
-            HeaderCell("胜场", ColWinsWidth),
-            HeaderCell("负场", ColLossesWidth),
-            HeaderCell("段位", ColTierWidth),
-            HeaderCell("胜点", ColLpWidth),
-            HeaderCell("赛季最高", ColHighestWidth),
-            HeaderCell("上赛季结算", ColPreviousWidth))
-            // 旧版 `.rank-table th/td` 的内边距是 6×16；6 属 1–7px 光学微调档，按原值保留。
-            .Padding(16, 6);
+        Element header = Grid(Columns, Rows,
+            [
+                At(HeaderCell("类型"), 0),
+                At(HeaderCell("总场次"), 1),
+                At(HeaderCell("胜率"), 2),
+                At(HeaderCell("胜场"), 3),
+                At(HeaderCell("负场"), 4),
+                At(HeaderCell("段位"), 5),
+                At(HeaderCell("胜点"), 6),
+                At(HeaderCell("赛季最高"), 7),
+                At(HeaderCell("上赛季结算"), 8),
+            ])
+            .MinHeight(RowMinHeight);
 
         return CareerVisuals.Card(
             VStack(0,
@@ -90,32 +110,41 @@ internal static class RankedTableView
         string highest = queue?.HighestTierText ?? "--";
         string previous = queue?.PreviousSeasonTierText ?? "--";
 
-        string? medalUri = CareerVisuals.RankedMedalUri(queue?.Tier);
-        Element tierCell = medalUri is null
-            ? Caption(tier)
-                .Width(ColTierWidth)
-                .Foreground(Theme.Accent)
-                .TextAlignment(TextAlignment.Center)
-                .VAlign(VerticalAlignment.Center)
-            : HStack(6,
-                    CareerVisuals.RankedMedal(queue?.Tier, 20),
-                    Caption(tier)
-                        .Foreground(Theme.Accent)
-                        .VAlign(VerticalAlignment.Center))
-                .Width(ColTierWidth)
-                .HAlign(HorizontalAlignment.Center)
-                .VAlign(VerticalAlignment.Center);
+        Element winRateCell = queue?.TotalGames > 0
+            ? DataCell(winRate, CareerVisuals.WinText)
+            : DataCell(winRate);
 
-        return HStack(0,
-            DataCell(label, ColTypeWidth),
-            DataCell(games, ColGamesWidth),
-            DataCell(winRate, ColWinRateWidth, foreground: queue?.TotalGames > 0 ? CareerVisuals.WinText : null),
-            DataCell(wins, ColWinsWidth),
-            DataCell(losses, ColLossesWidth),
-            tierCell,
-            DataCell(leaguePoints, ColLpWidth),
-            DataCell(highest, ColHighestWidth, foreground: Theme.SecondaryText),
-            DataCell(previous, ColPreviousWidth, foreground: Theme.SecondaryText))
-            .Padding(16, 6);
+        return Grid(Columns, Rows,
+            [
+                At(DataCell(label), 0),
+                At(DataCell(games), 1),
+                At(winRateCell, 2),
+                At(DataCell(wins), 3),
+                At(DataCell(losses), 4),
+                At(TierCell(queue, tier), 5),
+                At(DataCell(leaguePoints), 6),
+                At(DataCell(highest, Theme.SecondaryText), 7),
+                At(DataCell(previous, Theme.SecondaryText), 8),
+            ])
+            .MinHeight(RowMinHeight);
+    }
+
+    /// <summary>段位格：有徽标时图标 + 文字水平居中；无徽标时纯文字居中。</summary>
+    private static Element TierCell(RankedQueueEntry? queue, string tier)
+    {
+        string? medalUri = CareerVisuals.RankedMedalUri(queue?.Tier);
+        if (medalUri is null)
+        {
+            return DataCell(tier, Theme.Accent);
+        }
+
+        return HStack(6,
+                CareerVisuals.RankedMedal(queue?.Tier, 20),
+                Body(tier)
+                    .Foreground(Theme.Accent)
+                    .VAlign(VerticalAlignment.Center))
+            .HAlign(HorizontalAlignment.Center)
+            .VAlign(VerticalAlignment.Center)
+            .Padding(CellPadH, CellPadV);
     }
 }

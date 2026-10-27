@@ -823,6 +823,15 @@ public sealed class AppShell : Component
             IsBackButtonVisible = false,
         };
 
+        // 标题栏高度：旧版是自绘 38（Tauri decorations:false），本版走 WinUI 系统 TitleBar，
+        // 高度由 AppWindowTitleBar 的 Standard 档锁定 32。
+        // 实测两种改法都无效且不可取：
+        //   1) `.Height(38)` —— 不落到控件（properties 查得 Height=NaN、ActualHeight=32），
+        //      TitleBar 的模板把高度钉在系统 caption 上；
+        //   2) `PreferredHeightOption = Custom` —— 需同时接管非客户区绘制与系统按钮定位，
+        //      超出「尺寸对齐」范围，且窗口按钮会与标题栏内容错位。
+        // 因此保留 32，差额（6 DIP）体现在内容区高度：旧版 872 vs 本版 877。
+
         var root = Grid(
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Star()],
