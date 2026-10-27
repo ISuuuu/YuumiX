@@ -33,7 +33,8 @@ internal static class CareerMatchesSection
         Action<RecentTeammate> onClickTeammate,
         Action<MatchSummary> onOpenMatchInSearch)
     {
-        return VStack(12,
+        // 旧版：排位表与近期看板各有 1rem（16）的下外边距，卡片列表之间 gap 10（4px 网格取 8）
+        return VStack(16,
             RankedTableView.Render(ranked, palette),
             RecentSummaryView.Render(
                 summary,
@@ -47,7 +48,7 @@ internal static class CareerMatchesSection
                 loadingTeammates: loadingTeammates,
                 onClickTeammate: onClickTeammate),
             visibleMatches.Count > 0
-                ? VStack(6, visibleMatches
+                ? VStack(8, visibleMatches
                     .Select(match => Component<CareerMatchRow, CareerMatchRowProps>(
                         new CareerMatchRowProps(match, catalog, palette, () => onOpenMatchInSearch(match)))
                         .WithKey(match.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture)))

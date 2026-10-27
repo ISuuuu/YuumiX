@@ -22,8 +22,6 @@ namespace YuumiX.App.Pages.Career;
 /// </summary>
 internal static class CareerProfileHeader
 {
-    private const double ActionWidth = 96;
-
     public static Element Render(
         SummonerProfile summoner,
         YuumiPalette palette,
@@ -34,7 +32,10 @@ internal static class CareerProfileHeader
         bool isViewingOther = false,
         Action? onBackToSelf = null)
     {
-        Element ring = GaugeRing(summoner.PercentCompleteForNextLevel, palette)
+        Element ring = Viewbox(GaugeRing(summoner.PercentCompleteForNextLevel, palette))
+            .Width(RingSize)
+            .Height(RingSize)
+            .Stretch(Stretch.Uniform)
             .AutomationName($"等级 {summoner.SummonerLevel}，经验 {summoner.PercentCompleteForNextLevel}%");
 
         // 正圆头像
@@ -63,8 +64,8 @@ internal static class CareerProfileHeader
                     avatar.HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center),
                     levelBadge.HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Bottom).Margin(0, 0, 0, -4),
                 ])
-            .Width(RingSize + 4)
-            .Height(RingSize + 4);
+            .Width(RingSize)
+            .Height(RingSize);
 
         string mainName = !string.IsNullOrWhiteSpace(summoner.GameName)
             ? summoner.GameName
@@ -118,25 +119,27 @@ internal static class CareerProfileHeader
             .VAlign(VerticalAlignment.Center);
 
         // 右侧操作按钮：返回我的生涯（查看他人时，§2.8） / 刷新 / 历史战绩
+        // 尺寸对齐旧版 `.action-btn`：padding 6×16、高 ≈28、宽度随文案（不再统一 96 宽，
+        // 旧版「刷新」约 58、「历史战绩」约 84，右对齐成一列）。
         var actionButtons = new List<Element>();
         if (isViewingOther && onBackToSelf is not null)
         {
             actionButtons.Add(Button(Caption("返回我的生涯"), onBackToSelf)
-                .Width(ActionWidth)
-                .Height(30)
+                .Height(28)
+                .Padding(16, 0)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .AutomationName("返回我的生涯"));
         }
 
         actionButtons.Add(Button(Caption("刷新"), onRefresh)
             .AutomationName("刷新")
-            .Width(ActionWidth)
-            .Height(30)
+            .Height(28)
+            .Padding(16, 0)
             .CornerRadius(YuumiTheme.OverlayRadius));
         actionButtons.Add(Button(Caption("历史战绩"), onHistory)
             .AutomationName("历史战绩")
-            .Width(ActionWidth)
-            .Height(30)
+            .Height(28)
+            .Padding(16, 0)
             .CornerRadius(YuumiTheme.OverlayRadius));
 
         Element actions = VStack(8, actionButtons.ToArray())
@@ -153,14 +156,18 @@ internal static class CareerProfileHeader
             ]);
 
         return Border(headerContent)
-            .Padding(20)
+            // 旧版 `.summoner-header` 的 padding 是 1.5rem（24）
+            .Padding(24)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1);
     }
 
-    private const double RingSize = 96;
-    private const double AvatarSize = 72;
+    /// <summary>经验环外框：旧版 `.profile-icon-wrapper` 104×104（SVG viewBox 100 被整体缩放到 104）。</summary>
+    private const double RingSize = 104;
+
+    /// <summary>圆形头像：旧版 `.avatar-container` 为父级 104 减去 inset 13 两侧 = 78。</summary>
+    private const double AvatarSize = 78;
 
     /// <summary>弧形经验环：坐标系 100×100、r=45、描边 5，与旧版 SVG 几何一致。</summary>
     private const double GaugeCanvas = 100;

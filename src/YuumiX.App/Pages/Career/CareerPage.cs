@@ -333,9 +333,10 @@ public sealed class CareerPage : Component<CareerPageProps>
                 onBackToSelf: BackToMyCareer);
 
         // 页签栏：仅在查看自己时显示（查看他人时直接展示战绩内容，不显示「生涯战绩」等页签）
-        Element tabBar = summoner is null || isViewingOther
-            ? Empty()
-            : CareerVisuals.TabBar(effectiveTab, setTab);
+        bool hasTabBar = summoner is not null && !isViewingOther;
+        Element tabBar = hasTabBar
+            ? CareerVisuals.TabBar(effectiveTab, setTab)
+            : Empty();
 
         // D1：战利品/熟练度读取失败（null）给提示条；成功但为空由子视图给普通空态。
         Element lootFailureHint = loot is null && !loading
@@ -375,8 +376,19 @@ public sealed class CareerPage : Component<CareerPageProps>
             _ => MatchesTab(),
         };
 
+        // 纵向节奏对齐旧版 Career.vue：`.summoner-header` 的 margin-bottom 1.5rem 与
+        // `.career-tabs` 的 margin-top 12 折叠后为 24，「资料卡 → 页签」实际 24；
+        // 页签的 margin-bottom 16 则是「页签 → 正文」的间距。
+        // Reactor 不做外边距折叠，因此这里显式写成两段不同间距，而不是一个统一值。
         const double MaxContentWidth = 1000;
-        Element body = VStack(16, header, tabBar, content)
+        const double HeaderGap = 24;
+        const double TabBarGap = 16;
+        Element stacked = hasTabBar
+            ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), content.Margin(0, TabBarGap, 0, 0))
+            // 查看他人生涯时没有页签栏：旧版此时正文紧接资料卡的 24 间距
+            : VStack(0, header, content.Margin(0, HeaderGap, 0, 0));
+
+        Element body = stacked
             .MaxWidth(MaxContentWidth)
             .HAlign(HorizontalAlignment.Center);
 
@@ -402,7 +414,10 @@ public sealed class CareerPage : Component<CareerPageProps>
 
         return ScrollViewer(
             Border(pageBody)
-                .Padding(24)
+                // 旧版 `.career` 的 padding 是 1rem 1.5rem 1rem 0.6rem（上 16 / 右 24 / 下 16 / 左 9.6）：
+                // 左侧刻意窄，让内容贴着侧边栏；9.6 不在 4px 网格上，取 8。
+                // 旧的统一 24 会让整块内容整体右移 7.2 DIP（1000 宽内容居中时左右各让 51）。
+                .Padding(8, 16, 24, 16)
                 .HAlign(HorizontalAlignment.Stretch));
     }
 

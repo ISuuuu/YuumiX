@@ -21,8 +21,20 @@ namespace YuumiX.App.Pages.GameInfo;
 /// </summary>
 public sealed class GameInfoPage : Component
 {
-    /// <summary>按队伍模式左侧玩家卡片之间的缝隙（卡片下间距，末张靠外层内边距补齐）。</summary>
-    private const double CardGap = 4;
+    /// <summary>
+    /// 按队伍模式左侧玩家卡片之间的缝隙（卡片下间距，末张靠外层内边距补齐）。
+    /// 对齐旧版 <c>.player-list</c> 的 gap 8。
+    /// </summary>
+    private const double CardGap = 8;
+
+    /// <summary>队伍页签高度：旧版 <c>.tab-btn</c> 为 padding 14 + 文案 + 2px 下划线 ≈ 46，取 44。</summary>
+    private const double TeamTabHeight = 44;
+
+    /// <summary>阵营胶囊高度：旧版 <c>.side-pill</c> font 0.7rem + padding 3×9 ≈ 20。</summary>
+    private const double TeamPillHeight = 20;
+
+    /// <summary>视图分段按钮高度：旧版 <c>.segment-btn</c> font 0.72rem + padding 4×10 ≈ 22。</summary>
+    private const double SegmentButtonHeight = 22;
 
     public override Element Render()
     {
@@ -194,42 +206,30 @@ public sealed class GameInfoPage : Component
         var theirGroups = PremadeAnalyzer.BuildPremadeGroups(state.TheirTeam, state.PremadeColorsTheir, state.PlayerData);
 
         // 左侧队伍 Tab 切换器（带指示下划线与激活色彩）
+        // 结构对齐旧版 `.tab-btn`：44 高的等宽格子 + 贴底 2px 指示线（旧版用 border-bottom 实现），
+        // 而不是「文字下方紧跟一条线」——后者会把整条页签压到 30 高。
         var allyTabBtn = Button(
-            VStack(0,
-                Caption($"友方 ({state.MyTeam.Count})")
-                    .Foreground(isMyTab ? Theme.AccentText : Theme.SecondaryText)
-                    .HAlign(HorizontalAlignment.Center),
-                Border(Empty())
-                    .Height(2)
-                    .Background(isMyTab ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
-                    .Margin(0, 4, 0, 0)
-            ),
+            TeamTabContent($"友方 ({state.MyTeam.Count})", isMyTab),
             () => service.SetActiveTab("my")
         )
         .AutomationName($"友方队伍 ({state.MyTeam.Count})")
         .Background(isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
         .CornerRadius(YuumiTheme.SquareRadius)
-        .Padding(0, 8, 0, 0)
+        .Padding(0)
+        .Height(TeamTabHeight)
         .HAlign(HorizontalAlignment.Stretch);
 
         var enemyTabBtn = Button(
-            VStack(0,
-                Caption($"敌方 ({state.TheirTeam.Count})")
-                    .Foreground(!isMyTab ? Theme.AccentText : Theme.SecondaryText)
-                    .HAlign(HorizontalAlignment.Center),
-                Border(Empty())
-                    .Height(2)
-                    .Background(!isMyTab ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
-                    .Margin(0, 4, 0, 0)
-            ),
+            TeamTabContent($"敌方 ({state.TheirTeam.Count})", !isMyTab),
             () => service.SetActiveTab("their")
         )
         .AutomationName($"敌方队伍 ({state.TheirTeam.Count})")
         .Background(!isMyTab ? Theme.SubtleFill : Theme.Ref("SubtleFillColorTransparentBrush"))
         .BorderThickness(new Thickness(0))
         .CornerRadius(YuumiTheme.SquareRadius)
-        .Padding(0, 8, 0, 0)
+        .Padding(0)
+        .Height(TeamTabHeight)
         .HAlign(HorizontalAlignment.Stretch);
 
         var tabHeader = Border(
@@ -265,6 +265,7 @@ public sealed class GameInfoPage : Component
             ? Border(Empty())
             : Grid([GridSize.Star()], cardRowDefs, cards.Select((c, i) => c.Margin(0, 0, 0, CardGap).Grid(row: i, column: 0).WithKey(i.ToString())).ToArray());
         // 卡片下间距形成缝隙；外层底部内边距取 0，与卡片下间距相加后顶/中/底间距一致
+        //（旧版 `.player-list` padding 10×8 + gap 8：纵向 10 取 8，落在 4px 网格上）
         cardsPanel = cardsPanel.Padding(CardGap, CardGap, CardGap, 0);
 
         var leftPanel = Border(
@@ -385,11 +386,14 @@ public sealed class GameInfoPage : Component
             [GridSize.Auto, GridSize.Star()],
             [GridSize.Star()],
             [
-                leftPanel.Grid(row: 0, column: 0).Margin(0, 0, 12, 0),
+                // 旧版 `.game-layout` 的列间距是 16（不是 12）
+                leftPanel.Grid(row: 0, column: 0).Margin(0, 0, 16, 0),
                 rightPanel.Grid(row: 0, column: 1),
             ]
         )
-        .Padding(8);
+        // 旧版 `.game-info` padding 16/24/16/9.6（上右下左）；9.6 取 8，
+        // 旧的统一 8 会让两侧面板直接贴到标题栏与窗口边缘。
+        .Padding(8, 16, 24, 16);
     }
 
     private Element RenderTenColumnView(
@@ -535,8 +539,31 @@ public sealed class GameInfoPage : Component
                 fullPanel.Grid(row: 0, column: 0),
             ]
         )
-        .Padding(8);
+        // 与 5 列视图同一套页面内边距（旧版 `.game-info`）
+        .Padding(8, 16, 24, 16);
     }
+
+    /// <summary>
+    /// 队伍页签的内容：文案垂直居中 + 贴底 2px 指示线（对齐旧版 <c>.tab-btn</c> 的 border-bottom）。
+    ///
+    /// 指示线单独占一行、文字占整行剩余高度，而不是「文字 + 下划线」上下堆叠：
+    /// 堆叠写法里指示线紧贴文字，页签实际高度只有 30，比旧版矮 16。
+    /// </summary>
+    private static Element TeamTabContent(string label, bool isActive) =>
+        Grid(
+            [GridSize.Star()],
+            [GridSize.Star(), GridSize.Auto],
+            [
+                Caption(label)
+                    .Foreground(isActive ? Theme.AccentText : Theme.SecondaryText)
+                    .HAlign(HorizontalAlignment.Center)
+                    .VAlign(VerticalAlignment.Center)
+                    .Grid(row: 0, column: 0),
+                Border(Empty())
+                    .Height(2)
+                    .Background(isActive ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
+                    .Grid(row: 1, column: 0),
+            ]);
 
     private static Element RenderTeamPill(
         string text,
@@ -572,8 +599,8 @@ public sealed class GameInfoPage : Component
                 .BorderBrush(borderColor)
                 .BorderThickness(new Thickness(1))
                 .CornerRadius(YuumiTheme.PillRadius)
-                .Padding(8, 4)
-                .Height(26);
+                .Padding(8, 0)
+                .Height(TeamPillHeight);
         }
 
         return Border(content)
@@ -581,7 +608,8 @@ public sealed class GameInfoPage : Component
             .BorderBrush(borderColor)
             .BorderThickness(new Thickness(1))
             .CornerRadius(YuumiTheme.PillRadius)
-            .Padding(8, 4);
+            .Padding(8, 0)
+            .Height(TeamPillHeight);
     }
 
     private static Element RenderVsBadge(YuumiPalette palette)
@@ -618,8 +646,8 @@ public sealed class GameInfoPage : Component
             .AutomationName("按队伍模式")
             .BorderThickness(new Thickness(0))
             .CornerRadius(YuumiTheme.ControlRadius)
-            .Padding(8, 4)
-            .Height(28);
+            .Padding(8, 0)
+            .Height(SegmentButtonHeight);
 
         var allContent = HStack(4,
             Caption(Icons.AllMatches)
@@ -637,8 +665,8 @@ public sealed class GameInfoPage : Component
             .AutomationName("全部战绩模式")
             .BorderThickness(new Thickness(0))
             .CornerRadius(YuumiTheme.ControlRadius)
-            .Padding(8, 4)
-            .Height(28);
+            .Padding(8, 0)
+            .Height(SegmentButtonHeight);
 
         return Border(
             HStack(2, teamBtn, allBtn)

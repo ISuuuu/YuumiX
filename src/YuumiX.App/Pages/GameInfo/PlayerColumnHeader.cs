@@ -95,7 +95,7 @@ internal static class PlayerColumnHeader
         var header = Border(body)
             .BorderThickness(new Thickness(0, 0, 0, 1))
             .BorderBrush(Theme.CardStroke)
-            .Padding(4, 4);
+            .Padding(8, 4);
 
         return premadeColor is null
             ? header.Background(Theme.SubtleFill)
@@ -231,7 +231,7 @@ internal static class PlayerColumnHeader
             .Height(48)
             .BorderThickness(new Thickness(0, 0, 0, 1))
             .BorderBrush(Theme.CardStroke)
-            .Padding(4, 4);
+            .Padding(8, 4);
 
         headerBorder = premadeColor is null
             ? headerBorder.Background(Theme.SubtleFill)

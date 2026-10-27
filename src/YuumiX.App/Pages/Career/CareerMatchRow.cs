@@ -28,9 +28,16 @@ public sealed record CareerMatchRowProps(
 /// </summary>
 public sealed class CareerMatchRow : Component<CareerMatchRowProps>
 {
-    private const double ChampionSize = 46;
+    /// <summary>英雄头像：旧版 `.champ-avatar` 52×52（卡内最高元素，决定行高）。</summary>
+    private const double ChampionSize = 52;
+
     private const double ItemSize = 22;
-    private const double RowHeight = 80;
+
+    /// <summary>
+    /// 行高：旧版 `.match-card` 固定 82 = 52（头像）+ 14×2（padding）+ 1×2（border）。
+    /// 本实现 padding 取 12（14 不在 4px 网格上），卡片高度仍是 82，差额落在上下居中留白里。
+    /// </summary>
+    private const double RowHeight = 82;
 
     private const double ResultWidth = 115;
     private const double KdaWidth = 105;
@@ -233,7 +240,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         // 业务描边是 string、悬停描边是 ThemeRef 令牌，两种形态无法共存于同一三元，因此在元素级分支。
         var row = Border(cardContent)
             .Height(RowHeight)
-            .Padding(12, 8)
+            // 旧版 `.match-card` padding 14×20；纵向 14 取 12（4px 网格），横向照抄 20
+            .Padding(20, 12)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(currentBg)
             .AutomationName($"查看对局 {summary.GameId}");

@@ -92,8 +92,18 @@ internal static class CareerVisuals
 
     /// <summary>卡片外框：生涯页所有区块共用的圆角、底色与描边。</summary>
     public static Element Card(Element content, double padding = 16) =>
+        Card(content, padding, padding);
+
+    /// <summary>
+    /// 卡片外框（横向/纵向内边距分开给）。
+    ///
+    /// 旧版各区块的内边距并不统一：资料卡 24、排位表 0（单元格自带 6×16）、
+    /// 近期看板 10×16、战绩列表 20（卡片自带 14×20）。只给一个统一值会把
+    /// 「行内文字留白」压扁成方形，因此保留分开给的入口。
+    /// </summary>
+    public static Element Card(Element content, double padH, double padV) =>
         Border(content)
-            .Padding(padding)
+            .Padding(padH, padV)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1);
@@ -181,7 +191,7 @@ internal static class CareerVisuals
 
             setTab(target);
         })
-        .Height(34)
+        .Height(30)
         .Padding(16, 0)
         .CornerRadius(YuumiTheme.OverlayRadius)
         .AutomationName(label);

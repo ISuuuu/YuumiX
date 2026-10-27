@@ -65,7 +65,8 @@ internal static class RankedTableView
             HeaderCell("胜点", ColLpWidth),
             HeaderCell("赛季最高", ColHighestWidth),
             HeaderCell("上赛季结算", ColPreviousWidth))
-            .Padding(12, 8);
+            // 旧版 `.rank-table th/td` 的内边距是 6×16；6 不在 4px 网格上，取 8。
+            .Padding(16, 8);
 
         return CareerVisuals.Card(
             VStack(0,
@@ -74,7 +75,8 @@ internal static class RankedTableView
                 Row("单双排位", stats.SoloDuo, palette),
                 Divider(),
                 Row("灵活排位", stats.Flex, palette)),
-            padding: 8);
+            // 旧版表格是满宽出血（wrapper 无内边距，留白全部来自单元格）
+            padding: 0);
     }
 
     private static Element Row(string label, RankedQueueEntry? queue, YuumiPalette palette)
@@ -114,6 +116,6 @@ internal static class RankedTableView
             DataCell(leaguePoints, ColLpWidth),
             DataCell(highest, ColHighestWidth, foreground: Theme.SecondaryText),
             DataCell(previous, ColPreviousWidth, foreground: Theme.SecondaryText))
-            .Padding(12, 8);
+            .Padding(16, 8);
     }
 }

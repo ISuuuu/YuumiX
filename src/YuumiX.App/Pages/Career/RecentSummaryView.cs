@@ -47,7 +47,8 @@ internal static class RecentSummaryView
                             .VAlign(VerticalAlignment.Center)
                             .Grid(row: 0, column: 1),
                     ]),
-                padding: 12);
+                padH: 16,
+                padV: 8);
         }
 
         // 左侧 1：近期战绩与 KDA 概览
@@ -131,7 +132,9 @@ internal static class RecentSummaryView
                 rightSection.Grid(row: 0, column: 1),
             ]);
 
-        return CareerVisuals.Card(barGrid, padding: 10);
+        // 旧版 `.recent-summary-bar`：padding 10×16（10 不在 4px 网格上，纵向取 8，
+        // 行高由右侧按钮与英雄头像撑住，实际高度与旧版持平）
+        return CareerVisuals.Card(barGrid, 16, 8);
     }
 
     private static Element TeammatesFlyout(

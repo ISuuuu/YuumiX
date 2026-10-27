@@ -32,6 +32,12 @@ public sealed record PlayerCardProps(
 /// </summary>
 public sealed class PlayerCardView : Component<PlayerCardProps>
 {
+    /// <summary>
+    /// 头像直径：旧版 <c>.profile-icon-wrapper-mini</c> 48×48（内含 4.5px 经验环描边）。
+    /// 42 会比旧版小一圈，卡片的信息行也会跟着上移。
+    /// </summary>
+    private const double AvatarSize = 48;
+
     public override Element Render()
     {
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
@@ -58,11 +64,11 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         double ringBorderThickness = masteryDetail?.IsTopChampion == true ? 2.0 : (xpProgress > 0 ? 1.5 : 0.0);
 
         var avatarCore = Border(
-            Component<LcuImage, LcuImageProps>(new LcuImageProps(avatarAsset, Size: 42, CornerRadius: YuumiTheme.PillRadius))
+            Component<LcuImage, LcuImageProps>(new LcuImageProps(avatarAsset, Size: AvatarSize, CornerRadius: YuumiTheme.PillRadius))
                 .Provide(AppHost.Context, services)
         )
-        .Width(42)
-        .Height(42)
+        .Width(AvatarSize)
+        .Height(AvatarSize)
         .CornerRadius(YuumiTheme.PillRadius)
         .WithBorder(ringBorderColor, ringBorderThickness);
 
@@ -209,51 +215,17 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         Element rankRow;
         if (hasSolo && hasFlex)
         {
-            var soloElement = HStack(3,
-                CareerVisuals.RankedMedal(d!.Solo!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Badge.Create(Caption("单双").Foreground(AssetColors.BlueEssence), AssetColors.BlueFaint, padH: 2, padV: 0.5)
-                    .VAlign(VerticalAlignment.Center),
-                Caption($"{d.Solo.TierText} {d.Solo.LeaguePoints} LP · {d.Solo.Wins}胜")
-                    .Foreground(Theme.SecondaryText)
-                    .TextTrimming(TextTrimming.CharacterEllipsis)
-                    .VAlign(VerticalAlignment.Center)
-            ).WithToolTip(TextBlock(BuildRankTooltip("单双排", d.Solo)));
-
-            var flexElement = HStack(3,
-                CareerVisuals.RankedMedal(d.Flex!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Badge.Create(Caption("灵活").Foreground(palette.WinText), palette.WinBg, padH: 2, padV: 0.5)
-                    .VAlign(VerticalAlignment.Center),
-                Caption($"{d.Flex.TierText} {d.Flex.LeaguePoints} LP · {d.Flex.Wins}胜")
-                    .Foreground(Theme.SecondaryText)
-                    .TextTrimming(TextTrimming.CharacterEllipsis)
-                    .VAlign(VerticalAlignment.Center)
-            ).WithToolTip(TextBlock(BuildRankTooltip("灵活排", d.Flex)));
-
-            rankRow = VStack(1, soloElement, flexElement);
+            rankRow = VStack(1,
+                RankLine(d!.Solo!, isFlex: false, palette),
+                RankLine(d.Flex!, isFlex: true, palette));
         }
         else if (hasSolo)
         {
-            rankRow = HStack(3,
-                CareerVisuals.RankedMedal(d!.Solo!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Badge.Create(Caption("单双").Foreground(AssetColors.BlueEssence), AssetColors.BlueFaint, padH: 2, padV: 0.5)
-                    .VAlign(VerticalAlignment.Center),
-                Caption($"{d.Solo.TierText} {d.Solo.LeaguePoints} LP · {d.Solo.Wins}胜")
-                    .Foreground(Theme.SecondaryText)
-                    .TextTrimming(TextTrimming.CharacterEllipsis)
-                    .VAlign(VerticalAlignment.Center)
-            ).WithToolTip(TextBlock(BuildRankTooltip("单双排", d.Solo)));
+            rankRow = RankLine(d!.Solo!, isFlex: false, palette);
         }
         else if (hasFlex)
         {
-            rankRow = HStack(3,
-                CareerVisuals.RankedMedal(d!.Flex!.Tier, 13).VAlign(VerticalAlignment.Center),
-                Badge.Create(Caption("灵活").Foreground(palette.WinText), palette.WinBg, padH: 2, padV: 0.5)
-                    .VAlign(VerticalAlignment.Center),
-                Caption($"{d.Flex.TierText} {d.Flex.LeaguePoints} LP · {d.Flex.Wins}胜")
-                    .Foreground(Theme.SecondaryText)
-                    .TextTrimming(TextTrimming.CharacterEllipsis)
-                    .VAlign(VerticalAlignment.Center)
-            ).WithToolTip(TextBlock(BuildRankTooltip("灵活排", d.Flex)));
+            rankRow = RankLine(d!.Flex!, isFlex: true, palette);
         }
         else
         {
@@ -457,6 +429,40 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         return premadeColor is null
             ? card.Background(Theme.SubtleFill).WithBorder(Theme.CardStroke, 1)
             : card.Background(premadeColor.Bg).WithBorder(premadeColor.Border, 1);
+    }
+
+    /// <summary>
+    /// 一行段位：奖章 + 队列徽标 + 「段位 LP · 胜场」。
+    ///
+    /// 用 Grid 的 Auto/Auto/Star 而不是 HStack：HStack 在堆叠方向给子项无限宽，
+    /// 文字上的 <c>TextTrimming</c> 永远不会触发，段位名一长就被卡片边框直接裁掉
+    /// （头像对齐到旧版 48 之后，左侧面板收窄了 6，必然溢出）。
+    /// 放到 Star 列里，文字才有确定的可用宽度并正常出省略号。
+    /// </summary>
+    private static Element RankLine(RankedQueueEntry queue, bool isFlex, YuumiPalette palette)
+    {
+        Element badge = isFlex
+            ? Badge.Create(Caption("灵活").Foreground(palette.WinText), palette.WinBg, padH: 2, padV: 0.5)
+            : Badge.Create(Caption("单双").Foreground(AssetColors.BlueEssence), AssetColors.BlueFaint, padH: 2, padV: 0.5);
+
+        return Grid(
+            [GridSize.Auto, GridSize.Auto, GridSize.Star()],
+            [GridSize.Auto],
+            [
+                CareerVisuals.RankedMedal(queue.Tier, 13)
+                    .Grid(row: 0, column: 0)
+                    .VAlign(VerticalAlignment.Center),
+                badge.Grid(row: 0, column: 1)
+                    .Margin(4, 0, 0, 0)
+                    .VAlign(VerticalAlignment.Center),
+                Caption($"{queue.TierText} {queue.LeaguePoints} LP · {queue.Wins}胜")
+                    .Foreground(Theme.SecondaryText)
+                    .TextTrimming(TextTrimming.CharacterEllipsis)
+                    .Grid(row: 0, column: 2)
+                    .Margin(4, 0, 0, 0)
+                    .VAlign(VerticalAlignment.Center),
+            ])
+            .WithToolTip(TextBlock(BuildRankTooltip(isFlex ? "灵活排" : "单双排", queue)));
     }
 
     private static string BuildRankTooltip(string queueName, RankedQueueEntry q)
