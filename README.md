@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="docs/architecture.md">架构规范</a> ·
-  <a href="docs/validation-report.md">验证报告</a> ·
-  <a href="docs/live-verification.md">联机验证</a> ·
+  <a href="docs/internal/docbak/architecture.md">架构规范</a> ·
+  <a href="docs/internal/docbak/validation-report.md">验证报告</a> ·
+  <a href="docs/internal/docbak/live-verification.md">联机验证</a> ·
   <a href="https://github.com/ISuuuu/YuumiX/issues">问题反馈</a>
 </p>
 
@@ -133,14 +133,14 @@ dotnet publish src/YuumiX.App/YuumiX.App.csproj -c Release -r win-x64 --self-con
 | 文档                                      | 作用                                     |
 | ----------------------------------------- | ---------------------------------------- |
 | [开发强制约定](AGENTS.md)                 | 工程目录结构、排版/颜色/控件规范、Reactor 约束与提交门禁 |
-| [架构与实施规范](docs/architecture.md)    | 分层契约、目录规划、选型决策（ADR 系列） |
-| [架构验证报告](docs/validation-report.md) | 技术路线与关键能力验证记录               |
-| [联机验证清单](docs/live-verification.md) | 真实客户端环境联机实测验收指南           |
+| [架构与实施规范](docs/internal/docbak/architecture.md)    | 分层契约、目录规划、选型决策（ADR 系列） |
+| [架构验证报告](docs/internal/docbak/validation-report.md) | 技术路线与关键能力验证记录               |
+| [联机验证清单](docs/internal/docbak/live-verification.md) | 真实客户端环境联机实测验收指南           |
 | [更新日志](CHANGELOG.md)                  | 各版本面向用户的变更                     |
 
 ## 参与贡献
 
-欢迎提交 Issue 与 PR。开始前请先读 [AGENTS.md](AGENTS.md) 与 [架构规范](docs/architecture.md)：保持单进程架构，领域逻辑归入 `YuumiX.Core` 并补充测试，提交前跑通「质量门禁」。
+欢迎提交 Issue 与 PR。开始前请先读 [AGENTS.md](AGENTS.md) 与 [架构规范](docs/internal/docbak/architecture.md)：保持单进程架构，领域逻辑归入 `YuumiX.Core` 并补充测试，提交前跑通「质量门禁」。
 
 UI 改动可用 `tools/ScreenCapture` 做前后截图比对：
 
