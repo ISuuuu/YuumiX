@@ -2,9 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.SavedPlayers.Models;
@@ -70,6 +72,18 @@ public sealed class SavedPlayersPage : Component
         // 展开与收起相遇对局
         var (expanded, setExpanded) = UseState<ExpandedTarget?>(null, threadSafe: true);
         var expandNonceRef = UseRef(0);
+
+        // 页面缓存开启后组件实例常驻：切走时若处于编辑标签或删除确认态，
+        // 离开时统一收回，避免切回页面时残留临时态。
+        var cleanupRef = UseRef<Action?>(null);
+        cleanupRef.Current = () =>
+        {
+            setEditingPuuid(null);
+            setPendingDeletePuuid(null);
+        };
+        var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
+        navigatedFromRef.Current ??= _ => cleanupRef.Current?.Invoke();
+        UseNavigationLifecycle(onNavigatedFrom: navigatedFromRef.Current);
 
         // 连接态订阅 → 账号解析（UseResource）：连接状态变化即重拉当前登录账号
         var (connStatus, setConnStatus) = UseState(

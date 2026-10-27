@@ -49,19 +49,26 @@ internal static class CareerMatchesSection
         const double MatchRowGap = 10;
         const double StackGap = 8;
 
+        bool isInitialLoad = (ranked.SoloDuo is null && ranked.Flex is null) || summary.IsEmpty;
+        bool needSkeleton = loading && isInitialLoad;
+
         Element header = VStack(16,
-            RankedTableView.Render(ranked, palette),
-            RecentSummaryView.Render(
-                summary,
-                catalog,
-                palette,
-                filterLabels,
-                filter,
-                onFilterChanged,
-                onRecentTeammates: onRecentTeammates,
-                teammates: teammates,
-                loadingTeammates: loadingTeammates,
-                onClickTeammate: onClickTeammate));
+            needSkeleton && ranked.SoloDuo is null && ranked.Flex is null
+                ? CareerVisuals.SkeletonRankedTable()
+                : RankedTableView.Render(ranked, palette),
+            needSkeleton && summary.IsEmpty
+                ? CareerVisuals.SkeletonRecentSummary()
+                : RecentSummaryView.Render(
+                    summary,
+                    catalog,
+                    palette,
+                    filterLabels,
+                    filter,
+                    onFilterChanged,
+                    onRecentTeammates: onRecentTeammates,
+                    teammates: teammates,
+                    loadingTeammates: loadingTeammates,
+                    onClickTeammate: onClickTeammate));
 
         Element list = visibleMatches.Count > 0
             ? VStack(StackGap, visibleMatches
@@ -70,12 +77,13 @@ internal static class CareerMatchesSection
                         .Margin(0, 0, 0, MatchRowGap - StackGap)
                         .WithKey(match.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                     .ToArray())
+            : (needSkeleton || loading)
+                // 骨架态：与真实卡片同高（82）同圆角同描边，数据到达时整列不跳。
+                ? CareerVisuals.SkeletonMatchList()
                 : CareerVisuals.Card(
-                    Caption(loading
-                        ? "正在读取最近对局…"
-                        : filter == 0
-                            ? "没有可显示的对局（客户端未连接，或该账号近期没有对局）"
-                            : "该队列下没有近期对局"),
+                    Caption(filter == 0
+                        ? "没有可显示的对局（客户端未连接，或该账号近期没有对局）"
+                        : "该队列下没有近期对局"),
                     padding: 16);
 
         return new MatchesParts(header, list);

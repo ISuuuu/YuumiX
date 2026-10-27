@@ -44,8 +44,11 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     /// <summary>
     /// 行高：旧版 `.match-card` 固定 82 = 52（头像）+ 14×2（padding）+ 1×2（border）。
     /// 本实现 padding 取 12（14 不在 4px 网格上），卡片高度仍是 82，差额落在上下居中留白里。
+    ///
+    /// 可见性放宽到 internal：加载态的骨架卡必须与真实卡片同高，
+    /// 高度值不能各写一份（两处一旦漂移，数据到达时列表就会跳）。
     /// </summary>
-    private const double RowHeight = 82;
+    internal const double RowHeight = 82;
 
     /// <summary>
     /// 结果列：旧版 `.result-panel { min-width: 90px }`。取 96 让「海克斯大乱斗」等最长模式名

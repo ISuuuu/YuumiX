@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using static Microsoft.UI.Reactor.Factories;
@@ -56,6 +57,22 @@ public sealed class SettingsPage : Component
         var (savedAt, setSavedAt) = UseState<DateTime?>(null, threadSafe: true);
         var (error, setError) = UseState<string?>(null, threadSafe: true);
         var (clearDialogOpen, setClearDialogOpen) = UseState(false, threadSafe: true);
+
+        // 页面缓存开启后组件实例常驻：切走时若「清除缓存」确认弹窗还开着，
+        // 真实 ContentDialog 挂在 XamlRoot 的 Popup 里，会跟着留到别的页面上。
+        // 离开时强制关掉。委托必须跨渲染同一实例（否则 lifecycle 反复重注册），
+        // 闭包里的页面状态因此走 action ref —— 每次渲染刷新，永远读到最新值。
+        var closeDialogRef = UseRef<Action?>(null);
+        closeDialogRef.Current = () =>
+        {
+            if (clearDialogOpen)
+            {
+                setClearDialogOpen(false);
+            }
+        };
+        var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
+        navigatedFromRef.Current ??= _ => closeDialogRef.Current?.Invoke();
+        UseNavigationLifecycle(onNavigatedFrom: navigatedFromRef.Current);
 
         // 本页自身也订阅主题状态：配色（战绩卡片/死亡数字）变化时编号步进器等
         // 消费 palette 的元素要跟着重渲染（主题模式由 AppShell 统一施加，不在此列）。

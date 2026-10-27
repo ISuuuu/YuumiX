@@ -156,7 +156,11 @@ internal static class MatchDetailView
 
         if (detail is null)
         {
-            blocks.Add(PendingHint(palette));
+            // 详情加载中：直接铺两张表格骨架（对齐双方队伍），尺寸与终态 1:1 完全对齐，
+            // 消除「小提示卡片 → 两张表」的高度跳变与闪现，数据到达时原地填充。
+            bool isAugment = SearchVisuals.IsAugmentQueue(summary.QueueId);
+            blocks.Add(SkeletonTable(isAugment));
+            blocks.Add(SkeletonTable(isAugment));
         }
         else
         {
@@ -199,12 +203,52 @@ internal static class MatchDetailView
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
 
-    /// <summary>详情请求进行中的占位。</summary>
-    private static Element PendingHint(YuumiPalette palette) =>
-        Border(Caption("正在读取该局详情…").Foreground(Theme.SecondaryText)).Padding(16).CornerRadius(YuumiTheme.OverlayRadius)
+    /// <summary>骨架里的灰块：统一底色与圆角，尺寸由调用方给。</summary>
+    private static Element Block(double width, double height, double radius = 4) =>
+        Border(Empty())
+            .Width(width)
+            .Height(height)
+            .CornerRadius(radius)
+            .Background(Theme.SubtleFill);
+
+    /// <summary>
+    /// 详情表格骨架：与 <see cref="TeamTable"/> 同结构（表头 + 5 行 48 高选手行），
+    /// 因此详情到达时面板高度不变——真实表格是「表头 + 5 行」，
+    /// 用一句提示文案占位会在详情返回的瞬间把面板从 1 屏撑到 2 屏。
+    /// </summary>
+    private static Element SkeletonTable(bool isAugment)
+    {
+        GridSize[] columns = GetTableColumns(isAugment);
+
+        Element header = Border(
+                Grid(
+                    columns,
+                    [GridSize.Auto],
+                    [
+                        Block(140, 14).Grid(row: 0, column: 0),
+                        Block(60, 12).Grid(row: 0, column: 1),
+                        Block(30, 12).Grid(row: 0, column: 2),
+                        Block(30, 12).Grid(row: 0, column: 3),
+                        Block(30, 12).Grid(row: 0, column: 4),
+                        Block(30, 12).Grid(row: 0, column: 5),
+                    ]))
+            .Padding(6);
+
+        // 选手行数按标准局 5 人：详情到达后真实表格也是 5 行，行数一致才不会跳。
+        var rows = new List<Element>(5);
+        for (int i = 0; i < 5; i++)
+        {
+            rows.Add(Border(Empty())
+                .Height(RowHeight)
+                .Background(Theme.SubtleFill));
+        }
+
+        return Border(VStack(0, header, VStack(0, rows.ToArray())))
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
+    }
 
     /// <summary>
     /// 结果横幅。日期用 <c>yyyy/MM/dd HH:mm</c>（与客户端战绩详情一致），

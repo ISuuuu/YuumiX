@@ -50,6 +50,23 @@ public sealed class CareerService : ICareerService
     /// <summary>飞行中的查询：同 puuid 并发共享一次 HTTP，结束后移除。</summary>
     private readonly ConcurrentDictionary<string, Lazy<Task<RankedStats>>> _inFlight = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// 战利品 / 熟练度概览缓存（当前登录账号维度，与 puuid 无关）。
+    ///
+    /// 二者的请求成本最高——战利品是整份库存列表，熟练度是全英雄记录——而数据只在
+    /// 开箱、分解、对局结算后变化。没有这层缓存时，每次进生涯页都要真打两个全量 GET，
+    /// 页面缓存能挡住切页，但刷新与首次进入仍会各拉一遍。
+    ///
+    /// 只有成功结果（含"账号确实没有战利品/熟练度"的空概览）才写入：失败是暂时状态，
+    /// 缓存它会让客户端连上之后还显示失败提示。任何一次 <c>forceRefresh</c>
+    /// （刷新按钮、战利品操作后的 OnRefresh）都会覆盖缓存。
+    /// </summary>
+    private (PlayerLootOverview Overview, long At)? _lootCache;
+    private (MasteryOverview Overview, long At)? _masteryCache;
+
+    /// <summary>保护上面两个单值缓存：UI 线程与后台刷新可能同时读写。</summary>
+    private readonly object _overviewCacheLock = new();
+
     /// <param name="transportProvider">当前传输层（来自 <c>LcuConnection.Transport</c>）；未连接时返回 <c>null</c>。</param>
     /// <param name="savedPlayersStore">可选路人集本地存储（用于读取玩家标记）。</param>
     /// <param name="gameDataService">可选游戏静态数据服务（用于解析英雄名称等）。</param>
@@ -105,17 +122,48 @@ public sealed class CareerService : ICareerService
     /// 拉取战利品概览。未连接或读取失败返回 <c>null</c>（界面给失败提示）；
     /// 成功但账号确实没有任何战利品时返回全空的概览（界面给普通空态）——
     /// 两者混为一谈会让"刚注册的空账号"看起来像坏了。
+    ///
+    /// 命中 <see cref="DefaultCacheTtl"/> 内的缓存时直接返回上次结果，
+    /// <paramref name="forceRefresh"/> 为 true 时跳过缓存并覆盖它。
     /// </summary>
     public async Task<PlayerLootOverview?> GetLootOverviewAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
+        if (!forceRefresh)
+        {
+            lock (_overviewCacheLock)
+            {
+                if (_lootCache is { } hit && !IsExpired(hit.At))
+                {
+                    return hit.Overview;
+                }
+            }
+        }
+
         ILcuTransport? transport = _transportProvider();
         if (transport is null)
         {
             return null;
         }
 
+        PlayerLootOverview? overview = await FetchLootOverviewAsync(transport, cancellationToken).ConfigureAwait(false);
+        if (overview is not null)
+        {
+            lock (_overviewCacheLock)
+            {
+                _lootCache = (overview, Environment.TickCount64);
+            }
+        }
+
+        return overview;
+    }
+
+    /// <summary>战利品概览的取数主体（无缓存判断，只有成功结果回写由调用方负责）。</summary>
+    private static async Task<PlayerLootOverview?> FetchLootOverviewAsync(
+        ILcuTransport transport,
+        CancellationToken cancellationToken)
+    {
         try
         {
             LcuResponse response = await transport
@@ -255,17 +303,48 @@ public sealed class CareerService : ICareerService
     /// <summary>
     /// 拉取全英雄熟练度概览。未连接或读取失败返回 <c>null</c>（界面给失败提示）；
     /// 成功但账号没有任何熟练度记录时返回全空的概览。
+    ///
+    /// 命中 <see cref="DefaultCacheTtl"/> 内的缓存时直接返回上次结果，
+    /// <paramref name="forceRefresh"/> 为 true 时跳过缓存并覆盖它。
     /// </summary>
     public async Task<MasteryOverview?> GetMasteryOverviewAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
+        if (!forceRefresh)
+        {
+            lock (_overviewCacheLock)
+            {
+                if (_masteryCache is { } hit && !IsExpired(hit.At))
+                {
+                    return hit.Overview;
+                }
+            }
+        }
+
         ILcuTransport? transport = _transportProvider();
         if (transport is null)
         {
             return null;
         }
 
+        MasteryOverview? overview = await FetchMasteryOverviewAsync(transport, cancellationToken).ConfigureAwait(false);
+        if (overview is not null)
+        {
+            lock (_overviewCacheLock)
+            {
+                _masteryCache = (overview, Environment.TickCount64);
+            }
+        }
+
+        return overview;
+    }
+
+    /// <summary>英雄熟练度概览的取数主体（无缓存判断，只有成功结果回写由调用方负责）。</summary>
+    private async Task<MasteryOverview?> FetchMasteryOverviewAsync(
+        ILcuTransport transport,
+        CancellationToken cancellationToken)
+    {
         try
         {
             LcuResponse response = await transport
@@ -968,9 +1047,23 @@ public sealed class CareerService : ICareerService
         return string.Empty;
     }
 
-    public void InvalidateCache() => _cache.Clear();
+    public void InvalidateCache()
+    {
+        _cache.Clear();
+        lock (_overviewCacheLock)
+        {
+            _lootCache = null;
+            _masteryCache = null;
+        }
+    }
 
-    private bool IsExpired(CachedStats cached)
+    private bool IsExpired(CachedStats cached) => IsExpired(cached.At);
+
+    /// <summary>
+    /// 缓存条目是否已过期。TTL 设为 <see cref="TimeSpan.Zero"/> 时一律视为过期，
+    /// 语义上等于关闭缓存（测试构造用）。
+    /// </summary>
+    private bool IsExpired(long at)
     {
         if (_cacheTtl <= TimeSpan.Zero)
         {
@@ -978,7 +1071,7 @@ public sealed class CareerService : ICareerService
         }
 
         // TickCount64 单调递增，不受系统时间调整影响
-        return Environment.TickCount64 - cached.At >= (long)_cacheTtl.TotalMilliseconds;
+        return Environment.TickCount64 - at >= (long)_cacheTtl.TotalMilliseconds;
     }
 
     private async Task<RankedStats> FetchAsync(string puuid, CancellationToken cancellationToken)
