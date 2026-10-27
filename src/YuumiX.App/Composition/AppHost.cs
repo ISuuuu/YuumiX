@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor.Core;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
+using YuumiX.App.Windowing;
 using YuumiX.Core;
 using YuumiX.Core.Lcu;
 
@@ -41,6 +42,12 @@ public static class AppHost
     public static readonly Context<ThemeState> ThemeContext = new(null!, "ThemeState");
 
     /// <summary>
+    /// 界面缩放状态上下文键。与 <see cref="ThemeContext"/> 同理在根组件上 Provide 一次；
+    /// AppShell 订阅该状态以驱动 Viewbox 内容视口响应式等比缩放。
+    /// </summary>
+    public static readonly Context<ScaleState> ScaleContext = new(null!, "ScaleState");
+
+    /// <summary>
     /// 侧边栏菜单可见性状态上下文。与 <see cref="ThemeContext"/> 同理在根组件上 Provide 一次；
     /// 「隐藏菜单」这类影响全局菜单的配置由它承载，而不是寄望配置自身有变更通知。
     /// </summary>
@@ -68,6 +75,7 @@ public static class AppHost
 
     private static AppServices? _services;
     private static ThemeState? _theme;
+    private static ScaleState? _scale;
     private static MenuVisibilityState? _menu;
     private static UpdateNoticeState? _updateNotice;
 
@@ -78,6 +86,10 @@ public static class AppHost
     /// <summary>进程级主题状态。仅供根组件使用（其余组件走 <see cref="ThemeContext"/>）。</summary>
     public static ThemeState Theme =>
         _theme ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
+
+    /// <summary>进程级界面缩放状态。仅供根组件使用（其余组件走 <see cref="ScaleContext"/>）。</summary>
+    public static ScaleState Scale =>
+        _scale ?? throw new InvalidOperationException("AppHost 尚未初始化，请先调用 Initialize()");
 
     /// <summary>进程级菜单可见性状态。仅供根组件使用（其余组件走 <see cref="MenuContext"/>）。</summary>
     public static MenuVisibilityState Menu =>
@@ -105,6 +117,11 @@ public static class AppHost
             ex => _services.LoggerFactory
                 .CreateLogger<ThemeState>()
                 .LogError(ex, "主题订阅者抛异常"));
+        _scale = new ScaleState(
+            _services.Config.Personalization.DpiScale,
+            ex => _services.LoggerFactory
+                .CreateLogger<ScaleState>()
+                .LogError(ex, "界面缩放订阅者抛异常"));
         _menu = new MenuVisibilityState(
             _services.Config.Functions,
             ex => _services.LoggerFactory

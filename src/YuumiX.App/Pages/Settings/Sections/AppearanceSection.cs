@@ -2,13 +2,16 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
+using YuumiX.App.Windowing;
 using YuumiX.Core.Common;
 using YuumiX.Core.Persistence;
 
 namespace YuumiX.App.Pages.Settings.Sections;
 
+/// <summary>
 /// <summary>
 /// 设置页「外观与个性化」分组：Mica 背景 / 主题模式 / 界面缩放 / 语言设置 / 战绩卡片配色 / 死亡数字配色。
 /// 颜色改动统一出口：先落内存与主题状态（界面即时生效），再由页面的防抖回调落盘。
@@ -38,11 +41,33 @@ internal static class AppearanceSection
             }).Width(160).AutomationName("主题模式选择"));
 
         var dpiScaleCard = SettingsCardKit.Card(
-            "界面缩放", "调整应用界面显示比例（部分效果重启后生效）",
+            "界面缩放", "调整应用界面基础显示比例与窗口尺寸",
             ComboBox(DpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
             {
-                config.Personalization.DpiScale = DpiScaleValues[index];
+                var scaleValue = DpiScaleValues[index];
+                var scaleLabel = DpiScaleLabels[index];
+                config.Personalization.DpiScale = scaleValue;
                 ui.Commit(nameof(PersonalizationConfig.DpiScale));
+                AppHost.Scale.SetScale(scaleValue);
+
+                var window = ui.Window ?? ReactorApp.PrimaryWindow;
+                if (window is not null)
+                {
+                    if (WindowMetrics.IsMaximized(window))
+                    {
+                        ui.Toast.Info($"界面缩放已设为 {scaleLabel}（窗口当前处于最大化状态）");
+                    }
+                    else
+                    {
+                        var (width, height) = WindowMetrics.CalculateWindowSize(scaleValue);
+                        window.SetSize(width, height);
+                        ui.Toast.Success($"界面缩放已设为 {scaleLabel}，窗口尺寸已调整为 {width}×{height}");
+                    }
+                }
+                else
+                {
+                    ui.Toast.Success($"界面缩放已设为 {scaleLabel}");
+                }
             }).Width(160).AutomationName("界面缩放选择"));
 
         var languageCard = SettingsCardKit.Card(
