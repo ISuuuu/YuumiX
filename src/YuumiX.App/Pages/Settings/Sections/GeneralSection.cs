@@ -50,49 +50,67 @@ internal static partial class GeneralSection
         Action openClearDialog)
     {
         var config = ui.Config;
+        var i18n = ui.Services.I18n;
 
         var lolPathCard = LolPathCard(ui, pathEdit, requestPathCommit);
         var cloudCard = CloudCard(ui, cloud, requestCloudTextCommit, signalrStatus);
         var clearCacheCard = SettingsCardKit.Card(
-            "清除缓存", "删除所有游戏资源（英雄图标/装备/符文）与 OP.GG 数据的磁盘缓存",
-            Button("清除缓存", openClearDialog).AutomationName("清除缓存按钮"));
+            i18n.T("settings.clearCacheTitle", "清除缓存"),
+            i18n.T("settings.clearCacheDesc", "删除所有游戏资源（英雄图标/装备/符文）与 OP.GG 数据的磁盘缓存"),
+            Button(i18n.T("settings.deleteBtn", "清除缓存"), openClearDialog).AutomationName("清除缓存按钮"));
 
         return VStack(8,
             lolPathCard,
             cloudCard,
-            SettingsCardKit.Toggle("随应用启动客户端", "启动 YuumiX 时一并拉起英雄联盟客户端（含 WeGame 形态）", config.General.EnableStartLolWithApp, v =>
-            {
-                config.General.EnableStartLolWithApp = v;
-                ui.Commit(nameof(GeneralConfig.EnableStartLolWithApp));
-            }),
+            SettingsCardKit.Toggle(
+                i18n.T("settings.autoStartLolTitle", "随应用启动客户端"),
+                i18n.T("settings.autoStartLolDesc", "启动 YuumiX 时一并拉起英雄联盟客户端（含 WeGame 形态）"),
+                config.General.EnableStartLolWithApp,
+                v =>
+                {
+                    config.General.EnableStartLolWithApp = v;
+                    ui.Commit(nameof(GeneralConfig.EnableStartLolWithApp));
+                }),
             // 两态开关，不是三态复选框：配置里的 null 只是「老配置未表态」的存储细节，
             // 语义上等价于 false（旧版 get_close_to_tray 的 unwrap_or(false)），不能渲染成第三种状态。
-            SettingsCardKit.Toggle("关闭到托盘", "点击关闭按钮时将窗口隐藏到系统托盘区域",
-                config.General.EnableCloseToTray ?? false, v =>
+            SettingsCardKit.Toggle(
+                i18n.T("settings.closeToTrayTitle", "关闭到托盘"),
+                i18n.T("settings.closeToTrayDesc", "点击关闭按钮时将窗口隐藏到系统托盘区域"),
+                config.General.EnableCloseToTray ?? false,
+                v =>
                 {
                     config.General.EnableCloseToTray = v;
                     ui.Commit(nameof(GeneralConfig.EnableCloseToTray));
-                }, automationName: "关闭到托盘开关"),
-            SettingsCardKit.Toggle("游戏开始时最小化", "检测到对局开始后自动最小化主窗口", config.General.EnableGameStartMinimize, v =>
-            {
-                config.General.EnableGameStartMinimize = v;
-                ui.Commit(nameof(GeneralConfig.EnableGameStartMinimize));
-            }),
-            clearCacheCard,
-            SettingsCardKit.Toggle("检查更新", "启动时检查新版本，发现后侧边栏「设置」会亮起红点提示", config.General.EnableCheckUpdate, v =>
-            {
-                config.General.EnableCheckUpdate = v;
-                ui.Commit(nameof(GeneralConfig.EnableCheckUpdate));
-
-                if (!v)
+                },
+                automationName: "关闭到托盘开关"),
+            SettingsCardKit.Toggle(
+                i18n.T("settings.startMinimizedTitle", "游戏开始时最小化"),
+                i18n.T("settings.startMinimizedDesc", "检测到对局开始后自动最小化主窗口"),
+                config.General.EnableGameStartMinimize,
+                v =>
                 {
-                    // 关掉之后不再有任何检测点：红点必须同步熄灭，
-                    // 否则它指向的是一个永远不会刷新的旧结果。
-                    ui.UpdateNotice.Clear();
-                    return;
-                }
+                    config.General.EnableGameStartMinimize = v;
+                    ui.Commit(nameof(GeneralConfig.EnableGameStartMinimize));
+                }),
+            clearCacheCard,
+            SettingsCardKit.Toggle(
+                i18n.T("settings.checkUpdateTitle", "检查更新"),
+                i18n.T("settings.checkUpdateDesc", "启动时检查新版本，发现后侧边栏「设置」会亮起红点提示"),
+                config.General.EnableCheckUpdate,
+                v =>
+                {
+                    config.General.EnableCheckUpdate = v;
+                    ui.Commit(nameof(GeneralConfig.EnableCheckUpdate));
 
-                // 打开时立即补查一次：启动检查在「关闭」状态下已被跳过，
+                    if (!v)
+                    {
+                        // 关掉之后不再有任何检测点：红点必须同步熄灭，
+                        // 否则它指向的是一个永远不会刷新的旧结果。
+                        ui.UpdateNotice.Clear();
+                        return;
+                    }
+
+                    // 打开时立即补查一次：启动检查在「关闭」状态下已被跳过，
                 // 不补查就要等到下一个复查周期（最长 6 小时）才可能有提示。
                 _ = CheckOnceAsync(ui);
             }),

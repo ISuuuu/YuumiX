@@ -22,8 +22,10 @@ internal static class AboutSection
 
     public static Element Render(SettingsUi ui)
     {
+        var i18n = ui.Services.I18n;
+
         return SettingsCardKit.Expander(
-            "关于 YuumiX",
+            i18n.T("settings.aboutTitle", "关于 YuumiX"),
             $"当前版本 {AppVersion} · 运行环境与存储位置",
             SettingsStatus.Custom,
             headerControl: null,
@@ -36,7 +38,7 @@ internal static class AboutSection
                 SettingsVisuals.InfoRow("日志目录", ui.Services.Paths.LogDirectory),
                 SettingsVisuals.InfoRow("写回备份", $"{ui.Services.ConfigStore.ListBackups().Count} 份（保留最近 {ConfigStore.MaxBackups} 份）"),
                 HStack(8,
-                    Button("开源仓库", () =>
+                    Button(i18n.T("settings.aboutRepository", "开源仓库"), () =>
                     {
                         try
                         {

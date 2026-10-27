@@ -3,6 +3,7 @@ using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Composition;
 using YuumiX.App.Theming;
 
 namespace YuumiX.App.Controls;
@@ -50,11 +51,16 @@ public static class LcuOfflineState
     private static Element RenderCore(string message, Element? extra, Action? onLaunchClient)
     {
         bool interactive = onLaunchClient is not null;
+        var i18n = AppHost.Services?.I18n;
+
+        var launchBtnText = i18n?.T("home.launchBtn", "启动客户端") ?? "启动客户端";
+        var waitingText = i18n?.T("home.waitingForLol", "等待客户端启动中...") ?? "等待客户端启动中...";
+        var notConnectedText = i18n?.T("home.notConnected", "客户端未连接") ?? "客户端未连接";
 
         // 动作区：主页是真入口；业务页不重复放入口，但启动按钮必须留在布局里撑出与主页一致的高度。
         // 有 extra 时（对局信息的「预览演示对局」）把它叠在占位按钮上，而不是顶替——extra 比启动按钮矮，
         // 顶替后整组内容变矮，垂直居中会让 Logo 比主页低几像素，切页时就能看出位移。
-        Element launchSlot = Button("启动客户端")
+        Element launchSlot = Button(launchBtnText)
             .IsEnabled(interactive)
             .Padding(24, 8)
             .Margin(0, 0, 0, 8)
@@ -88,7 +94,7 @@ public static class LcuOfflineState
                     .Width(16)
                     .Height(16)
                     .IsActive(interactive),
-                Body("等待客户端启动中...")
+                Body(waitingText)
                     .Foreground(Theme.SecondaryText))
             .HAlign(HorizontalAlignment.Center);
 
@@ -113,7 +119,7 @@ public static class LcuOfflineState
                         .AutomationName("Yuumi Logo")
                         .HAlign(HorizontalAlignment.Center)
                         .Margin(0, 0, 0, 4),
-                    Title("客户端未连接")
+                    Title(notConnectedText)
                         .HAlign(HorizontalAlignment.Center),
                     Body(message)
                         .Foreground(Theme.SecondaryText)

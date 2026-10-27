@@ -20,9 +20,11 @@ internal static class LogNetworkSection
     public static Element Render(SettingsUi ui, Microsoft.UI.Reactor.Core.Ref<string?> proxyDraft)
     {
         var config = ui.Config;
+        var i18n = ui.Services.I18n;
 
         var logLevelCard = SettingsCardKit.Card(
-            "日志等级", "写入 <exe>/log 的日志记录详细程度，修改后立即生效",
+            i18n.T("settings.logLevelTitle", "日志等级"),
+            i18n.T("settings.logLevelDesc", "写入 <exe>/log 的日志记录详细程度，修改后立即生效"),
             ComboBox(LogLevelLabels, SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
             {
                 var level = LogLevelValues[index];
@@ -32,8 +34,9 @@ internal static class LogNetworkSection
             }).Width(160).AutomationName("日志等级选择"));
 
         var logDirCard = SettingsCardKit.Card(
-            "日志文件", $"存放于 {ui.Services.Paths.LogDirectory}",
-            Button("打开目录", () =>
+            i18n.T("settings.logFileTitle", "日志文件"),
+            $"存放于 {ui.Services.Paths.LogDirectory}",
+            Button(i18n.T("settings.openFolderBtn", "打开目录"), () =>
             {
                 try
                 {
@@ -46,8 +49,8 @@ internal static class LogNetworkSection
             }).AutomationName("打开日志目录"));
 
         var httpProxyCard = SettingsCardKit.Expander(
-            "软件 HTTP 代理",
-            "软件更新、TFT 数据、OP.GG 服务访问走此 HTTP 代理通道",
+            i18n.T("settings.httpProxyGroup", "软件 HTTP 代理"),
+            i18n.T("settings.httpProxyDesc", "软件更新、TFT 数据、OP.GG 服务访问走此 HTTP 代理通道"),
             config.General.EnableHttpProxy ? SettingsStatus.Enabled : SettingsStatus.Disabled,
             headerControl: ToggleSwitch(config.General.EnableHttpProxy, v =>
             {
