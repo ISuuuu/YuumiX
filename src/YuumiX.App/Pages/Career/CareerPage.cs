@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using static Microsoft.UI.Reactor.Factories;
@@ -244,6 +245,20 @@ public sealed class CareerPage : Component<CareerPageProps>
             },
             copied ? 1 : 0);
 
+        // 页面缓存开启（NavigationHost.CacheMode = Enabled）后组件实例常驻，切走再回来时
+        // 遮罩与提示这类「一次性 UI 状态」会原样复活——战利品弹窗自己弹出来、复制提示还亮着。
+        // 离开时统一收干净。委托必须跨渲染同一实例：每次渲染新建 lambda 会让 lifecycle 反复重注册。
+        var dismissTransientRef = UseRef<Action?>(null);
+        dismissTransientRef.Current = () =>
+        {
+            setQuantityDialog(null);
+            setConfirmDialog(null);
+            setCopied(false);
+        };
+        var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
+        navigatedFromRef.Current ??= _ => dismissTransientRef.Current?.Invoke();
+        UseNavigationLifecycle(onNavigatedFrom: navigatedFromRef.Current);
+
         // 最近队友（读）：点击「最近队友」按钮时以 nonce 请求驱动 UseResource 拉取
         //（R7：替代原 Task.Run + 手写 loadingTeammates；nonce 保证重复点击同参数也会重新拉）。
         var teammatesResource = UseResource(
@@ -322,7 +337,9 @@ public sealed class CareerPage : Component<CareerPageProps>
             OpenMatchInSearch);
 
         Element header = summoner is null
-            ? CareerVisuals.EmptyHeader(loading)
+            ? (loading
+                ? CareerVisuals.SkeletonHeader()
+                : CareerVisuals.EmptyHeader())
             : CareerProfileHeader.Render(
                 summoner,
                 palette,
@@ -333,11 +350,17 @@ public sealed class CareerPage : Component<CareerPageProps>
                 isViewingOther: isViewingOther,
                 onBackToSelf: BackToMyCareer);
 
-        // 页签栏：仅在查看自己时显示（查看他人时直接展示战绩内容，不显示「生涯战绩」等页签）
+        // 页签栏：仅在查看自己时显示（查看他人时直接展示战绩内容，不显示「生涯战绩」等页签）。
+        // 加载期用骨架页签占位——真实页签栏是「资料卡到齐之后才出现」的话，
+        // 数据到位那一刻整页会下移一整条页签栏的高度。
         bool hasTabBar = summoner is not null && !isViewingOther;
+        bool showSkeletonTabBar = summoner is null && loading && !isViewingOther;
+        bool tabBarVisible = hasTabBar || showSkeletonTabBar;
         Element tabBar = hasTabBar
             ? CareerVisuals.TabBar(effectiveTab, setTab)
-            : Empty();
+            : showSkeletonTabBar
+                ? CareerVisuals.SkeletonTabBar()
+                : Empty();
 
         // D1：战利品/熟练度读取失败（null）给提示条；成功但为空由子视图给普通空态。
         Element lootFailureHint = loot is null && !loading
@@ -357,16 +380,18 @@ public sealed class CareerPage : Component<CareerPageProps>
             {
                 CareerTab.Loot => VStack(12,
                     lootFailureHint,
-                    Component<CareerLootSection, CareerLootSectionProps>(
-                        new CareerLootSectionProps(
-                            loot,
-                            palette,
-                            BumpRefresh,
-                            // 数量弹窗带初值打开；确认弹窗存储时重包 onConfirm（先关窗再执行，对齐旧版闭包）
-                            dialog => { setQuantityDialog(dialog); setOpenQuantity(Math.Max(dialog.MaxQuantity, 0)); },
-                            dialog => setConfirmDialog(dialog with { OnConfirm = () => { setConfirmDialog(null); dialog.OnConfirm(); } })))),
+                    loot is null
+                        ? (loading ? CareerVisuals.SkeletonLoot() : Empty())
+                        : Component<CareerLootSection, CareerLootSectionProps>(
+                            new CareerLootSectionProps(
+                                loot,
+                                palette,
+                                BumpRefresh,
+                                // 数量弹窗带初值打开；确认弹窗存储时重包 onConfirm（先关窗再执行，对齐旧版闭包）
+                                dialog => { setQuantityDialog(dialog); setOpenQuantity(Math.Max(dialog.MaxQuantity, 0)); },
+                                dialog => setConfirmDialog(dialog with { OnConfirm = () => { setConfirmDialog(null); dialog.OnConfirm(); } })))),
                 CareerTab.Mastery => mastery is null
-                    ? masteryFailureHint
+                    ? (loading ? CareerVisuals.SkeletonMastery() : masteryFailureHint)
                     : ChampionMasteryView.Render(
                         mastery,
                         catalog,
@@ -399,7 +424,7 @@ public sealed class CareerPage : Component<CareerPageProps>
         Element? fixedLayout = null;
         if (matchesParts is { } parts)
         {
-            Element fixedHead = hasTabBar
+            Element fixedHead = tabBarVisible
                 ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), parts.Header.Margin(0, TabBarGap, 0, 0))
                 : VStack(0, header, parts.Header.Margin(0, HeaderGap, 0, 0));
 
@@ -433,7 +458,7 @@ public sealed class CareerPage : Component<CareerPageProps>
                 .HAlign(HorizontalAlignment.Stretch);
         }
 
-        Element stacked = hasTabBar
+        Element stacked = tabBarVisible
             ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), content.Margin(0, TabBarGap, 0, 0))
             // 查看他人生涯时没有页签栏：旧版此时正文紧接资料卡的 24 间距
             : VStack(0, header, content.Margin(0, HeaderGap, 0, 0));

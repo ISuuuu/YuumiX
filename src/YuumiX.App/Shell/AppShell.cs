@@ -550,9 +550,18 @@ public sealed class AppShell : Component
         // 页面切换不做过渡动画：NavigationHost 默认 Entrance（整页上滑 + 淡入），
         // 而 LCU 未连接时各页显示的是同一张离线占位——内容一模一样，动画就只剩
         // 「闪一下」。旧版用 v-show 平级切换同样没有动画，这里对齐旧行为。
+        //
+        // 页面缓存必须显式打开：NavigationCacheMode 默认 Disabled，
+        // 语义是「切走即卸载、切回即重建」，组件树连同全部 UseState 一起销毁。
+        // 生涯页因此每次切回都要从「summoner = null / loading = true」重新走一遍
+        // 取数链路，首帧必定闪出「正在读取生涯数据…」——旧版 Vue 用 v-show 平级切换，
+        // 组件实例常驻，从来没有这个空态。CacheSize 取 RouteCatalog.All 的条数，
+        // 保证全站页面都能命中缓存而不是被 LRU 推出（占位页状态极轻，多留几份无成本）。
         var pageHost = NavigationHost(nav, BuildPage) with
         {
             Transition = NavigationTransition.None,
+            CacheMode = NavigationCacheMode.Enabled,
+            CacheSize = RouteCatalog.All.Count,
         };
 
         var navigationView = NavigationView(menuItems, pageHost) with

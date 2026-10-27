@@ -150,13 +150,9 @@ internal static class SavedPlayersVisuals
     {
         if (loading && players.Count == 0)
         {
-            return VStack(
-                12,
-                ProgressRing().Width(32).Height(32).IsActive(true),
-                TextBlock("正在加载路人集数据...").Foreground(Theme.SecondaryText)
-            )
-            .HorizontalAlignment(HorizontalAlignment.Center)
-            .VerticalAlignment(VerticalAlignment.Center);
+            // 加载中且暂无数据时直接用卡片骨架占位：与真实卡片同结构（头像 + 名字 + 右侧操作），
+            // 列表到达时整列原地填充，消除白屏与高度跳变。
+            return SkeletonList();
         }
 
         if (players.Count == 0)
@@ -245,5 +241,59 @@ internal static class SavedPlayersVisuals
         return ScrollViewer(
             VStack(cards.ToArray()).Spacing(8)
         );
+    }
+
+    /// <summary>
+    /// 路人集卡片骨架：与 <c>SavedPlayerCard</c> 的收起态同结构——
+    /// 40 头像圆 + 名字与标签两行条 + 右侧操作位靠右，padding 与圆角一致。
+    /// 铺 4 张：够填满首屏视口，又不至于让骨架比真实列表长太多。
+    /// </summary>
+    private static Element SkeletonList(int count = 4)
+    {
+        var cards = new Element[count];
+        for (int i = 0; i < count; i++)
+        {
+            cards[i] = Border(
+                    Grid(
+                        [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+                        [GridSize.Auto],
+                        [
+                            Border(Empty())
+                                .Width(40)
+                                .Height(40)
+                                .CornerRadius(20)
+                                .Background(Theme.SubtleFill)
+                                .Margin(0, 0, 12, 0)
+                                .Grid(row: 0, column: 0),
+                            VStack(4,
+                                Border(Empty())
+                                    .Width(140)
+                                    .Height(16)
+                                    .CornerRadius(4)
+                                    .Background(Theme.SubtleFill)
+                                    .HAlign(HorizontalAlignment.Left),
+                                Border(Empty())
+                                    .Width(64)
+                                    .Height(14)
+                                    .CornerRadius(4)
+                                    .Background(Theme.SubtleFill)
+                                    .HAlign(HorizontalAlignment.Left))
+                                .VAlign(VerticalAlignment.Center)
+                                .Grid(row: 0, column: 1),
+                            Border(Empty())
+                                .Width(72)
+                                .Height(20)
+                                .CornerRadius(4)
+                                .Background(Theme.SubtleFill)
+                                .VAlign(VerticalAlignment.Center)
+                                .Grid(row: 0, column: 2),
+                        ]))
+                .Padding(12, 8)
+                .Background(Theme.CardBackground)
+                .WithBorder(Theme.CardStroke, 1)
+                .CornerRadius(YuumiTheme.OverlayRadius);
+        }
+
+        return ScrollViewer(VStack(cards).Spacing(8));
     }
 }

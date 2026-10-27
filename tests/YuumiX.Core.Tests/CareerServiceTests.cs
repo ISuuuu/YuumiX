@@ -336,6 +336,63 @@ public sealed class CareerServiceTests
         Assert.True(statstone.IsStatstone);
     }
 
+    /// <summary>
+    /// 战利品是生涯页最重的请求（整份库存列表），TTL 内必须命中缓存：
+    /// 否则每次进页、切页签、切回页面都要真打一遍全量 GET。
+    /// </summary>
+    [Fact]
+    public async Task GetLootOverviewAsync_HitsCacheWithinTtl()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("[]");
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        PlayerLootOverview? first = await service.GetLootOverviewAsync();
+        PlayerLootOverview? second = await service.GetLootOverviewAsync();
+
+        Assert.Same(first, second);
+        Assert.Single(server.Requests);
+    }
+
+    /// <summary>
+    /// 刷新按钮与战利品操作后的 OnRefresh 都带 forceRefresh：必须绕过并覆盖缓存，
+    /// 否则开箱/分解完还显示旧库存。
+    /// </summary>
+    [Fact]
+    public async Task GetLootOverviewAsync_ForceRefreshBypassesCache()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("[]");
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        await service.GetLootOverviewAsync();
+        await service.GetLootOverviewAsync(forceRefresh: true);
+
+        Assert.Equal(2, server.Requests.Count);
+    }
+
+    /// <summary>
+    /// 失败不进缓存：未连接/HTTP 失败是暂时状态，缓存它会让客户端连上之后
+    /// 重试也拿不到数据，界面一直停在失败提示上。
+    /// </summary>
+    [Fact]
+    public async Task GetLootOverviewAsync_DoesNotCacheFailure()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.NotFound();
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        Assert.Null(await service.GetLootOverviewAsync());
+
+        server.Handler = _ => FakeResponse.Ok("[]");
+        Assert.NotNull(await service.GetLootOverviewAsync());
+
+        Assert.Equal(2, server.Requests.Count);
+    }
+
     /// <summary>D1：熟练度读取失败返回 <c>null</c>，绝不静默回退样例数据。</summary>
     [Fact]
     public async Task GetMasteryOverviewAsync_ReturnsNullWithoutConnection()
@@ -360,6 +417,27 @@ public sealed class CareerServiceTests
         Assert.NotNull(mastery);
         Assert.Empty(mastery!.Champions);
         Assert.Equal(0, mastery.TotalChampions);
+    }
+
+    /// <summary>
+    /// 熟练度是全英雄记录（几十到上百条），与战利品同一套缓存语义：
+    /// TTL 内命中缓存，forceRefresh 绕过。
+    /// </summary>
+    [Fact]
+    public async Task GetMasteryOverviewAsync_HitsCacheWithinTtlAndHonorsForceRefresh()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = _ => FakeResponse.Ok("[]");
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        MasteryOverview? first = await service.GetMasteryOverviewAsync();
+        MasteryOverview? second = await service.GetMasteryOverviewAsync();
+        MasteryOverview? refreshed = await service.GetMasteryOverviewAsync(forceRefresh: true);
+
+        Assert.Same(first, second);
+        Assert.NotNull(refreshed);
+        Assert.Equal(2, server.Requests.Count);
     }
 
     [Fact]

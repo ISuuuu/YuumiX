@@ -190,11 +190,6 @@ internal static class SearchChrome
         bool hasSummoner,
         YuumiPalette palette)
     {
-        if (!summonerResolved || !hasSummoner)
-        {
-            return BuildSkeletons(palette);
-        }
-
         if (status.State == MatchLoadState.Failed)
         {
             return Hint(status.Message ?? "读取战绩失败");

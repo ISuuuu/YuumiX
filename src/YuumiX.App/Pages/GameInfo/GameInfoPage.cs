@@ -24,11 +24,15 @@ public sealed class GameInfoPage : Component
     /// <summary>
     /// 按队伍模式左侧玩家卡片之间的缝隙（卡片下间距，末张靠外层内边距补齐）。
     /// 对齐旧版 <c>.player-list</c> 的 gap 8。
+    /// 可见性放宽到 internal：加载态空壳的卡片间距必须与真实卡片一致，两处各写一份必然漂移。
     /// </summary>
-    private const double CardGap = 8;
+    internal const double CardGap = 8;
 
-    /// <summary>队伍页签高度：旧版 <c>.tab-btn</c> 为 padding 14 + 文案 + 2px 下划线 ≈ 46，取 44。</summary>
-    private const double TeamTabHeight = 44;
+    /// <summary>
+    /// 队伍页签高度：旧版 <c>.tab-btn</c> 为 padding 14 + 文案 + 2px 下划线 ≈ 46，取 44。
+    /// 可见性放宽到 internal：加载态空壳的工具栏与页签位必须同高。
+    /// </summary>
+    internal const double TeamTabHeight = 44;
 
     /// <summary>阵营胶囊高度：沿用网格改造前的 26（配 <see cref="TeamPillPadV"/> 的垂直内边距）。</summary>
     private const double TeamPillHeight = 26;
@@ -109,7 +113,10 @@ public sealed class GameInfoPage : Component
         // 断点会停留在「上一次非复用渲染」时的宽度，缩窗后仍按宽屏排版。
         // 顺带断点口径也回到旧版原值 1100（窗口宽度，不是内容区宽度）。
         var window = UseWindow();
-        var (windowWidth, setWindowWidth) = UseState(0.0, threadSafe: true);
+        double initialWidth = window?.AppWindow != null && window.DipScale > 0
+            ? window.AppWindow.ClientSize.Width / window.DipScale
+            : 1200.0;
+        var (windowWidth, setWindowWidth) = UseState(initialWidth, threadSafe: true);
         UseEffect(
             () =>
             {
@@ -121,8 +128,6 @@ public sealed class GameInfoPage : Component
                 void OnWindowSizeChanged(object? sender, WindowDipSizeChangedEventArgs args) =>
                     setWindowWidth(args.Size.Item1);
 
-                // 初值取客户区宽（物理像素 ÷ DIP 缩放），避免「首次进入页面时窗口已经是窄的」
-                // 要等一次尺寸变化才切堆叠。
                 setWindowWidth(window.AppWindow.ClientSize.Width / window.DipScale);
                 window.SizeChanged += OnWindowSizeChanged;
                 return () => window.SizeChanged -= OnWindowSizeChanged;
@@ -165,7 +170,9 @@ public sealed class GameInfoPage : Component
         // 5. 正在读取队伍
         if (state.IsLoadingTeams)
         {
-            return RenderPlaceholder("正在读取对局玩家", "正在连接 LCU 获取对局双方玩家信息...", palette);
+            // 加载态直接铺与真实视图同形状的空壳（工具栏 44 + 面板 + 等宽列），
+            // 尺寸与终态 1:1 对齐，数据到达时原地填充，消除白屏与页面跳变。
+            return GameInfoSkeleton.Render(state.ViewColumns == 10, windowWidth);
         }
 
         // 6. 正常对局渲染

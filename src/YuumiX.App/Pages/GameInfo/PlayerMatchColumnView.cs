@@ -60,12 +60,6 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         bool isTenCol = Props.ViewColumns == 10;
         var palette = Props.Palette;
 
-        // 战绩列表可视高度：旧版 `.col-match` 用 `flex: 0 0 calc((100% - 54px) / 10)`
-        // 把 10 张卡按列高均分（54 = gap 6 × 9），卡片因此铺满整列、底部不留空。
-        // Reactor 的 StackPanel 做不到「按容器高反算子项高」，所以先量出列表高度，
-        // 再按同一公式把卡片高度算出来：这是唯一能既均分又可滚动（空间不足时）的写法。
-        var (listHeight, setListHeight) = UseState(0.0, threadSafe: true);
-
         // 阵营顶部色彩指示（根据 mapSide 蓝/红互换）
         string topBorderColor;
         if (Props.Side == "ally")
@@ -95,7 +89,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var header = PlayerColumnHeader.Render(Props, services, palette, isTenCol);
 
         // 战绩列表（前 10 局）
-        var matchesList = RenderMatchesList(d, isTenCol, palette, services, encounteredGameIds, listHeight, setListHeight);
+        var matchesList = RenderMatchesList(d, isTenCol, palette, services, encounteredGameIds);
 
         var topBar = Border(Empty())
             .Height(3)
@@ -126,9 +120,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         bool isTenCol,
         YuumiPalette palette,
         AppServices services,
-        IReadOnlySet<long>? encounteredGameIds,
-        double listHeight,
-        Action<double> onListHeightChanged)
+        IReadOnlySet<long>? encounteredGameIds)
     {
         if (d?.Loading == true)
         {
@@ -153,42 +145,18 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         }
 
         var matches = d.Matches.Take(10).ToArray();
-
-        // 旧版卡片高度 =（列高 − 上下内边距 − 9 个 gap）/ 10，且不低于 44（`.col-match` 的 min-height）。
-        // 首帧还没量到高度时先按最小高渲染，OnSizeChanged 回来后会重排一次。
-        double cardHeight = ComputeCardHeight(listHeight, matches.Length);
+        var rows = Enumerable.Range(0, matches.Length).Select(_ => GridSize.Star()).ToArray();
 
         var cards = matches
-            .Select(m => RenderMatchCard(m, isTenCol, palette, services, encounteredGameIds, cardHeight))
+            .Select((m, i) => RenderMatchCard(m, isTenCol, palette, services, encounteredGameIds, isLast: i == matches.Length - 1)
+                .Grid(row: i, column: 0)
+                .WithKey(m.GameId.ToString(CultureInfo.InvariantCulture)))
             .ToArray();
 
-        // 间距与内边距对齐旧版 .col-matches-list（gap 6 / padding 6），
-        // 再包一层 ScrollViewer 对齐旧版 .col-matches-list 的 overflow-y:auto：
-        // 列高装不下 10 张（窄窗堆叠时）仍可滚动，而不是把最后一场压扁或裁掉。
-        return ScrollViewer(VStack(MatchCardGap, cards).Padding(MatchListPadding))
-            .HorizontalScrollMode(Microsoft.UI.Xaml.Controls.ScrollMode.Disabled)
-            .OnSizeChanged((_, e) =>
-            {
-                if (Math.Abs(e.NewSize.Height - listHeight) >= 1)
-                {
-                    onListHeightChanged(e.NewSize.Height);
-                }
-            });
-    }
-
-    /// <summary>
-    /// 按可视高度均分单卡高度（对齐旧版 <c>flex: 0 0 calc((100% - 54px) / 10)</c>）。
-    /// 54 = gap 6 × 9。列表高度未知（首帧）或空间不足时退化为 <see cref="MinMatchCardHeight"/>。
-    /// </summary>
-    private static double ComputeCardHeight(double listHeight, int count)
-    {
-        if (listHeight <= 0 || count <= 0)
-        {
-            return MinMatchCardHeight;
-        }
-
-        double usable = listHeight - MatchListPadding * 2 - MatchCardGap * (count - 1);
-        return Math.Max(MinMatchCardHeight, usable / count);
+        // 原生 Star 等分 Grid：10 张卡片按剩余高度在首帧排版时直接严格均分，
+        // 彻底消除「首帧按小高度渲染、OnSizeChanged 测出后再放大」的两阶段视觉跳变。
+        return Grid([GridSize.Star()], rows, cards)
+            .Padding(MatchListPadding);
     }
 
     private static Element RenderMatchCard(
@@ -197,7 +165,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         YuumiPalette palette,
         AppServices services,
         IReadOnlySet<long>? encounteredGameIds,
-        double cardHeight)
+        bool isLast)
     {
         string cardBg = m.Remake
             ? palette.RemakeBg
@@ -335,13 +303,14 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             ]);
 
         return Border(cardBody)
-        .Background(cardBg)
-        .WithBorder(cardBorder, 1)
-        // 旧版 `.col-match { padding: 4px 7px; border-radius: 8px }`：横向 7 让头像与右边缘
-        // 各留 7，10 列视图也沿用同一圆角（旧版没有按列数改圆角）。
-        .CornerRadius(8)
-        .Height(cardHeight)
-        .Padding(7, 4);
+            .Background(cardBg)
+            .WithBorder(cardBorder, 1)
+            // 旧版 `.col-match { padding: 4px 7px; border-radius: 8px }`：横向 7 让头像与右边缘
+            // 各留 7，10 列视图也沿用同一圆角（旧版没有按列数改圆角）。
+            .CornerRadius(8)
+            .VAlign(VerticalAlignment.Stretch)
+            .Margin(0, 0, 0, isLast ? 0 : MatchCardGap)
+            .Padding(7, 4);
     }
 
     private static (string text, string? color) FormatKdaRatio(MatchSummary m, YuumiPalette palette)

@@ -190,10 +190,10 @@ internal static class CareerVisuals
             padding: 16);
 
     /// <summary>未登录时的资料卡占位：说明原因而不是留白。</summary>
-    public static Element EmptyHeader(bool loading) =>
+    public static Element EmptyHeader() =>
         Card(
             VStack(6,
-                BodyStrong(loading ? "正在读取生涯数据…" : "未读取到当前召唤师（客户端未登录）"),
+                BodyStrong("未读取到当前召唤师（客户端未登录）"),
                 Caption("启动并登录英雄联盟客户端后，这里会显示头像、等级与排位成绩。")),
             padding: 20);
 
@@ -243,4 +243,258 @@ internal static class CareerVisuals
                 TabButton("战利品", CareerTab.Loot, current, setTab),
                 TabButton("英雄熟练度", CareerTab.Mastery, current, setTab)),
             Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch));
+
+    // ── 骨架屏（加载态的结构占位）────────────────────────────────────────
+    //
+    // 三条纪律：
+    // 1. **与真实内容同尺寸**：骨架的宽高必须等于终态，否则数据到达时仍会重排，
+    //    骨架就白做了。下面每个尺寸都对齐真实构件（见各处注释）。
+    // 2. **静态灰块，不做呼吸动画**：与战绩查询页的 `MatchCardView.Skeleton` 保持一致，
+    //    避免两页加载态观感分裂；也避免在文字附近引入动效。
+    // 3. **只占位、不交互**：骨架态的页签不可点（加载中切页签没有意义）。
+
+    /// <summary>骨架里的灰块：统一底色与圆角，尺寸由调用方给。</summary>
+    private static Element Block(double width, double height, double radius = 4) =>
+        Border(Empty())
+            .Width(width)
+            .Height(height)
+            .CornerRadius(radius)
+            .Background(Theme.SubtleFill);
+
+    /// <summary>
+    /// 资料卡骨架：对应 <see cref="CareerProfileHeader.Render"/> 的终态结构——
+    /// 104 经验环 + 名字 + Tag 两行文字，右侧两枚 28 高操作按钮；外层同样是
+    /// padding 24 的卡片。终态高 = 104 + 24×2 = 152，骨架必须同高，
+    /// 否则资料卡到位时整页会下移 152 − 实际高度。
+    /// </summary>
+    public static Element SkeletonHeader() =>
+        Border(
+            Grid(
+                [GridSize.Star(), GridSize.Auto, GridSize.Star()],
+                [GridSize.Auto],
+                [
+                    HStack(20,
+                            Block(104, 104, 52),
+                            VStack(4, Block(140, 20), Block(80, 14)))
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 1),
+                    VStack(8, Block(72, 28, YuumiTheme.OverlayRadius), Block(72, 28, YuumiTheme.OverlayRadius))
+                        .HAlign(HorizontalAlignment.Right)
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 2),
+                ]))
+            .Padding(24)
+            .CornerRadius(YuumiTheme.OverlayRadius)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1);
+
+    /// <summary>
+    /// 页签栏骨架：三个页签位 + 底部分隔线。
+    /// 页签宽度按「14px 正文字体的中文全角宽 = 字号」估算，与真实页签
+    /// （文字 + 左右 16 padding）逐个对齐，页签之间的间距因此不会跳。
+    /// </summary>
+    public static Element SkeletonTabBar() =>
+        VStack(8,
+            HStack(8,
+                SkeletonTab(56),
+                SkeletonTab(42),
+                SkeletonTab(70)),
+            Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch));
+
+    /// <summary>单个页签位：文字条 + 与真实页签相同的 padding 与高度（33）。</summary>
+    private static Element SkeletonTab(double textWidth) =>
+        Border(Block(textWidth, 14))
+            .Height(33)
+            .Padding(16, 0)
+            .CornerRadius(YuumiTheme.OverlayRadius);
+
+    /// <summary>
+    /// 战绩列表骨架：与 <c>CareerMatchRow</c> 的 82 高卡片同高、同圆角、同描边，
+    /// 列表步进沿用真实布局（VStack 间距 8 + 每项 2 的下外边距 = 行距 10）。
+    /// 数量取 8：视口只放得下几行，多铺是浪费，但也不能太少——否则骨架
+    /// 比真实列表短一截，数据到达时列表下方会「长出来」。
+    /// </summary>
+    public static Element SkeletonMatchList(int count = 8) =>
+        VStack(8, Enumerable.Range(0, count)
+            .Select(index => Border(Empty())
+                .Height(CareerMatchRow.RowHeight)
+                .CornerRadius(YuumiTheme.OverlayRadius)
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.CardStroke, 1)
+                .Margin(0, 0, 0, 2)
+                .WithKey($"career-skeleton-{index.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+            .ToArray());
+
+    /// <summary>
+    /// 排位段位表骨架：与 <see cref="RankedTableView"/> 同为 9 列等分、同高 103（三行 33 + 两条 1px 分隔线）、
+    /// padding 0 出血卡片。加载中排位数据尚未到达时占位，防止整页出现 "--" 真实空表且在数据到达时跳变。
+    /// </summary>
+    public static Element SkeletonRankedTable()
+    {
+        var columns = Enumerable.Repeat(GridSize.Star(), 9).ToArray();
+        var rows = new[] { GridSize.Auto };
+
+        Element HeaderRow() =>
+            Grid(columns, rows,
+                Enumerable.Range(0, 9).Select(i =>
+                    Block(i == 0 ? 32 : 48, 12)
+                        .HAlign(HorizontalAlignment.Center)
+                        .VAlign(VerticalAlignment.Center)
+                        .Padding(16, 6)
+                        .Grid(row: 0, column: i)
+                        .WithKey($"ranked-skel-head-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+                .ToArray())
+            .MinHeight(33);
+
+        Element DataRow(string rowKey, double firstColWidth = 56) =>
+            Grid(columns, rows,
+                Enumerable.Range(0, 9).Select(i =>
+                    Block(i == 0 ? firstColWidth : (i == 5 ? 60 : 36), 12)
+                        .HAlign(HorizontalAlignment.Center)
+                        .VAlign(VerticalAlignment.Center)
+                        .Padding(16, 6)
+                        .Grid(row: 0, column: i)
+                        .WithKey($"ranked-skel-{rowKey}-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+                .ToArray())
+            .MinHeight(33);
+
+        Element Divider() =>
+            Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch);
+
+        return Card(
+            VStack(0,
+                HeaderRow(),
+                Divider(),
+                DataRow("row1", 56),
+                Divider(),
+                DataRow("row2", 56)),
+            padding: 0);
+    }
+
+    /// <summary>
+    /// 近期对局看板骨架：与 <see cref="RecentSummaryView"/> 终态同高（50 = 32 内容 + 8×2 padding + 2 边框），
+    /// padH 16、padV 8。左侧为战绩文字/常玩位置/常用英雄头像灰块，右侧为队友按钮与下拉位。
+    /// </summary>
+    public static Element SkeletonRecentSummary() =>
+        Card(
+            Grid(
+                [GridSize.Star(), GridSize.Auto],
+                [GridSize.Auto],
+                [
+                    HStack(16,
+                        Block(160, 16),
+                        HStack(6,
+                            Block(56, 14),
+                            HStack(4, Block(48, 18, YuumiTheme.ControlRadius), Block(48, 18, YuumiTheme.ControlRadius))),
+                        HStack(4, Enumerable.Range(0, 6)
+                            .Select(i => Block(32, 32, 16).WithKey($"recent-skel-champ-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+                            .ToArray()))
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 0),
+                    HStack(8,
+                        Block(72, 28, YuumiTheme.ControlRadius),
+                        Block(140, 32, YuumiTheme.ControlRadius))
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 1),
+                ]),
+            padH: 16,
+            padV: 8);
+
+    /// <summary>
+    /// 战利品页签骨架：材料区（标题 + 4 列卡片）与库存管理区（工具栏 + 2 行 4 列卡片），
+    /// 尺寸与 <see cref="LootManagerView"/> 严格对齐。
+    /// </summary>
+    public static Element SkeletonLoot()
+    {
+        double cardWidth = GridCardWidth(4, 16);
+
+        Element materialsSection = Card(
+            VStack(16,
+                Block(140, 20),
+                HStack(CardGap, Enumerable.Range(0, 4)
+                    .Select(i => Border(Empty())
+                        .Width(cardWidth)
+                        .Height(120)
+                        .CornerRadius(YuumiTheme.OverlayRadius)
+                        .Background(Theme.SubtleFill)
+                        .WithBorder(Theme.CardStroke, 1)
+                        .WithKey($"loot-skel-mat-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+                    .ToArray())),
+            padding: 16);
+
+        Element inventorySection = Card(
+            VStack(16,
+                HStack(12, Block(280, 28), Block(180, 28)),
+                VStack(CardGap,
+                    HStack(CardGap, Enumerable.Range(0, 4)
+                        .Select(i => Border(Empty())
+                            .Width(cardWidth)
+                            .Height(130)
+                            .CornerRadius(YuumiTheme.OverlayRadius)
+                            .Background(Theme.SubtleFill)
+                            .WithBorder(Theme.CardStroke, 1)
+                            .WithKey($"loot-skel-inv-r1-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+                        .ToArray()),
+                    HStack(CardGap, Enumerable.Range(0, 4)
+                        .Select(i => Border(Empty())
+                            .Width(cardWidth)
+                            .Height(130)
+                            .CornerRadius(YuumiTheme.OverlayRadius)
+                            .Background(Theme.SubtleFill)
+                            .WithBorder(Theme.CardStroke, 1)
+                            .WithKey($"loot-skel-inv-r2-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+                        .ToArray()))),
+            padding: 16);
+
+        return VStack(16, materialsSection, inventorySection);
+    }
+
+    /// <summary>
+    /// 英雄熟练度页签骨架：顶部 4 张汇总卡片 + 工具栏卡片 + 2 行 4 列英雄卡片，
+    /// 尺寸与 <see cref="ChampionMasteryView"/> 严格对齐。
+    /// </summary>
+    public static Element SkeletonMastery()
+    {
+        double cardWidth = GridCardWidth(4, 0);
+
+        Element summaryCards = HStack(CardGap, Enumerable.Range(0, 4)
+            .Select(i => Card(
+                VStack(8, Block(80, 14), Block(120, 24), Block(90, 12)),
+                padding: 16)
+                .Width(cardWidth)
+                .Height(96)
+                .WithKey($"mastery-skel-sum-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+            .ToArray());
+
+        Element toolbar = Card(
+            HStack(12,
+                Block(180, 28),
+                Block(120, 28),
+                Block(120, 28),
+                Block(120, 28)),
+            padH: 12,
+            padV: 10);
+
+        Element heroGrid = VStack(CardGap,
+            HStack(CardGap, Enumerable.Range(0, 4)
+                .Select(i => Border(Empty())
+                    .Width(cardWidth)
+                    .Height(100)
+                    .CornerRadius(YuumiTheme.OverlayRadius)
+                    .Background(Theme.SubtleFill)
+                    .WithBorder(Theme.CardStroke, 1)
+                    .WithKey($"mastery-skel-hero-r1-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+                .ToArray()),
+            HStack(CardGap, Enumerable.Range(0, 4)
+                .Select(i => Border(Empty())
+                    .Width(cardWidth)
+                    .Height(100)
+                    .CornerRadius(YuumiTheme.OverlayRadius)
+                    .Background(Theme.SubtleFill)
+                    .WithBorder(Theme.CardStroke, 1)
+                    .WithKey($"mastery-skel-hero-r2-{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))
+                .ToArray()));
+
+        return VStack(16, summaryCards, toolbar, heroGrid);
+    }
 }

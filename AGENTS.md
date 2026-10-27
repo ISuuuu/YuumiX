@@ -228,6 +228,12 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 17. **主题覆盖：常规元素用 `.RequestedTheme(...)` 修饰符，`ContentDialog` 用 `.DialogTheme(...)`（`YuumiTheme.DialogTheme`）**：
     - 常规元素走 `.RequestedTheme(...)`（分析器 `REACTOR_THEME_003`），不用 `.Set(...)`（违反 §5.12）。
     - **`ContentDialogElement` 是唯一例外**：`MountContentDialog` 在主视觉树里只挂一个 `Visibility.Collapsed` 的占位 `StackPanel`，`Element.Modifiers`（含 `.RequestedTheme`）只会施加在该不可见占位容器上；真实 `ContentDialog` 宿主在 `XamlRoot` 的 Popup 中，`OverlayLifecycle.ShowContentDialogCore` / `UpdateContentDialog` 只向真实弹窗转发 `Setters`（`.Set(...)`），因此弹窗必须统一调 `.DialogTheme(palette.ElementTheme)`。
+18. **页面缓存必须在 `AppShell` 统一开启，页面负责清理"一次性 UI 状态"**：
+    - `NavigationCacheMode` 默认 `Disabled`，语义是「切走即卸载、切回即重建」，组件树连同全部 `UseState` 一起销毁。数据页因此每次切回都要从空态重走一遍取数链路（生涯页表现为每次闪一下「正在读取生涯数据…」）。
+    - 唯一正确做法是 `NavigationHost(...) with { CacheMode = NavigationCacheMode.Enabled, CacheSize = RouteCatalog.All.Count }`（见 `AppShell`），**不要**在页面里另开或关闭；新页面默认自动获得缓存，不需要写任何代码。
+    - 代价是组件实例常驻：**弹窗遮罩、确认框、「已复制」这类一次性 UI 状态会随 state 一起复活**。这类页面必须用 `UseNavigationLifecycle(onNavigatedFrom: ...)` 在离开时清空，委托用 `UseRef` 缓存成同一实例（否则每次渲染重注册），闭包要读的页面状态放 action ref（`??=` 只在首渲染创建一次，直接捕获 state 会永远读到初值）。
+    - 反过来，若某页需要「每次进入都重置」（如查询页清空上次结果），也要在 `onNavigatedTo` 里显式重置——缓存不会替你做这件事。
+    - 数据层缓存（`CareerService` / `MatchService` 的 TTL 与池）与页面缓存是两回事，都要有：页面缓存挡的是"状态清零"，服务缓存挡的是"重复请求"。
 
 ---
 
