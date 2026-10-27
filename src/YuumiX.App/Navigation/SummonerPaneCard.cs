@@ -67,14 +67,19 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
             .Height(AvatarSize)
             .CornerRadius(AvatarSize / 2);
 
+        var i18n = Composition.AppHost.Services?.I18n;
+        var notLoggedIn = i18n?.T("home.notConnected", "未登录召唤师") ?? "未登录召唤师";
+        var notConnected = i18n?.T("home.notConnected", "未连接客户端") ?? "未连接客户端";
+        var viewCareer = i18n?.T("career.historyBtn", "点击进入生涯") ?? "点击进入生涯";
+
         // 卡片必须显式铺满栏宽再让内容居中：PaneFooter 的 VStack 会把子项收紧到
         // 内容宽度并忽略 HorizontalAlignment，不设宽度时整个卡片缩成 32px 贴左。
         // 内容居中用 HorizontalContentAlignment——旧版收起态就是这一组合，已验证。
         Element text = profile is null
             ? VStack(
-                Body(Props.IsConnected ? "未登录召唤师" : "未连接客户端")
+                Body(Props.IsConnected ? notLoggedIn : notConnected)
                     .Foreground(Theme.PrimaryText),
-                Caption("点击进入生涯")
+                Caption(viewCareer)
                     .Foreground(Theme.SecondaryText))
             : Border(BodyStrong(profile.RiotId)
                     .Foreground(Theme.PrimaryText)

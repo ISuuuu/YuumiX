@@ -196,11 +196,18 @@ internal static class CareerVisuals
     }
 
     /// <summary>页签栏：三个页签按钮 + 底部分隔线。</summary>
-    public static Element TabBar(CareerTab current, Action<CareerTab> setTab) =>
-        VStack(8,
+    public static Element TabBar(CareerTab current, Action<CareerTab> setTab)
+    {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var matchesText = i18n?.T("career.recentMatches", "生涯战绩") ?? "生涯战绩";
+        var lootText = i18n?.T("tools.lootManager.title", "战利品") ?? "战利品";
+        var masteryText = i18n?.T("gameInfo.masteryBadge", "英雄熟练度") ?? "英雄熟练度";
+
+        return VStack(8,
             HStack(8,
-                TabButton("生涯战绩", CareerTab.Matches, current, setTab),
-                TabButton("战利品", CareerTab.Loot, current, setTab),
-                TabButton("英雄熟练度", CareerTab.Mastery, current, setTab)),
+                TabButton(matchesText, CareerTab.Matches, current, setTab),
+                TabButton(lootText, CareerTab.Loot, current, setTab),
+                TabButton(masteryText, CareerTab.Mastery, current, setTab)),
             Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch));
+    }
 }

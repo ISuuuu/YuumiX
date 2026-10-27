@@ -69,6 +69,15 @@ public sealed class SearchPage : Component<SearchPageProps>
             },
             0);
 
+        var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
         var (summonerResolved, setSummonerResolved) = UseState(false, threadSafe: true);
         var (matches, setMatches) = UseState(EmptyMatches, threadSafe: true);

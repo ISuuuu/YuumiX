@@ -34,6 +34,11 @@ internal static class LogNetworkSection
             i18n.T("settings.logLevelDesc", "写入 <exe>/log 的日志记录详细程度，修改后立即生效"),
             ComboBox(logLevelLabels, SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
             {
+                if (index < 0 || index >= LogLevelValues.Length)
+                {
+                    return;
+                }
+
                 var level = LogLevelValues[index];
                 config.General.LogLevel = level;
                 ui.Services.ApplyLogLevel(level);

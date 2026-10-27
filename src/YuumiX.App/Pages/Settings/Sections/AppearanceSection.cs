@@ -54,6 +54,11 @@ internal static class AppearanceSection
             i18n.T("settings.themeModeDesc", "浅色 / 深色 / 跟随系统主题自适应切换"),
             ComboBox(themeModeLabels, SettingsVisuals.IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
             {
+                if (index < 0 || index >= ThemeModeValues.Length)
+                {
+                    return;
+                }
+
                 config.Personalization.ThemeMode = ThemeModeValues[index];
                 ui.Theme.Apply(config.Personalization);
                 ui.Commit(nameof(PersonalizationConfig.ThemeMode));
@@ -64,6 +69,11 @@ internal static class AppearanceSection
             i18n.T("settings.dpiScaleDesc", "调整应用界面基础显示比例与窗口尺寸"),
             ComboBox(dpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
             {
+                if (index < 0 || index >= DpiScaleValues.Length)
+                {
+                    return;
+                }
+
                 var scaleValue = DpiScaleValues[index];
                 var scaleLabel = dpiScaleLabels[index];
                 config.Personalization.DpiScale = scaleValue;
@@ -88,6 +98,11 @@ internal static class AppearanceSection
             i18n.T("settings.langDesc", "选择应用界面显示语言"),
             ComboBox(languageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
             {
+                if (index < 0 || index >= LanguageValues.Length)
+                {
+                    return;
+                }
+
                 var lang = LanguageValues[index];
                 config.Personalization.Language = lang;
                 ui.Commit(nameof(PersonalizationConfig.Language));

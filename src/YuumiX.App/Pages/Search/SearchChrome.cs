@@ -68,11 +68,16 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
         var openOnPointerPressed = UseRef<PointerEventHandler?>(null);
         openOnPointerPressed.Current ??= (sender, _) => OpenListIfHasItems(sender);
 
+        var i18n = Composition.AppHost.Services?.I18n;
+        var searchPlaceholder = i18n?.T("search.searchPlaceholder", "输入召唤师名称进行搜索…") ?? "输入召唤师名称进行搜索…";
+        var searchBtnText = i18n?.T("nav.search", "查询") ?? "查询";
+        var careerBtnText = i18n?.T("nav.career", "生涯") ?? "生涯";
+
         Element searchBox = AutoSuggestBox(
                 p.Query,
                 p.OnQueryChanged,
                 _ => p.OnSearch())
-            .PlaceholderText("输入召唤师名称进行搜索…")
+            .PlaceholderText(searchPlaceholder)
             .AutomationName("召唤师名称搜索")
             .SuggestionChosen(chosen =>
             {
@@ -113,8 +118,8 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             [GridSize.Auto],
             [
                 searchBox.Grid(row: 0, column: 0),
-                Button("查询", p.OnSearch).IsEnabled(!p.Searching).Grid(row: 0, column: 1),
-                Button("生涯", p.OnCareer).IsEnabled(p.HasSummoner).AutomationName("跳转生涯").Grid(row: 0, column: 2),
+                Button(searchBtnText, p.OnSearch).IsEnabled(!p.Searching).AutomationName("召唤师查询").Grid(row: 0, column: 1),
+                Button(careerBtnText, p.OnCareer).IsEnabled(p.HasSummoner).AutomationName("跳转生涯").Grid(row: 0, column: 2),
                 ComboBox(p.FilterLabels, p.FilterIndex, p.OnFilterChanged)
                     .AutomationName("队列筛选")
                     .Width(130)
