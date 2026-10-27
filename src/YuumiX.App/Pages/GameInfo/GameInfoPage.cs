@@ -100,6 +100,35 @@ public sealed class GameInfoPage : Component
             },
             0);
 
+        // 窗口宽度（DIP）。旧版 `.game-layout` 在 `@media (max-width: 1100px)` 时把
+        // 「250px + 1fr」两列改成上下堆叠（上 34vh / 下 1fr）；不还原这条规则的话，
+        // 窗口缩窄后右侧 5 列会被压到每列 100 出头，卡片内文字全部挤压换行。
+        //
+        // 必须订阅**窗口**级 SizeChanged，而不是页面元素的 OnSizeChanged：
+        // 5 列/10 列视图来回切换时页面元素会被池复用，元素级事件在复用路径上不再触发，
+        // 断点会停留在「上一次非复用渲染」时的宽度，缩窗后仍按宽屏排版。
+        // 顺带断点口径也回到旧版原值 1100（窗口宽度，不是内容区宽度）。
+        var window = UseWindow();
+        var (windowWidth, setWindowWidth) = UseState(0.0, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                if (window is null)
+                {
+                    return static () => { };
+                }
+
+                void OnWindowSizeChanged(object? sender, WindowDipSizeChangedEventArgs args) =>
+                    setWindowWidth(args.Size.Item1);
+
+                // 初值取客户区宽（物理像素 ÷ DIP 缩放），避免「首次进入页面时窗口已经是窄的」
+                // 要等一次尺寸变化才切堆叠。
+                setWindowWidth(window.AppWindow.ClientSize.Width / window.DipScale);
+                window.SizeChanged += OnWindowSizeChanged;
+                return () => window.SizeChanged -= OnWindowSizeChanged;
+            },
+            0);
+
         // 1. LCU 未连接：与生涯、战绩查询共用同一张离线占位，
         //    「预览演示对局」不依赖客户端，作为附加动作保留（旧系统此处没有该按钮）。
         //
@@ -140,26 +169,11 @@ public sealed class GameInfoPage : Component
         }
 
         // 6. 正常对局渲染
-        Element content = state.ViewColumns == 10
+        //    演示态只影响数据来源，不再额外加顶部提示条：提示条会占掉 40 DIP 的页面高度，
+        //    把右栏战绩区压短一截。演示数据本身已经在按钮文案与点击行为上可辨识。
+        return state.ViewColumns == 10
             ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch)
-            : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch);
-
-        if (!state.IsDemoData)
-        {
-            return content;
-        }
-
-        // 演示数据：顶部明示，避免用户以为示例召唤师可以查到真实战绩
-        return Grid(
-            [GridSize.Star()],
-            [GridSize.Auto, GridSize.Star()],
-            [
-                InfoBar("演示数据", "以上十位召唤师为示例，点击不会跳转生涯与战绩查询")
-                    .Informational()
-                    .Margin(8, 8, 8, 0)
-                    .Grid(row: 0),
-                content.Grid(row: 1),
-            ]);
+            : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch, windowWidth);
     }
 
     /// <summary>
@@ -204,7 +218,8 @@ public sealed class GameInfoPage : Component
         YuumiPalette palette,
         AppServices services,
         Action<string, SummonerProfile?> onNavigateCareer,
-        Action<string, string?> onNavigateSearch)
+        Action<string, string?> onNavigateSearch,
+        double windowWidth)
     {
         bool isMyTab = state.ActiveTab == "my";
         var currentTeam = isMyTab ? state.MyTeam : state.TheirTeam;
@@ -262,19 +277,44 @@ public sealed class GameInfoPage : Component
                 .WithKey(p.Puuid ?? idx.ToString());
         }).ToArray();
 
-        // 5 张卡片垂直均分面板高度：原先按内容高度堆叠，卡片总高小于面板时下方留白；
-        // 改为 Grid 等分行后每张卡片铺满一格（空队时占位，不建 0 行 Grid）。
-        int cardCount = Math.Max(1, cards.Length);
-        var cardRowDefs = Enumerable.Range(0, cardCount).Select(_ => GridSize.Star()).ToArray();
+        // 旧版 `.player-list` 是 flex column + `gap: 8px`；本版要求 5 张卡**等高铺满**整列
+        // （卡片高度 = 面板可用高 / 5），不能按内容高度堆叠——那样底部会留一大块空白。
+        // 做法是 Grid 的 Star 行等分：每行权重相同，卡片随面板高度伸缩。
+        //
+        // 窄窗改上下堆叠后左面板只剩 34% 高度，5 等分会把卡片压到 30 出头、内容全部溢出，
+        // 这种情形改回内容堆叠 + 滚动（与旧版 `.player-list { overflow-y: auto }` 一致）。
+        const double StackBreakpoint = 1100;
+        bool stacked = windowWidth > 0 && windowWidth < StackBreakpoint;
 
-        Element cardsPanel = cards.Length == 0
-            ? Border(Empty())
-            : Grid([GridSize.Star()], cardRowDefs, cards.Select((c, i) => c.Margin(0, 0, 0, CardGap).Grid(row: i, column: 0).WithKey(i.ToString())).ToArray());
-        // 卡片下间距形成缝隙；外层底部内边距取 0，与卡片下间距相加后顶/中/底间距一致
-        //（旧版 `.player-list` padding 10×8 + gap 8：纵向 10 取 8，落在 4px 网格上）
-        cardsPanel = cardsPanel.Padding(CardGap, CardGap, CardGap, 0);
+        Element cardsPanel;
+        if (cards.Length == 0)
+        {
+            cardsPanel = Border(Empty());
+        }
+        else if (stacked)
+        {
+            // 只在堆叠态挂 ScrollViewer：宽屏交给外层 Grid 直接排版，卡片文本能按父宽触发省略号；
+            // 一旦包住 ScrollViewer，子元素在测量阶段会拿到无限宽度，省略号失效、文字溢出后被裁成半截。
+            cardsPanel = ScrollViewer(VStack(CardGap, cards).VAlign(VerticalAlignment.Top))
+                .HorizontalScrollMode(Microsoft.UI.Xaml.Controls.ScrollMode.Disabled)
+                // 旧版 `.player-list` padding 10×8：纵向 10 取 8（4px 网格），横向照抄 8。
+                .Padding(CardGap, CardGap, CardGap, CardGap);
+        }
+        else
+        {
+            var cardRows = Enumerable.Range(0, cards.Length).Select(_ => GridSize.Star()).ToArray();
+            cardsPanel = Grid(
+                [GridSize.Star()],
+                cardRows,
+                cards.Select((c, i) => c
+                    .Margin(0, 0, 0, CardGap)
+                    .Grid(row: i, column: 0)
+                    .WithKey(i.ToString())).ToArray())
+                // 卡片自带下间距形成缝隙，所以外层底部内边距取 0，顶/中/底三处间距才一致。
+                .Padding(CardGap, CardGap, CardGap, 0);
+        }
 
-        var leftPanel = Border(
+        Element leftPanelBase = Border(
             Grid(
                 [GridSize.Star()],
                 [GridSize.Auto, GridSize.Star()],
@@ -284,10 +324,13 @@ public sealed class GameInfoPage : Component
                 ]
             )
         )
-        .Width(250)
         .Background(Theme.CardBackground)
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(YuumiTheme.OverlayRadius);
+
+        // 宽屏固定 250（旧版 `.game-layout { grid-template-columns: 250px 1fr }`）；
+        // 堆叠态旧版是单列 1fr，面板撑满整行，不能再用 250 的固定宽度（否则会缩成窄条居中）。
+        const double LeftPanelWidth = 250;
 
         // 右侧工具栏：• 友方 (N) + 组队芯片 + VS + 组队芯片 + • 敌方 (N) + 视图切换器
         bool mySideIsBlue = state.MapSide != "red";
@@ -388,18 +431,28 @@ public sealed class GameInfoPage : Component
         .WithBorder(Theme.CardStroke, 1)
         .CornerRadius(YuumiTheme.OverlayRadius);
 
-        return Grid(
-            [GridSize.Auto, GridSize.Star()],
-            [GridSize.Star()],
-            [
-                // 旧版 `.game-layout` 的列间距是 16（不是 12）
-                leftPanel.Grid(row: 0, column: 0).Margin(0, 0, 16, 0),
-                rightPanel.Grid(row: 0, column: 1),
-            ]
-        )
+        // 旧版 `.game-layout`：宽屏是「250 + 1fr」两列（列间距 16）；
+        // 窗口窄于 StackBreakpoint 时改成上下堆叠，行高 34% / 66%（旧版 minmax(180px,34vh) 1fr）。
+        Element layout = stacked
+            ? Grid(
+                [GridSize.Star()],
+                [GridSize.Star(34), GridSize.Star(66)],
+                [
+                    leftPanelBase.Grid(row: 0),
+                    rightPanel.Grid(row: 1).Margin(0, 12, 0, 0),
+                ])
+            : Grid(
+                [GridSize.Auto, GridSize.Star()],
+                [GridSize.Star()],
+                [
+                    // 旧版 `.game-layout` 的列间距是 16（不是 12）
+                    leftPanelBase.Width(LeftPanelWidth).Grid(row: 0, column: 0).Margin(0, 0, 16, 0),
+                    rightPanel.Grid(row: 0, column: 1),
+                ]);
+
         // 旧版 `.game-info` padding 16/24/16/9.6（上右下左）；9.6 取 8，
         // 旧的统一 8 会让两侧面板直接贴到标题栏与窗口边缘。
-        .Padding(8, 16, 24, 16);
+        return layout.Padding(8, 16, 24, 16);
     }
 
     private Element RenderTenColumnView(
