@@ -55,16 +55,18 @@ internal static class RankedTableView
 
     public static Element Render(RankedStats stats, YuumiPalette palette)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
+
         Element header = HStack(0,
-            HeaderCell("类型", ColTypeWidth),
-            HeaderCell("总场次", ColGamesWidth),
-            HeaderCell("胜率", ColWinRateWidth),
-            HeaderCell("胜场", ColWinsWidth),
-            HeaderCell("负场", ColLossesWidth),
-            HeaderCell("段位", ColTierWidth),
-            HeaderCell("胜点", ColLpWidth),
-            HeaderCell("赛季最高", ColHighestWidth),
-            HeaderCell("上赛季结算", ColPreviousWidth))
+            HeaderCell(i18n?.T("career.type", "类型") ?? "类型", ColTypeWidth),
+            HeaderCell(i18n?.T("career.totalGames", "总场次") ?? "总场次", ColGamesWidth),
+            HeaderCell(i18n?.T("career.winRate", "胜率") ?? "胜率", ColWinRateWidth),
+            HeaderCell(i18n?.T("career.winsLabel", "胜场") ?? "胜场", ColWinsWidth),
+            HeaderCell(i18n?.T("career.lossesLabel", "负场") ?? "负场", ColLossesWidth),
+            HeaderCell(i18n?.T("career.tier", "段位") ?? "段位", ColTierWidth),
+            HeaderCell(i18n?.T("career.lp", "胜点") ?? "胜点", ColLpWidth),
+            HeaderCell(i18n?.T("career.highest", "赛季最高") ?? "赛季最高", ColHighestWidth),
+            HeaderCell(i18n?.T("career.prevSeason", "上赛季结算") ?? "上赛季结算", ColPreviousWidth))
             .Padding(12, 8);
 
         return CareerVisuals.Card(

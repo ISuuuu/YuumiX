@@ -262,7 +262,12 @@
     "wegameAdded": "WeGame launcher added",
     "signalrStatus": "SignalR Status",
     "signalrStatusDesc": "LCU real-time remote query status",
-    "signalrFailed": "Connection Failed"
+    "signalrFailed": "Connection Failed",
+    "winCardDesc": "Background color for win match card",
+    "loseCardDesc": "Background color for loss match card",
+    "remakeCardDesc": "Background color for remake match card",
+    "lightDeathDesc": "Death numbers color in light theme",
+    "darkDeathDesc": "Death numbers color in dark theme"
   },
   "regions": {
     "HN1": "Ionia",

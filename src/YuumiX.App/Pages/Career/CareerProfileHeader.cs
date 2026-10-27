@@ -74,6 +74,12 @@ internal static class CareerProfileHeader
                     ? summoner.RiotId.Split('#')[0]
                     : summoner.RiotId));
 
+        var i18n = Composition.AppHost.Services?.I18n;
+        var copiedText = i18n?.T("career.copied", "✓ 已复制") ?? "✓ 已复制";
+        var backToMeText = i18n?.T("career.backToMe", "返回我的生涯") ?? "返回我的生涯";
+        var refreshText = i18n?.T("career.refresh", "刷新") ?? "刷新";
+        var historyBtnText = i18n?.T("career.historyBtn", "历史战绩") ?? "历史战绩";
+
         // 复制按钮 / 已复制提示
         Element copySlot = HStack(6,
             Button(
@@ -87,7 +93,7 @@ internal static class CareerProfileHeader
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .AutomationName("复制 Riot ID"),
             copied
-                ? Caption("✓ 已复制")
+                ? Caption(copiedText)
                     .Foreground(CareerVisuals.WinText)
                     .VAlign(VerticalAlignment.Center)
                 : Empty());
@@ -121,20 +127,20 @@ internal static class CareerProfileHeader
         var actionButtons = new List<Element>();
         if (isViewingOther && onBackToSelf is not null)
         {
-            actionButtons.Add(Button(Caption("返回我的生涯"), onBackToSelf)
+            actionButtons.Add(Button(Caption(backToMeText), onBackToSelf)
                 .Width(ActionWidth)
                 .Height(30)
                 .CornerRadius(YuumiTheme.OverlayRadius)
-                .AutomationName("返回我的生涯"));
+                .AutomationName(backToMeText));
         }
 
-        actionButtons.Add(Button(Caption("刷新"), onRefresh)
-            .AutomationName("刷新")
+        actionButtons.Add(Button(Caption(refreshText), onRefresh)
+            .AutomationName(refreshText)
             .Width(ActionWidth)
             .Height(30)
             .CornerRadius(YuumiTheme.OverlayRadius));
-        actionButtons.Add(Button(Caption("历史战绩"), onHistory)
-            .AutomationName("历史战绩")
+        actionButtons.Add(Button(Caption(historyBtnText), onHistory)
+            .AutomationName(historyBtnText)
             .Width(ActionWidth)
             .Height(30)
             .CornerRadius(YuumiTheme.OverlayRadius));

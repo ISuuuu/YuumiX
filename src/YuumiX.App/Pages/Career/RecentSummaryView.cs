@@ -105,10 +105,13 @@ internal static class RecentSummaryView
             .VAlign(VerticalAlignment.Center);
 
         // 右侧操作：最近队友按钮（带弹层） + 队列下拉
-        Element teammatesButton = Button(Caption("最近队友"), () => onRecentTeammates?.Invoke())
+        var i18n = Composition.AppHost.Services?.I18n;
+        var teammatesBtnText = i18n?.T("career.recentTeammates", "最近队友") ?? "最近队友";
+
+        Element teammatesButton = Button(Caption(teammatesBtnText), () => onRecentTeammates?.Invoke())
             .Height(30)
             .Padding(8, 0)
-            .AutomationName("最近队友");
+            .AutomationName(teammatesBtnText);
 
         Element flyoutButton = Flyout(
             teammatesButton,

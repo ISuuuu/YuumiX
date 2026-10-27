@@ -200,7 +200,7 @@ internal static class AppearanceSection
                         ColorEditor(
                             ui, requestColorCommit,
                             i18n.T("settings.winCard", "胜利卡片"),
-                            "战绩列表里胜利一方的底色（含透明度）",
+                            i18n.T("settings.winCardDesc", "战绩列表里胜利一方的底色（含透明度）"),
                             ui.Config.Personalization.WinCardColor,
                             withAlpha: true,
                             c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
@@ -210,7 +210,7 @@ internal static class AppearanceSection
                         ColorEditor(
                             ui, requestColorCommit,
                             i18n.T("settings.loseCard", "失败卡片"),
-                            "失败一方的底色（含透明度）",
+                            i18n.T("settings.loseCardDesc", "失败一方的底色（含透明度）"),
                             ui.Config.Personalization.LoseCardColor,
                             withAlpha: true,
                             c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
@@ -220,7 +220,7 @@ internal static class AppearanceSection
                         ColorEditor(
                             ui, requestColorCommit,
                             i18n.T("settings.remakeCard", "重开卡片"),
-                            "重赛一方的底色（含透明度）",
+                            i18n.T("settings.remakeCardDesc", "重赛一方的底色（含透明度）"),
                             ui.Config.Personalization.RemakeCardColor,
                             withAlpha: true,
                             c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
@@ -245,7 +245,7 @@ internal static class AppearanceSection
         var i18n = ui.Services.I18n;
         return SettingsCardKit.Expander(
             i18n.T("settings.deathColorTitle", "死亡数字配色"),
-            "战绩列表与详情中死亡数字的颜色",
+            i18n.T("settings.deathColorDesc", "战绩列表与详情中死亡数字的颜色"),
             SettingsStatus.Custom,
             headerControl: null,
             innerContent: VStack(16,
@@ -256,7 +256,7 @@ internal static class AppearanceSection
                         ColorEditor(
                             ui, requestColorCommit,
                             i18n.T("settings.lightMode", "浅色主题"),
-                            "浅色主题下每局死亡数的颜色",
+                            i18n.T("settings.lightDeathDesc", "浅色主题下每局死亡数的颜色"),
                             ui.Config.Personalization.LightDeathsNumberColor,
                             withAlpha: false,
                             c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),
@@ -266,7 +266,7 @@ internal static class AppearanceSection
                         ColorEditor(
                             ui, requestColorCommit,
                             i18n.T("settings.darkMode", "深色主题"),
-                            "深色主题下每局死亡数的颜色",
+                            i18n.T("settings.darkDeathDesc", "深色主题下每局死亡数的颜色"),
                             ui.Config.Personalization.DarkDeathsNumberColor,
                             withAlpha: false,
                             c => ColorHex.ToArgb(0xFF, c.R, c.G, c.B),

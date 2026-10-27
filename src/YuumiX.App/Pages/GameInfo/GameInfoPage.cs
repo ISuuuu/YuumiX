@@ -157,12 +157,16 @@ public sealed class GameInfoPage : Component
     /// 「预览演示对局」：读的是内置假数据，不经过 LCU，因此离线态与等待对局态都能用。
     /// 抽成独立构件是因为离线态改由 <see cref="LcuOfflineState"/> 承载，两处需要同一个按钮。
     /// </summary>
-    private static Element DemoButton(Action onDemoClick) =>
-        Button(Caption("预览演示对局"), onDemoClick)
-            .AutomationName("预览演示对局")
+    private static Element DemoButton(Action onDemoClick)
+    {
+        var i18n = AppHost.Services?.I18n;
+        var text = i18n?.T("gameInfo.previewDemo", "预览演示对局") ?? "预览演示对局";
+        return Button(Caption(text), onDemoClick)
+            .AutomationName(text)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Margin(0, 12, 0, 0)
             .HAlign(HorizontalAlignment.Center);
+    }
 
     private static Element RenderPlaceholder(string title, string subtitle, YuumiPalette palette, Element? extra = null)
     {
@@ -610,13 +614,16 @@ public sealed class GameInfoPage : Component
     private static Element RenderSegmentedControl(int currentColumns, Action<int> onSelect, YuumiPalette palette)
     {
         bool isFive = currentColumns == 5;
+        var i18n = AppHost.Services?.I18n;
+        var showTeamText = i18n?.T("gameInfo.showTeam", "按队伍") ?? "按队伍";
+        var showAllText = i18n?.T("gameInfo.showAll", "全部战绩") ?? "全部战绩";
 
         var teamContent = HStack(4,
             Caption(Icons.People)
                 .FontFamily(Icons.FontFamily)
                 .Foreground(isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
-            Caption("按队伍")
+            Caption(showTeamText)
                 .Foreground(isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
         );
@@ -635,7 +642,7 @@ public sealed class GameInfoPage : Component
                 .FontFamily(Icons.FontFamily)
                 .Foreground(!isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center),
-            Caption("全部战绩")
+            Caption(showAllText)
                 .Foreground(!isFive ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
         );

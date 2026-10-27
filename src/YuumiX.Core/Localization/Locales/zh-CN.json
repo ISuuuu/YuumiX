@@ -262,7 +262,12 @@
     "wegameAdded": "已添加 WeGame 启动项",
     "signalrStatus": "SignalR 连接状态",
     "signalrStatusDesc": "LCU 实时远程查询通道状态",
-    "signalrFailed": "连接失败"
+    "signalrFailed": "连接失败",
+    "winCardDesc": "战绩列表里胜利一方的底色（含透明度）",
+    "loseCardDesc": "失败一方的底色（含透明度）",
+    "remakeCardDesc": "重赛一方的底色（含透明度）",
+    "lightDeathDesc": "浅色主题下每局死亡数的颜色",
+    "darkDeathDesc": "深色主题下每局死亡数的颜色"
   },
   "regions": {
     "HN1": "艾欧尼亚",
