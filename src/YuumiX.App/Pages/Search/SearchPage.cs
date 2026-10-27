@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
@@ -77,6 +78,19 @@ public sealed class SearchPage : Component<SearchPageProps>
                 return () => subscription.Dispose();
             },
             0);
+
+        var langRef = UseRef(lang);
+        langRef.Current = lang;
+        var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
+        navigatedToRef.Current ??= _ =>
+        {
+            var curLang = services.I18n.CurrentLanguage;
+            if (langRef.Current != curLang)
+            {
+                setLang(curLang);
+            }
+        };
+        UseNavigationLifecycle(onNavigatedTo: navigatedToRef.Current);
 
         var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
         var (summonerResolved, setSummonerResolved) = UseState(false, threadSafe: true);
@@ -243,13 +257,14 @@ public sealed class SearchPage : Component<SearchPageProps>
                 setHasMore),
             historyKey);
 
-        // 筛选：结果按（源列表, 筛选序号）UseMemo 缓存引用——
+        // 筛选：结果按（源列表, 语言, 筛选序号）UseMemo 缓存引用——
         // 卡片元素按"列表引用"判等，每帧新数组会让卡片反复重建（改造前踩过的渲染自激）。
-        string[] filterLabels = UseMemo(() => SearchFilters.BuildLabels(matches), matches);
+        string[] filterLabels = UseMemo(() => SearchFilters.BuildLabels(matches), matches, lang);
         int effectiveFilter = filterIndex < filterLabels.Length ? filterIndex : 0;
         IReadOnlyList<MatchSummary> visible = UseMemo(
             () => SearchFilters.Apply(matches, filterLabels, effectiveFilter),
             matches,
+            filterLabels,
             effectiveFilter);
 
         int index = 0;

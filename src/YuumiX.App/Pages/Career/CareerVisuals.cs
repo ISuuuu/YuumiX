@@ -115,8 +115,12 @@ internal static class CareerVisuals
     }
 
     /// <summary>分路文案（与战绩列表共用同一套简写，避免两处各写一份）。</summary>
-    public static string PositionText(MatchPosition? position) =>
-        Search.SearchVisuals.PositionText(position) ?? "未知分路";
+    public static string PositionText(MatchPosition? position)
+    {
+        var i18n = Composition.AppHost.Services?.I18n;
+        return Search.SearchVisuals.PositionText(position)
+            ?? (i18n?.T("career.posUnknown", "未知分路") ?? "未知分路");
+    }
 
     /// <summary>卡片外框：生涯页所有区块共用的圆角、底色与描边。</summary>
     public static Element Card(Element content, double padding = 16) =>

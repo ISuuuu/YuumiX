@@ -65,6 +65,12 @@ public sealed class I18nService
     private string _configuredLanguage = SupportedLanguages.Auto;
     private string _effectiveLanguage = SupportedLanguages.ZhCn;
 
+    /// <summary>
+    /// 全局静态当前实例，便于纯领域模型与值对象在无 DI 上下文时获取翻译。
+    /// 由应用宿主在启动初始化时设置。
+    /// </summary>
+    public static I18nService? Current { get; set; }
+
     public I18nService(string initialLanguage = SupportedLanguages.Auto, ILogger<I18nService>? logger = null)
     {
         _logger = logger;
@@ -140,6 +146,8 @@ public sealed class I18nService
         return fallback ?? key;
     }
 
+    private static CultureInfo? _systemCulture;
+
     /// <summary>
     /// 将配置的语言设置解析为实际语言（Auto 根据系统 Culture 解析）。
     /// </summary>
@@ -151,7 +159,7 @@ public sealed class I18nService
             return normalized;
         }
 
-        culture ??= CultureInfo.CurrentUICulture;
+        culture ??= _systemCulture ??= (CultureInfo.InstalledUICulture ?? CultureInfo.CurrentUICulture);
         var name = culture.Name;
 
         if (name.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
@@ -175,6 +183,14 @@ public sealed class I18nService
 
         // 其它语言默认回退至简体中文（对齐原版应用行为）
         return SupportedLanguages.ZhCn;
+    }
+
+    /// <summary>
+    /// 重置缓存的文化信息（在系统或用户文化设置复位时调用）。
+    /// </summary>
+    public static void ResetCultureCache()
+    {
+        _systemCulture = null;
     }
 
     private void LoadEmbeddedLocales()

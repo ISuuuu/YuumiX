@@ -493,13 +493,22 @@ public sealed class AppShell : Component
             },
             summonerPollKey);
 
-        // 订阅语言变更以刷新侧边栏标签与标题栏
+        // 订阅语言变更以刷新侧边栏标签与标题栏，并在语言变化时重置页面栈以丢弃旧语言缓存的页面实例
         var i18n = services.I18n;
         var (currentLang, setCurrentLang) = UseState(i18n.CurrentLanguage);
+        var lastLangRef = UseRef(currentLang);
         UseEffect(
             () =>
             {
-                var subscription = i18n.CurrentLanguageChanged.Subscribe(setCurrentLang);
+                var subscription = i18n.CurrentLanguageChanged.Subscribe(lang =>
+                {
+                    setCurrentLang(lang);
+                    if (lastLangRef.Current != lang)
+                    {
+                        lastLangRef.Current = lang;
+                        nav.Reset(nav.CurrentRoute);
+                    }
+                });
                 return () => subscription.Dispose();
             },
             0);

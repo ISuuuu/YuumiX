@@ -31,14 +31,17 @@ internal static class RecentSummaryView
         bool loadingTeammates = false,
         Action<RecentTeammate>? onClickTeammate = null)
     {
+        var i18n = Composition.AppHost.Services?.I18n;
         if (summary.IsEmpty)
         {
+            var emptyRecent = i18n?.T("career.emptyRecent", "最近没有可统计的对局（重开局不计入统计）。")
+                ?? "最近没有可统计的对局（重开局不计入统计）。";
             return CareerVisuals.Card(
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        Caption("最近没有可统计的对局（重开局不计入统计）。")
+                        Caption(emptyRecent)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(row: 0, column: 0),
                         ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
@@ -52,12 +55,18 @@ internal static class RecentSummaryView
         }
 
         // 左侧 1：近期战绩与 KDA 概览
+        var recentTitleTemplate = i18n?.T("career.recentGamesTitle", "近期对局（最近 {count} 场）")
+            ?? "近期对局（最近 {count} 场）";
+        var recentTitle = recentTitleTemplate.Replace("{count}", summary.Games.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var winPrefix = (i18n?.T("career.win", "胜") ?? "胜") + ":";
+        var losePrefix = (i18n?.T("career.lose", "负") ?? "负") + ":";
+
         Element statsCol = HStack(8,
-            Caption($"近期对局（最近 {summary.Games} 场）")
+            Caption(recentTitle)
                 .Foreground(Theme.PrimaryText)
                 .VAlign(VerticalAlignment.Center),
-            CareerVisuals.Stat("胜:", summary.Wins.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.WinText),
-            CareerVisuals.Stat("负:", summary.Losses.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.LoseText),
+            CareerVisuals.Stat(winPrefix, summary.Wins.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.WinText),
+            CareerVisuals.Stat(losePrefix, summary.Losses.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.LoseText),
             KdaStat(summary));
 
         var leftItems = new List<Element> { statsCol };
@@ -65,8 +74,12 @@ internal static class RecentSummaryView
         // 左侧 2：常玩位置
         if (summary.PositionGames > 0)
         {
+            var positionsLabel = (i18n?.T("career.positions", "常玩位置") ?? "常玩位置") + ":";
+            var positionsDistTitle = i18n?.T("career.positionsDist", "常玩位置分布") ?? "常玩位置分布";
+            var gamesCountTemplate = i18n?.T("career.gamesCount", "{count} 场") ?? "{count} 场";
+
             Element positionsContainer = HStack(6,
-                Caption("常玩位置:")
+                Caption(positionsLabel)
                     .Foreground(Theme.SecondaryText)
                     .VAlign(VerticalAlignment.Center),
                 HStack(4, summary.Positions
@@ -77,12 +90,12 @@ internal static class RecentSummaryView
 
             leftItems.Add(positionsContainer.WithToolTip(
                 VStack(4,
-                    Caption("常玩位置分布"),
+                    Caption(positionsDistTitle),
                     VStack(2, summary.Positions.Select(pos =>
                         HStack(8,
                             Caption(CareerVisuals.PositionText(pos.Position))
                                 .Width(40),
-                            Caption($"{pos.Games} 场")
+                            Caption(gamesCountTemplate.Replace("{count}", pos.Games.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                                 .Foreground(Theme.SecondaryText)
                                 .Width(40),
                             Caption($"{pos.Percentage}%")
@@ -106,7 +119,6 @@ internal static class RecentSummaryView
             .VAlign(VerticalAlignment.Center);
 
         // 右侧操作：最近队友按钮（带弹层） + 队列下拉
-        var i18n = Composition.AppHost.Services?.I18n;
         var teammatesBtnText = i18n?.T("career.recentTeammates", "最近队友") ?? "最近队友";
 
         Element teammatesButton = Button(Caption(teammatesBtnText), () => onRecentTeammates?.Invoke())

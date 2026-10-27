@@ -41,7 +41,8 @@ internal static class CareerMatchesSection
         Action<int> onFilterChanged,
         Action onRecentTeammates,
         Action<RecentTeammate> onClickTeammate,
-        Action<MatchSummary> onOpenMatchInSearch)
+        Action<MatchSummary> onOpenMatchInSearch,
+        string? lang = null)
     {
         // 旧版：排位表与近期看板各有 1rem（16）的下外边距。
         // 战绩卡片列表的步进是 92 = 卡片 82 + 行距 10（MatchHistoryTab.vue 的 VIRTUAL_ITEM_HEIGHT），
@@ -70,10 +71,15 @@ internal static class CareerMatchesSection
                     loadingTeammates: loadingTeammates,
                     onClickTeammate: onClickTeammate));
 
+        var i18n = Composition.AppHost.Services?.I18n;
+        var emptyText = filter == 0
+            ? (i18n?.T("career.emptyMatches", "没有可显示的对局（客户端未连接，或该账号近期没有对局）") ?? "没有可显示的对局（客户端未连接，或该账号近期没有对局）")
+            : (i18n?.T("career.emptyQueueMatches", "该队列下没有近期对局") ?? "该队列下没有近期对局");
+
         Element list = visibleMatches.Count > 0
             ? VStack(StackGap, visibleMatches
                     .Select(match => Component<CareerMatchRow, CareerMatchRowProps>(
-                        new CareerMatchRowProps(match, catalog, palette, () => onOpenMatchInSearch(match)))
+                        new CareerMatchRowProps(match, catalog, palette, () => onOpenMatchInSearch(match), lang))
                         .Margin(0, 0, 0, MatchRowGap - StackGap)
                         .WithKey(match.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                     .ToArray())
@@ -81,9 +87,7 @@ internal static class CareerMatchesSection
                 // 骨架态：与真实卡片同高（82）同圆角同描边，数据到达时整列不跳。
                 ? CareerVisuals.SkeletonMatchList()
                 : CareerVisuals.Card(
-                    Caption(filter == 0
-                        ? "没有可显示的对局（客户端未连接，或该账号近期没有对局）"
-                        : "该队列下没有近期对局"),
+                    Caption(emptyText),
                     padding: 16);
 
         return new MatchesParts(header, list);

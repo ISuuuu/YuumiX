@@ -14,7 +14,8 @@ public sealed record CareerMatchRowProps(
     MatchSummary Summary,
     GameDataCatalog Catalog,
     YuumiPalette Palette,
-    Action? OnSelect = null);
+    Action? OnSelect = null,
+    string? Language = null);
 
 /// <summary>
 /// 生涯页的全宽单条对局卡片，对应原 <c>MatchCard.vue</c>：
@@ -85,11 +86,22 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             items[slot] = Search.SearchVisuals.ItemIcon(catalog, itemId, ItemSize);
         }
 
+        var i18n = Composition.AppHost.Services?.I18n;
+        var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+
         // 结果列：TFT 名次（Placement 非空显示「第 N 名」，第 1 金色、≤4 胜利色、>4 失败色）优先于胜负。
         // 重开局沿用次要文字色（ThemeRef），其余走具体色值——两种形态分别调用 Foreground。
-        string resultText = summary.Placement is { } placement
-            ? $"第 {placement} 名"
-            : Search.SearchVisuals.ResultText(summary);
+        string resultText;
+        if (summary.Placement is { } placement)
+        {
+            var template = i18n?.T("career.placement", "第 {placement} 名") ?? "第 {placement} 名";
+            resultText = template.Replace("{placement}", placement.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            resultText = Search.SearchVisuals.ResultText(summary);
+        }
+
         string? resultColor = summary.Remake
             ? null
             : summary.Placement is { } rank
@@ -147,13 +159,14 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 .VAlign(VerticalAlignment.Center);
 
         // 结果与模式列
+        var queueName = Search.SearchFilters.TranslateQueueLabel(summary.QueueName, isEn);
         Element result = VStack(2,
                 HStack(4,
                     resultTextBlock,
                     Caption(Search.SearchVisuals.PositionText(summary.Position) ?? string.Empty)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)),
-                Caption(summary.QueueName).Foreground(Theme.SecondaryText),
+                Caption(queueName).Foreground(Theme.SecondaryText),
                 Caption(summary.DurationText).Foreground(Theme.SecondaryText))
             .Width(ResultWidth)
             .VAlign(VerticalAlignment.Center);
@@ -181,9 +194,12 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         // 补刀列
         double minutes = Math.Max(summary.DurationSeconds / 60.0, 1.0);
         double csPerMin = summary.CreepScore / minutes;
+        var csUnit = i18n?.T("career.creepScoreUnit", " 刀") ?? " 刀";
+        var csPerMinFormat = i18n?.T("career.creepScorePerMin", "({cs}/分)") ?? "({cs}/分)";
+        var csPerMinText = csPerMinFormat.Replace("{cs}", csPerMin.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
         Element cs = VStack(2,
-                Caption($"{summary.CreepScore} 刀"),
-                Caption($"({csPerMin:F1}/分)").Foreground(Theme.SecondaryText))
+                Caption($"{summary.CreepScore}{csUnit}"),
+                Caption(csPerMinText).Foreground(Theme.SecondaryText))
             .Width(CsWidth)
             .VAlign(VerticalAlignment.Center);
 
@@ -203,10 +219,11 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .VAlign(VerticalAlignment.Center);
 
         // 金币列
+        var goldText = i18n?.T("search.gold", "金币") ?? "金币";
         Element gold = VStack(2,
                 Caption($"{summary.Gold:N0}")
                     .SemiBold(),
-                Caption("金币").Foreground(Theme.SecondaryText))
+                Caption(goldText).Foreground(Theme.SecondaryText))
             .Width(GoldWidth)
             .VAlign(VerticalAlignment.Center);
 

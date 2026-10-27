@@ -150,16 +150,20 @@ internal static class SearchVisuals
     public static string CardBackground(YuumiPalette palette, MatchSummary summary) =>
         summary.Remake ? palette.RemakeBg : summary.Win ? palette.WinBg : palette.LoseBg;
 
-    /// <summary>分路标签（上单/打野/中单/下路/辅助）。</summary>
-    public static string? PositionText(MatchPosition? position) => position switch
+    /// <summary>分路标签（上单/打野/中单/下路/辅助）。优先根据当前语言本地化。</summary>
+    public static string? PositionText(MatchPosition? position)
     {
-        MatchPosition.Top => "上单",
-        MatchPosition.Jungle => "打野",
-        MatchPosition.Middle => "中单",
-        MatchPosition.Bottom => "下路",
-        MatchPosition.Utility => "辅助",
-        _ => null,
-    };
+        var i18n = Composition.AppHost.Services?.I18n;
+        return position switch
+        {
+            MatchPosition.Top => i18n?.T("career.posTop", "上单") ?? "上单",
+            MatchPosition.Jungle => i18n?.T("career.posJungle", "打野") ?? "打野",
+            MatchPosition.Middle => i18n?.T("career.posMiddle", "中单") ?? "中单",
+            MatchPosition.Bottom => i18n?.T("career.posBottom", "下路") ?? "下路",
+            MatchPosition.Utility => i18n?.T("career.posUtility", "辅助") ?? "辅助",
+            _ => null,
+        };
+    }
 
     /// <summary>卡片描边与结果文字用的实色（不含 alpha，见 <see cref="YuumiPalette.WinText"/>）。</summary>
     public static string ResultAccent(YuumiPalette palette, MatchSummary summary) =>

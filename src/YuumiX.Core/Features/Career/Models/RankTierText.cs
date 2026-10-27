@@ -1,3 +1,5 @@
+using YuumiX.Core.Localization;
+
 namespace YuumiX.Core.Features.Career.Models;
 
 /// <summary>
@@ -14,23 +16,41 @@ public static class RankTierText
 {
     /// <summary>
     /// 段位名（不含分部）。<c>NONE</c> / <c>UNRANKED</c> / 空值统一为 <c>--</c>，
-    /// 与原实现的占位一致。
+    /// 与原实现的占位一致。优先根据当前语言本地化。
     /// </summary>
-    public static string Tier(string? tier) => tier switch
+    public static string Tier(string? tier)
     {
-        null or "" or "NONE" or "UNRANKED" => "--",
-        "IRON" => "坚韧黑铁",
-        "BRONZE" => "英勇黄铜",
-        "SILVER" => "不屈白银",
-        "GOLD" => "荣耀黄金",
-        "PLATINUM" => "华贵铂金",
-        "EMERALD" => "流光翡翠",
-        "DIAMOND" => "璀璨钻石",
-        "MASTER" => "超凡大师",
-        "GRANDMASTER" => "傲世宗师",
-        "CHALLENGER" => "最强王者",
-        _ => tier,
-    };
+        if (string.IsNullOrEmpty(tier) || tier is "NONE" or "UNRANKED")
+        {
+            return "--";
+        }
+
+        var upper = tier.ToUpperInvariant();
+        if (I18nService.Current != null)
+        {
+            var key = $"tools.spoofTier.{upper}";
+            var translated = I18nService.Current.T(key);
+            if (translated != key)
+            {
+                return translated;
+            }
+        }
+
+        return upper switch
+        {
+            "IRON" => "坚韧黑铁",
+            "BRONZE" => "英勇黄铜",
+            "SILVER" => "不屈白银",
+            "GOLD" => "荣耀黄金",
+            "PLATINUM" => "华贵铂金",
+            "EMERALD" => "流光翡翠",
+            "DIAMOND" => "璀璨钻石",
+            "MASTER" => "超凡大师",
+            "GRANDMASTER" => "傲世宗师",
+            "CHALLENGER" => "最强王者",
+            _ => tier,
+        };
+    }
 
     /// <summary>
     /// 段位 + 分部（如「荣耀黄金 II」）。

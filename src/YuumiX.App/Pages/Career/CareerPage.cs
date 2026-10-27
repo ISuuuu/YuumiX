@@ -257,6 +257,8 @@ public sealed class CareerPage : Component<CareerPageProps>
         // 页面缓存开启（NavigationHost.CacheMode = Enabled）后组件实例常驻，切走再回来时
         // 遮罩与提示这类「一次性 UI 状态」会原样复活——战利品弹窗自己弹出来、复制提示还亮着。
         // 离开时统一收干净。委托必须跨渲染同一实例：每次渲染新建 lambda 会让 lifecycle 反复重注册。
+        var langRef = UseRef(lang);
+        langRef.Current = lang;
         var dismissTransientRef = UseRef<Action?>(null);
         dismissTransientRef.Current = () =>
         {
@@ -266,7 +268,18 @@ public sealed class CareerPage : Component<CareerPageProps>
         };
         var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
         navigatedFromRef.Current ??= _ => dismissTransientRef.Current?.Invoke();
-        UseNavigationLifecycle(onNavigatedFrom: navigatedFromRef.Current);
+        var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
+        navigatedToRef.Current ??= _ =>
+        {
+            var curLang = services.I18n.CurrentLanguage;
+            if (langRef.Current != curLang)
+            {
+                setLang(curLang);
+            }
+        };
+        UseNavigationLifecycle(
+            onNavigatedTo: navigatedToRef.Current,
+            onNavigatedFrom: navigatedFromRef.Current);
 
         // 最近队友（读）：点击「最近队友」按钮时以 nonce 请求驱动 UseResource 拉取
         //（R7：替代原 Task.Run + 手写 loadingTeammates；nonce 保证重复点击同参数也会重新拉）。
@@ -299,7 +312,7 @@ public sealed class CareerPage : Component<CareerPageProps>
         }
 
         bool isViewingOther = viewTarget is not null;
-        var (filterLabels, filterModes) = UseMemo(() => CareerLoaders.BuildFilterLabels(matches), matches);
+        var (filterLabels, filterModes) = UseMemo(() => CareerLoaders.BuildFilterLabels(matches), matches, lang);
         int filter = queueFilter >= 0 && queueFilter < filterModes.Length ? queueFilter : 0;
         string targetMode = filterModes[filter];
         MatchSummary[] visibleMatches = string.IsNullOrEmpty(targetMode)
@@ -343,7 +356,8 @@ public sealed class CareerPage : Component<CareerPageProps>
             },
             LoadTeammates,
             OnClickTeammate,
-            OpenMatchInSearch);
+            OpenMatchInSearch,
+            lang: lang);
 
         Element header = summoner is null
             ? (loading

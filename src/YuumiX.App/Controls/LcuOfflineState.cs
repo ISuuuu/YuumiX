@@ -23,6 +23,9 @@ public static class LcuOfflineState
     /// <summary>默认提示文案，与主页未连接态保持一致。</summary>
     public const string DefaultMessage = "请启动英雄联盟客户端，连接成功后将自动识别并加载数据";
 
+    private static string EffectiveDefaultMessage =>
+        AppHost.Services?.I18n.T("home.offlineMessage", DefaultMessage) ?? DefaultMessage;
+
     private static BitmapImage? _logoSource;
 
     /// <summary>
@@ -39,14 +42,14 @@ public static class LcuOfflineState
     private static BitmapImage LogoSource =>
         _logoSource ??= new BitmapImage(new Uri(AppAssets.LogoUri));
 
-    /// <param name="message">主提示文案；省略时用 <see cref="DefaultMessage"/>。</param>
+    /// <param name="message">主提示文案；省略时用 <see cref="EffectiveDefaultMessage"/>。</param>
     /// <param name="extra">替换「启动客户端」按钮位置的本地动作（例如对局信息的「预览演示对局」）。</param>
     public static Element Render(string? message = null, Element? extra = null) =>
-        RenderCore(message ?? DefaultMessage, extra, onLaunchClient: null);
+        RenderCore(message ?? EffectiveDefaultMessage, extra, onLaunchClient: null);
 
     /// <summary>主页未连接态：共用排版 + 可用的启动入口与等待指示。</summary>
     public static Element RenderHome(Action onLaunchClient) =>
-        RenderCore(DefaultMessage, null, onLaunchClient);
+        RenderCore(EffectiveDefaultMessage, null, onLaunchClient);
 
     private static Element RenderCore(string message, Element? extra, Action? onLaunchClient)
     {

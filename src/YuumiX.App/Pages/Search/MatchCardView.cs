@@ -44,8 +44,11 @@ internal static class MatchCardView
         Element champion = SearchVisuals.Icon(
             SearchVisuals.ChampionIcon(summary.ChampionId), ChampionSize, YuumiTheme.ControlRadius);
 
+        var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+        var queueName = SearchFilters.TranslateQueueLabel(summary.QueueName, isEn);
+
         Element middle = VStack(2,
-            Caption(summary.QueueName)
+            Caption(queueName)
                 .Foreground(Theme.PrimaryText),
             HStack(6,
                 Caption(summary.ShortDateText).Foreground(Theme.SecondaryText),

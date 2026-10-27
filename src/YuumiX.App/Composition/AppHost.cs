@@ -114,6 +114,7 @@ public static class AppHost
     public static void Initialize()
     {
         _services = AppServices.Create();
+        YuumiX.Core.Localization.I18nService.Current = _services.I18n;
 
         // 协调控制台生命周期：若从终端（dotnet run 或 CLI）启动，监听 Ctrl+C 并确保干净退出
         AppLifetime.InitializeConsoleLifetime(_services.LoggerFactory.CreateLogger("YuumiX.Lifetime"));
@@ -440,6 +441,16 @@ public static class AppHost
                 System.Globalization.CultureInfo.CurrentCulture = culture;
                 System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = culture;
                 System.Globalization.CultureInfo.DefaultThreadCurrentCulture = culture;
+            }
+            else
+            {
+                // 切回“跟随系统（Auto）”时：清除覆盖，将线程文化复原为系统安装的 UI 文化
+                var sysCulture = System.Globalization.CultureInfo.InstalledUICulture ?? System.Globalization.CultureInfo.CurrentUICulture;
+                System.Globalization.CultureInfo.CurrentUICulture = sysCulture;
+                System.Globalization.CultureInfo.CurrentCulture = sysCulture;
+                System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = sysCulture;
+                System.Globalization.CultureInfo.DefaultThreadCurrentCulture = sysCulture;
+                YuumiX.Core.Localization.I18nService.ResetCultureCache();
             }
         }
         catch

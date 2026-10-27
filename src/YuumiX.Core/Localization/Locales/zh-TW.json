@@ -773,7 +773,8 @@
     "launchBtn": "啟動客戶端",
     "lolPathLabel": "客戶端路徑：",
     "wegameNotSet": "未設置路徑",
-    "waitingForLol": "正在等待 LeagueClient 啟動..."
+    "waitingForLol": "正在等待 LeagueClient 啟動...",
+    "offlineMessage": "請啟動英雄聯盟客戶端，連接成功後將自動識別並加載數據"
   },
   "championPicker": {
     "empty": "未選擇英雄",
@@ -961,7 +962,20 @@
     "victory": "勝利",
     "defeat": "失敗",
     "gameId": "遊戲 ID",
-    "positions": "常玩位置"
+    "positions": "常玩位置",
+    "posTop": "上路",
+    "posJungle": "打野",
+    "posMiddle": "中路",
+    "posBottom": "下路",
+    "posUtility": "輔助",
+    "posUnknown": "未知分路",
+    "creepScoreUnit": " 刀",
+    "creepScorePerMin": "({cs}/分)",
+    "placement": "第 {placement} 名",
+    "emptyRecent": "最近沒有可統計的對局（重開局不計入統計）。",
+    "positionsDist": "常玩位置分佈",
+    "emptyMatches": "沒有可顯示的對局（客戶端未連接，或該賬號近期沒有對局）",
+    "emptyQueueMatches": "該隊列下沒有近期對局"
   },
   "search": {
     "searchPlaceholder": "輸入召喚師名稱進行搜索...",

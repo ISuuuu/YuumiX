@@ -776,7 +776,8 @@
     "launchBtn": "启动客户端",
     "lolPathLabel": "客户端路径：",
     "wegameNotSet": "未设置路径",
-    "waitingForLol": "正在等待 LeagueClient 启动..."
+    "waitingForLol": "正在等待 LeagueClient 启动...",
+    "offlineMessage": "请启动英雄联盟客户端，连接成功后将自动识别并加载数据"
   },
   "championPicker": {
     "empty": "未选择英雄",
@@ -964,7 +965,20 @@
     "victory": "胜利",
     "defeat": "失败",
     "gameId": "游戏 ID",
-    "positions": "常玩位置"
+    "positions": "常玩位置",
+    "posTop": "上单",
+    "posJungle": "打野",
+    "posMiddle": "中单",
+    "posBottom": "下路",
+    "posUtility": "辅助",
+    "posUnknown": "未知分路",
+    "creepScoreUnit": " 刀",
+    "creepScorePerMin": "({cs}/分)",
+    "placement": "第 {placement} 名",
+    "emptyRecent": "最近没有可统计的对局（重开局不计入统计）。",
+    "positionsDist": "常玩位置分布",
+    "emptyMatches": "没有可显示的对局（客户端未连接，或该账号近期没有对局）",
+    "emptyQueueMatches": "该队列下没有近期对局"
   },
   "search": {
     "searchPlaceholder": "输入召唤师名称进行搜索...",

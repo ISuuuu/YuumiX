@@ -776,7 +776,8 @@
     "launchBtn": "Launch Client",
     "lolPathLabel": "Client Path:",
     "wegameNotSet": "Path not set",
-    "waitingForLol": "Waiting for LeagueClient to start..."
+    "waitingForLol": "Waiting for LeagueClient to start...",
+    "offlineMessage": "Please start League of Legends client. Data will be loaded automatically once connected."
   },
   "championPicker": {
     "empty": "No champion selected",
@@ -964,7 +965,20 @@
     "victory": "Victory",
     "defeat": "Defeat",
     "gameId": "Game ID",
-    "positions": "Preferred Positions"
+    "positions": "Preferred Positions",
+    "posTop": "Top",
+    "posJungle": "Jungle",
+    "posMiddle": "Mid",
+    "posBottom": "Bot",
+    "posUtility": "Support",
+    "posUnknown": "Unknown",
+    "creepScoreUnit": " CS",
+    "creepScorePerMin": "({cs}/m)",
+    "placement": "#{placement}",
+    "emptyRecent": "No recent matches to analyze (remakes excluded).",
+    "positionsDist": "Role Distribution",
+    "emptyMatches": "No matches to display (client not connected or no recent games)",
+    "emptyQueueMatches": "No recent matches in this queue"
   },
   "search": {
     "searchPlaceholder": "Enter summoner name to search...",
