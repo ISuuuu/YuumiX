@@ -22,10 +22,17 @@ internal static class LogNetworkSection
         var config = ui.Config;
         var i18n = ui.Services.I18n;
 
+        var logLevelLabels = new[]
+        {
+            i18n.T("settings.logLevelDebug", "调试（Debug）"),
+            i18n.T("settings.logLevelInfo", "信息（Info）"),
+            i18n.T("settings.logLevelError", "错误（Error）"),
+        };
+
         var logLevelCard = SettingsCardKit.Card(
             i18n.T("settings.logLevelTitle", "日志等级"),
             i18n.T("settings.logLevelDesc", "写入 <exe>/log 的日志记录详细程度，修改后立即生效"),
-            ComboBox(LogLevelLabels, SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
+            ComboBox(logLevelLabels, SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
             {
                 var level = LogLevelValues[index];
                 config.General.LogLevel = level;
@@ -59,7 +66,10 @@ internal static class LogNetworkSection
                 ui.Commit(nameof(GeneralConfig.EnableHttpProxy));
             }, header: null, onContent: null, offContent: null)
                 .AutomationName("HTTP代理开关"),
-            innerContent: SettingsCardKit.Card("代理地址", "形如 127.0.0.1:7897；开关关闭时不可编辑", ProxyAddressRow(ui, proxyDraft)));
+            innerContent: SettingsCardKit.Card(
+                i18n.T("settings.proxyAddress", "代理地址"),
+                i18n.T("settings.proxyAddressDesc", "形如 127.0.0.1:7897；开关关闭时不可编辑"),
+                ProxyAddressRow(ui, proxyDraft)));
 
         return VStack(8, logLevelCard, logDirCard, httpProxyCard);
     }
@@ -71,18 +81,19 @@ internal static class LogNetworkSection
             || (value.Contains(':') && !value.Contains(' ') && Uri.TryCreate("http://" + value, UriKind.Absolute, out _));
 
         var config = ui.Config;
+        var i18n = ui.Services.I18n;
         return HStack(8,
             // 开关关闭时禁用输入（对齐旧 ProxySection 的 disabled 联动）
             TextBox(proxyDraft.Current ?? config.General.HttpProxyAddr, v => proxyDraft.Current = v)
                 .Width(240)
                 .IsEnabled(config.General.EnableHttpProxy)
                 .AutomationName("代理地址"),
-            Button("应用", () =>
+            Button(i18n.T("settings.applyBtn", "应用"), () =>
             {
                 var next = (proxyDraft.Current ?? config.General.HttpProxyAddr).Trim();
                 if (!LooksValid(next))
                 {
-                    ui.SetError("代理地址格式不对，应形如 127.0.0.1:7897");
+                    ui.SetError(i18n.T("settings.proxyAddressInvalid", "代理地址格式不对，应形如 127.0.0.1:7897"));
                     return;
                 }
 

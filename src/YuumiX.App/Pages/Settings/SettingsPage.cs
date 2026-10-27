@@ -340,19 +340,19 @@ public sealed class SettingsPage : Component
                 FunctionSection.Render(ui),
 
                 // 2. OP.GG
-                SettingsVisuals.GroupHeader("OP.GG"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.opggGroup", "OP.GG")),
                 OpggSection.Render(ui),
 
                 // 3. 通用设置
-                SettingsVisuals.GroupHeader(services.I18n.T("settings.groupGeneral", "通用设置")),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.generalGroup", "通用设置")),
                 GeneralSection.Render(ui, pathEdit, RequestPathCommit, cloudText, RequestCloudTextCommit, signalrStatus, update, () => setClearDialogOpen(true)),
 
                 // 4. 高级与隐藏
-                SettingsVisuals.GroupHeader("高级与隐藏"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.advancedGroup", "高级与隐藏")),
                 AdvancedSection.Render(ui),
 
                 // 5. 日志与网络
-                SettingsVisuals.GroupHeader("日志与网络"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.logNetworkGroup", "日志与网络")),
                 LogNetworkSection.Render(ui, proxyDraftRef),
 
                 // 6. 外观与个性化
@@ -360,7 +360,7 @@ public sealed class SettingsPage : Component
                 AppearanceSection.Render(ui, RequestColorCommit),
 
                 // 7. 关于
-                SettingsVisuals.GroupHeader("关于"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.aboutTitle", "关于")),
                 AboutSection.Render(ui)
             )
             // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
@@ -393,13 +393,13 @@ public sealed class SettingsPage : Component
                 // new Microsoft.UI.Reactor.Core.ContentDialogElement(...) 能编译但在挂载时抛
                 // InvalidOperationException（No handler is registered for element type ...）。
                 (ContentDialog(
-                    "清除缓存",
-                    Body("确定要清除所有游戏资源缓存吗？清除后需要重新加载游戏资源。")
+                    services.I18n.T("settings.clearCacheTitle", "清除缓存"),
+                    Body(services.I18n.T("settings.clearCacheConfirm", "确定要清除所有游戏资源缓存吗？清除后需要重新加载游戏资源。"))
                         .TextWrapping(),
-                    primaryButtonText: "确定") with
+                    primaryButtonText: services.I18n.T("common.confirm", "确定")) with
                 {
                     IsOpen = clearDialogOpen,
-                    CloseButtonText = "取消",
+                    CloseButtonText = services.I18n.T("common.cancel", "取消"),
                 })
                 // 对话框宿主在 XamlRoot 的 Popup 里，不在根 Grid 的视觉树内，
                 // 且 ContentDialogElement 的 Modifiers（.RequestedTheme）只作用在主树不可见的占位 StackPanel 上，

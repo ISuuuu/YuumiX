@@ -94,4 +94,96 @@ public sealed class I18nServiceTests
         Assert.Equal(SupportedLanguages.Auto, SupportedLanguages.Normalize(null));
         Assert.Equal(SupportedLanguages.Auto, SupportedLanguages.Normalize("unknown"));
     }
+
+    [Fact]
+    public void SettingsKeys_AreFullyTranslatedInEnglish()
+    {
+        var service = new I18nService(SupportedLanguages.EnUs);
+
+        // 验证设置页所使用的核心键在英文下均有非空、非中文的翻译
+        string[] keys =
+        [
+            "settings.title",
+            "settings.groupFeatures",
+            "settings.generalGroup",
+            "settings.personalizationGroup",
+            "settings.advancedGroup",
+            "settings.logNetworkGroup",
+            "settings.themeModeTitle",
+            "settings.themeModeDesc",
+            "settings.themeModeLight",
+            "settings.themeModeDark",
+            "settings.themeModeAuto",
+            "settings.dpiScaleTitle",
+            "settings.dpiScaleDesc",
+            "settings.dpiScaleAuto",
+            "settings.langTitle",
+            "settings.langDesc",
+            "settings.langAuto",
+            "settings.micaTitle",
+            "settings.micaDesc",
+            "settings.lcuConcurrencyTitle",
+            "settings.lcuConcurrencyDesc",
+            "settings.defaultGamesTitle",
+            "settings.defaultGamesDesc",
+            "settings.gameInfoFilterTitle",
+            "settings.gameInfoFilterDesc",
+            "settings.reserveGameInfoTitle",
+            "settings.reserveGameInfoDesc",
+            "settings.showTierInGameInfoTitle",
+            "settings.showTierInGameInfoDesc",
+            "settings.autoStartLolTitle",
+            "settings.autoStartLolDesc",
+            "settings.closeToTrayTitle",
+            "settings.closeToTrayDesc",
+            "settings.startMinimizedTitle",
+            "settings.startMinimizedDesc",
+            "settings.clearCacheTitle",
+            "settings.clearCacheDesc",
+            "settings.checkUpdateTitle",
+            "settings.checkUpdateDesc",
+            "settings.lolPathGroup",
+            "settings.lolPathDesc",
+            "settings.detectBtn",
+            "settings.browseBtn",
+            "settings.wegameAddBtn",
+            "settings.cloudServiceTitle",
+            "settings.cloudServiceDesc",
+            "settings.uploadUrlTitle",
+            "settings.uploadUrlDesc",
+            "settings.logLevelTitle",
+            "settings.logLevelDesc",
+            "settings.logFileTitle",
+            "settings.httpProxyGroup",
+            "settings.httpProxyDesc",
+            "settings.aboutTitle",
+            "settings.aboutRepository",
+            "settings.hideMenuTitle",
+            "settings.hideMenuDesc",
+            "settings.screenshotGroup",
+            "settings.tripleKill",
+            "settings.quadraKill",
+            "settings.pentaKill",
+            "settings.legendary",
+            "settings.cardColorTitle",
+            "settings.winCard",
+            "settings.loseCard",
+            "settings.remakeCard",
+            "settings.deathColorTitle",
+            "settings.lightMode",
+            "settings.darkMode",
+            "home.notConnected",
+            "home.launchBtn",
+            "home.connected",
+        ];
+
+        foreach (var key in keys)
+        {
+            var text = service.T(key);
+            Assert.False(string.IsNullOrEmpty(text), $"Key '{key}' 翻译结果为空");
+            Assert.NotEqual(key, text); // 确保没有返回 key 本身
+            // 确保英文下没有中文字符
+            Assert.DoesNotMatch(@"[\u4e00-\u9fa5]", text);
+        }
+    }
 }
