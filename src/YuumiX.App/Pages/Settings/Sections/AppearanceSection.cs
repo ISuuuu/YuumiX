@@ -30,9 +30,10 @@ internal static class AppearanceSection
     public static Element Render(SettingsUi ui, Action<string> requestColorCommit)
     {
         var config = ui.Config;
+        var i18n = ui.Services.I18n;
 
         var themeModeCard = SettingsCardKit.Card(
-            "主题模式", "浅色 / 深色 / 跟随系统主题自适应切换",
+            i18n.T("settings.themeModeTitle", "主题模式"), "浅色 / 深色 / 跟随系统主题自适应切换",
             ComboBox(ThemeModeLabels, SettingsVisuals.IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
             {
                 config.Personalization.ThemeMode = ThemeModeValues[index];
@@ -41,7 +42,7 @@ internal static class AppearanceSection
             }).Width(160).AutomationName("主题模式选择"));
 
         var dpiScaleCard = SettingsCardKit.Card(
-            "界面缩放", "调整应用界面基础显示比例与窗口尺寸",
+            i18n.T("settings.dpiScaleTitle", "界面缩放"), i18n.T("settings.dpiScaleDesc", "调整应用界面基础显示比例与窗口尺寸"),
             ComboBox(DpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
             {
                 var scaleValue = DpiScaleValues[index];
@@ -53,16 +54,9 @@ internal static class AppearanceSection
                 var window = ui.Window ?? ReactorApp.PrimaryWindow;
                 if (window is not null)
                 {
-                    if (WindowMetrics.IsMaximized(window))
-                    {
-                        ui.Toast.Info($"界面缩放已设为 {scaleLabel}（窗口当前处于最大化状态）");
-                    }
-                    else
-                    {
-                        var (width, height) = WindowMetrics.CalculateWindowSize(scaleValue);
-                        window.SetSize(width, height);
-                        ui.Toast.Success($"界面缩放已设为 {scaleLabel}，窗口尺寸已调整为 {width}×{height}");
-                    }
+                    var (width, height) = WindowMetrics.CalculateWindowSize(scaleValue);
+                    WindowMetrics.ApplyScaleAndRestoreIfMaximized(window, scaleValue);
+                    ui.Toast.Success($"界面缩放已设为 {scaleLabel}，窗口尺寸已调整为 {width}×{height}");
                 }
                 else
                 {
@@ -71,17 +65,18 @@ internal static class AppearanceSection
             }).Width(160).AutomationName("界面缩放选择"));
 
         var languageCard = SettingsCardKit.Card(
-            "语言设置", "选择应用界面显示语言（多语言适配中 · 重启后生效）",
+            i18n.T("settings.langTitle", "语言设置"), i18n.T("settings.langDesc", "选择应用界面显示语言"),
             ComboBox(LanguageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
             {
                 var lang = LanguageValues[index];
                 config.Personalization.Language = lang;
                 ui.Commit(nameof(PersonalizationConfig.Language));
                 ui.Services.I18n.SetLanguage(lang);
+                ui.Toast.Success(i18n.T("settings.langSaved", "语言已更新并即时生效"));
             }).Width(160).AutomationName("语言选择"));
 
         return VStack(8,
-            SettingsCardKit.Toggle("Mica 背景", "使用系统亚克力/云母材质作为窗口背景 · 即时生效", config.Personalization.MicaEnabled, v =>
+            SettingsCardKit.Toggle(i18n.T("settings.micaTitle", "Mica 背景"), "使用系统亚克力/云母材质作为窗口背景 · 即时生效", config.Personalization.MicaEnabled, v =>
             {
                 config.Personalization.MicaEnabled = v;
                 ui.Theme.Apply(config.Personalization);

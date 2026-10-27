@@ -75,4 +75,24 @@ public static class WindowMetrics
         window.SetSize(width, height);
         return true;
     }
+
+    /// <summary>
+    /// 根据缩放配置调整窗口大小。若窗口处于最大化状态，先解除最大化还原为普通窗口，再调整尺寸。
+    /// </summary>
+    public static void ApplyScaleAndRestoreIfMaximized(ReactorWindow? window, string? dpiScale)
+    {
+        if (window is null)
+        {
+            return;
+        }
+
+        if (window.AppWindow?.Presenter is OverlappedPresenter presenter &&
+            presenter.State == OverlappedPresenterState.Maximized)
+        {
+            presenter.Restore();
+        }
+
+        var (width, height) = CalculateWindowSize(dpiScale);
+        window.SetSize(width, height);
+    }
 }

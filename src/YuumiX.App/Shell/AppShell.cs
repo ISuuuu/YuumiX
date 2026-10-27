@@ -493,12 +493,22 @@ public sealed class AppShell : Component
             },
             summonerPollKey);
 
+        // 订阅语言变更以刷新侧边栏标签与标题栏
+        var i18n = services.I18n;
+        var (currentLang, setCurrentLang) = UseState(i18n.CurrentLanguage);
+        UseEffect(
+            () =>
+            {
+                var subscription = i18n.CurrentLanguageChanged.Subscribe(setCurrentLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         // 菜单项必须跨渲染保持同一批实例：每次渲染新建数组会让 NavigationView 重建菜单，
         // 选中项被重置为第一项并触发 OnSelectedTagChanged，表现为「界面重渲染后莫名跳回主页」。
         // 这是主题即时生效暴露出来的问题（ADR-12 决策三带来的额外重渲染）。
-        // key 为可见性签名：只在「隐藏菜单」配置实际变化时重建菜单，
-        // 平时（主题变化/普通重渲染）保持原实例数组。
-        var menuKey = (menuVisibility.HideTft ? 1 : 0) | (menuVisibility.HideSavedPlayers ? 2 : 0);
+        // key 为可见性签名 + 语言签名：在「隐藏菜单」配置或当前语言实际变化时重建菜单。
+        var menuKey = (menuVisibility.HideTft ? 1 : 0) | (menuVisibility.HideSavedPlayers ? 2 : 0) | (currentLang.GetHashCode() << 2);
         var menuItems = UseMemo(
             () => RouteCatalog.Primary
                 .Where(item => item.Key switch
@@ -507,13 +517,13 @@ public sealed class AppShell : Component
                     "SavedPlayers" => !menuVisibility.HideSavedPlayers,
                     _ => true,
                 })
-                .Select(item => NavItem(item.Label, item.Glyph, item.Key))
+                .Select(item => NavItem(GetNavLabel(i18n, item.Key, item.Label), item.Glyph, item.Key))
                 .ToArray(),
             menuKey);
 
         // 底部附加操作区：动作项（OP.GG / 修复无限加载）在前，路由项（公告 / 设置）在后，
-        // 拼出来的顺序与旧版 sidebar-bottom 一致。这些项不受「隐藏菜单」影响，key 固定。
-        var footerItems = UseMemo(BuildFooterItems, 0);
+        // 拼出来的顺序与旧版 sidebar-bottom 一致。这些项不受「隐藏菜单」影响，依赖语言变化重建。
+        var footerItems = UseMemo(() => BuildFooterItems(i18n), currentLang.GetHashCode());
 
         // 导航栏开合：初值取自持久化配置（跨启动恢复上次状态）。本地 UseState 保证
         // 主题/菜单变化引发重渲染时，用户当前的开合状态不会被重置回配置初值。
@@ -848,7 +858,7 @@ public sealed class AppShell : Component
             Icon = ImageIcon(new Uri(AppAssets.LogoUri)),
             // 对应原 CustomTitleBar.vue 的 titlebar-phase：已连接且非空闲时展示阶段中文名；
             // 活跃对局三阶段已知阵营时追加红蓝方（旧版 mapSideLabel）。
-            Subtitle = GetTitleBarPhaseSubtitle(isClientConnected, gamePhase, mapSide),
+            Subtitle = GetTitleBarPhaseSubtitle(isClientConnected, gamePhase, mapSide, i18n),
             IsBackButtonVisible = false,
         };
 
@@ -980,14 +990,14 @@ public sealed class AppShell : Component
     /// 红蓝方（旧版 mapSideLabel）：仅选人/游戏加载/游戏中三阶段且阵营已知时拼接；
     /// 其余阶段（Lobby/EndOfGame/Reconnect 等）只显示阶段名，与旧版 else 分支清除阵营一致。
     /// </summary>
-    private static string GetTitleBarPhaseSubtitle(bool isClientConnected, GamePhase gamePhase, string? mapSide)
+    private static string GetTitleBarPhaseSubtitle(bool isClientConnected, GamePhase gamePhase, string? mapSide, YuumiX.Core.Localization.I18nService? i18n = null)
     {
         if (!isClientConnected || gamePhase is GamePhase.None or GamePhase.Unknown)
         {
             return string.Empty;
         }
 
-        var label = gamePhase switch
+        var label = i18n?.T("phase." + gamePhase, null) ?? (gamePhase switch
         {
             GamePhase.Lobby => "房间组队中",
             GamePhase.Matchmaking => "匹配中",
@@ -1001,12 +1011,14 @@ public sealed class AppShell : Component
             GamePhase.EndOfGame => "对局结束",
             GamePhase.WatchInProgress => "观战中",
             _ => gamePhase.ToString(),
-        };
+        });
 
         if (mapSide is "blue" or "red" &&
             gamePhase is GamePhase.ChampSelect or GamePhase.GameStart or GamePhase.InProgress)
         {
-            label += mapSide == "blue" ? " - 蓝色方" : " - 红色方";
+            var blueSide = i18n?.T("titlebar.blueSide", "蓝色方") ?? "蓝色方";
+            var redSide = i18n?.T("titlebar.redSide", "红色方") ?? "红色方";
+            label += mapSide == "blue" ? $" - {blueSide}" : $" - {redSide}";
         }
 
         return label;
@@ -1179,6 +1191,22 @@ public sealed class AppShell : Component
         }
     }
 
+    private static string GetNavLabel(YuumiX.Core.Localization.I18nService i18n, string key, string fallback) => key switch
+    {
+        "Home" => i18n.T("nav.home", fallback),
+        "Career" => i18n.T("nav.career", fallback),
+        "Search" => i18n.T("nav.search", fallback),
+        "GameInfo" => i18n.T("nav.gameinfo", fallback),
+        "Tft" => i18n.T("nav.tft", fallback),
+        "SavedPlayers" => i18n.T("nav.savedPlayers", fallback),
+        "Tools" => i18n.T("nav.tools", fallback),
+        "Settings" => i18n.T("nav.settings", fallback),
+        SidebarTags.Opgg => i18n.T("nav.opgg", fallback),
+        SidebarTags.Reconnect => i18n.T("nav.reconnect", fallback),
+        SidebarTags.Notice => i18n.T("nav.notice", fallback),
+        _ => fallback,
+    };
+
     /// <summary>
     /// 构造底部附加操作区的菜单项。
     ///
@@ -1188,13 +1216,14 @@ public sealed class AppShell : Component
     /// OP.GG 用旧版同款品牌图标（18px PNG）覆盖 Segoe 字形；公告用旧版同款
     /// 铃铛几何（<see cref="NoticeBellPath"/>）覆盖实心 Ringer 字形。
     /// </summary>
-    private static NavigationViewItemData[] BuildFooterItems()
+    private static NavigationViewItemData[] BuildFooterItems(YuumiX.Core.Localization.I18nService i18n)
     {
         var items = new List<NavigationViewItemData>();
 
         foreach (var action in RouteCatalog.FooterActions)
         {
-            var item = NavItem(action.Label, action.Glyph, action.Tag);
+            var label = GetNavLabel(i18n, action.Tag, action.Label);
+            var item = NavItem(label, action.Glyph, action.Tag);
 
             if (action.Tag == SidebarTags.Opgg && !string.IsNullOrEmpty(AppAssets.OpggNavIconUri))
             {
@@ -1212,7 +1241,8 @@ public sealed class AppShell : Component
 
         foreach (var route in RouteCatalog.Footer)
         {
-            items.Add(NavItem(route.Label, route.Glyph, route.Key));
+            var label = GetNavLabel(i18n, route.Key, route.Label);
+            items.Add(NavItem(label, route.Glyph, route.Key));
         }
 
         return items.ToArray();

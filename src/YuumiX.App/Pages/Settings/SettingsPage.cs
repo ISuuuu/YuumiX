@@ -190,6 +190,16 @@ public sealed class SettingsPage : Component
             },
             0);
 
+        // 多语言切换订阅：语言变更时刷新本页文本与标题
+        var (currentLang, setCurrentLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = services.I18n.CurrentLanguageChanged.Subscribe(setCurrentLang);
+                return () => subscription.Dispose();
+            },
+            0);
+
         // 单次写回：先落盘（必要时备份），成功与失败都只改状态，不抛给渲染流程。
         // savedAt/error 的值不参与渲染，但承担 Commit 后的重渲染触发（error 兼任首次保存
         // 即失败时的失败路径触发器）；备份文件名只进日志，不再另设死状态。
@@ -321,12 +331,12 @@ public sealed class SettingsPage : Component
         var mainScroll = ScrollViewer(
             VStack(8,
                 // 页面标题比分组标题（Subtitle 20）高一级，保持视觉层级。
-                Title("设置")
+                Title(services.I18n.T("settings.title", "设置"))
                     .HeadingLevel(AutomationHeadingLevel.Level1)
                     .Margin(bottom: 8),
 
                 // 1. 功能
-                SettingsVisuals.GroupHeader("功能"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.groupFeatures", "功能")),
                 FunctionSection.Render(ui),
 
                 // 2. OP.GG
@@ -334,7 +344,7 @@ public sealed class SettingsPage : Component
                 OpggSection.Render(ui),
 
                 // 3. 通用设置
-                SettingsVisuals.GroupHeader("通用设置"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.groupGeneral", "通用设置")),
                 GeneralSection.Render(ui, pathEdit, RequestPathCommit, cloudText, RequestCloudTextCommit, signalrStatus, update, () => setClearDialogOpen(true)),
 
                 // 4. 高级与隐藏
@@ -346,7 +356,7 @@ public sealed class SettingsPage : Component
                 LogNetworkSection.Render(ui, proxyDraftRef),
 
                 // 6. 外观与个性化
-                SettingsVisuals.GroupHeader("外观与个性化"),
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.personalizationGroup", "外观与个性化")),
                 AppearanceSection.Render(ui, RequestColorCommit),
 
                 // 7. 关于
