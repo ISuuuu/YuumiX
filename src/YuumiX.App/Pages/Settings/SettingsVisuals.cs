@@ -25,7 +25,8 @@ internal sealed record SettingsUi(
     YuumiPalette Palette,
     ILogger Logger,
     Action<string> Commit,
-    Action<string?> SetError);
+    Action<string?> SetError,
+    ReactorWindow? Window = null);
 
 /// <summary>设置页共享视觉构件与纯函数（R14，禁止复制到第二个页面）。</summary>
 internal static class SettingsVisuals

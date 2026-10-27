@@ -50,6 +50,7 @@ public sealed class SettingsPage : Component
         var updateNotice = UseContext(AppHost.UpdateNoticeContext);
         var config = services.Config;
         var toast = UseContext(AppHost.ToastContext)!;
+        var window = UseWindow();
 
         // threadSafe: true —— 保存与重渲染的调用点虽在 UI 线程，但保留统一语义，
         // 以免将来把写回挪到线程池时漏改（ADR-07 的成本是崩溃，不是降级）。
@@ -242,7 +243,7 @@ public sealed class SettingsPage : Component
         Microsoft.UI.Dispatching.DispatcherQueue Dispatcher() =>
             dispatcherRef.Current ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
-        var ui = new SettingsUi(config, services, toast, theme, menu, updateNotice, palette, logger, Commit, setError);
+        var ui = new SettingsUi(config, services, toast, theme, menu, updateNotice, palette, logger, Commit, setError, window);
 
         // ── 防抖 effect：序号每变一次就重置定时器，只有最后一次会真正落盘 ────────
         // 定时器回调在线程池，写盘与改状态一律 TryEnqueue 回 UI 线程（ADR-12 决策一）。

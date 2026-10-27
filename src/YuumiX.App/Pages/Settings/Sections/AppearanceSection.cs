@@ -4,19 +4,23 @@ using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
+using YuumiX.App.Windowing;
 using YuumiX.Core.Common;
 using YuumiX.Core.Persistence;
 
 namespace YuumiX.App.Pages.Settings.Sections;
 
 /// <summary>
-/// 设置页「外观与个性化」分组：Mica 背景 / 主题模式 / 战绩卡片配色 / 死亡数字配色。
+/// 设置页「外观与个性化」分组：Mica 背景 / 主题模式 / 界面缩放 / 战绩卡片配色 / 死亡数字配色。
 /// 颜色改动统一出口：先落内存与主题状态（界面即时生效），再由页面的防抖回调落盘。
 /// </summary>
 internal static class AppearanceSection
 {
     private static readonly string[] ThemeModeLabels = ["浅色", "深色", "跟随系统"];
     private static readonly string[] ThemeModeValues = ["Light", "Dark", "Auto"];
+
+    private static readonly string[] DpiScaleLabels = ["跟随系统", "100%", "125%", "150%"];
+    private static readonly string[] DpiScaleValues = ["Auto", "100", "125", "150"];
 
     public static Element Render(SettingsUi ui, Action<string> requestColorCommit)
     {
@@ -31,6 +35,35 @@ internal static class AppearanceSection
                 ui.Commit(nameof(PersonalizationConfig.ThemeMode));
             }).Width(160).AutomationName("主题模式选择"));
 
+        var dpiScaleCard = SettingsCardKit.Card(
+            "界面缩放", "调整应用界面基础显示比例与窗口尺寸",
+            ComboBox(DpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
+            {
+                var scaleValue = DpiScaleValues[index];
+                var scaleLabel = DpiScaleLabels[index];
+                config.Personalization.DpiScale = scaleValue;
+                ui.Commit(nameof(PersonalizationConfig.DpiScale));
+
+                var window = ui.Window ?? ReactorApp.PrimaryWindow;
+                if (window is not null)
+                {
+                    if (WindowMetrics.IsMaximized(window))
+                    {
+                        ui.Toast.Info($"界面缩放已设为 {scaleLabel}（窗口当前处于最大化状态）");
+                    }
+                    else
+                    {
+                        var (width, height) = WindowMetrics.CalculateWindowSize(scaleValue);
+                        window.SetSize(width, height);
+                        ui.Toast.Success($"界面缩放已设为 {scaleLabel}，窗口尺寸已调整为 {width}×{height}");
+                    }
+                }
+                else
+                {
+                    ui.Toast.Success($"界面缩放已设为 {scaleLabel}");
+                }
+            }).Width(160).AutomationName("界面缩放选择"));
+
         return VStack(8,
             SettingsCardKit.Toggle("Mica 背景", "使用系统亚克力/云母材质作为窗口背景 · 即时生效", config.Personalization.MicaEnabled, v =>
             {
@@ -39,6 +72,7 @@ internal static class AppearanceSection
                 ui.Commit(nameof(PersonalizationConfig.MicaEnabled));
             }),
             themeModeCard,
+            dpiScaleCard,
             // 强调色跟随系统，原「主题强调色」卡片已删除；这里只剩业务配色（战绩卡片 / 死亡数字）。
             CardColorEditor(ui, requestColorCommit),
             DeathColorEditor(ui, requestColorCommit));
