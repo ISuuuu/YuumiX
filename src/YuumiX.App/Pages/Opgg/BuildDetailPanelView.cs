@@ -275,7 +275,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                 [
                     // 左列：克制
                     VStack(6,
-                        Caption(i18n?.T("opgg.build.countersAdvantage", "对抗优势 (克制)") ?? "对抗优势 (克制)")
+                        BodyStrong(i18n?.T("opgg.build.countersAdvantage", "对抗优势 (克制)") ?? "对抗优势 (克制)")
                             .Foreground(OpggVisuals.WinGreen),
 
                         VStack(4,
@@ -293,7 +293,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
                     // 右列：被克制
                     VStack(6,
-                        Caption(i18n?.T("opgg.build.countersDisadvantage", "对抗劣势 (被克制)") ?? "对抗劣势 (被克制)")
+                        BodyStrong(i18n?.T("opgg.build.countersDisadvantage", "对抗劣势 (被克制)") ?? "对抗劣势 (被克制)")
                             .Foreground(OpggVisuals.LossRed),
 
                         VStack(4,

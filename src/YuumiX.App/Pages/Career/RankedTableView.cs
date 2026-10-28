@@ -53,6 +53,30 @@ internal static class RankedTableView
             .VAlign(VerticalAlignment.Center)
             .Padding(CellPadH, CellPadV);
 
+    private static Element StrongDataCell(string text) =>
+        BodyStrong(text)
+            .TextAlignment(TextAlignment.Center)
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Center)
+            .Padding(CellPadH, CellPadV);
+
+    private static Element NumericDataCell(string text) =>
+        Body(text)
+            .SemiBold()
+            .TextAlignment(TextAlignment.Center)
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Center)
+            .Padding(CellPadH, CellPadV);
+
+    private static Element NumericDataCell(string text, string literalColor) =>
+        Body(text)
+            .SemiBold()
+            .Foreground(literalColor)
+            .TextAlignment(TextAlignment.Center)
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Center)
+            .Padding(CellPadH, CellPadV);
+
     private static Element DataCell(string text, ThemeRef foreground) =>
         DataCell(text)
             .Foreground(foreground);
@@ -88,7 +112,8 @@ internal static class RankedTableView
                 At(HeaderCell(i18n?.T("career.highest", "赛季最高") ?? "赛季最高"), 7),
                 At(HeaderCell(i18n?.T("career.prevSeason", "上赛季结算") ?? "上赛季结算"), 8),
             ])
-            .MinHeight(RowMinHeight);
+            .MinHeight(RowMinHeight)
+            .Background(Theme.SubtleFill);
 
         return CareerVisuals.Card(
             VStack(0,
@@ -113,18 +138,18 @@ internal static class RankedTableView
         string previous = queue?.PreviousSeasonTierText ?? "--";
 
         Element winRateCell = queue?.TotalGames > 0
-            ? DataCell(winRate, CareerVisuals.WinText)
-            : DataCell(winRate);
+            ? NumericDataCell(winRate, CareerVisuals.WinText)
+            : NumericDataCell(winRate);
 
         return Grid(Columns, Rows,
             [
-                At(DataCell(label), 0),
-                At(DataCell(games), 1),
+                At(StrongDataCell(label), 0),
+                At(NumericDataCell(games), 1),
                 At(winRateCell, 2),
                 At(DataCell(wins), 3),
                 At(DataCell(losses), 4),
                 At(TierCell(queue, tier), 5),
-                At(DataCell(leaguePoints), 6),
+                At(NumericDataCell(leaguePoints), 6),
                 At(DataCell(highest, Theme.SecondaryText), 7),
                 At(DataCell(previous, Theme.SecondaryText), 8),
             ])
@@ -137,12 +162,12 @@ internal static class RankedTableView
         string? medalUri = CareerVisuals.RankedMedalUri(queue?.Tier);
         if (medalUri is null)
         {
-            return DataCell(tier, Theme.Accent);
+            return StrongDataCell(tier).Foreground(Theme.Accent);
         }
 
         return HStack(6,
                 CareerVisuals.RankedMedal(queue?.Tier, 20),
-                Body(tier)
+                BodyStrong(tier)
                     .Foreground(Theme.Accent)
                     .VAlign(VerticalAlignment.Center))
             .HAlign(HorizontalAlignment.Center)

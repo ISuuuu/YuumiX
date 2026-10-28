@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Media;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
@@ -100,7 +101,8 @@ internal static class CareerProfileHeader
                 : Empty());
 
         Element nameRow = HStack(8,
-            Subtitle(mainName)
+            Title(mainName)
+                .HeadingLevel(AutomationHeadingLevel.Level2)
                 .VAlign(VerticalAlignment.Center),
             copySlot.VAlign(VerticalAlignment.Center));
 
@@ -130,22 +132,22 @@ internal static class CareerProfileHeader
         var actionButtons = new List<Element>();
         if (isViewingOther && onBackToSelf is not null)
         {
-            actionButtons.Add(Button(Caption(backToMeText), onBackToSelf)
-                .Height(28)
-                .Padding(16, 5)
+            actionButtons.Add(Button(Body(backToMeText), onBackToSelf)
+                .Height(32)
+                .Padding(16, 4)
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .AutomationName(backToMeText));
         }
 
-        actionButtons.Add(Button(Caption(refreshText), onRefresh)
+        actionButtons.Add(Button(Body(refreshText), onRefresh)
             .AutomationName(refreshText)
-            .Height(28)
-            .Padding(16, 5)
+            .Height(32)
+            .Padding(16, 4)
             .CornerRadius(YuumiTheme.OverlayRadius));
-        actionButtons.Add(Button(Caption(historyBtnText), onHistory)
+        actionButtons.Add(Button(Body(historyBtnText), onHistory)
             .AutomationName(historyBtnText)
-            .Height(28)
-            .Padding(16, 5)
+            .Height(32)
+            .Padding(16, 4)
             .CornerRadius(YuumiTheme.OverlayRadius));
 
         Element actions = VStack(8, actionButtons.ToArray())

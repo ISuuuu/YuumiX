@@ -183,7 +183,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
 
         return Border(
             VStack(8,
-                Caption(recommendedTitle)
+                BodyStrong(recommendedTitle)
                     .Foreground(Theme.SecondaryText)
                     .Margin(new Thickness(4, 0, 0, 4)),
 
@@ -204,6 +204,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                             .Foreground(Theme.SecondaryText);
 
                         var pickRateText = Caption(OpggVisuals.FormatPercent(rune.PickRate))
+                            .SemiBold()
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(0, 2);

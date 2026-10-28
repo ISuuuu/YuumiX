@@ -124,7 +124,7 @@ internal static class ChampionMasteryView
         Element card3 = StatCard(
             "最高等级英雄",
             HStack(6,
-                BodyLarge(heroName).SemiBold().VAlign(VerticalAlignment.Center),
+                Subtitle(heroName).VAlign(VerticalAlignment.Center),
                 Border(Caption($"Lv. {heroLevel}").SemiBold().Foreground(Theme.Accent))
                     .Padding(4, 2)
                     .CornerRadius(YuumiTheme.ControlRadius)
@@ -333,8 +333,9 @@ internal static class ChampionMasteryView
             VStack(3,
                 BodyStrong(champName),
                 HStack(3,
-                    BodyStrong($"{item.ChampionPoints:N0}")
-                        .Foreground(CareerVisuals.WinText),
+                    Caption($"{item.ChampionPoints:N0}")
+                        .SemiBold()
+                        .Foreground(Theme.Accent),
                     Caption("分").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom)))
                 .VAlign(VerticalAlignment.Center));
 

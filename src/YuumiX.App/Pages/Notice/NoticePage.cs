@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
@@ -134,7 +135,8 @@ public sealed class NoticePage : Component
             [
                 VStack(
                     4,
-                    Title("公告"),
+                    Title("公告")
+                        .HeadingLevel(AutomationHeadingLevel.Level1),
                     Caption("内容来自 GitHub 仓库 NOTICE.md，进入页面时自动获取最新"))
                 .Grid(row: 0, column: 0),
 

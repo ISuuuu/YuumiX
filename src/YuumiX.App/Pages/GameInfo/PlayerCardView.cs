@@ -82,8 +82,8 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
             )
-            .Width(13)
-            .Height(13)
+            .Width(16)
+            .Height(16)
             .CornerRadius(YuumiTheme.PillRadius)
             .Background(AssetColors.BadgeRose)
             .HAlign(HorizontalAlignment.Right)
@@ -124,7 +124,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                       (!string.IsNullOrEmpty(p.Puuid) && p.Puuid == Props.SelfPuuid ||
                        d?.Info?.Puuid == Props.SelfPuuid);
 
-        var nameText = Caption(displayName)
+        var nameText = BodyStrong(displayName)
             .Foreground(Theme.PrimaryText)
             .TextTrimming(TextTrimming.CharacterEllipsis)
             .VAlign(VerticalAlignment.Center);
@@ -230,7 +230,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         else
         {
             rankRow = Caption("无段位")
-                .Foreground(Theme.DisabledText)
+                .Foreground(Theme.SecondaryText)
                 .WithToolTip(TextBlock("单双排: 无段位\n灵活排: 无段位"));
         }
 
@@ -238,11 +238,11 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         Element statsRow;
         if (d?.Loading == true)
         {
-            statsRow = Caption("正在加载战绩...").Foreground(Theme.DisabledText);
+            statsRow = Caption("正在加载战绩...").Foreground(Theme.SecondaryText);
         }
         else if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
         {
-            statsRow = Caption("战绩已隐藏").Foreground(Theme.DisabledText);
+            statsRow = Caption("战绩已隐藏").Foreground(Theme.SecondaryText);
         }
         else if (d?.WinRate.HasValue == true)
         {
@@ -268,11 +268,11 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             var wrBlock = Caption($"{wr}%").SemiBold();
             wrBlock = wr >= 70
                 ? wrBlock.Foreground(BrushHelper.Parse(palette.WinText))
-                : wr >= 50 ? wrBlock.Foreground(Theme.Accent) : wrBlock.Foreground(Theme.TertiaryText);
+                : wr >= 50 ? wrBlock.Foreground(Theme.Accent) : wrBlock.Foreground(Theme.SecondaryText);
 
             // 色阶对齐旧版 PlayerCard.vue：≥5 强调色 / ≥4 段位蓝 / ≥3 胜利绿 / 其余灰。
             // 旧版最高档位用的是 --accent-color（不是纯金黄 #FFD700，那个在小字号下过于刺眼）。
-            var kdaBlock = Caption(kdaStr);
+            var kdaBlock = Caption(kdaStr).SemiBold();
             if (d.AvgKda is { } avgKda)
             {
                 kdaBlock = avgKda switch
@@ -280,12 +280,12 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     >= 5.0 => kdaBlock.Foreground(Theme.Accent),
                     >= 4.0 => kdaBlock.Foreground(BrushHelper.Parse(CareerVisuals.IsDarkTheme ? AssetColors.BlueSoft : AssetColors.BlueEssence)),
                     >= 3.0 => kdaBlock.Foreground(BrushHelper.Parse(palette.WinText)),
-                    _ => kdaBlock.Foreground(Theme.TertiaryText),
+                    _ => kdaBlock.Foreground(Theme.SecondaryText),
                 };
             }
             else
             {
-                kdaBlock = kdaBlock.Foreground(Theme.TertiaryText);
+                kdaBlock = kdaBlock.Foreground(Theme.SecondaryText);
             }
 
             wrBlock = wrBlock.WithToolTip(TextBlock(wrTip));
@@ -294,7 +294,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             var statsItems = new List<Element>
             {
                 wrBlock,
-                Caption(" · ").Foreground(Theme.DisabledText),
+                Caption(" · ").Foreground(Theme.SecondaryText),
                 kdaBlock,
             };
 
@@ -302,7 +302,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         }
         else
         {
-            statsRow = Caption("暂无战绩").Foreground(Theme.DisabledText);
+            statsRow = Caption("暂无战绩").Foreground(Theme.SecondaryText);
         }
 
         var topContent = Grid(

@@ -65,6 +65,7 @@ internal static class SavedPlayerCard
                 !string.IsNullOrEmpty(player.Tag)
                     ? Border(
                         Caption(player.Tag)
+                            .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                             .Margin(4, 1)
                       )
                       .Background(Theme.Accent)

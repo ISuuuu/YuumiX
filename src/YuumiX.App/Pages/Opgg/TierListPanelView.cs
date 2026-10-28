@@ -58,7 +58,6 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                 [GridSize.Auto],
                 [
                     Caption("#")
-                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 0),
@@ -69,7 +68,6 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                         .Grid(0, 1),
 
                     Caption("Tier")
-                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 2),
@@ -90,7 +88,6 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                         .Grid(0, 5),
 
                     Caption("KDA")
-                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .Grid(0, 6),
@@ -131,6 +128,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                 [
                     // 1. 排名序号
                     Caption((index + 1).ToString())
+                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
@@ -151,13 +149,15 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                     RenderTierBadge(item.Tier).Grid(0, 2),
 
                     // 4. 胜率
-                    BodyStrong(OpggVisuals.FormatPercent(item.WinRate))
+                    Caption(OpggVisuals.FormatPercent(item.WinRate))
+                        .SemiBold()
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(0, 3),
 
                     // 5. 登场率
                     Caption(OpggVisuals.FormatPercent(item.PickRate))
+                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
@@ -165,6 +165,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
 
                     // 6. 禁用率
                     Caption(OpggVisuals.FormatPercent(item.BanRate))
+                        .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
@@ -172,6 +173,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
 
                     // 7. KDA
                     Caption(OpggVisuals.FormatKda(item.Kda))
+                        .SemiBold()
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center)
                         .Grid(0, 6),
@@ -216,6 +218,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
 
         return Border(
             Caption(label)
+                .SemiBold()
                 .Foreground("#FFFFFF")
                 .HAlign(HorizontalAlignment.Center)
                 .VAlign(VerticalAlignment.Center)

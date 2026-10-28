@@ -249,7 +249,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         topRowColumns.Add(GridSize.Auto);
         topRowElements.Add(
             Caption(m.ShortDateText)
-                .Foreground(Theme.DisabledText)
+                .Foreground(Theme.SecondaryText)
                 .Grid(row: 0, column: topCol));
 
         var topRow = Grid(topRowColumns.ToArray(), [GridSize.Auto], topRowElements.ToArray())
@@ -259,9 +259,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var kdaItems = new List<Element>
         {
             Caption($"{m.Kills}").SemiBold().Foreground(Theme.PrimaryText),
-            Caption(" / ").Foreground(Theme.DisabledText),
+            Caption(" / ").Foreground(Theme.SecondaryText),
             Caption($"{m.Deaths}").SemiBold().Foreground(palette.DeathText),
-            Caption(" / ").Foreground(Theme.DisabledText),
+            Caption(" / ").Foreground(Theme.SecondaryText),
             Caption($"{m.Assists}").SemiBold().Foreground(Theme.PrimaryText),
         };
 
@@ -271,7 +271,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         if (!isTenCol)
         {
             var (ratioText, ratioColor) = FormatKdaRatio(m, palette);
-            var ratioLine = Caption($"{ratioText} KDA");
+            var ratioLine = Caption($"{ratioText} KDA").SemiBold();
             statsBox = VStack(1,
                 kdaLine,
                 ratioColor is null

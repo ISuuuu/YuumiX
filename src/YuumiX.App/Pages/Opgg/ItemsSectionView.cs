@@ -89,7 +89,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
             [
                 // 左侧初始装备
                 VStack(6,
-                    Caption(i18n?.T("opgg.items.starter", "初始装备") ?? "初始装备")
+                    BodyStrong(i18n?.T("opgg.items.starter", "初始装备") ?? "初始装备")
                         .Foreground(Theme.SecondaryText),
                     VStack(4,
                         (Props.StarterItems ?? []).Take(3).Select((item, idx) => RenderItemRow(item).WithKey($"starter-{idx}")).ToArray()
@@ -106,7 +106,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
 
                 // 右侧鞋子
                 VStack(6,
-                    Caption(i18n?.T("opgg.items.boots", "鞋子选择") ?? "鞋子选择")
+                    BodyStrong(i18n?.T("opgg.items.boots", "鞋子选择") ?? "鞋子选择")
                         .Foreground(Theme.SecondaryText),
                     VStack(4,
                         (Props.Boots ?? []).Take(3).Select((item, idx) => RenderItemRow(item).WithKey($"boots-{idx}")).ToArray()
@@ -125,7 +125,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
         return VStack(8,
             Border(Empty()).Height(1).Background(Theme.CardStroke),
 
-            Caption(i18n?.T("opgg.items.core", "核心装备组合") ?? "核心装备组合")
+            BodyStrong(i18n?.T("opgg.items.core", "核心装备组合") ?? "核心装备组合")
                 .Foreground(Theme.SecondaryText),
 
             VStack(6,
@@ -154,6 +154,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
                                 .VAlign(VerticalAlignment.Center),
 
                                 Caption(OpggVisuals.FormatPercent(item.PickRate))
+                                    .SemiBold()
                                     .Foreground(Theme.SecondaryText)
                                     .VAlign(VerticalAlignment.Center)
                             )
@@ -174,7 +175,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
         return VStack(8,
             Border(Empty()).Height(1).Background(Theme.CardStroke),
 
-            Caption(i18n?.T("opgg.items.last", "可选与推荐装备") ?? "可选与推荐装备")
+            BodyStrong(i18n?.T("opgg.items.last", "可选与推荐装备") ?? "可选与推荐装备")
                 .Foreground(Theme.SecondaryText),
 
             HStack(6,

@@ -40,7 +40,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
 
         // 玩家名着色：查询者走胜负面板业务色；其余按可点击/悬停走语义令牌。
         // string 业务色与 ThemeRef 令牌无法共存于同一三元，因此按 CareerMatchRow 的既有做法在元素级分支。
-        var text = Caption(p.DisplayName);
+        var text = p.IsQueriedPlayer ? BodyStrong(p.DisplayName) : Caption(p.DisplayName);
         if (p.IsQueriedPlayer)
         {
             text = text.Foreground(p.TeamWin ? p.Palette.WinText : p.Palette.LoseText);
@@ -319,10 +319,9 @@ internal static class MatchDetailView
             $"游戏 ID: {summary.GameId.ToString(CultureInfo.InvariantCulture)}");
 
         Element info = HStack(12,
-            Border(Empty()).Width(4).Height(34).CornerRadius(YuumiTheme.PillRadius).Background(accent),
+            Border(Empty()).Width(4).Height(40).CornerRadius(YuumiTheme.PillRadius).Background(accent),
             VStack(3,
-                BodyLarge(SearchVisuals.ResultText(summary))
-                    .SemiBold()
+                Subtitle(SearchVisuals.ResultText(summary))
                     .Foreground(accent),
                 Caption(meta).Foreground(Theme.SecondaryText)))
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
@@ -456,6 +455,7 @@ internal static class MatchDetailView
         return HStack(3,
                 icon,
                 Caption(count.ToString(CultureInfo.InvariantCulture))
+                    .SemiBold()
                     .Foreground(Theme.SecondaryText)
                     .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center))
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)

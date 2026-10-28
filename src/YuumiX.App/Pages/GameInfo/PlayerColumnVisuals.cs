@@ -197,7 +197,7 @@ internal static class PlayerColumnVisuals
                 HStack(2,
                     CareerVisuals.RankedMedal(activeRank.Tier, 13).VAlign(VerticalAlignment.Center),
                     Caption(ShortRank(activeRank.Tier, activeRank.Division))
-                        .Foreground(Theme.SecondaryText)
+                        .Foreground(Theme.PrimaryText)
                         .TextTrimming(TextTrimming.CharacterEllipsis)
                         .VAlign(VerticalAlignment.Center))
                 .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail))));
@@ -205,7 +205,7 @@ internal static class PlayerColumnVisuals
         else
         {
             var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
-            items.Add(Caption(isEn ? "Unranked" : "无段位").Foreground(Theme.DisabledText).VAlign(VerticalAlignment.Center));
+            items.Add(Caption(isEn ? "Unranked" : "无段位").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
         }
 
         return HStack(0, items.ToArray());

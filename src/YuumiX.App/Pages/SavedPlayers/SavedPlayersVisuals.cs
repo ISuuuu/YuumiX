@@ -1,6 +1,7 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
@@ -49,7 +50,8 @@ internal static class SavedPlayersVisuals
                 // 左侧标题与说明
                 HStack(
                     8,
-                    Subtitle(title),
+                    Subtitle(title)
+                        .HeadingLevel(AutomationHeadingLevel.Level2),
                     badge,
                     Body("·")
                         .Foreground(Theme.SecondaryText),
@@ -63,14 +65,14 @@ internal static class SavedPlayersVisuals
                 // 右侧刷新/导入/导出操作
                 HStack(
                     8,
-                    Button(Caption(refreshBtnText), onRefresh)
+                    Button(Body(refreshBtnText), onRefresh)
                         .AutomationName(refreshBtnText)
                         .IsEnabled(!isRefreshing)
                         .Padding(12, 5),
-                    Button(Caption(importBtnText), onImport)
+                    Button(Body(importBtnText), onImport)
                         .AutomationName(importBtnText)
                         .Padding(12, 5),
-                    Button(Caption(exportBtnText), onExport)
+                    Button(Body(exportBtnText), onExport)
                         .AutomationName(exportBtnText)
                         .Padding(12, 5)
                 )

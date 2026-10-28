@@ -101,7 +101,7 @@ internal static class CareerVisuals
     /// 标签与值必须同为 VAlign(Center)：看板行高被 32px 英雄头像撑高后，未居中的
     /// TextBlock 会被拉伸并贴顶渲染，数字整体上浮约 8px（值与标签基线错位）。
     /// </summary>
-    public static Element Stat(string label, string value, string? valueColor = null)
+    public static Element Stat(string label, string value, string? valueColor = null, bool colorLabel = false)
     {
         Element valueText = Caption(value).SemiBold().VAlign(VerticalAlignment.Center);
         if (valueColor is not null)
@@ -109,9 +109,12 @@ internal static class CareerVisuals
             valueText = valueText.Foreground(valueColor);
         }
 
-        return HStack(4,
-            Caption(label).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-            valueText);
+        var labelElement = Caption(label).VAlign(VerticalAlignment.Center);
+        labelElement = (colorLabel && valueColor is not null)
+            ? labelElement.Foreground(valueColor)
+            : labelElement.Foreground(Theme.SecondaryText);
+
+        return HStack(4, labelElement, valueText);
     }
 
     /// <summary>分路文案（与战绩列表共用同一套简写，避免两处各写一份）。</summary>
@@ -201,7 +204,7 @@ internal static class CareerVisuals
                 Caption("启动并登录英雄联盟客户端后，这里会显示头像、等级与排位成绩。")),
             padding: 20);
 
-    /// <summary>页签按钮：选中时用强调色文字 + 浅色底色与边框，未选中走次要文字色。</summary>
+    /// <summary>页签按钮：选中时用底色与描边区分，文字统一采用主文本色（PrimaryText），保持与控件一致的对比度。</summary>
     public static Element TabButton(
         string label,
         CareerTab target,
@@ -209,8 +212,9 @@ internal static class CareerVisuals
         Action<CareerTab> setTab)
     {
         bool isSelected = target == current;
-        var text = Body(label)
-            .Foreground(isSelected ? Theme.AccentText : Theme.SecondaryText)
+        var normalWeight = new Windows.UI.Text.FontWeight(400);
+        var text = (Body(label) with { Weight = normalWeight })
+            .Foreground(Theme.PrimaryText)
             .HAlign(HorizontalAlignment.Center)
             .VAlign(VerticalAlignment.Center);
 
@@ -223,6 +227,7 @@ internal static class CareerVisuals
 
             setTab(target);
         })
+        .FontWeight(normalWeight)
         // 旧版 `.career-tab-item`：padding 6×16 + 字号 0.88rem（14.08）→ 实际行高 33。
         // 横向 16 走 Padding，纵向由 Height 固定（6 的上下内边距换成 33 的盒子，光标与命中区一致）。
         .Height(33)

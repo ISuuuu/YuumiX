@@ -175,12 +175,14 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         string kdaRatioText = summary.Deaths == 0 ? "Perfect KDA" : $"{summary.KdaText} KDA";
         string? kdaRatioColor = KdaRatioColor(summary);
         Element kdaTextRow = HStack(2,
-            BodyStrong($"{summary.Kills} / "),
+            BodyStrong(summary.Kills.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            Body(" / ").Foreground(Theme.SecondaryText),
             BodyStrong(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Foreground(palette.DeathText),
-            BodyStrong($" / {summary.Assists}"));
+            Body(" / ").Foreground(Theme.SecondaryText),
+            BodyStrong(summary.Assists.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 
-        Element kdaRatioBlock = Caption(kdaRatioText);
+        Element kdaRatioBlock = Caption(kdaRatioText).SemiBold();
         kdaRatioBlock = kdaRatioColor is null
             ? kdaRatioBlock.Foreground(Theme.SecondaryText)
             : kdaRatioBlock.Foreground(kdaRatioColor);
@@ -198,7 +200,10 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         var csPerMinFormat = i18n?.T("career.creepScorePerMin", "({cs}/分)") ?? "({cs}/分)";
         var csPerMinText = csPerMinFormat.Replace("{cs}", csPerMin.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
         Element cs = VStack(2,
-                Caption($"{summary.CreepScore}{csUnit}"),
+                HStack(2,
+                    Caption(summary.CreepScore.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        .SemiBold(),
+                    Caption(csUnit).Foreground(Theme.SecondaryText)),
                 Caption(csPerMinText).Foreground(Theme.SecondaryText))
             .Width(CsWidth)
             .VAlign(VerticalAlignment.Center);

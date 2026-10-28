@@ -62,11 +62,11 @@ internal static class RecentSummaryView
         var losePrefix = (i18n?.T("career.lose", "负") ?? "负") + ":";
 
         Element statsCol = HStack(8,
-            Caption(recentTitle)
+            BodyStrong(recentTitle)
                 .Foreground(Theme.PrimaryText)
                 .VAlign(VerticalAlignment.Center),
-            CareerVisuals.Stat(winPrefix, summary.Wins.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.WinText),
-            CareerVisuals.Stat(losePrefix, summary.Losses.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.LoseText),
+            CareerVisuals.Stat(winPrefix, summary.Wins.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.WinText, colorLabel: true),
+            CareerVisuals.Stat(losePrefix, summary.Losses.ToString(System.Globalization.CultureInfo.InvariantCulture), CareerVisuals.LoseText, colorLabel: true),
             KdaStat(summary));
 
         var leftItems = new List<Element> { statsCol };
@@ -257,12 +257,20 @@ internal static class RecentSummaryView
             Caption($"/ {summary.Assists}")
                 .SemiBold()
                 .VAlign(VerticalAlignment.Center),
-            Caption($"({summary.KdaText})").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
+            Caption($"({summary.KdaText})")
+                .SemiBold()
+                .Foreground(Theme.SecondaryText)
+                .VAlign(VerticalAlignment.Center));
     }
 
     private static Element PositionChip(RecentPositionStat position, YuumiPalette palette) =>
-        Border(Caption($"{CareerVisuals.PositionText(position.Position)} {position.Percentage}%")
-                .Foreground(Theme.Accent))
+        Border(
+            HStack(4,
+                Caption(CareerVisuals.PositionText(position.Position))
+                    .Foreground(Theme.PrimaryText),
+                Caption($"{position.Percentage}%")
+                    .SemiBold()
+                    .Foreground(Theme.SecondaryText)))
             .Padding(8, 2)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(Theme.SubtleFill)

@@ -52,7 +52,7 @@ internal static class MatchCardView
                 .Foreground(Theme.PrimaryText),
             HStack(6,
                 Caption(summary.ShortDateText).Foreground(Theme.SecondaryText),
-                SearchVisuals.Kda(summary.Kills, summary.Deaths, summary.Assists, palette)));
+                SearchVisuals.Kda(summary.Kills, summary.Deaths, summary.Assists, palette, strong: true)));
 
         string borderBrush;
         string bg;

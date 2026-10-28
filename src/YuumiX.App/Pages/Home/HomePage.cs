@@ -4,6 +4,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using System.Diagnostics;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
@@ -94,6 +95,7 @@ public sealed class HomePage : Component
             24,
             // 居中大标题
             Title(i18n?.T("home.connected", "客户端连接成功 🎉") ?? "客户端连接成功 🎉")
+                .HeadingLevel(AutomationHeadingLevel.Level1)
                 .HorizontalAlignment(HorizontalAlignment.Center),
 
             // 居中卡片展示 PID 与 Port

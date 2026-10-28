@@ -98,6 +98,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
 
             return Border(
                 Caption(key)
+                    .SemiBold()
                     .Foreground(textCol)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
@@ -129,6 +130,7 @@ public sealed class SkillOrderSectionView : Component<SkillOrderSectionProps>
             .VAlign(VerticalAlignment.Center),
 
             Caption(OpggVisuals.FormatPercent(skillStats.PickRate))
+                .SemiBold()
                 .Foreground(Theme.SecondaryText)
                 .VAlign(VerticalAlignment.Center)
         )
