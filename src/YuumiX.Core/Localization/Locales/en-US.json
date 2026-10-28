@@ -12,6 +12,22 @@
     "opgg": "OP.GG",
     "savedPlayers": "Players Met"
   },
+  "home": {
+    "title": "Home",
+    "description": "View summoner status, game phase, and quick navigation shortcuts",
+    "connected": "Client Connected",
+    "overview": "Summoner Overview",
+    "viewCareer": "View Career",
+    "gamePhase": "Game Phase",
+    "phaseIdle": "Client is currently idle",
+    "quickAccess": "Quick Access",
+    "careerDesc": "View match history, loot, and champion mastery",
+    "searchDesc": "Look up summoners and analyze match details",
+    "gameInfoDesc": "Real-time dashboard for champ select and in-game",
+    "opggDesc": "Builds, runes, and tier lists from OP.GG",
+    "toolsDesc": "Auto accept, auto pick/ban, and utilities",
+    "unranked": "Unranked"
+  },
   "noticePage": {
     "title": "Notice",
     "sub": "Official Yuumi Announcements (Synced from GitHub)",

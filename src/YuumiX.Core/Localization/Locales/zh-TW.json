@@ -12,6 +12,22 @@
     "opgg": "OP.GG",
     "savedPlayers": "路人集"
   },
+  "home": {
+    "title": "主頁",
+    "description": "檢視當前召喚師狀態、遊戲階段與常用功能快捷直達",
+    "connected": "客戶端連線成功",
+    "overview": "召喚師概覽",
+    "viewCareer": "檢視生涯",
+    "gamePhase": "遊戲階段",
+    "phaseIdle": "當前客戶端處於閒置等待狀態",
+    "quickAccess": "捷徑入口",
+    "careerDesc": "檢視歷史戰績、戰利品與熟練度",
+    "searchDesc": "搜尋召喚師並分析對局詳情",
+    "gameInfoDesc": "選人與對局中即時看板",
+    "opggDesc": "英雄出裝、符文與克制排行",
+    "toolsDesc": "自動接受、自動選人與實用工具",
+    "unranked": "未定級"
+  },
   "noticePage": {
     "title": "公告",
     "sub": "Yuumi 官方公告 (動態同步自 GitHub)",
