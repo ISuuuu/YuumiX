@@ -170,6 +170,14 @@ public sealed class AutomationHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// 事件分发入口。
+    ///
+    /// 每个代理单独隔离异常：一次事件会分发给多个代理（phase 事件挂了九个），
+    /// 若共用一个 try/catch，任一代理抛异常，排在它后面的代理以及
+    /// <see cref="Phases"/> 的发布都会被一起跳过——表现成「界面阶段停在上一个值 + 部分自动化
+    /// 静默失效」，日志里只有一条笼统的「处理 LCU 事件失败」，看不出是谁挂的。
+    /// </summary>
     private void OnLcuEvent(LcuEvent evt)
     {
         try
@@ -180,43 +188,75 @@ public sealed class AutomationHost : IDisposable
                     ? evt.Data.GetString()
                     : evt.Data.GetRawText().Trim('"');
 
+                // 阶段是全局状态真源，先落库再分发：代理挂掉不该让阶段本身停住。
                 var phase = GamePhaseExtensions.ParseGamePhase(phaseStr);
                 _lifecycle.UpdatePhase(phase);
-                _autoAcceptAgent.OnPhaseChanged(phase);
-                _autoReconnectAgent.OnPhaseChanged(phase);
-                _autoCreateLobbyAgent.OnPhaseChanged(phase);
-                _aramTeamSideAgent.OnPhaseChanged(phase);
-                _autoEncounterRecorderAgent.OnPhaseChanged(phase);
-                _autoTagReminderAgent.OnPhaseChanged(phase);
-                _multiKillCaptureAgent.OnPhaseChanged(phase);
-                _autoPlayAgainAgent.OnPhaseChanged(phase);
-                _autoHonorAgent.OnPhaseChanged(phase);
+
+                Dispatch(evt.Uri, nameof(AutoAcceptAgent), () => _autoAcceptAgent.OnPhaseChanged(phase));
+                Dispatch(evt.Uri, nameof(AutoReconnectAgent), () => _autoReconnectAgent.OnPhaseChanged(phase));
+                Dispatch(evt.Uri, nameof(AutoCreateLobbyAgent), () => _autoCreateLobbyAgent.OnPhaseChanged(phase));
+                Dispatch(evt.Uri, nameof(AramTeamSideAgent), () => _aramTeamSideAgent.OnPhaseChanged(phase));
+                Dispatch(evt.Uri, nameof(AutoEncounterRecorderAgent), () => _autoEncounterRecorderAgent.OnPhaseChanged(phase));
+                Dispatch(evt.Uri, nameof(AutoTagReminderAgent), () => _autoTagReminderAgent.OnPhaseChanged(phase));
+                Dispatch(evt.Uri, nameof(MultiKillCaptureAgent), () => _multiKillCaptureAgent.OnPhaseChanged(phase));
+                Dispatch(evt.Uri, nameof(AutoPlayAgainAgent), () => _autoPlayAgainAgent.OnPhaseChanged(phase));
+                Dispatch(evt.Uri, nameof(AutoHonorAgent), () => _autoHonorAgent.OnPhaseChanged(phase));
+
                 Phases.Publish(phase);
             }
             else if (evt.Uri.StartsWith("/lol-matchmaking/v1/ready-check", StringComparison.OrdinalIgnoreCase))
             {
-                _autoAcceptAgent.OnReadyCheckEvent(evt.Data);
+                Dispatch(evt.Uri, nameof(AutoAcceptAgent), () => _autoAcceptAgent.OnReadyCheckEvent(evt.Data));
             }
             else if (evt.Uri.StartsWith("/lol-lobby/v2/received-invitations", StringComparison.OrdinalIgnoreCase))
             {
-                _autoInviteAgent.OnInvitationsEvent(evt.Data);
+                Dispatch(evt.Uri, nameof(AutoInviteAgent), () => _autoInviteAgent.OnInvitationsEvent(evt.Data));
             }
             else if (evt.Uri.StartsWith("/lol-honor-v2/v1/ballot", StringComparison.OrdinalIgnoreCase))
             {
-                _autoHonorAgent.OnBallotEvent(evt.Data);
+                Dispatch(evt.Uri, nameof(AutoHonorAgent), () => _autoHonorAgent.OnBallotEvent(evt.Data));
             }
             else if (evt.Uri.StartsWith("/lol-champ-select/v1/session", StringComparison.OrdinalIgnoreCase))
             {
-                var session = JsonSerializer.Deserialize<ChampSelectSession>(evt.Data.GetRawText());
-                if (session is not null)
+                Dispatch(evt.Uri, nameof(AutoBanPickAgent), () =>
                 {
-                    _ = _autoBanPickAgent.HandleSessionEventAsync(session);
-                }
+                    var session = JsonSerializer.Deserialize<ChampSelectSession>(evt.Data.GetRawText());
+                    if (session is not null)
+                    {
+                        _ = RunBanPickAsync(evt.Uri, session);
+                    }
+                });
             }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "处理自动化 LCU 事件失败: {Uri}", evt.Uri);
+        }
+    }
+
+    /// <summary>隔离单个代理的异常：失败只记日志，不影响同一事件里的其他代理。</summary>
+    private void Dispatch(string uri, string agent, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "代理 {Agent} 处理事件失败: {Uri}", agent, uri);
+        }
+    }
+
+    /// <summary>选人会话是异步处理，异常不会回到 <see cref="Dispatch"/> 的 try 里，单独兜住。</summary>
+    private async Task RunBanPickAsync(string uri, ChampSelectSession session)
+    {
+        try
+        {
+            await _autoBanPickAgent.HandleSessionEventAsync(session).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "代理 {Agent} 处理事件失败: {Uri}", nameof(AutoBanPickAgent), uri);
         }
     }
 

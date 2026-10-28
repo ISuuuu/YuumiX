@@ -273,6 +273,120 @@ public sealed class AutomationTests
         Assert.Contains(transport.RecordedRequests, r => r.Path == "/lol-matchmaking/v1/ready-check/accept" && r.Method == HttpMethod.Post);
     }
 
+    /// <summary>
+    /// 竞态回归：ready-check 事件先到、gameflow phase 还停在 Lobby（phase 由另一条事件流驱动，
+    /// 到达顺序不保证）。旧实现延迟后拿 phase 做二次校验，会误判「确认已结束」而不接受。
+    /// 判定应以 ready-check 接口为准。
+    /// </summary>
+    [Fact]
+    public async Task AutoAcceptAgent_Accepts_When_Phase_Lags_Behind_ReadyCheck()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => req.Path == "/lol-matchmaking/v1/ready-check"
+                ? new LcuResponse(200, """{"playerResponse":"None"}""")
+                : new LcuResponse(200, "{}")
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoAcceptMatching = true;
+        config.Functions.AutoAcceptMatchingDelay = 0;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+        lifecycle.UpdatePhase("Lobby");
+
+        await using var agent = new AutoAcceptAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        // 只发 ready-check 事件，不推进 phase
+        using var payload = JsonDocument.Parse("""{"playerResponse":"None"}""");
+        agent.OnReadyCheckEvent(payload.RootElement);
+
+        Assert.True(await WaitUntilAsync(() =>
+            transport.RecordedRequests.Any(r => r.Path == "/lol-matchmaking/v1/ready-check/accept" && r.Method == HttpMethod.Post)));
+    }
+
+    /// <summary>确认已随他人拒绝而结束：ready-check 接口 404 时不能再发接受请求。</summary>
+    [Fact]
+    public async Task AutoAcceptAgent_Skips_When_ReadyCheck_Already_Ended()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => req.Path == "/lol-matchmaking/v1/ready-check"
+                ? new LcuResponse(404, "")
+                : new LcuResponse(200, "{}")
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoAcceptMatching = true;
+        config.Functions.AutoAcceptMatchingDelay = 0;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoAcceptAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        using var payload = JsonDocument.Parse("""{"playerResponse":"None"}""");
+        agent.OnReadyCheckEvent(payload.RootElement);
+
+        // 先等到查询发出，再确认没有 accept
+        Assert.True(await WaitUntilAsync(() =>
+            transport.RecordedRequests.Any(r => r.Path == "/lol-matchmaking/v1/ready-check" && r.Method == HttpMethod.Get)));
+        await Task.Delay(100);
+
+        Assert.DoesNotContain(transport.RecordedRequests, r => r.Path == "/lol-matchmaking/v1/ready-check/accept");
+    }
+
+    /// <summary>
+    /// 确认结束后 LCU 下发 JSON null。旧实现直接 TryGetProperty 抛 InvalidOperationException，
+    /// 还把「本次已处理」标志卡在 true —— 下一次确认若没有 phase 事件复位就整局不触发。
+    /// </summary>
+    [Fact]
+    public async Task AutoAcceptAgent_ReArms_After_ReadyCheck_Cleared()
+    {
+        var transport = new MockTransport
+        {
+            Handler = req => req.Path == "/lol-matchmaking/v1/ready-check"
+                ? new LcuResponse(200, """{"playerResponse":"None"}""")
+                : new LcuResponse(200, "{}")
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoAcceptMatching = true;
+        config.Functions.AutoAcceptMatchingDelay = 0;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoAcceptAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        int AcceptCount() => transport.RecordedRequests.Count(r => r.Path == "/lol-matchmaking/v1/ready-check/accept");
+
+        using (var first = JsonDocument.Parse("""{"playerResponse":"None"}"""))
+        {
+            agent.OnReadyCheckEvent(first.RootElement);
+        }
+
+        Assert.True(await WaitUntilAsync(() => AcceptCount() == 1));
+        await Task.Delay(50);
+
+        // 确认结束：清空载荷既不能抛异常，也必须把标志复位
+        using (var cleared = JsonDocument.Parse("null"))
+        {
+            agent.OnReadyCheckEvent(cleared.RootElement);
+        }
+
+        using (var second = JsonDocument.Parse("""{"playerResponse":"None"}"""))
+        {
+            agent.OnReadyCheckEvent(second.RootElement);
+        }
+
+        Assert.True(await WaitUntilAsync(() => AcceptCount() >= 2));
+    }
+
     [Fact]
     public async Task AutoReconnectAgent_Triggers_On_Reconnect_Phase()
     {
