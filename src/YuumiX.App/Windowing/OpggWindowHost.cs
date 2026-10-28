@@ -157,7 +157,16 @@ internal sealed class OpggWindowRoot(int? initialChampionId) : Component
             };
         }, []);
 
-        return Component<OpggPage, OpggPageProps>(new OpggPageProps(initialChampionId))
+        return Grid(
+                [GridSize.Star()],
+                [GridSize.Star()],
+                [
+                    Component<OpggPage, OpggPageProps>(new OpggPageProps(initialChampionId)),
+                    // 本窗口自己的 Toast 宿主：OpggPage 的成功/失败提示（应用符文页、应用出装）
+                    // 都走 IToastService，之前只 Provide 了队列却没有宿主，那些提示全部石沉大海。
+                    // 宿主压在页面内容之上，与主窗口同一套视觉。
+                    Component<ToastHost>(),
+                ])
             .Provide(AppHost.Context, AppHost.Services)
             .Provide(AppHost.ThemeContext, AppHost.Theme)
             .Provide(AppHost.ToastContext, toastQueue);
