@@ -32,9 +32,11 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     /// <summary>英雄头像：旧版 `.champ-avatar` 52×52（卡内最高元素，决定行高）。</summary>
     private const double ChampionSize = 52;
 
-    /// <summary>装备格：旧版 `.item-slot` / `.ward-slot` 28×28，格间距 2（`.items-grid { gap: 2px }`）。</summary>
+    /// <summary>装备格：旧版 `.item-slot` / `.ward-slot` 28×28。</summary>
     private const double ItemSize = 28;
-    private const double ItemGap = 2;
+
+    /// <summary>装备列最小宽度（对齐 7 格装备基准宽度 208px，避免少装备时金币列左右漂移）。</summary>
+    private const double ItemsMinWidth = 208;
 
     /// <summary>海克斯强化格：旧版 `.augment-slot` 22×22（与装备格尺寸不同，不能共用 <see cref="ItemSize"/>）。</summary>
     private const double AugmentSize = 22;
@@ -77,14 +79,6 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
 
         var (replayRevealed, setReplayRevealed) = UseState(false, threadSafe: true);
         var (isHovered, setIsHovered) = UseState(false, threadSafe: true);
-
-        // 7 格装备（6 核心装备 + 1 饰品守卫）
-        var items = new Element[Search.SearchVisuals.ItemSlotCount];
-        for (var slot = 0; slot < items.Length; slot++)
-        {
-            int itemId = slot < summary.ItemIds.Count ? summary.ItemIds[slot] : 0;
-            items[slot] = Search.SearchVisuals.ItemIcon(catalog, itemId, ItemSize);
-        }
 
         var i18n = Composition.AppHost.Services?.I18n;
         var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
@@ -208,7 +202,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .Width(CsWidth)
             .VAlign(VerticalAlignment.Center);
 
-        // 装备列：海克斯强化（仅 2400/2450，去重保序最多 5 个，悬停显名称）+ 固定 7 格
+        // 装备列：海克斯强化（仅 2400/2450，去重保序最多 5 个，悬停显名称）+ 装备（未出装格子不显示）
         var itemChildren = new List<Element>();
         if (IsAugmentQueue(summary.QueueId) && summary.AugmentIds.Count > 0)
         {
@@ -218,9 +212,10 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 .ToArray()));
         }
 
-        itemChildren.Add(HStack(ItemGap, items));
+        itemChildren.Add(Search.SearchVisuals.ItemRow(catalog, summary.ItemIds, ItemSize));
 
         Element itemSlots = HStack(4, itemChildren.ToArray())
+            .MinWidth(ItemsMinWidth)
             .VAlign(VerticalAlignment.Center);
 
         // 金币列

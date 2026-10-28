@@ -127,14 +127,18 @@ internal static class MatchDetailView
     /// <summary>选手行高度（含上下内边距）：48 − 6×2 = 36，正好容纳 36 DIP 的英雄头像。</summary>
     private const double RowHeight = 48;
 
+    private const double CsColWidth = 60;
+    private const double GoldColWidth = 60;
+    private const double DamageColWidth = 72;
+
     private static GridSize[] GetTableColumns(bool isAugment) =>
     [
         GridSize.Star(),                                    // 0: 选手信息
         isAugment ? GridSize.Px(310) : GridSize.Px(204),   // 1: 强化 / 装备
         GridSize.Px(84),                                    // 2: KDA（居中）
-        GridSize.Px(60),                                    // 3: 补刀（居中）
-        GridSize.Px(76),                                    // 4: 金币（右对齐）
-        GridSize.Px(76),                                    // 5: 输出（右对齐）
+        GridSize.Px(CsColWidth),                            // 3: 补刀（居中）
+        GridSize.Px(GoldColWidth),                          // 4: 金币（右对齐）
+        GridSize.Px(DamageColWidth),                        // 5: 输出（右对齐）
     ];
 
     public static Element Render(
@@ -247,10 +251,10 @@ internal static class MatchDetailView
                         Block(60, 12).Grid(row: 0, column: 1),
                         Block(30, 12).Grid(row: 0, column: 2),
                         Block(30, 12).Grid(row: 0, column: 3),
-                        Block(30, 12).Grid(row: 0, column: 4),
-                        Block(30, 12).Grid(row: 0, column: 5),
+                        Block(30, 12).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 4),
+                        Block(30, 12).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 5),
                     ]))
-            .Padding(6);
+            .Padding(12, 6, 24, 6);
 
         // 选手行数按标准局 5 人：详情到达后真实表格也是 5 行，行数一致才不会跳。
         var rows = new GridSize[5];
@@ -396,7 +400,7 @@ internal static class MatchDetailView
                         ColumnLabel(goldHeader, 4, palette, HorizontalAlignment.Right),
                         ColumnLabel(dmgHeader, 5, palette, HorizontalAlignment.Right),
                     ]))
-            .Padding(6)
+            .Padding(12, 6, 24, 6)
             .Background(tint)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
 
@@ -615,13 +619,13 @@ internal static class MatchDetailView
         Element csCell = isQueriedPlayer
             ? SearchVisuals.NumberCell(
                 player.CreepScore.ToString(CultureInfo.InvariantCulture),
-                60,
+                CsColWidth,
                 strong: true,
                 foreground: queriedColor,
                 alignment: TextAlignment.Center)
             : SearchVisuals.NumberCell(
                 player.CreepScore.ToString(CultureInfo.InvariantCulture),
-                60,
+                CsColWidth,
                 strong: false,
                 foreground: Theme.SecondaryText,
                 alignment: TextAlignment.Center);
@@ -629,13 +633,13 @@ internal static class MatchDetailView
         Element goldCell = isQueriedPlayer
             ? SearchVisuals.NumberCell(
                 SearchVisuals.Thousands(player.Gold),
-                76,
+                GoldColWidth,
                 strong: true,
                 foreground: queriedColor,
                 alignment: TextAlignment.Right)
             : SearchVisuals.NumberCell(
                 SearchVisuals.Thousands(player.Gold),
-                76,
+                GoldColWidth,
                 strong: false,
                 foreground: Theme.SecondaryText,
                 alignment: TextAlignment.Right);
@@ -643,13 +647,13 @@ internal static class MatchDetailView
         Element damageCell = isQueriedPlayer
             ? SearchVisuals.NumberCell(
                 SearchVisuals.Thousands(player.DamageToChampions),
-                76,
+                DamageColWidth,
                 strong: true,
                 foreground: queriedColor,
                 alignment: TextAlignment.Right)
             : SearchVisuals.NumberCell(
                 SearchVisuals.Thousands(player.DamageToChampions),
-                76,
+                DamageColWidth,
                 strong: true,
                 foreground: Theme.PrimaryText,
                 alignment: TextAlignment.Right);
@@ -669,7 +673,7 @@ internal static class MatchDetailView
                         damageCell.Grid(row: 0, column: 5),
                     ]))
             .MinHeight(RowHeight)
-            .Padding(6)
+            .Padding(12, 6, 24, 6)
             .CornerRadius(isQueriedPlayer ? 4 : 0)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);

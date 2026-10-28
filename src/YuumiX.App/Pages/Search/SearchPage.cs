@@ -151,6 +151,24 @@ public sealed class SearchPage : Component<SearchPageProps>
                 },
                 InvalidateKeys: ["search/history"]));
 
+        var removeHistoryMutation = UseMutation<string, bool>(
+            mutator: async (item, ct) =>
+            {
+                await historyStore.RemoveAsync(item, ct).ConfigureAwait(false);
+                return true;
+            },
+            options: new MutationOptions<string, bool>(
+                InvalidateKeys: ["search/history"]));
+
+        var clearHistoryMutation = UseMutation<bool, bool>(
+            mutator: async (_, ct) =>
+            {
+                await historyStore.ClearAsync(ct).ConfigureAwait(false);
+                return true;
+            },
+            options: new MutationOptions<bool, bool>(
+                InvalidateKeys: ["search/history"]));
+
         // R7：搜索历史（读）——挂载拉一次；搜索成功后由 mutation 的 InvalidateKeys 失效重拉
         var historyResource = UseResource(
             ct => historyStore.GetHistoryAsync(ct),
@@ -397,6 +415,16 @@ public sealed class SearchPage : Component<SearchPageProps>
             SubmitSearch();
         }
 
+        void OnRemoveHistory(string item)
+        {
+            _ = removeHistoryMutation.RunAsync(item);
+        }
+
+        void OnClearHistory()
+        {
+            _ = clearHistoryMutation.RunAsync(true);
+        }
+
         void OnCareer()
         {
             if (summoner is not null) nav.Replace(new AppRoute.CareerRoute(summoner.Puuid, summoner));
@@ -428,6 +456,8 @@ public sealed class SearchPage : Component<SearchPageProps>
                             draft => draftRef.Current = draft,
                             historyList,
                             OnSelectHistory,
+                            OnRemoveHistory,
+                            OnClearHistory,
                             OnSearchButton,
                             OnCareer,
                             summoner is not null,

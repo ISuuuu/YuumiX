@@ -102,22 +102,33 @@ internal static class SearchVisuals
     public static bool IsAugmentQueue(int queueId) => queueId is 2400 or 2450;
 
     /// <summary>
-    /// 装备行：前六格连排 + 固定空档 + 守卫格。
+    /// 装备行：前六格连排 + 固定空档 + 守卫格（未出装的格子不显示）。
     ///
-    /// 空档是原实现的固定布局：守卫与装备之间留 8 DIP，避免玩家把眼位误读成第七件装备。
-    /// 空槽同样渲染占位块（而不是跳过），否则装备少的行会把后面的数字整体左移，列就歪了。
+    /// 守卫与装备之间留 8 DIP 空档，避免玩家把眼位误读成第七件装备。
     /// </summary>
     public static Element ItemRow(GameDataCatalog catalog, IReadOnlyList<int> itemIds, double size)
     {
-        var slots = new List<Element>(ItemSlotCount + 1);
+        var slots = new List<Element>();
 
         for (var slot = 0; slot < ItemSlotCount - 1; slot++)
         {
-            slots.Add(ItemIcon(catalog, ItemAt(itemIds, slot), size));
+            int itemId = ItemAt(itemIds, slot);
+            if (itemId > 0)
+            {
+                slots.Add(ItemIcon(catalog, itemId, size));
+            }
         }
 
-        slots.Add(Spacer(8));
-        slots.Add(ItemIcon(catalog, ItemAt(itemIds, ItemSlotCount - 1), size));
+        int trinketId = ItemAt(itemIds, ItemSlotCount - 1);
+        if (trinketId > 0)
+        {
+            if (slots.Count > 0)
+            {
+                slots.Add(Spacer(8));
+            }
+
+            slots.Add(ItemIcon(catalog, trinketId, size));
+        }
 
         return HStack(2, slots.ToArray());
     }
