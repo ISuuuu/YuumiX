@@ -137,7 +137,8 @@ internal sealed class CapabilityLab : Component
         Border(
             VStack(12,
                 VStack(4,
-                    SubHeading(title),
+                    Subtitle(title)
+                        .HeadingLevel(AutomationHeadingLevel.Level2),
                     Caption(note)),
                 content)
         ).Padding(16)
@@ -188,7 +189,8 @@ internal sealed class ChildWindowProbe : Component
         var (clicks, setClicks) = UseState(0);
 
         return VStack(16,
-            SubHeading("子窗口已独立渲染"),
+            Subtitle("子窗口已独立渲染")
+                .HeadingLevel(AutomationHeadingLevel.Level2),
             Caption("该窗口拥有自己的状态树，与主窗口互不影响。"),
             // 分析器对插值字符串按钮会误判为 icon-only，显式补 AutomationName
             Button($"独立计数：{clicks}", () => setClicks(clicks + 1))

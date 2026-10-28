@@ -74,19 +74,20 @@ dotnet test tests/YuumiX.SourceScan.Tests/YuumiX.SourceScan.Tests.csproj -p:Plat
 以下六条 grep 是**兜底自检**（主门禁失效或换环境时跑），应保持为 0：
 
 ```bash
-grep -rn "FontSize([0-9]" --include=*.cs src/YuumiX.App | wc -l     # 目标 0
-grep -rn "FontWeights.Bold" --include=*.cs src/YuumiX.App | wc -l   # 目标 0（标题用 Title 工厂）
-grep -rn "FontWeights\." --include=*.cs src/YuumiX.App | wc -l      # 目标 0（字重见 §1.1，禁止手写 FontWeights 常量）
-grep -rn 'statusText != "' --include=*.cs src/YuumiX.App | wc -l    # 目标 0（禁止文案反推状态）
-grep -rn "SyncWinUiAccentResources" --include=*.cs src | wc -l      # 目标 0（禁止覆盖系统强调色）
-grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0（滚动容器只允许 ScrollViewer，见 §5.5）
+grep -rn "FontSize([0-9]" --include=*.cs src/YuumiX.App | wc -l          # 目标 0
+grep -rn "FontWeights\.Bold\|\.Bold()" --include=*.cs src/YuumiX.App | wc -l # 目标 0（标题用 Title 工厂，禁止 Bold 700）
+grep -rn "FontWeights\." --include=*.cs src/YuumiX.App | wc -l           # 目标 0（字重见 §1.1，禁止手写 FontWeights 常量）
+grep -rn "Heading(" --include=*.cs src/YuumiX.App | wc -l                # 目标 0（统一用 Title / Subtitle，禁用 Heading / SubHeading）
+grep -rn 'statusText != "' --include=*.cs src/YuumiX.App | wc -l         # 目标 0（禁止文案反推状态）
+grep -rn "SyncWinUiAccentResources" --include=*.cs src | wc -l           # 目标 0（禁止覆盖系统强调色）
+grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l             # 目标 0（滚动容器只允许 ScrollViewer，见 §5.5）
 ```
 
 ---
 
 ## 1. 排版：只用语义工厂，禁止裸字号
 
-**禁止**：`TextBlock(x).FontSize(13.5).FontWeight(FontWeights.SemiBold)`、任何 `.FontSize(...)` 字面量、`FontWeights.Bold`。
+**禁止**：`TextBlock(x).FontSize(13.5).FontWeight(FontWeights.SemiBold)`、任何 `.FontSize(...)` 字面量、`FontWeights.Bold` 或 `.Bold()` 修饰符、`Heading(...)` / `SubHeading(...)` 工厂。
 
 **必须**从 Reactor 排版工厂里选（括号内为实际字号/字重）：
 
@@ -98,39 +99,41 @@ grep -rn "ScrollView(" --include=*.cs src/YuumiX.App | wc -l        # 目标 0�
 | 强调正文                   | `BodyLarge(x)`（18 / Regular）   |
 | 分组标题、二级标题         | `Subtitle(x)`（20 / SemiBold）   |
 | 页面标题、对话框标题       | `Title(x)`（28 / SemiBold）      |
-| 首屏主标题（每页最多一个） | `TitleLarge(x)`（40）            |
+| 首屏主标题（每页最多一个） | `TitleLarge(x)`（40 / SemiBold） |
 
 > 需要 WinUI 命名样式（含行高等完整 setter）时用 `.ApplyStyle("BodyTextBlockStyle")`，
-> **不要**用 `FontSize` 模拟。`Caption()` 是纯字号预设，要完整 Caption 样式请 `.ApplyStyle("CaptionTextBlockStyle")`。
+> **不要**用 `FontSize` 模拟。除 `Caption()` 是纯 `FontSize = 12` 预设外，其余工厂（`Body`/`BodyStrong`/`BodyLarge`/`Subtitle`/`Title`/`TitleLarge`/`Display`）底层均映射到对应的 `XxxTextBlockStyle`；需要完整 Caption 样式时请显式调 `.ApplyStyle("CaptionTextBlockStyle")`。
 > `Heading`（28 / Bold 700）、`SubHeading`（20 / SemiBold 600）是 Reactor 自带的便捷封装，并非弃用 API，且会自动带上 `HeadingLevel` 1/2。
-> 但 `Heading` 与 `Title` 同级却字重不同（700 vs 600），会造成同一级标题两种观感——页面标题固定用 `Title`，禁止新增 `Heading`。
-> 因 `Title`/`Subtitle` **不会**自动设置标题层级，必须手写 `.HeadingLevel(...)`（见 §4、§6）。
+> 但 `Heading` 与 `Title` 同级却字重不同（700 vs 600），会造成同一级标题两种观感——页面标题固定用 `Title`、二级标题固定用 `Subtitle`，禁止使用 `Heading` / `SubHeading`。
+> 因 `Title`/`Subtitle` **不会**自动设置标题层级：**用作页面/分组标题时必须手写 `.HeadingLevel(AutomationHeadingLevel.Level1/Level2)`**（见 §4、§6）；若仅借用 `Title`/`Subtitle` 渲染统计卡大号数值或大号符号/Emoji，则**禁止**附加 `HeadingLevel`，以免污染读屏软件的标题大纲。
 
-**最小字号 12px**。任何小于 12 的设计意图一律改为 12 + 降低字重/提高对比度解决，不得靠缩字号。
+**最小字号 12px**。任何小于 12 的设计意图一律改为 12 + 降低字重/提高对比度解决，不得靠缩字号；承载 12px 文本的微缩徽标/角标容器尺寸必须留足余量（避免把 12px 文本塞入过小的固定宽高容器导致贴边或裁切）。
 **禁止删除/绕过** `docs/internal/docbak/ui-native-fluent-plan.md` §5.1 的映射表自行发明新档位。
 
-### 1.1 字重：不许手写 `FontWeights.*`
+### 1.1 字重：不许手写 `FontWeights.*` 或 `.Bold()`
 
-工厂里**没有 12px 加粗档位**（`BodyStrong` 是唯一带 Strong 的工厂，14px）。所以 12px 想强调只有两条合规路径：
+工厂里**没有 12px 加粗档位**（`BodyStrong` 是唯一带 Strong 的工厂，14px）。所以各字号想强调只有以下合规路径：
 
 | 内容类型                                                             | 做法                                                                                         |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | 12px 中文 / 运行时多为中文的动态文本（昵称、段位、道具名、按钮文字） | **去字重**，层级改由 `Theme.PrimaryText` vs `Theme.SecondaryText` 对比度 + 既有边框/底色承担 |
-| 12px 纯数值、拉丁文、符号（KDA、等级、胜率、徽标字形）               | 用官方修饰符 `.SemiBold()`（`TextBlockElement.SemiBold()`），保留强调观感                    |
-| 14px 需要强调                                                        | 换 `BodyStrong(x)` 工厂，不要再叠 `.FontWeight(...)`                                         |
-| ≥18px 需要强调                                                       | 保留 `BodyLarge`/`Subtitle` 尺寸，用 `.SemiBold()`                                           |
+| 12px 纯数值、纯拉丁符号（KDA 数值、等级角标、胜率百分比）            | 用官方修饰符 `.SemiBold()`（`TextBlockElement.SemiBold()`），保留强调观感                    |
+| 14px 需要强调                                                        | 换 `BodyStrong(x)` 工厂，不要对 `Body(x)` 叠 `.SemiBold()` 或 `.FontWeight(...)`             |
+| 18px 需要强调                                                        | 用 `BodyLarge(x).SemiBold()`（注：`Subtitle`/`Title`/`TitleLarge` 已内置 SemiBold，勿重复调） |
 
-**为什么 12px 中文不能加粗**：雅黑没有 SemiBold 字重，字重 600 会被吸附到 Bold，小字号笔画粘连发糊——
-这正是今天工具页/设置页观感变好的原因（`refactor(ui): 移除自定义字体栈，工具页排版对齐原生 Fluent`）。
+**为什么 12px 中文默认不加粗**：微软雅黑（Microsoft YaHei UI）仅含 Light / Regular / Bold 三个物理字重而无独立 SemiBold（600）字库，且 12px（100% 缩放下仅 12×12 像素）汉字笔画密集、内部留白极小，加粗容易导致多笔画汉字粘连发糊——
+这正是工具页/设置页取消小字中文加粗后观感变好的原因（`refactor(ui): 移除自定义字体栈，工具页排版对齐原生 Fluent`）。
 
-**禁止**手写 `.FontWeight(Microsoft.UI.Text.FontWeights.SemiBold)`：字重是框架语义层的概念，
+**同级并列文本字重必须统一**：同一行表头、同一组并列标签（如同时含中文列与 `#`/`Tier`/`KDA` 列的表格头）必须使用相同字重，**禁止**因某几列刚好是拉丁字母就单独加 `.SemiBold()` 造成同行粗细割裂。
+
+**禁止**手写 `.FontWeight(Microsoft.UI.Text.FontWeights.*)` 或 `.Bold()`：字重是框架语义层的概念，
 应走工厂或 `.SemiBold()`；手写常量既绕过类型阶，也让「哪些小字该加粗」失去可审的依据。
 
 ### 1.2 文字渲染：浏览器兜不了的底，必须自己守
 
-Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底；WinUI 直连 DirectWrite 且做像素对齐，任何一处没对齐文字就发虚。历史三次踩坑（全局字体栈注入崩溃 `83fd2ef`、12px 中文加粗发糊、ScrollView 亚像素虚化）全是这一类。因此：
+Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底；WinUI 直连 DirectWrite 且做像素对齐，任何一处没对齐文字就发虚。历史三次踩坑（启动期写 `Application.Resources` 注入全局字体崩溃 `76a6716` + 自定义西文字体 `Outfit` 缺 CJK 与 600 字重导致混排错位 `cfebd0a`、12px 中文加粗发糊、ScrollView 亚像素虚化）全是这一类。因此：
 
-- **禁止注入全局字体/字体栈**：系统默认 Segoe UI Variable + 中文回退已是最优；"统一品牌字体"先按 §8 反问是否产品决策。
+- **禁止向 `Application.Current.Resources` 直接写入字体资源或注入缺字重/缺 CJK 的自定义字体栈**：WinUI 3 的 `Application.Resources` 绑定了 `themeresources.xaml` 的 `Source`，直接写本地键值会抛 `Local values are not allowed` 崩溃；且无 CJK 字形或缺少 600 字重的西文字体（如仅 400/700 的 `Outfit`）会导致同行内西文与回退中文粗细、基线错位。系统默认 Segoe UI Variable + 中文回退已是最优；任何"统一品牌字体"或根容器字体调整先按 §8 反问是否产品决策。
 - **尺寸、偏移、圆角一律整数像素**，禁止小数——亚像素位置会让 DirectWrite 失去像素网格拟合。
 - **禁止对文字做 Scale / Translation 动画**（动画期间文字脱离像素网格，结束时也可能停在半像素上）。
 - 观感类改动必须用 Reactor devtools 截图对比验证，不要肉眼反复试、更不要靠改字号/字重"救"清晰度。
@@ -222,7 +225,7 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 11. **异步数据走 `UseResource` / `UseMutation`**（详见 `agentkit/plugins/reactor/skills/reactor-async/SKILL.md`）：读数据自带取消、加载/出错状态、缓存与重试；写操作用 `UseMutation`。禁止每页手写 `Task.Run` + 自维护 loading/error（存量约 20 处，主要散在 `ReplayButton`、`SavedPlayersLoaders`、`NoticePopupView`、`SearchEffects` 等；`AppShell` 只有 1 处，`AppHost` 的启动期后台任务不在此列），组件卸载后请求必须自动取消，禁止新增 `async void`。
 12. **禁止在 `.Set()` 里挂事件或补写受控值**：控件走池回收，`Set` 每次重渲染都会重放，`Tag` 守卫不可靠（SearchPage AutoSuggestBox 的教训）。事件挂载用 `OnMountAdd`/`OnUnmountAdd` + `UseRef` 缓存委托（照 `AppShell` 现有做法）；受控值（如 ComboBox 选中项）走工厂参数，若确属 Reactor 缺陷则收成统一辅助方法，不要散在各页 `.Set()` 里补写。
 13. **导航参数走路由对象，禁止全局单例 payload**（曾有 `CareerNavigationPayload` / `SearchNavigationPayload` 这种一边 Set 一边 Consume 的可变单例，有时序问题，现已清除，禁止复活）：`AppRoute` 已是 record 层级（如 `CareerRoute(string? Puuid, ...)`），新增页面参数一律加在对应路由 record 上。
-14. **字形图标与字体族**：图标字体统一 `"Segoe Fluent Icons, Segoe MDL2 Assets"`（Win10 没装 Fluent 字体，只写前者会渲染成方框）；字形码集中在 `Icons` 静态类，禁止散落 `\uE...` 字面量；等宽字体只写 `"Cascadia Mono, Consolas"`，禁止 CSS 写法（`monospace` 不是 WinUI 字体名，会被静默丢弃）。
+14. **字形图标与字体族**：图标字体统一使用 `Icons.FontFamily`（即 `"Segoe Fluent Icons, Segoe MDL2 Assets"`，Win10 未内置 Fluent 图标字体，只写前者会渲染成方框）；等宽字体统一使用 `Icons.MonoFontFamily`（`"Cascadia Mono, Consolas"`，禁止 `monospace` 等 CSS 关键字，在 WinUI 中不是合法字体名会被静默丢弃）。字形码与字体族字符串集中在 `Icons` 静态类，业务页面与通用控件禁止散落 `\uE...` 字面量或手写 `.FontFamily("...")` 字符串字面量。
 15. **Hook 依赖不许传新分配的对象**（分析器 `REACTOR_HOOKS_004`）：`UseEffect(fn, (a, b))` 这类元组、数组、lambda 都是每次渲染新分配 → 依赖判定永远不相等 → 效果每帧重跑。要么传标量 key，要么 `UseMemo` 缓存，要么把变量提到字段。存量写法一律用标量（`0` 表示挂载一次）。
 16. **引用类型状态禁止原地修改**（分析器 `REACTOR_HOOKS_010`）：setter 走 `EqualityComparer<T>.Default` 比较，**同一实例比较相等** → 不排重渲染。`setItems(items)` 后再 `items.Add(x)` 等于什么都没做；必须传新值（`setItems([.. items, x])`）。setter 是 `Action<T>` 而非函数式更新，**禁止** `setItems(prev => ...)`。
 17. **主题覆盖：常规元素用 `.RequestedTheme(...)` 修饰符，`ContentDialog` 用 `.DialogTheme(...)`（`YuumiTheme.DialogTheme`）**：

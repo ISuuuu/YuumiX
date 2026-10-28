@@ -64,7 +64,8 @@ public sealed class PlaceholderPage : Component<PlaceholderProps>
 
         blocks.Add(Border(
                 VStack(12,
-                    SubHeading("待迁移功能"),
+                    Subtitle("待迁移功能")
+                        .HeadingLevel(AutomationHeadingLevel.Level2),
                     VStack(8, featureList))
             ).Padding(20)
              .CornerRadius(YuumiTheme.OverlayRadius)

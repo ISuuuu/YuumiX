@@ -11,10 +11,12 @@ M:Microsoft.UI.Reactor.Factories.ScrollView(Microsoft.UI.Reactor.Core.Element)
 T:Microsoft.UI.Xaml.Controls.ScrollView
 T:Microsoft.UI.Reactor.Core.ScrollViewElement
 
-# ── FontWeights：字重只走排版工厂或 .SemiBold() 修饰符（AGENTS.md §1.1）──────────
-# 手写 FontWeights 常量绕过类型阶：12px 中文加粗会被雅黑吸附成 Bold 导致笔画发糊，
-# 也让「哪些小字该加粗」失去可审依据。
+# ── FontWeights 与 Bold / Heading：字重与标题只走允许的排版工厂或 .SemiBold()（AGENTS.md §1 / §1.1）──
+# 手写 FontWeights 常量或 .Bold() 绕过类型阶；Heading / SubHeading 与 Title / Subtitle 同级但字重不统一（700 vs 600）。
 T:Microsoft.UI.Text.FontWeights
+M:Microsoft.UI.Reactor.ElementExtensions.Bold(Microsoft.UI.Reactor.Core.TextBlockElement)
+M:Microsoft.UI.Reactor.Factories.Heading(System.String)
+M:Microsoft.UI.Reactor.Factories.SubHeading(System.String)
 
 # ── ContentDialog.ShowAsync：对话框一律声明式（AGENTS.md §5.3）──────────────────
 # 命令式 ShowAsync 绕开 Reactor 的状态驱动渲染，分析器 REACTOR_DIALOG_001 只覆盖部分场景，

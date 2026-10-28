@@ -23,8 +23,9 @@ internal sealed record GateRule(
     // 都是裸字号字面量（FontSize(x) 变量形态不拦）
     private static readonly Regex FontSizePattern = new("FontSize\\s*(\\(|=)\\s*[0-9]", RegexOptions.Compiled);
 
-    // 整串就是 "Segoe Fluent Icons"（带收尾引号），带 MDL2 回退的长串天然不命中
-    private static readonly Regex BareFluentFontPattern = new("\"Segoe Fluent Icons\"", RegexOptions.Compiled);
+    // 散落的 FontFamily("...") 字符串字面量：字体族字符串只允许定义在 Theming/（如 Icons.FontFamily / Icons.MonoFontFamily），
+    // 业务页面与控件一律引用常量，避免漏掉 Segoe MDL2 Assets 回退或误写 CSS 字体名（AGENTS.md §5.14）
+    private static readonly Regex BareFluentFontPattern = new("FontFamily\\s*(\\(|=)\\s*\"", RegexOptions.Compiled);
 
     private static readonly Regex StatusTextPattern = new("statusText != \"", RegexOptions.Compiled);
 
@@ -53,9 +54,9 @@ internal sealed record GateRule(
 
         new(
             "BareFluentFontFamily",
-            "裸字形字体名：缺 Segoe MDL2 Assets 回退，Win10 渲染成方框（AGENTS.md §5.14）",
+            "散落字体族字符串字面量：字体族集中于 Icons 常量，禁止手写 .FontFamily(\"...\") 字面量（AGENTS.md §5.14）",
             CleanupBatch: "R11",
-            ExcludeTheming: false,
+            ExcludeTheming: true,
             line => BareFluentFontPattern.IsMatch(line)),
 
         new(

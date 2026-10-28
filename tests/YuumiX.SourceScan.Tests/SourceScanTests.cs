@@ -139,7 +139,9 @@ public sealed class SourceScanTests
     [InlineData("SpacingOff4Grid", ") with { ColumnSpacing = 10 }", true)]
     [InlineData("SpacingOff4Grid", ".Margin(0, 0, 0, CardGap2)", false)]
     [InlineData("BareFluentFontFamily", ".FontFamily(\"Segoe Fluent Icons\")", true)]
-    [InlineData("BareFluentFontFamily", ".FontFamily(\"Segoe Fluent Icons, Segoe MDL2 Assets\")", false)]
+    [InlineData("BareFluentFontFamily", ".FontFamily(\"Consolas\")", true)]
+    [InlineData("BareFluentFontFamily", ".FontFamily(Icons.FontFamily)", false)]
+    [InlineData("BareFluentFontFamily", ".FontFamily(Icons.MonoFontFamily)", false)]
     [InlineData("StatusTextInversion", "if (statusText != \"未启用\")", true)]
     [InlineData("StatusTextInversion", "if (status != SettingStatus.Disabled)", false)]
     public void Rules_MatchKnownBadAndGoodLines(string ruleId, string line, bool expectViolation)
