@@ -1169,7 +1169,9 @@
     "filterMultiple": "多次相遇",
     "searchPlaceholder": "搜索召唤师名称、TagLine 或标记...",
     "searchEmpty": "未找到与 “{keyword}” 相关的玩家",
-    "clearSearch": "清空搜索"
+    "clearSearch": "清空搜索",
+    "refresh": "刷新",
+    "refreshing": "正在刷新..."
   },
   "replay": {
     "btn": "回放",

@@ -263,6 +263,30 @@ public sealed class SavedPlayersStoreTests : IDisposable
         Assert.Equal("self_A", allSelfs[1]);
     }
 
+    [Fact]
+    public async Task Changed_FiresOnMutations()
+    {
+        var events = new List<SavedPlayersChangedEventArgs>();
+        using var sub = _store.Changed.Subscribe(events.Add);
+
+        var players = new List<EncounterPlayerEntry>
+        {
+            new() { Puuid = "p1", SummonerName = "测试1", ProfileIconId = 1, TagLine = "111", ChampionId = 157 },
+        };
+        await _store.RecordEncountersAsync(players, "self1", 10001, "420");
+        Assert.Single(events);
+        Assert.Equal(SavedPlayersChangeKind.EncountersRecorded, events[0].Kind);
+        Assert.Equal("self1", events[0].SelfPuuid);
+
+        await _store.SaveTagAsync("p1", "self1", "神仙");
+        Assert.Equal(2, events.Count);
+        Assert.Equal(SavedPlayersChangeKind.TagUpdated, events[1].Kind);
+
+        await _store.DeletePlayerAsync("p1", "self1");
+        Assert.Equal(3, events.Count);
+        Assert.Equal(SavedPlayersChangeKind.PlayerDeleted, events[2].Kind);
+    }
+
     public void Dispose()
     {
         _store.Dispose();

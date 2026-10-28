@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using YuumiX.Core.Common;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Runtime;
@@ -18,7 +19,11 @@ public sealed class SavedPlayersStore : IDisposable
     private readonly string _connectionString;
     private readonly ILogger<SavedPlayersStore>? _logger;
     private readonly Lock _gate = new();
+    private readonly EventStream<SavedPlayersChangedEventArgs> _changed;
     private bool _initialized;
+
+    /// <summary>路人集数据变更通知（相遇记录入库、标记更新、删除或导入后触发）。</summary>
+    public EventStream<SavedPlayersChangedEventArgs> Changed => _changed;
 
     public SavedPlayersStore(RuntimePaths paths, ILogger<SavedPlayersStore>? logger = null)
         : this(Path.Combine(paths.DataDirectory, "saved_players.db"), logger)
@@ -42,6 +47,7 @@ public sealed class SavedPlayersStore : IDisposable
         };
         _connectionString = builder.ToString();
         _logger = logger;
+        _changed = new EventStream<SavedPlayersChangedEventArgs>(ex => _logger?.LogWarning(ex, "路人集变更事件观察者抛出异常，已隔离"));
     }
 
     private void EnsureInitialized()
@@ -452,6 +458,7 @@ public sealed class SavedPlayersStore : IDisposable
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        _changed.Publish(new SavedPlayersChangedEventArgs(SavedPlayersChangeKind.TagUpdated, selfPuuid));
     }
 
     /// <summary>
@@ -489,6 +496,7 @@ public sealed class SavedPlayersStore : IDisposable
         }
 
         await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        _changed.Publish(new SavedPlayersChangedEventArgs(SavedPlayersChangeKind.PlayerDeleted, selfPuuid));
     }
 
     /// <summary>
@@ -597,6 +605,7 @@ public sealed class SavedPlayersStore : IDisposable
         }
 
         await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        _changed.Publish(new SavedPlayersChangedEventArgs(SavedPlayersChangeKind.EncountersRecorded, selfPuuid, gameId));
         return recorded;
     }
 
@@ -746,6 +755,11 @@ public sealed class SavedPlayersStore : IDisposable
         }
 
         await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        if (imported > 0)
+        {
+            _changed.Publish(new SavedPlayersChangedEventArgs(SavedPlayersChangeKind.Imported, defaultSelfPuuid));
+        }
+
         return imported;
     }
 
@@ -813,10 +827,16 @@ public sealed class SavedPlayersStore : IDisposable
         }
 
         await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        if (count > 0)
+        {
+            _changed.Publish(new SavedPlayersChangedEventArgs(SavedPlayersChangeKind.Backfilled));
+        }
+
         return count;
     }
 
     public void Dispose()
     {
+        _changed.Complete();
     }
 }

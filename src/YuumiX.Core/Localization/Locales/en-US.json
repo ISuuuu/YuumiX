@@ -1169,7 +1169,9 @@
     "filterMultiple": "Met Multiple Times",
     "searchPlaceholder": "Search summoner name, TagLine, or tags...",
     "searchEmpty": "No players found matching \"{keyword}\"",
-    "clearSearch": "Clear Search"
+    "clearSearch": "Clear Search",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing..."
   },
   "replay": {
     "btn": "Replay",

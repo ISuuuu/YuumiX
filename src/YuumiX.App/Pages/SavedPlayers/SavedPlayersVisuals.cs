@@ -13,12 +13,21 @@ namespace YuumiX.App.Pages.SavedPlayers;
 /// </summary>
 internal static class SavedPlayersVisuals
 {
-    /// <summary>顶部标题、胶囊 Badge 与导入/导出按钮组</summary>
-    internal static Element RenderHeader(long totalCount, Action onImport, Action onExport, YuumiPalette palette)
+    /// <summary>顶部标题、胶囊 Badge 与刷新/导入/导出按钮组</summary>
+    internal static Element RenderHeader(
+        long totalCount,
+        Action onRefresh,
+        bool isRefreshing,
+        Action onImport,
+        Action onExport,
+        YuumiPalette palette)
     {
         var i18n = Composition.AppHost.Services?.I18n;
         var title = i18n?.T("savedPlayersPage.title", "路人集") ?? "路人集";
         var desc = i18n?.T("savedPlayersPage.desc", "对局结束后自动记录同局的队友与对手，可添加标记以便选人阶段提醒") ?? "对局结束后自动记录同局的队友与对手，可添加标记以便选人阶段提醒";
+        var refreshBtnText = isRefreshing
+            ? (i18n?.T("savedPlayersPage.refreshing", "正在刷新...") ?? "正在刷新...")
+            : (i18n?.T("savedPlayersPage.refresh", "刷新") ?? "刷新");
         var importBtnText = i18n?.T("savedPlayersPage.import", "导入标记") ?? "导入标记";
         var exportBtnText = i18n?.T("savedPlayersPage.export", "导出标记") ?? "导出标记";
 
@@ -51,9 +60,13 @@ internal static class SavedPlayersVisuals
                 .VerticalAlignment(VerticalAlignment.Center)
                 .Grid(column: 0),
 
-                // 右侧导入/导出操作
+                // 右侧刷新/导入/导出操作
                 HStack(
                     8,
+                    Button(Caption(refreshBtnText), onRefresh)
+                        .AutomationName(refreshBtnText)
+                        .IsEnabled(!isRefreshing)
+                        .Padding(12, 5),
                     Button(Caption(importBtnText), onImport)
                         .AutomationName(importBtnText)
                         .Padding(12, 5),

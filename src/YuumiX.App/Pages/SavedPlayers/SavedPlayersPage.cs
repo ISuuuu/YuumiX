@@ -82,17 +82,55 @@ public sealed class SavedPlayersPage : Component
         var (expanded, setExpanded) = UseState<ExpandedTarget?>(null, threadSafe: true);
         var expandNonceRef = UseRef(0);
 
-        // 页面缓存开启后组件实例常驻：切走时若处于编辑标签或删除确认态，
-        // 离开时统一收回，避免切回页面时残留临时态。
+        // 刷新 Nonce：切入页面、手动点击刷新或对局结算自动写入时递增
+        var (refreshNonce, setRefreshNonce) = UseState(0, threadSafe: true);
+        var refreshNonceRef = UseRef(0);
+        void BumpRefresh()
+        {
+            refreshNonceRef.Current += 1;
+            setRefreshNonce(refreshNonceRef.Current);
+        }
+        var bumpRefreshRef = UseRef<Action?>(null);
+        bumpRefreshRef.Current = BumpRefresh;
+
+        // 页面缓存开启后组件实例常驻：
+        // 1. 切走时清理编辑或删除弹窗等一次性 UI 状态
+        // 2. 切回时（非首次挂载）触发静默刷新，拉取最新对局数据
         var cleanupRef = UseRef<Action?>(null);
         cleanupRef.Current = () =>
         {
             setEditingPuuid(null);
             setPendingDeletePuuid(null);
         };
+        var isFirstNavigatedToRef = UseRef(true);
+        var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
+        navigatedToRef.Current ??= _ =>
+        {
+            if (isFirstNavigatedToRef.Current)
+            {
+                isFirstNavigatedToRef.Current = false;
+                return;
+            }
+
+            bumpRefreshRef.Current?.Invoke();
+        };
         var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
         navigatedFromRef.Current ??= _ => cleanupRef.Current?.Invoke();
-        UseNavigationLifecycle(onNavigatedFrom: navigatedFromRef.Current);
+        UseNavigationLifecycle(
+            onNavigatedTo: navigatedToRef.Current,
+            onNavigatedFrom: navigatedFromRef.Current);
+
+        // 订阅底层存储变更（对局结束批量写入、标记更新、导入等），自动刷新列表
+        UseEffect(
+            () =>
+            {
+                var subscription = store.Changed.Subscribe(_ =>
+                {
+                    bumpRefreshRef.Current?.Invoke();
+                });
+                return () => subscription.Dispose();
+            },
+            0);
 
         // 连接态订阅 → 账号解析（UseResource）：连接状态变化即重拉当前登录账号
         var (connStatus, setConnStatus) = UseState(
@@ -137,7 +175,7 @@ public sealed class SavedPlayersPage : Component
             },
             searchDraft);
 
-        // 玩家列表（offset 分页 → UseInfiniteResource）：账号/筛选/生效词变化重置第一页；
+        // 玩家列表（offset 分页 → UseInfiniteResource）：账号/筛选/生效词/刷新触发重置第一页；
         // 账号未解析或库无记录时返回空页，与旧行为一致（不查询直接置空）。
         var playersResource = UseInfiniteResource<SavedPlayerRecord, int?>(
             async (cursor, ct) =>
@@ -155,13 +193,44 @@ public sealed class SavedPlayersPage : Component
                     hasMore ? page + 1 : null,
                     (int)result.TotalCount);
             },
-            deps: new object[] { selfPuuid ?? string.Empty, filter, committedSearch });
+            deps: new object[] { selfPuuid ?? string.Empty, filter, committedSearch, refreshNonce });
 
-        List<SavedPlayerRecord> players = [.. playersResource.Items.OfType<SavedPlayerRecord>()];
-        long totalCount = playersResource.TotalCount ?? 0;
+        // 平滑无闪烁缓存：静默刷新或对局更新时，若 InfiniteResource.Items 在新第一页拉取中
+        // 临时为空，继续回退使用上一轮有效卡片列表，避免退化到骨架屏产生剧烈视觉闪烁。
+        // 当且仅当筛选 Tab 或搜索词变化时才清空缓存，重新展示骨架。
+        var querySignature = $"{selfPuuid ?? string.Empty}|{filter}|{committedSearch}";
+        var lastQuerySignatureRef = UseRef(querySignature);
+        var lastKnownPlayersRef = UseRef<IReadOnlyList<SavedPlayerRecord>?>(null);
+        var lastKnownTotalRef = UseRef<long?>(null);
+
+        if (lastQuerySignatureRef.Current != querySignature)
+        {
+            lastQuerySignatureRef.Current = querySignature;
+            lastKnownPlayersRef.Current = null;
+            lastKnownTotalRef.Current = null;
+        }
+
+        List<SavedPlayerRecord> rawPlayers = [.. playersResource.Items.OfType<SavedPlayerRecord>()];
+        long rawTotalCount = playersResource.TotalCount ?? 0;
+
+        if (rawPlayers.Count > 0)
+        {
+            lastKnownPlayersRef.Current = rawPlayers;
+            lastKnownTotalRef.Current = rawTotalCount;
+        }
+
+        bool hasCachedPlayers = lastKnownPlayersRef.Current is { Count: > 0 };
+        IReadOnlyList<SavedPlayerRecord> players = rawPlayers.Count > 0
+            ? rawPlayers
+            : (lastKnownPlayersRef.Current ?? rawPlayers);
+        long totalCount = rawPlayers.Count > 0
+            ? rawTotalCount
+            : (lastKnownTotalRef.Current ?? rawTotalCount);
+
+        bool isRefreshing = playersResource.LoadState is LoadState.Loading && (hasCachedPlayers || rawPlayers.Count > 0);
         bool loading = accountLoading
             || (selfPuuid is not null && players.Count == 0 && playersResource.LoadState is LoadState.Loading);
-        bool loadingMore = players.Count > 0 && playersResource.LoadState is LoadState.Loading;
+        bool loadingMore = rawPlayers.Count > 0 && playersResource.LoadState is LoadState.Loading;
 
         // 列表加载失败：一次性 toast（LoadState 值相等，同一失败不重复弹）
         UseEffect(
@@ -291,8 +360,8 @@ public sealed class SavedPlayersPage : Component
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Auto, GridSize.Star()],
             [
-                // 1. 页头 Header（带导入导出）
-                SavedPlayersVisuals.RenderHeader(totalCount, HandleImport, HandleExport, palette).Grid(row: 0),
+                // 1. 页头 Header（带刷新与导入导出）
+                SavedPlayersVisuals.RenderHeader(totalCount, BumpRefresh, isRefreshing, HandleImport, HandleExport, palette).Grid(row: 0),
 
                 // 2. 工具栏 Toolbar（防抖搜索与清空、分类筛选）
                 SavedPlayersVisuals.RenderToolbar(
