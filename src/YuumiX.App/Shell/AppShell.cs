@@ -338,15 +338,24 @@ public sealed class AppShell : Component
 
         // 菜单可见性是另一个重渲染来源：设置页切「隐藏菜单」开关后，
         // MenuVisibilityState 推过来，重新计算带过滤的菜单（同主题的 threadSafe 语义）。
+        //
+        // 状态必须解构成标量。MenuVisibilityState 是可变类，Publish 推的是 this 本体；
+        // 若把实例整个塞进 UseState，setter 走 EqualityComparer<T>.Default 会判定「同一实例」
+        // 而跳过重渲染（REACTOR_HOOKS_010）——表现为开关已保存、侧边栏毫无变化。
         var menuState = AppHost.Menu;
-        var (menuVisibility, setMenuVisibility) = UseState(menuState, threadSafe: true);
+        var (hideTft, setHideTft) = UseState(menuState.HideTft, threadSafe: true);
+        var (hideSavedPlayers, setHideSavedPlayers) = UseState(menuState.HideSavedPlayers, threadSafe: true);
         UseEffect(
             () =>
             {
-                var subscription = menuState.Subscribe(setMenuVisibility);
+                var subscription = menuState.Subscribe(state =>
+                {
+                    setHideTft(state.HideTft);
+                    setHideSavedPlayers(state.HideSavedPlayers);
+                });
                 return () => subscription.Dispose();
             },
-            1);
+            0);
 
         // 界面缩放状态是本页的重渲染来源之一：设置页切「界面缩放」后，
         // ScaleState 通过 EventStream 推过来，驱动内容视口等比缩放。
@@ -517,13 +526,13 @@ public sealed class AppShell : Component
         // 选中项被重置为第一项并触发 OnSelectedTagChanged，表现为「界面重渲染后莫名跳回主页」。
         // 这是主题即时生效暴露出来的问题（ADR-12 决策三带来的额外重渲染）。
         // key 为可见性签名 + 语言签名：在「隐藏菜单」配置或当前语言实际变化时重建菜单。
-        var menuKey = (menuVisibility.HideTft ? 1 : 0) | (menuVisibility.HideSavedPlayers ? 2 : 0) | (currentLang.GetHashCode() << 2);
+        var menuKey = (hideTft ? 1 : 0) | (hideSavedPlayers ? 2 : 0) | (currentLang.GetHashCode() << 2);
         var menuItems = UseMemo(
             () => RouteCatalog.Primary
                 .Where(item => item.Key switch
                 {
-                    "Tft" => !menuVisibility.HideTft,
-                    "SavedPlayers" => !menuVisibility.HideSavedPlayers,
+                    "Tft" => !hideTft,
+                    "SavedPlayers" => !hideSavedPlayers,
                     _ => true,
                 })
                 .Select(item => NavItem(GetNavLabel(i18n, item.Key, item.Label), item.Glyph, item.Key))
@@ -961,6 +970,10 @@ public sealed class AppShell : Component
         .Provide(AppHost.Context, services)
         .Provide(AppHost.ThemeContext, AppHost.Theme)
         .Provide(AppHost.ScaleContext, AppHost.Scale)
+        // 设置页的「隐藏菜单」开关经 MenuContext 拿到发布通道。
+        // 漏掉这一行时 UseContext 返回 Context<T> 的默认值（AppHost 刻意传 null!），
+        // 设置页拿到的 Menu 为 null，点开关即在 UI 回调里抛 NullReferenceException → 进程崩溃。
+        .Provide(AppHost.MenuContext, menuState)
         .Provide(AppHost.UpdateNoticeContext, updateNotice)
         .Provide(AppHost.ToastContext, toastQueue);
 
