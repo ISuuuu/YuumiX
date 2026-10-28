@@ -350,9 +350,9 @@ public sealed class SettingsPage : Component
 
         var mainScroll = ScrollViewer(
             VStack(8,
-                // 页面标题比分组标题（Subtitle 20）高一级，保持视觉层级。
-                Title(services.I18n.T("settings.title", "设置"))
-                    .HeadingLevel(AutomationHeadingLevel.Level1)
+                PageHeaders.PageHeader(
+                    services.I18n.T("settings.title", "设置"),
+                    includeBottomMargin: false)
                     .Margin(bottom: 8),
 
                 // 1. 功能

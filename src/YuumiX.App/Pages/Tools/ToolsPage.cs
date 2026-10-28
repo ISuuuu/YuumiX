@@ -257,9 +257,10 @@ public sealed class ToolsPage : Component
         // 且与滚动位置无关（offset=0 时同样偏软）。判定为 ScrollPresenter 内容层渲染所致。
         var mainScroll = ScrollViewer(
             VStack(8,
-                Title(services.I18n.T("tools.title", "其他功能"))
-                    .HeadingLevel(AutomationHeadingLevel.Level1)
-                    .Margin(new Thickness(0, 0, 0, 8)),
+                PageHeaders.PageHeader(
+                    services.I18n.T("tools.title", "其他功能"),
+                    includeBottomMargin: false)
+                    .Margin(0, 0, 0, 8),
 
                 offlineBanner ?? Empty(),
 

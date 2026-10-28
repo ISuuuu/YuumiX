@@ -154,45 +154,37 @@ public sealed class GameInfoPage : Component
             return LcuOfflineState.Render(extra: DemoButton(() => gameInfoService.LoadDemoState()));
         }
 
-        // 2. 云顶之弈模式
-        if (state.IsTftMode)
-        {
-            return RenderPlaceholder(
+        Element content = state.IsTftMode
+            ? RenderPlaceholder(
                 services.I18n.T("gameInfo.tftInGame", "云顶之弈对局中"),
                 services.I18n.T("gameInfo.tftDesc", "云顶之弈模式不显示召唤师峡谷数据"),
-                palette);
-        }
+                palette)
+            : !string.IsNullOrEmpty(state.Error)
+                ? RenderPlaceholder(services.I18n.T("gameInfo.errorTitle", "数据读取异常"), state.Error, palette)
+                : !state.ShouldShowContent
+                    ? RenderPlaceholder(
+                        services.I18n.T("gameInfo.awaitingLoadTitle", "等待对局开始"),
+                        services.I18n.T("gameInfo.awaitingLoadDesc", "进入选人阶段或对局中后将自动展示双方玩家数据"),
+                        palette,
+                        DemoButton(() => gameInfoService.LoadDemoState()))
+                    : state.IsLoadingTeams
+                        ? GameInfoSkeleton.Render(state.ViewColumns == 10, windowWidth)
+                        : (state.ViewColumns == 10
+                            ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch)
+                            : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch, windowWidth));
 
-        // 3. 错误状态
-        if (!string.IsNullOrEmpty(state.Error))
-        {
-            return RenderPlaceholder(services.I18n.T("gameInfo.errorTitle", "数据读取异常"), state.Error, palette);
-        }
+        var pageTitle = services.I18n.T("gameInfo.title", "对局信息");
+        var pageHeader = PageHeaders.PageHeader(pageTitle, includeBottomMargin: false)
+            .Margin(0, 0, 0, 12);
 
-        // 4. 等待对局
-        if (!state.ShouldShowContent)
-        {
-            return RenderPlaceholder(
-                services.I18n.T("gameInfo.awaitingLoadTitle", "等待对局开始"),
-                services.I18n.T("gameInfo.awaitingLoadDesc", "进入选人阶段或对局中后将自动展示双方玩家数据"),
-                palette,
-                DemoButton(() => gameInfoService.LoadDemoState()));
-        }
-
-        // 5. 正在读取队伍
-        if (state.IsLoadingTeams)
-        {
-            // 加载态直接铺与真实视图同形状的空壳（工具栏 44 + 面板 + 等宽列），
-            // 尺寸与终态 1:1 对齐，数据到达时原地填充，消除白屏与页面跳变。
-            return GameInfoSkeleton.Render(state.ViewColumns == 10, windowWidth);
-        }
-
-        // 6. 正常对局渲染
-        //    演示态只影响数据来源，不再额外加顶部提示条：提示条会占掉 40 DIP 的页面高度，
-        //    把右栏战绩区压短一截。演示数据本身已经在按钮文案与点击行为上可辨识。
-        return state.ViewColumns == 10
-            ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch)
-            : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch, windowWidth);
+        return Grid(
+            [GridSize.Star()],
+            [GridSize.Auto, GridSize.Star()],
+            [
+                pageHeader.Grid(row: 0),
+                content.Grid(row: 1),
+            ])
+            .Padding(8, 16, 24, 16);
     }
 
     /// <summary>
@@ -219,7 +211,7 @@ public sealed class GameInfoPage : Component
                 .SemiBold()
                 .Foreground(Theme.PrimaryText)
                 .HAlign(HorizontalAlignment.Center),
-            Caption(subtitle)
+            Body(subtitle)
                 .Foreground(Theme.SecondaryText)
                 .HAlign(HorizontalAlignment.Center)
         };
@@ -479,7 +471,7 @@ public sealed class GameInfoPage : Component
 
         // 旧版 `.game-info` padding 16/24/16/9.6（上右下左）；9.6 取 8，
         // 旧的统一 8 会让两侧面板直接贴到标题栏与窗口边缘。
-        return layout.Padding(8, 16, 24, 16);
+        return layout;
     }
 
     private Element RenderTenColumnView(
@@ -627,9 +619,7 @@ public sealed class GameInfoPage : Component
             [
                 fullPanel.Grid(row: 0, column: 0),
             ]
-        )
-        // 与 5 列视图同一套页面内边距（旧版 `.game-info`）
-        .Padding(8, 16, 24, 16);
+        );
     }
 
     /// <summary>

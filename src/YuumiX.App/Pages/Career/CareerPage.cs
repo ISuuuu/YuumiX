@@ -442,14 +442,17 @@ public sealed class CareerPage : Component<CareerPageProps>
         const double HeaderGap = 24;
         const double TabBarGap = 16;
 
+        var pageTitle = services.I18n.T("career.title", "生涯");
+        var pageHeader = PageHeaders.PageHeader(pageTitle);
+
         // 战绩页签：资料卡 / 页签栏 / 排位表 / 近期对局看板固定在上，只有战绩列表滚动。
         // 其余页签仍是「整页一张滚动区」（它们没有需要常驻的看板）。
         Element? fixedLayout = null;
         if (matchesParts is { } parts)
         {
             Element fixedHead = tabBarVisible
-                ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), parts.Header.Margin(0, TabBarGap, 0, 0))
-                : VStack(0, header, parts.Header.Margin(0, HeaderGap, 0, 0));
+                ? VStack(0, pageHeader, header, tabBar.Margin(0, HeaderGap, 0, 0), parts.Header.Margin(0, TabBarGap, 0, 0))
+                : VStack(0, pageHeader, header, parts.Header.Margin(0, HeaderGap, 0, 0));
 
             // 16 = 旧版「近期看板 → 战绩列表」的间距。
             //
@@ -482,9 +485,9 @@ public sealed class CareerPage : Component<CareerPageProps>
         }
 
         Element stacked = tabBarVisible
-            ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), content.Margin(0, TabBarGap, 0, 0))
+            ? VStack(0, pageHeader, header, tabBar.Margin(0, HeaderGap, 0, 0), content.Margin(0, TabBarGap, 0, 0))
             // 查看他人生涯时没有页签栏：旧版此时正文紧接资料卡的 24 间距
-            : VStack(0, header, content.Margin(0, HeaderGap, 0, 0));
+            : VStack(0, pageHeader, header, content.Margin(0, HeaderGap, 0, 0));
 
         Element body = stacked
             .MaxWidth(CareerVisuals.ContentWidth)

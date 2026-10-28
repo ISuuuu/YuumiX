@@ -848,6 +848,7 @@
     "selectHeroFirst": "請先選擇英雄以加載皮膚列表"
   },
   "gameInfo": {
+    "title": "對局資訊",
     "myTeam": "友方 ({count})",
     "theirTeam": "敵方 ({count})",
     "premade": "組隊",
@@ -929,6 +930,7 @@
     "settingsSaved": "設置已自動保存"
   },
   "career": {
+    "title": "生涯",
     "summonerInfo": "召喚師信息",
     "winRate": "勝率",
     "win": "勝",
@@ -978,6 +980,7 @@
     "emptyQueueMatches": "該隊列下沒有近期對局"
   },
   "search": {
+    "title": "戰績查詢",
     "searchPlaceholder": "輸入召喚師名稱進行搜索...",
     "history": "搜索歷史",
     "clearHistory": "清除歷史",

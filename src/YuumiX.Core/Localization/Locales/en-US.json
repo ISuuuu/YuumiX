@@ -851,6 +851,7 @@
     "selectHeroFirst": "Please select a champion first to load skins"
   },
   "gameInfo": {
+    "title": "Live Game",
     "myTeam": "Ally ({count})",
     "theirTeam": "Enemy ({count})",
     "premade": "Party",
@@ -932,6 +933,7 @@
     "settingsSaved": "Settings auto-saved"
   },
   "career": {
+    "title": "Career",
     "summonerInfo": "Summoner Info",
     "winRate": "Win Rate",
     "win": "W",
@@ -981,6 +983,7 @@
     "emptyQueueMatches": "No recent matches in this queue"
   },
   "search": {
+    "title": "Search",
     "searchPlaceholder": "Enter summoner name to search...",
     "history": "Search History",
     "clearHistory": "Clear History",

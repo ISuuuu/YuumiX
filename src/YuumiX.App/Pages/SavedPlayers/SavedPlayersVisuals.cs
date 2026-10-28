@@ -43,44 +43,25 @@ internal static class SavedPlayersVisuals
               .VerticalAlignment(VerticalAlignment.Center)
             : null;
 
-        return Grid(
-            [GridSize.Star(), GridSize.Auto],
-            [GridSize.Auto],
-            [
-                // 左侧标题与说明
-                HStack(
-                    8,
-                    Subtitle(title)
-                        .HeadingLevel(AutomationHeadingLevel.Level2),
-                    badge,
-                    Body("·")
-                        .Foreground(Theme.SecondaryText),
-                    Caption(desc)
-                        .Foreground(Theme.SecondaryText)
-                        .VerticalAlignment(VerticalAlignment.Center)
-                )
-                .VerticalAlignment(VerticalAlignment.Center)
-                .Grid(column: 0),
+        var actions = HStack(
+            8,
+            Button(Body(refreshBtnText), onRefresh)
+                .AutomationName(refreshBtnText)
+                .IsEnabled(!isRefreshing)
+                .Padding(12, 5),
+            Button(Body(importBtnText), onImport)
+                .AutomationName(importBtnText)
+                .Padding(12, 5),
+            Button(Body(exportBtnText), onExport)
+                .AutomationName(exportBtnText)
+                .Padding(12, 5)
+        );
 
-                // 右侧刷新/导入/导出操作
-                HStack(
-                    8,
-                    Button(Body(refreshBtnText), onRefresh)
-                        .AutomationName(refreshBtnText)
-                        .IsEnabled(!isRefreshing)
-                        .Padding(12, 5),
-                    Button(Body(importBtnText), onImport)
-                        .AutomationName(importBtnText)
-                        .Padding(12, 5),
-                    Button(Body(exportBtnText), onExport)
-                        .AutomationName(exportBtnText)
-                        .Padding(12, 5)
-                )
-                .VerticalAlignment(VerticalAlignment.Center)
-                .Grid(column: 1),
-            ]
-        )
-        .Margin(0, 0, 0, 12);
+        return PageHeaders.PageHeader(
+            title,
+            description: desc,
+            badge: badge,
+            actions: actions);
     }
 
     /// <summary>搜索框与筛选 Tabs</summary>

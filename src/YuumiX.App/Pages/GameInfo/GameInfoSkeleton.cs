@@ -48,7 +48,7 @@ internal static class GameInfoSkeleton
         if (tenColumns)
         {
             // 十列视图没有左侧队伍面板，只有工具栏 + 10 列。
-            return rightPanel.Padding(8, 16, 24, 16);
+            return rightPanel;
         }
 
         Element leftPanel = Panel(
@@ -76,7 +76,7 @@ internal static class GameInfoSkeleton
                     rightPanel.Grid(row: 0, column: 1),
                 ]);
 
-        return layout.Padding(8, 16, 24, 16);
+        return layout;
     }
 
     /// <summary>面板外框：与真实面板同底色、同描边、同圆角。</summary>

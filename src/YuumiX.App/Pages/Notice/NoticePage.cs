@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.Core.Features.Notice;
 
 using YuumiX.App.Theming;
@@ -129,22 +130,13 @@ public sealed class NoticePage : Component
     /// <summary>内容态：页头（标题 + 刷新）+ 缓存提示（可选）+ 公告卡片。</summary>
     private static Element RenderContent(NoticeViewState view, Action reload)
     {
-        var header = Grid(
-            [GridSize.Star()],
-            [GridSize.Star(), GridSize.Auto],
-            [
-                VStack(
-                    4,
-                    Title("公告")
-                        .HeadingLevel(AutomationHeadingLevel.Level1),
-                    Caption("内容来自 GitHub 仓库 NOTICE.md，进入页面时自动获取最新"))
-                .Grid(row: 0, column: 0),
-
-                Button("刷新", reload)
-                    .Padding(16, 5)
-                    .VAlign(VerticalAlignment.Top)
-                    .Grid(row: 0, column: 1),
-            ]);
+        var header = PageHeaders.PageHeader(
+            "公告",
+            description: "内容来自 GitHub 仓库 NOTICE.md，进入页面时自动获取最新",
+            actions: Button(Body("刷新"), reload)
+                .AutomationName("刷新")
+                .Padding(16, 5),
+            includeBottomMargin: false);
 
         var blocks = new List<Element>();
         if (view.FromCache)

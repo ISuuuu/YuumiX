@@ -446,10 +446,15 @@ public sealed class SearchPage : Component<SearchPageProps>
             return LcuOfflineState.Render();
         }
 
+        var pageTitle = services.I18n.T("search.title", "战绩查询");
+        var header = PageHeaders.PageHeader(pageTitle, includeBottomMargin: false)
+            .Margin(0, 0, 0, 8);
+
         return (Grid(
                 [GridSize.Star()],
-                [GridSize.Auto, GridSize.Star()],
+                [GridSize.Auto, GridSize.Auto, GridSize.Star()],
                 [
+                    header.Grid(row: 0, column: 0),
                     Component<SearchToolbar, SearchToolbarProps>(
                         new SearchToolbarProps(
                             draftRef.Current ?? summoner?.RiotId ?? string.Empty,
@@ -476,8 +481,8 @@ public sealed class SearchPage : Component<SearchPageProps>
                             uploadConfigured,
                             uploadOn,
                             enabled => SearchEffects.ApplyUploadToggle(services, uploadQueue, enabled, setUploadOn, setNotice)))
-                        .Grid(row: 0, column: 0),
-                    content.Grid(row: 1, column: 0),
+                        .Grid(row: 1, column: 0),
+                    content.Grid(row: 2, column: 0),
                 ]) with { RowSpacing = 8 })
             .Padding(12)
             .HAlign(HorizontalAlignment.Stretch)

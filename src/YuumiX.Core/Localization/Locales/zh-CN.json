@@ -851,6 +851,7 @@
     "selectHeroFirst": "请先选择英雄以加载皮肤列表"
   },
   "gameInfo": {
+    "title": "对局信息",
     "myTeam": "友方 ({count})",
     "theirTeam": "敌方 ({count})",
     "premade": "组队",
@@ -932,6 +933,7 @@
     "settingsSaved": "设置已自动保存"
   },
   "career": {
+    "title": "生涯",
     "summonerInfo": "召唤师信息",
     "winRate": "胜率",
     "win": "胜",
@@ -981,6 +983,7 @@
     "emptyQueueMatches": "该队列下没有近期对局"
   },
   "search": {
+    "title": "战绩查询",
     "searchPlaceholder": "输入召唤师名称进行搜索...",
     "history": "搜索历史",
     "clearHistory": "清除历史",
