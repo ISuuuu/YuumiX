@@ -106,7 +106,7 @@ internal static class SavedPlayerCard
                 .VerticalAlignment(VerticalAlignment.Center)
                 .Margin(0, 0, 12, 0),
 
-            Button(Caption(editTagText), () =>
+            Button(Body(editTagText), () =>
             {
                 setEditingTag(player.Tag ?? string.Empty);
                 setEditingPuuid(player.Puuid);
@@ -114,12 +114,12 @@ internal static class SavedPlayerCard
             .AutomationName(editTagText)
             .Padding(8, 4),
 
-            Button(Caption(deleteText), () => setPendingDeletePuuid(player.Puuid))
+            Button(Body(deleteText), () => setPendingDeletePuuid(player.Puuid))
                 .AutomationName(deleteText)
                 .Padding(8, 4)
                 .Foreground(palette.LoseAccent),
 
-            Button(Caption(isExpanded ? "▾" : "▸"), onToggle)
+            Button(Body(isExpanded ? "▾" : "▸"), onToggle)
                 .AutomationName("展开或折叠对局历史")
                 .Padding(8, 4)
         )
@@ -158,14 +158,14 @@ internal static class SavedPlayerCard
             deleteConfirmRow = Border(
                 HStack(
                     12,
-                    Caption("⚠️ 确定要删除该玩家及其所有相遇记录吗？")
+                    Body("⚠️ 确定要删除该玩家及其所有相遇记录吗？")
                         .Foreground(palette.LoseAccent)
                         .VerticalAlignment(VerticalAlignment.Center),
-                    Button(Caption("确认删除"), onConfirmDelete)
+                    Button(Body("确认删除"), onConfirmDelete)
                         .Padding(8, 4)
                         .Background(palette.LoseAccent)
                         .AutomationName("确认删除"),
-                    Button(Caption("取消"), () => setPendingDeletePuuid(null))
+                    Button(Body("取消"), () => setPendingDeletePuuid(null))
                         .Padding(8, 4)
                         .AutomationName("取消")
                 )
@@ -191,11 +191,11 @@ internal static class SavedPlayerCard
                 .AutomationName("编辑玩家标记")
                 .Width(260)
                 .Height(30),
-                Button(Caption(i18n?.T("savedPlayersPage.tagSave", "保存") ?? "保存"), onSaveTag)
+                Button(Body(i18n?.T("savedPlayersPage.tagSave", "保存") ?? "保存"), onSaveTag)
                     .AutomationName("保存")
                     .Padding(12, 4)
                     .Background(Theme.Accent),
-                Button(Caption(i18n?.T("savedPlayersPage.tagCancel", "取消") ?? "取消"), () => setEditingPuuid(null))
+                Button(Body(i18n?.T("savedPlayersPage.tagCancel", "取消") ?? "取消"), () => setEditingPuuid(null))
                     .AutomationName("取消")
                     .Padding(12, 4)
             )
@@ -211,13 +211,13 @@ internal static class SavedPlayerCard
                 historySection = HStack(
                     8,
                     ProgressRing().Width(18).Height(18).IsActive(true),
-                    Caption(i18n?.T("savedPlayersPage.loadingMore", "加载相遇对局...") ?? "加载相遇对局...").Foreground(Theme.SecondaryText)
+                    Body(i18n?.T("savedPlayersPage.loadingMore", "加载相遇对局...") ?? "加载相遇对局...").Foreground(Theme.SecondaryText)
                 )
                 .Margin(0, 8, 0, 4);
             }
             else if (encounteredGames.Count == 0)
             {
-                historySection = Caption(i18n?.T("savedPlayersPage.noEncounteredGames", "暂无相遇对局记录") ?? "暂无相遇对局记录")
+                historySection = Body(i18n?.T("savedPlayersPage.noEncounteredGames", "暂无相遇对局记录") ?? "暂无相遇对局记录")
                     .Foreground(Theme.SecondaryText)
                     .Margin(0, 8, 0, 4);
             }
@@ -226,7 +226,7 @@ internal static class SavedPlayerCard
                 var gameRows = encounteredGames.Select(g =>
                     HStack(
                         12,
-                        Caption(FormatQueue(g.QueueType))
+                        Body(FormatQueue(g.QueueType))
                             .Width(110),
                         Caption(FormatTime(g.UpdateAt))
                             .Foreground(Theme.SecondaryText)
@@ -239,7 +239,7 @@ internal static class SavedPlayerCard
                     gameRows.Add(
                         HStack(
                             8,
-                            Button(Caption(i18n?.T("savedPlayersPage.loadMore", "加载更多对局记录") ?? "加载更多对局记录"), onLoadMoreGames)
+                            Button(Body(i18n?.T("savedPlayersPage.loadMore", "加载更多对局记录") ?? "加载更多对局记录"), onLoadMoreGames)
                                 .Padding(8, 4)
                                 .AutomationName("加载更多对局记录")
                         )
@@ -249,7 +249,7 @@ internal static class SavedPlayerCard
 
                 historySection = VStack(
                     4,
-                    Caption(i18n?.T("savedPlayersPage.encounteredGames", "相遇对局历史：") ?? "相遇对局历史：")
+                    Body(i18n?.T("savedPlayersPage.encounteredGames", "相遇对局历史：") ?? "相遇对局历史：")
                         .Foreground(Theme.SecondaryText)
                         .Margin(0, 8, 0, 2),
                     VStack(gameRows.ToArray()).Spacing(2)

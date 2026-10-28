@@ -123,7 +123,7 @@ internal static class SavedPlayersVisuals
         Element FilterButton(string label, string key)
         {
             var isSelected = filter == key;
-            var btn = Button(Caption(label), () => setFilter(key))
+            var btn = Button(Body(label), () => setFilter(key))
                 .AutomationName(label)
                 .Padding(12, 5);
 
@@ -191,7 +191,7 @@ internal static class SavedPlayersVisuals
                     BodyStrong($"未找到与 “{committedSearch}” 相关的玩家")
                         .Foreground(Theme.SecondaryText)
                         .HorizontalAlignment(HorizontalAlignment.Center),
-                    Button(Caption("清空搜索条件"), onClearSearch)
+                    Button(Body("清空搜索条件"), onClearSearch)
                         .Padding(12, 5)
                         .HorizontalAlignment(HorizontalAlignment.Center)
                         .AutomationName("清空搜索条件")
@@ -205,7 +205,7 @@ internal static class SavedPlayersVisuals
                 BodyStrong("暂无路人玩家记录")
                     .Foreground(Theme.SecondaryText)
                     .HorizontalAlignment(HorizontalAlignment.Center),
-                Caption("对局结束后同局的队友与对手会自动出现在这里")
+                Body("对局结束后同局的队友与对手会自动出现在这里")
                     .Foreground(Theme.SecondaryText)
                     .HorizontalAlignment(HorizontalAlignment.Center)
             )
@@ -239,14 +239,14 @@ internal static class SavedPlayersVisuals
             footerSentinel = HStack(
                 8,
                 ProgressRing().Width(16).Height(16).IsActive(true),
-                Caption("正在加载更多玩家...").Foreground(Theme.SecondaryText)
+                Body("正在加载更多玩家...").Foreground(Theme.SecondaryText)
             )
             .HorizontalAlignment(HorizontalAlignment.Center)
             .Margin(0, 8, 0, 16);
         }
         else if (players.Count < totalCount)
         {
-            footerSentinel = Button(Caption("加载更多玩家"), onLoadMorePlayers)
+            footerSentinel = Button(Body("加载更多玩家"), onLoadMorePlayers)
                 .AutomationName("加载更多玩家")
                 .Padding(16, 4)
                 .HorizontalAlignment(HorizontalAlignment.Center)
@@ -254,7 +254,7 @@ internal static class SavedPlayersVisuals
         }
         else if (players.Count >= totalCount && totalCount > 0)
         {
-            footerSentinel = Caption("已加载全部玩家记录")
+            footerSentinel = Body("已加载全部玩家记录")
                 .Foreground(Theme.SecondaryText)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .Margin(0, 8, 0, 16);
