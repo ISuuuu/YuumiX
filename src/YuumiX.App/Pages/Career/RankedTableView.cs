@@ -61,17 +61,15 @@ internal static class RankedTableView
             .Padding(CellPadH, CellPadV);
 
     private static Element NumericDataCell(string text) =>
-        Body(text)
-            .SemiBold()
+        BodyStrong(text)
             .TextAlignment(TextAlignment.Center)
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Center)
             .Padding(CellPadH, CellPadV);
 
-    private static Element NumericDataCell(string text, string literalColor) =>
-        Body(text)
-            .SemiBold()
-            .Foreground(literalColor)
+    private static Element NumericDataCell(string text, ThemeRef foreground) =>
+        BodyStrong(text)
+            .Foreground(foreground)
             .TextAlignment(TextAlignment.Center)
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Center)
@@ -80,10 +78,6 @@ internal static class RankedTableView
     private static Element DataCell(string text, ThemeRef foreground) =>
         DataCell(text)
             .Foreground(foreground);
-
-    private static Element DataCell(string text, string literalColor) =>
-        DataCell(text)
-            .Foreground(literalColor);
 
     private static Element DataCell(string text) =>
         Body(text)
@@ -98,7 +92,7 @@ internal static class RankedTableView
 
     public static Element Render(RankedStats stats, YuumiPalette palette)
     {
-        var i18n = Composition.AppHost.Services?.I18n;
+        var i18n = Composition.AppHost.CurrentI18n;
 
         Element header = Grid(Columns, Rows,
             [
@@ -114,6 +108,27 @@ internal static class RankedTableView
             ])
             .MinHeight(RowMinHeight)
             .Background(Theme.SubtleFill);
+
+        bool hasSolo = stats.SoloDuo is not null && (stats.SoloDuo.HasRank || stats.SoloDuo.TotalGames > 0);
+        bool hasFlex = stats.Flex is not null && (stats.Flex.HasRank || stats.Flex.TotalGames > 0);
+
+        if (!hasSolo && !hasFlex)
+        {
+            var unrankedText = i18n?.T("career.unrankedSeason", "本赛季未定级") ?? "本赛季未定级";
+            return CareerVisuals.Card(
+                VStack(0,
+                    header,
+                    Divider(),
+                    Border(
+                        Body(unrankedText)
+                            .Foreground(Theme.SecondaryText)
+                            .HAlign(HorizontalAlignment.Center)
+                            .VAlign(VerticalAlignment.Center))
+                        .MinHeight(RowMinHeight * 2 + 1)
+                        .HAlign(HorizontalAlignment.Stretch)
+                        .VAlign(VerticalAlignment.Center)),
+                padding: 0);
+        }
 
         return CareerVisuals.Card(
             VStack(0,
@@ -137,9 +152,18 @@ internal static class RankedTableView
         string highest = queue?.HighestTierText ?? "--";
         string previous = queue?.PreviousSeasonTierText ?? "--";
 
-        Element winRateCell = queue?.TotalGames > 0
-            ? NumericDataCell(winRate, CareerVisuals.WinText)
-            : NumericDataCell(winRate);
+        Element winRateCell;
+        if (queue is not null && queue.TotalGames > 0)
+        {
+            var winRateTheme = (queue.Wins * 2 >= queue.TotalGames)
+                ? Theme.SystemSuccess
+                : Theme.SystemCaution;
+            winRateCell = NumericDataCell(winRate, winRateTheme);
+        }
+        else
+        {
+            winRateCell = NumericDataCell(winRate, Theme.SecondaryText);
+        }
 
         return Grid(Columns, Rows,
             [
