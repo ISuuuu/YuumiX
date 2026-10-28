@@ -61,8 +61,12 @@ public sealed class GameLifecycleService : IDisposable
                 OnPhaseChanged(phase);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            // 空 catch 会让「启动时客户端已经在对局/选人中」这类情况彻底静默：
+            // 阶段对账是收不到 gameflow-phase 事件前的唯一真源，失败后 CurrentPhase 停在旧值，
+            // 生涯自动刷新、对局结束检测都会跟着失灵，而日志里一条线索都没有。
+            _logger?.LogWarning(ex, "LCU 连接后的阶段对账失败，当前阶段可能停留在旧值");
         }
     }
 
