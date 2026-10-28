@@ -54,16 +54,16 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     internal const double RowHeight = 82;
 
     /// <summary>
-    /// 结果列：旧版 `.result-panel { min-width: 90px }`。取 96 让「海克斯大乱斗」等最长模式名
-    /// 在 12px 下不换行（90 会贴着边框），仍比原 115 窄 19，与旧版占比一致。
+    /// 结果列：旧版 `.result-panel { min-width: 90px }`。取 100 让「海克斯大乱斗」等最长模式名
+    /// 在 14px 下留足呼吸感，与旧版占比一致。
     /// </summary>
-    private const double ResultWidth = 96;
+    private const double ResultWidth = 100;
 
     /// <summary>KDA 列：旧版 `.kda-panel { min-width: 105px }`。</summary>
     private const double KdaWidth = 105;
 
-    /// <summary>补刀列：旧版 `.cs-panel` 44 + `margin-right: 6`，合计视觉宽 50，取 52。</summary>
-    private const double CsWidth = 52;
+    /// <summary>补刀列：旧版 `.cs-panel` 44 + `margin-right: 6`，合计视觉宽 50，取 56 承载 14px 补刀数值。</summary>
+    private const double CsWidth = 56;
 
     /// <summary>金币列：旧版 `.gold-panel { min-width: 62px }`，取 64。</summary>
     private const double GoldWidth = 64;
@@ -157,10 +157,10 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         Element result = VStack(2,
                 HStack(4,
                     resultTextBlock,
-                    Caption(Search.SearchVisuals.PositionText(summary.Position) ?? string.Empty)
+                    Body(Search.SearchVisuals.PositionText(summary.Position) ?? string.Empty)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)),
-                Caption(queueName).Foreground(Theme.SecondaryText),
+                Body(queueName).Foreground(Theme.PrimaryText),
                 Caption(summary.DurationText).Foreground(Theme.SecondaryText))
             .Width(ResultWidth)
             .VAlign(VerticalAlignment.Center);
@@ -195,9 +195,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         var csPerMinText = csPerMinFormat.Replace("{cs}", csPerMin.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
         Element cs = VStack(2,
                 HStack(2,
-                    Caption(summary.CreepScore.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .SemiBold(),
-                    Caption(csUnit).Foreground(Theme.SecondaryText)),
+                    BodyStrong(summary.CreepScore.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    Caption(csUnit).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom)),
                 Caption(csPerMinText).Foreground(Theme.SecondaryText))
             .Width(CsWidth)
             .VAlign(VerticalAlignment.Center);
@@ -221,8 +220,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         // 金币列
         var goldText = i18n?.T("search.gold", "金币") ?? "金币";
         Element gold = VStack(2,
-                Caption($"{summary.Gold:N0}")
-                    .SemiBold(),
+                BodyStrong($"{summary.Gold:N0}"),
                 Caption(goldText).Foreground(Theme.SecondaryText))
             .Width(GoldWidth)
             .VAlign(VerticalAlignment.Center);

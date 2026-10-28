@@ -41,7 +41,8 @@ internal static class RecentSummaryView
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
                     [
-                        Caption(emptyRecent)
+                        Body(emptyRecent)
+                            .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(row: 0, column: 0),
                         ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
@@ -121,9 +122,9 @@ internal static class RecentSummaryView
         // 右侧操作：最近队友按钮（带弹层） + 队列下拉
         var teammatesBtnText = i18n?.T("career.recentTeammates", "最近队友") ?? "最近队友";
 
-        Element teammatesButton = Button(Caption(teammatesBtnText), () => onRecentTeammates?.Invoke())
-            .Height(30)
-            .Padding(8, 0)
+        Element teammatesButton = Button(Body(teammatesBtnText), () => onRecentTeammates?.Invoke())
+            .Height(32)
+            .Padding(12, 0)
             .AutomationName(teammatesBtnText);
 
         Element flyoutButton = Flyout(
@@ -161,13 +162,13 @@ internal static class RecentSummaryView
         Element inner;
         if (loadingTeammates)
         {
-            inner = Caption("正在计算最近 20 局同队队友…")
+            inner = Body("正在计算最近 20 局同队队友…")
                 .Foreground(Theme.SecondaryText)
                 .HAlign(HorizontalAlignment.Center);
         }
         else if (teammates is null || teammates.Summoners.Count == 0)
         {
-            inner = Caption("暂无最近同队玩家数据（需在近期对局中存在同队玩家）。")
+            inner = Body("暂无最近同队玩家数据（需在近期对局中存在同队玩家）。")
                 .Foreground(Theme.SecondaryText);
         }
         else
@@ -206,8 +207,7 @@ internal static class RecentSummaryView
 
         Element centerInfo = VStack(2,
             HStack(6,
-                Caption(tm.Name)
-                    .Foreground(Theme.PrimaryText),
+                BodyStrong(tm.Name),
                 tm.Tag is not null
                     ? Border(Caption(tm.Tag).Foreground(Theme.Accent))
                         .Padding(4, 1)
@@ -344,7 +344,7 @@ internal static class RecentSummaryView
 
         return cell.WithToolTip(
             VStack(4,
-                Caption(champName),
+                BodyStrong(champName),
                 Caption($"出场 {champion.Games} 次 · 主位置 {posText}")
                     .Foreground(Theme.SecondaryText),
                 HStack(6,

@@ -115,7 +115,7 @@ internal static class CareerProfileHeader
 
         if (string.Equals(summoner.Privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase))
         {
-            nameColumn.Add(Caption("🔒 对局记录已设为私密")
+            nameColumn.Add(Body("🔒 对局记录已设为私密")
                 .Foreground(Theme.SecondaryText));
         }
 

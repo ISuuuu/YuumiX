@@ -59,7 +59,7 @@ internal static class ChampionMasteryView
                 VStack(12,
                     Body("该账号暂无英雄熟练度记录")
                         .Foreground(Theme.SecondaryText),
-                    Button(Caption("重试"), onRefresh).Height(30).Padding(12, 0).AutomationName("重试加载熟练度")),
+                    Button(Body("重试"), onRefresh).Height(32).Padding(12, 0).AutomationName("重试加载熟练度")),
                 padding: 24);
         }
 
@@ -151,7 +151,7 @@ internal static class ChampionMasteryView
     {
         return CareerVisuals.Card(
             VStack(6,
-                Caption(title).Foreground(Theme.SecondaryText),
+                BodyStrong(title),
                 value,
                 Caption(subtitle).Foreground(Theme.SecondaryText)),
             padding: 14);
@@ -187,7 +187,7 @@ internal static class ChampionMasteryView
             ComboBox(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx))
                 .Width(125)
                 .AutomationName("排序方式"),
-            Button(Caption("刷新"), onRefresh).Height(30).Padding(12, 0).AutomationName("刷新熟练度"))
+            Button(Body("刷新"), onRefresh).Height(32).Padding(12, 0).AutomationName("刷新熟练度"))
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
 
