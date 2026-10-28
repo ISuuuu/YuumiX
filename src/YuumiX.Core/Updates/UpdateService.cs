@@ -26,11 +26,15 @@ public sealed record DownloadProgress(long Downloaded, long? Total, double? Perc
 /// GitHub 域名白名单 + 代理复用的 HTTP 客户端（对应旧 <c>commands/tools.rs</c> 的
 /// <c>fetch_github_text</c> 与 <c>get_github_client</c>）。
 ///
-/// 三条硬约束（全部继承自旧实现）：
+/// 四条硬约束（前三条继承自旧实现）：
 /// <list type="number">
 ///   <item>仅放行 github.com / api.github.com / *.githubusercontent.com，其余域名直接拒绝；</item>
 ///   <item>代理开关与地址来自配置，进程级复用客户端，配置不变不重建；</item>
 ///   <item>15 秒超时；User-Agent 标识应用（GitHub API 必需）。</item>
+///   <item><b>下载走另一条客户端</b>：15 秒总超时会把任何超过 15 秒的大包传输判死
+///         （<c>HttpClient.Timeout</c> 覆盖到内容读取，不只是响应头），
+///         因此下载客户端改用无限总超时，改由 <see cref="ResumableDownloader"/> 的
+///         空闲超时判定断线——只盯「有没有进展」，不误杀慢速链路。</item>
 /// </list>
 /// </summary>
 public static class GitHubClient
@@ -39,8 +43,7 @@ public static class GitHubClient
     public const string Repository = "ISuuuu/YuumiX";
 
     private static readonly Lock Gate = new();
-    private static string? _cachedProxyKey;
-    private static HttpClient? _cachedClient;
+    private static ClientPair? _cachedPair;
 
     /// <summary>URL 是否在 GitHub 域名白名单内（旧 fetch_github_text 的域名校验）。</summary>
     public static bool IsAllowedGitHubUrl(string url)
@@ -60,42 +63,77 @@ public static class GitHubClient
 
     /// <summary>进程级复用客户端：代理键不变时直接返回（旧 get_github_client）。</summary>
     public static HttpClient GetClient(bool enableProxy, string proxyAddr)
+        => GetOrCreate(enableProxy, proxyAddr).Api;
+
+    /// <summary>
+    /// 大文件下载专用客户端：无总超时，断线判定交给调用方的空闲计时。
+    /// 与 <see cref="GetClient"/> 同代理键复用同一对实例，避免每次下载都新建连接池。
+    /// </summary>
+    public static HttpClient GetDownloadClient(bool enableProxy, string proxyAddr)
+        => GetOrCreate(enableProxy, proxyAddr).Download;
+
+    private static ClientPair GetOrCreate(bool enableProxy, string proxyAddr)
     {
         lock (Gate)
         {
             string key = $"{enableProxy}|{proxyAddr}";
-            if (_cachedClient is not null && _cachedProxyKey == key)
+            if (_cachedPair is not null && _cachedPair.ProxyKey == key)
             {
-                return _cachedClient;
+                return _cachedPair;
             }
 
-            var handler = new SocketsHttpHandler();
-            if (enableProxy && !string.IsNullOrWhiteSpace(proxyAddr))
-            {
-                string proxyUrl = proxyAddr.Contains("://", StringComparison.Ordinal)
-                    ? proxyAddr
-                    : $"http://{proxyAddr}";
-                if (Uri.TryCreate(proxyUrl, UriKind.Absolute, out var proxyUri))
-                {
-                    handler.Proxy = new System.Net.WebProxy(proxyUri);
-                    handler.UseProxy = true;
-                }
-            }
-            else
-            {
-                handler.UseProxy = false;
-            }
-
-            var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("YuumiX/1.0");
-            client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
-
-            _cachedClient?.Dispose();
-            _cachedClient = client;
-            _cachedProxyKey = key;
-            return client;
+            // 代理配置变了：整对重建。正在进行的传输会随之失败，但
+            // ResumableDownloader 已把残包留在磁盘上，用户重试即从断点继续。
+            _cachedPair?.Dispose();
+            _cachedPair = new ClientPair(
+                key,
+                CreateClient(enableProxy, proxyAddr, TimeSpan.FromSeconds(15)),
+                CreateClient(enableProxy, proxyAddr, Timeout.InfiniteTimeSpan));
+            return _cachedPair;
         }
     }
+
+    private static HttpClient CreateClient(bool enableProxy, string proxyAddr, TimeSpan timeout)
+    {
+        var handler = new SocketsHttpHandler();
+        if (enableProxy && !string.IsNullOrWhiteSpace(proxyAddr))
+        {
+            string proxyUrl = proxyAddr.Contains("://", StringComparison.Ordinal)
+                ? proxyAddr
+                : $"http://{proxyAddr}";
+            if (Uri.TryCreate(proxyUrl, UriKind.Absolute, out var proxyUri))
+            {
+                handler.Proxy = new System.Net.WebProxy(proxyUri);
+                handler.UseProxy = true;
+            }
+        }
+        else
+        {
+            handler.UseProxy = false;
+        }
+
+        var client = new HttpClient(handler) { Timeout = timeout };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("YuumiX/1.0");
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        return client;
+    }
+
+    /// <summary>一对复用客户端（API 文本 / 大文件下载），随代理配置一起重建。</summary>
+    private sealed class ClientPair(string proxyKey, HttpClient api, HttpClient download) : IDisposable
+    {
+        public string ProxyKey { get; } = proxyKey;
+
+        public HttpClient Api { get; } = api;
+
+        public HttpClient Download { get; } = download;
+
+        public void Dispose()
+        {
+            Api.Dispose();
+            Download.Dispose();
+        }
+    }
+
 
     /// <summary>经白名单校验拉取远程文本。非 GitHub 域名抛出异常（旧实现返回 Err）。</summary>
     public static async Task<string> FetchTextAsync(string url, bool enableProxy, string proxyAddr, CancellationToken token = default)
@@ -674,6 +712,10 @@ public sealed class UpdateService
     /// <summary>
     /// 后台静默下载更新到 <c>&lt;数据目录&gt;/downloads/</c>，进度经 <paramref name="progress"/> 上报。
     /// 返回下载文件路径。
+    ///
+    /// 断点续传由 <see cref="ResumableDownloader"/> 承担：中断（用户取消、断网、重试耗尽、
+    /// 进程退出）后 <c>.part</c> 与 <c>.part.json</c> 会留在磁盘上，下次点「继续下载」
+    /// 从断点接上；只有校验通过的完整包才会以正式文件名落盘。
     /// </summary>
     public async Task<string> DownloadUpdateAsync(
         UpdateInfo info,
@@ -690,67 +732,56 @@ public sealed class UpdateService
             throw new InvalidOperationException("下载地址不在 GitHub 域名白名单内");
         }
 
-        string downloadDir = Path.Combine(_paths.DataDirectory, "downloads");
-        Directory.CreateDirectory(downloadDir);
-        string targetPath = Path.Combine(downloadDir, $"YuumiX-{info.Version}"
-            + (Path.GetExtension(info.DownloadUrl) is { Length: > 0 } ext ? ext : ".zip"));
+        string targetPath = ResolveDownloadTargetPath(info);
 
         var config = _configProvider();
-        using var response = await GitHubClient.GetClient(config.General.EnableHttpProxy, config.General.HttpProxyAddr)
-            .GetAsync(info.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, token)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        var downloader = new ResumableDownloader(
+            GitHubClient.GetDownloadClient(config.General.EnableHttpProxy, config.General.HttpProxyAddr),
+            _logger);
 
-        long? total = response.Content.Headers.ContentLength;
-        await using var source = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-
-        // 先写 .tmp、校验通过才改名：中断或截断的包绝不能以最终文件名落盘，
-        // 否则用户下次点「安装」时才发现是半个包（那时应用已经退出，没法再给提示）。
-        string tempPath = targetPath + ".tmp";
-        long downloaded = 0;
-        try
-        {
-            await using var target = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-            var buffer = new byte[81920];
-            int read;
-            while ((read = await source.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
-            {
-                await target.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
-                downloaded += read;
-                progress?.Report(new DownloadProgress(
-                    downloaded,
-                    total,
-                    total is > 0 ? Math.Min(100.0, downloaded * 100.0 / total.Value) : null));
-            }
-
-            await target.FlushAsync(token).ConfigureAwait(false);
-            target.Close();
-        }
-        catch
-        {
-            // 取消、断网、磁盘写满：一律清掉半截文件再往上抛，不给磁盘留垃圾。
-            TryDeleteFile(tempPath, "清理未完成的更新包失败");
-            throw;
-        }
-
-        // 服务器给了长度就必须对得上：连接被中途掐断时流读取未必报错，
-        // 少几个字节的 zip/exe 到安装阶段才炸，代价比在这里拦住高得多。
-        if (total is > 0 && downloaded != total.Value)
-        {
-            TryDeleteFile(tempPath, "清理被截断的更新包失败");
-            throw new IOException($"更新包下载不完整（{downloaded}/{total.Value} 字节），已丢弃，请重试");
-        }
-
-        File.Move(tempPath, targetPath, overwrite: true);
+        await downloader.DownloadAsync(info.DownloadUrl, targetPath, progress, token).ConfigureAwait(false);
         return targetPath;
     }
 
     /// <summary>
-    /// 清理数据目录下的过期更新包：中断留下的 <c>.tmp</c>，以及版本不高于当前版本的旧包。
+    /// 下载目标文件路径：<c>&lt;数据目录&gt;/downloads/YuumiX-&lt;版本&gt;&lt;扩展名&gt;</c>。
     ///
-    /// 只删「确定用不上」的文件：正在等安装的新版本包（版本高于当前）必须保留，
-    /// 否则用户下载完还没装、下次启动就被清掉，等于白下 300MB。
+    /// 扩展名必须取自资产 URL（便携版是 zip、安装版是 setup.exe）——
+    /// 它同时决定后面的 <see cref="ApplyPendingUpdate"/> 走解压还是走安装器。
+    /// </summary>
+    internal string ResolveDownloadTargetPath(UpdateInfo info)
+    {
+        string downloadDir = Path.Combine(_paths.DataDirectory, "downloads");
+        string extension = !string.IsNullOrEmpty(info.DownloadUrl)
+            && Path.GetExtension(info.DownloadUrl) is { Length: > 0 } ext
+                ? ext
+                : ".zip";
+        return Path.Combine(downloadDir, $"YuumiX-{info.Version}{extension}");
+    }
+
+    /// <summary>
+    /// 该版本当前可续传的字节数（0 表示没有断点或断点属于别的版本）。
+    ///
+    /// 只读文件长度、不校验元数据：它服务于界面文案（「继续下载」还是「下载更新」）。
+    /// 能否真正续传由 <see cref="ResumableDownloader"/> 在下载时判定，
+    /// 判定不通过会自动从头下，不会拼出坏包。
+    /// </summary>
+    public long GetResumableBytes(UpdateInfo info)
+    {
+        if (string.IsNullOrEmpty(info.DownloadUrl))
+        {
+            return 0;
+        }
+
+        return ResumableDownloader.GetResumableBytes(ResolveDownloadTargetPath(info));
+    }
+
+    /// <summary>
+    /// 清理数据目录下的过期更新包：中断留下的 <c>.tmp</c>/<c>.part</c>，以及版本不高于当前版本的旧包。
+    ///
+    /// 只删「确定用不上」的文件：正在等安装的新版本包、以及新版本的<b>续传断点</b>
+    /// （<c>.part</c> + <c>.part.json</c>）必须保留，否则用户下了一半退出应用、
+    /// 下次进来断点已被清掉，又得从 0 开始。
     /// 认不出命名的文件一律不动——这个目录是同级的派生数据区，宁可多留也不误删。
     /// </summary>
     public int CleanupDownloadCache()
@@ -761,7 +792,6 @@ public sealed class UpdateService
             return 0;
         }
 
-        const string prefix = "YuumiX-";
         int removed = 0;
 
         // 当前版本解析不出来就完全不清理：`SemVer` 比较失败等价于"不高于当前"，
@@ -777,21 +807,17 @@ public sealed class UpdateService
             {
                 bool stale;
 
+                // 旧实现的半截文件（.tmp）已无续传价值，且新流程不再产生，一律清掉。
                 if (file.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
                 {
                     stale = true;
                 }
                 else
                 {
-                    string name = Path.GetFileNameWithoutExtension(file);
-                    if (!name.StartsWith(prefix, StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-
                     // 版本解析不出来（手工放进来的备份、重命名过的包）→ 认不出就不动，
-                    // 与上面注释的「宁可多留也不误删」保持一致。
-                    if (!SemVerVersion.TryParse(name[prefix.Length..], out var fileVersion))
+                    // 与下面注释的「宁可多留也不误删」保持一致。
+                    if (!TryParseDownloadFileName(Path.GetFileName(file), out string versionText)
+                        || !SemVerVersion.TryParse(versionText, out var fileVersion))
                     {
                         continue;
                     }
@@ -821,6 +847,45 @@ public sealed class UpdateService
         }
 
         return removed;
+    }
+
+    /// <summary>下载缓存目录下的文件名前缀（<c>YuumiX-&lt;版本&gt;.zip</c>）。</summary>
+    private const string DownloadFilePrefix = "YuumiX-";
+
+    /// <summary>
+    /// 从下载缓存文件名解析版本段，兼容四种形态：
+    /// <c>YuumiX-0.3.0.zip</c>、<c>.exe</c>、<c>...zip.part</c>、<c>...zip.part.json</c>。
+    ///
+    /// 续传断点必须和它的正式包一起被判过期，否则用户升完版本后磁盘上会永远留着
+    /// 一个旧版本的半截包（几百 MB 且永不再用）。
+    /// 设为 internal 供单测直接断言命名兼容性。
+    /// </summary>
+    internal static bool TryParseDownloadFileName(string fileName, out string versionText)
+    {
+        versionText = string.Empty;
+        if (string.IsNullOrEmpty(fileName))
+        {
+            return false;
+        }
+
+        string name = fileName;
+        if (name.EndsWith(ResumableDownloader.MetaSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[..^ResumableDownloader.MetaSuffix.Length];
+        }
+        else if (name.EndsWith(ResumableDownloader.PartSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[..^ResumableDownloader.PartSuffix.Length];
+        }
+
+        name = Path.GetFileNameWithoutExtension(name);
+        if (!name.StartsWith(DownloadFilePrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        versionText = name[DownloadFilePrefix.Length..];
+        return versionText.Length > 0;
     }
 
     /// <summary>删除文件；失败只记日志（清理属尽力而为，不该影响调用方的正常流程）。</summary>

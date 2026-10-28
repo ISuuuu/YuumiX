@@ -153,26 +153,79 @@ public sealed class SettingsPage : Component
                     toast.Error(i18n.T("settings.updateCheckFailed", "检查更新失败: ") + ex.Message);
                 }));
 
+        // 下载取消令牌：UseMutation 只暴露 IsPending/Error，没有 Cancel，暂停只能自己持令牌。
+        // 必须与钩子传入的 ct 做 linked——页面卸载时框架取消的是它那个 ct，
+        // 只取消自己的令牌会让「切走页面」变成「下载继续在后台跑」。
+        var downloadCtsRef = UseRef<CancellationTokenSource?>(null);
+
         var downloadUpdate = UseMutation<YuumiX.Core.Updates.UpdateInfo, string>(
-            (info, _) => updateService.DownloadUpdateAsync(
-                info,
-                new Progress<YuumiX.Core.Updates.DownloadProgress>(p =>
+            async (info, ct) =>
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                downloadCtsRef.Current = cts;
+                // 用 token（结构体）而不是 cts 做进度闸门：回调可能在 cts 释放后才被调度，
+                // 读已释放的 CTS 属性是踩雷，CancellationToken 则是安全的快照。
+                var token = cts.Token;
+                try
                 {
-                    // Progress<T> 已封送回 UI 线程（ADR-07 无需 threadSafe 处理，但保留统一语义）
-                    setUpdateProgress(p);
-                })),
+                    return await updateService.DownloadUpdateAsync(
+                        info,
+                        new Progress<YuumiX.Core.Updates.DownloadProgress>(p =>
+                        {
+                            // 暂停后仍可能有排队中的进度回调，别让它们把「继续下载」重新盖成进度条。
+                            if (!token.IsCancellationRequested)
+                            {
+                                setUpdateProgress(p);
+                            }
+                        }),
+                        token);
+                }
+                finally
+                {
+                    downloadCtsRef.Current = null;
+                }
+            },
             new MutationOptions<YuumiX.Core.Updates.UpdateInfo, string>(
-                OnOptimistic: _ => setUpdateCheckError(null),
+                // 清掉上一次的进度：断点续传时首帧进度会从断点处跳上来，
+                // 残留的旧进度会让「重新开始」与「续传」看起来一样。
+                OnOptimistic: _ =>
+                {
+                    setUpdateCheckError(null);
+                    setUpdateProgress(null);
+                },
                 OnSuccess: (path, _) =>
                 {
+                    setUpdateProgress(null);
                     setDownloadedUpdatePath(path);
                     toast.Success(i18n.T("settings.updateDownloadSuccess", "更新下载完成，可立即安装"));
                 },
-                OnError: (ex, _) =>
+                OnError: (ex, info) =>
                 {
+                    // 必须清进度：否则 PrimaryAction 一直停在「进度条」分支，
+                    // 用户既看不到失败原因也点不到重试，只能重启应用。
+                    setUpdateProgress(null);
                     setUpdateCheckError(ex.Message);
+
+                    // 下载器会保留残包，这里据实提示「可以接着下」，而不是让用户以为要从 0 重来。
+                    long kept = updateService.GetResumableBytes(info);
+                    if (kept > 0)
+                    {
+                        toast.Error(i18n.T("settings.updateDownloadInterrupted", "下载中断，已保留进度: ")
+                            + ex.Message
+                            + $"（已下载 {kept / 1024.0 / 1024.0:F1} MB，可继续下载）");
+                        return;
+                    }
+
                     toast.Error(i18n.T("settings.updateDownloadFailed", "下载更新失败: ") + ex.Message);
                 }));
+
+        // 暂停：取消是异步生效的，这里立刻清进度让按钮回到「继续下载」；
+        // 钩子对取消是静默的（不触发 OnError），收尾只能自己做。
+        void PauseDownload()
+        {
+            downloadCtsRef.Current?.Cancel();
+            setUpdateProgress(null);
+        }
 
         UseEffect(
             () =>
@@ -347,9 +400,16 @@ public sealed class SettingsPage : Component
             () => () => SettingsWriteback.FlushPendingEdits(ui, pendingColorFieldRef, pathEditRef, cloudTextRef),
             0);
 
+        // 断点余量：只在「有更新可下、且既不在下载也没下完」时需要读。
+        // 直接读残包长度（一次 stat）而不做缓存——缓存要随下载成功/失败/取消三种状态失效，
+        // 复杂度远大于它省下的那点 IO。
+        long resumableBytes = updateInfo is not null && updateProgress is null && downloadedUpdatePath is null
+            ? updateService.GetResumableBytes(updateInfo)
+            : 0;
+
         var update = new UpdateUi(
-            updateInfo, updateChecked, updateCheckError, updateProgress, downloadedUpdatePath,
-            checkUpdate, downloadUpdate, setUpdateCheckError);
+            updateInfo, updateChecked, updateCheckError, updateProgress, downloadedUpdatePath, resumableBytes,
+            checkUpdate, downloadUpdate, PauseDownload, setUpdateCheckError);
 
         var mainScroll = ScrollViewer(
             VStack(8,
@@ -444,8 +504,11 @@ public sealed class SettingsPage : Component
                             services.OpggHttpClient?.ClearMemoryCache();
                             services.OpggHttpClient?.ClearDiskCache();
                         }
-                        catch
+                        catch (Exception ex)
                         {
+                            // 不能只记「已清空」：OP.GG 的磁盘缓存清不掉时旧图仍会被命中，
+                            // 用户看到的是「清了但没生效」。
+                            logger.LogWarning(ex, "清理 OP.GG 缓存失败（游戏资源缓存已清理）");
                         }
                         logger.LogInformation("已清空游戏资源与 OP.GG 缓存: {Count} 个文件", removed);
                         toast.Success(removed == 0

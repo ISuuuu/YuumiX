@@ -24,14 +24,24 @@ internal sealed record CloudTextUi(string? Url, string? UserId);
 /// 是否已经有过一次检查结果。用来区分「尚未检查」与「查过、已是最新」——
 /// <see cref="Info"/> 为 <c>null</c> 时这两种情况长得一样，只看它会把未检查误报成最新。
 /// </param>
+/// <param name="ResumableBytes">
+/// 上次中断留下的断点字节数（0 表示没有）。只影响按钮文案：有断点时显示
+/// 「继续下载（已下载 x MB）」，让用户知道上次的进度没白费。
+/// </param>
+/// <param name="PauseDownload">
+/// 暂停当前下载。取消令牌由页面持有（<c>UseMutation</c> 不暴露 Cancel），
+/// 取消后残包保留，按钮回到「继续下载」。
+/// </param>
 internal sealed record UpdateUi(
     YuumiX.Core.Updates.UpdateInfo? Info,
     bool Checked,
     string? Error,
     YuumiX.Core.Updates.DownloadProgress? Progress,
     string? DownloadedPath,
+    long ResumableBytes,
     Microsoft.UI.Reactor.Hooks.Mutation<object?, YuumiX.Core.Updates.UpdateInfo?> Check,
     Microsoft.UI.Reactor.Hooks.Mutation<YuumiX.Core.Updates.UpdateInfo, string> Download,
+    Action PauseDownload,
     Action<string?> SetError);
 
 /// <summary>
@@ -322,9 +332,9 @@ internal static partial class GeneralSection
     }
 
     /// <summary>
-    /// 更新主操作：已下载 → 安装并重启；下载中 → 进度；否则 → 下载。
+    /// 更新主操作：已下载 → 安装并重启；下载中 → 进度；否则 → 下载 / 继续下载。
     ///
-    /// 三种状态共用一个按钮位的原因：它们互斥且都表达「把这次更新做完」，
+    /// 几种状态共用一个按钮位的原因：它们互斥且都表达「把这次更新做完」，
     /// 分散成多张卡会让用户在「下载/安装」之间来回找。
     /// <c>DownloadUrl</c> 为空表示该版本没有当前安装形态的资产（例如只发了 zip 却用安装版运行），
     /// 此时不渲染下载按钮——点下去必然抛「该版本没有可下载的资产」，只能引导去发布页。
@@ -348,13 +358,25 @@ internal static partial class GeneralSection
             var totalStr = progress.Total is { } total ? $" / {total / 1024.0 / 1024.0:F1} MB" : string.Empty;
             return VStack(4,
                 Progress(progress.Percent ?? 0),
-                Caption(i18n.T("settings.downloadedProgress", "已下载 {progress}").Replace("{progress}", downloadedStr + totalStr)));
+                HStack(8,
+                    Caption(i18n.T("settings.downloadedProgress", "已下载 {progress}").Replace("{progress}", downloadedStr + totalStr)),
+                    // 暂停后断点留在磁盘上，按钮回到「继续下载」：大包下到一半要关应用、
+                    // 换网络时，用户不必赌「下完再走」。
+                    Button(i18n.T("settings.pauseDownload", "暂停"), update.PauseDownload)
+                        .AutomationName("暂停下载按钮")));
         }
 
         if (info.DownloadUrl is not null)
         {
-            // 下载中禁用：进度条出现前有几百毫秒窗口，连点会并发写同一个 .tmp（FileShare.None 直接报错）。
-            return Button(i18n.T("settings.downloadUpdate", "下载更新"), () => _ = update.Download.RunAsync(info))
+            // 有断点时把「继续」写进文案：进度条只在下载中可见，中断后用户回到页面
+            // 若只看到「下载更新」，会以为上次白下了。
+            string label = update.ResumableBytes > 0
+                ? i18n.T("settings.downloadUpdateResume", "继续下载（已下载 {progress}）")
+                    .Replace("{progress}", $"{update.ResumableBytes / 1024.0 / 1024.0:F1} MB")
+                : i18n.T("settings.downloadUpdate", "下载更新");
+
+            // 下载中禁用：进度条出现前有几百毫秒窗口，连点会并发写同一个残包（FileShare.None 直接报错）。
+            return Button(label, () => _ = update.Download.RunAsync(info))
                 .IsEnabled(!update.Download.IsPending)
                 .AutomationName("下载更新按钮");
         }
