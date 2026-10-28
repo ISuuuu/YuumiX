@@ -107,6 +107,63 @@ public sealed class UploadQueueTests
         Assert.Equal(0, queue.TriggerPendingRetry());
     }
 
+    /// <summary>
+    /// 单条记录处理失败不能打断队列消费。
+    ///
+    /// 这条锁定的是「配置读取在 try 之外」那个旧缺陷：一次配置文件读取异常会直接冲出
+    /// <c>ProcessAsync</c>，worker 随之退出——之后队列里剩下的与后续所有对局都既不上传
+    /// 也不落盘，日志只留一条「Worker 异常退出」。
+    ///
+    /// 断言方式是「第二条记录仍被处理（配置被读第二次）」。worker 层还有一层兜底
+    /// （catch 内再落盘失败时的最后防线），那层没有专门用例——构造它需要让落盘也失败，
+    /// 成本高于收益。
+    /// </summary>
+    [Fact]
+    public async Task Queue_WorkerKeepsRunning_AfterSingleItemThrows()
+    {
+        using var store = new PendingUploadStore(NextDatabasePath());
+        var config = new AppConfig();
+        var uploadService = new UploadService(() => null, () => config);
+
+        int configReads = 0;
+        using var queue = new UploadQueueService(
+            uploadService,
+            store,
+            () =>
+            {
+                // 第一条读配置就抛：模拟配置文件被占用 / 反序列化失败
+                if (Interlocked.Increment(ref configReads) == 1)
+                {
+                    throw new InvalidOperationException("模拟配置读取异常");
+                }
+
+                return config;
+            },
+            () => Task.FromResult<string?>(null));
+
+        queue.Enqueue(4001);
+        queue.Enqueue(4002);
+
+        // 若 worker 被第一条打死，第二条永远不会再读配置
+        Assert.True(await WaitUntilAsync(() => Volatile.Read(ref configReads) >= 2));
+    }
+
+    private static async Task<bool> WaitUntilAsync(Func<bool> condition, int timeoutMs = 3000)
+    {
+        long deadline = Environment.TickCount64 + timeoutMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            await Task.Delay(20);
+        }
+
+        return condition();
+    }
+
     private static UploadPayload Payload(long gameId) => new(
         new MatchInfo(
             gameId,

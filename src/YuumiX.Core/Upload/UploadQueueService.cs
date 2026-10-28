@@ -167,7 +167,21 @@ public sealed class UploadQueueService : IDisposable
             {
                 while (_channel.Reader.TryRead(out UploadQueueItem item))
                 {
-                    await ProcessAsync(item).ConfigureAwait(false);
+                    // 单条任务绝不能把 worker 打死：这里只有一个消费方，一旦跳出外层循环，
+                    // 队列里剩下的与后续所有对局都既不上传也不落盘，日志只留一条
+                    // 「Worker 异常退出」，之后整场会话再无任何上传。
+                    try
+                    {
+                        await ProcessAsync(item).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "对局 {GameId} 的上传任务异常，已跳过并继续处理后续", item.GameId);
+                    }
                 }
             }
         }
@@ -188,16 +202,18 @@ public sealed class UploadQueueService : IDisposable
         long gameId = item.GameId;
         UploadPayload? payload = item.Payload;
 
-        var config = _configProvider();
-        if (string.IsNullOrWhiteSpace(config.General.UploadApiUrl))
-        {
-            _logger?.LogWarning("对局 {GameId} 跳过上传: 未配置上传 API 地址", gameId);
-            return;
-        }
-
         using var timeout = new CancellationTokenSource(TaskTimeout);
         try
         {
+            // 配置读取同样放在 try 内：读配置本身也会抛（文件被占用、反序列化失败），
+            // 留在 try 外会让单条记录的异常直接冲出 ProcessAsync。
+            var config = _configProvider();
+            if (string.IsNullOrWhiteSpace(config.General.UploadApiUrl))
+            {
+                _logger?.LogWarning("对局 {GameId} 跳过上传: 未配置上传 API 地址", gameId);
+                return;
+            }
+
             if (payload is null)
             {
                 string? puuid = await ResolvePuuidAsync().ConfigureAwait(false);
@@ -262,6 +278,13 @@ public sealed class UploadQueueService : IDisposable
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "对局 {GameId} 上传处理失败", gameId);
+
+            // 非超时的异常同样要落盘：这条记录已经出队，只在内存里丢日志等于永久丢这一局
+            // （客户端一关就没了）。落盘自身失败由 RunAsync 的兜底接住，不会打死 worker。
+            if (payload is not null)
+            {
+                _store.AddOrUpdate(payload, ex.Message);
+            }
         }
         finally
         {
