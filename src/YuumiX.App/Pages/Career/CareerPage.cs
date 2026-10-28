@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
@@ -140,15 +141,40 @@ public sealed class CareerPage : Component<CareerPageProps>
             setRefreshToken(refreshSeqRef.Current);
         }
 
+        // 加载链路的诊断日志。以前取数失败被 catch 全吞，页面空白时日志里一条都没有，
+        // 只能靠反复点击试出来——现在每次取数的关键分叉（未登录 / 完成场次 / 异常）都留痕。
+        ILogger careerLogger = UseMemo(
+            () => services.LoggerFactory.CreateLogger("YuumiX.App.Pages.Career"),
+            0);
+
         // 资源表（读）：客户端未启动时静默失败，保持空表，英雄图标退化为占位块而不是空白。
+        //
+        // deps 必须带连接态与刷新代际：GameDataService.GetAsync 在未连接/资源未就绪时
+        // 返回空表且**不写缓存**（下次调用本会重试），但 UseResource 会把这一次的「空表」
+        // 当作结果留在 hook 里——deps 恒为 [0] 就再也不会重取，表现为战绩、段位、头像全都
+        // 正常，唯独装备/技能/符文图标整列空白。
         var catalogResource = UseResource(
             ct => services.Services.GetRequiredService<GameDataService>().GetAsync(ct),
-            deps: new object[] { 0 });
+            deps: new object[] { (int)connState.Status, refreshToken });
         GameDataCatalog catalog = catalogResource switch
         {
             AsyncValue<GameDataCatalog>.Data d => d.Value,
             _ => GameDataCatalog.Empty,
         };
+
+        // 空资源表的留痕：这是「段位/战绩都正常、装备与技能图标整列空白」的唯一根因，
+        // 只在状态翻转时记一次（每帧打会把日志刷穿）。
+        var catalogEmptyLoggedRef = UseRef(false);
+        if (catalog.HasCoreData)
+        {
+            catalogEmptyLoggedRef.Current = false;
+        }
+        else if (!catalogEmptyLoggedRef.Current && connState.Status == LcuConnectionStatus.Connected)
+        {
+            catalogEmptyLoggedRef.Current = true;
+            careerLogger.LogWarning(
+                "游戏资源表为空（客户端资源尚未就绪）：装备/技能/符文图标会退化为空白，已标记为待重取");
+        }
 
         // 外部跳转（最近队友卡片、战绩详情玩家名等入口）：路由参数驱动进入"查看他人"。
         // deps 用路由参数而不是 props 对象本身：props record 值相等时（同目标重复跳转）不重复加载。
@@ -217,7 +243,11 @@ public sealed class CareerPage : Component<CareerPageProps>
         // 首屏与刷新共用一条链路：查看目标、refreshToken 或对局加载数量变化即重新取数，
         // token > 0 时强制绕过排位与战绩缓存；代际计数在加载入口递增、回写前校验。
         // 首屏与刷新共用一条链路（实现见 CareerLoaders.BeginCareerLoad）
-        string loadKey = $"{viewTarget?.Puuid ?? string.Empty}|{refreshToken}|{services.Config.Functions.CareerGamesNumber}";
+        //
+        // 连接态必须进入 loadKey：页面在「端口已探活但客户端尚未登录」的时刻挂载时，
+        // 取数会拿到 null 召唤师并当场收尾；此后状态翻到 Connected 只会重渲染，
+        // effect 不重跑，页面就永久停在空态（现象：切到生涯页没内容，反复点几次才出来）。
+        string loadKey = $"{viewTarget?.Puuid ?? string.Empty}|{refreshToken}|{services.Config.Functions.CareerGamesNumber}|{(int)connState.Status}";
         UseEffect(
             () => CareerLoaders.BeginCareerLoad(
                 services,
@@ -232,7 +262,8 @@ public sealed class CareerPage : Component<CareerPageProps>
                 setMatches,
                 setLoot,
                 setMastery,
-                setLoading),
+                setLoading,
+                careerLogger),
             loadKey);
 
         // "已复制"提示 1.5 秒后自动消失。
@@ -268,6 +299,18 @@ public sealed class CareerPage : Component<CareerPageProps>
         };
         var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
         navigatedFromRef.Current ??= _ => dismissTransientRef.Current?.Invoke();
+
+        // 切回来时的兜底重试：CacheMode 开启后页面实例常驻，切走再回来不重挂载、
+        // effect 也不重跑——若上次取数时客户端尚未登录（召唤师为 null），页面就永远
+        // 停在空态，只能靠用户手动点刷新或反复切页。这里在「回来且已收尾仍无资料」时补一次；
+        // loading 中不重试，避免首次导航把正在跑的那次顶掉。
+        var summonerRef = UseRef(summoner);
+        summonerRef.Current = summoner;
+        var loadingRef = UseRef(loading);
+        loadingRef.Current = loading;
+        var retryRef = UseRef<Action?>(null);
+        retryRef.Current = BumpRefresh;
+
         var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
         navigatedToRef.Current ??= _ =>
         {
@@ -275,6 +318,11 @@ public sealed class CareerPage : Component<CareerPageProps>
             if (langRef.Current != curLang)
             {
                 setLang(curLang);
+            }
+
+            if (summonerRef.Current is null && !loadingRef.Current)
+            {
+                retryRef.Current?.Invoke();
             }
         };
         UseNavigationLifecycle(

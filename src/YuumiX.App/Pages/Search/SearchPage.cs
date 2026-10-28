@@ -221,9 +221,13 @@ public sealed class SearchPage : Component<SearchPageProps>
             0);
 
         // 资源映射表（读）：客户端没启动时静默失败，保持空表，图标退化为占位块而不是空白。
+        //
+        // deps 必须带连接态与请求代际（与生涯页同一处坑）：GetAsync 在未连接/资源未就绪时
+        // 返回空表且不写缓存，但 UseResource 会把这次的空表当结果留住——deps 恒为 [0]
+        // 就再也不会重取，表现为数据正常、装备/英雄图标整列空白。
         var catalogResource = UseResource(
             ct => services.Services.GetRequiredService<GameDataService>().GetAsync(ct),
-            deps: new object[] { 0 });
+            deps: new object[] { (int)connState.Status, requestVersion });
         GameDataCatalog catalog = catalogResource switch
         {
             AsyncValue<GameDataCatalog>.Data d => d.Value,

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using YuumiX.Core;
 using YuumiX.Core.Features.Career;
 using YuumiX.Core.Features.Career.Models;
@@ -148,12 +149,20 @@ internal static class CareerLoaders
         Action<IReadOnlyList<MatchSummary>> applyMatches,
         Action<PlayerLootOverview?> applyLoot,
         Action<MasteryOverview?> applyMastery,
-        Action<bool> applyLoading)
+        Action<bool> applyLoading,
+        ILogger? logger)
     {
         int seq = ++requestSeq.Current;
         Func<bool> isStale = () => seq != requestSeq.Current;
         var cancellation = new CancellationTokenSource();
         var gamesNumber = Math.Clamp(services.Config.Functions.CareerGamesNumber, 1, 50);
+
+        logger?.LogDebug(
+            "生涯取数开始: 目标={Target}，强制刷新={ForceRefresh}，场次={Games}，代际={Seq}",
+            viewTarget?.Puuid ?? "(自己)",
+            refreshToken > 0,
+            gamesNumber,
+            seq);
 
         _ = viewTarget is { } target
             ? LoadOtherCareerAsync(
@@ -168,7 +177,8 @@ internal static class CareerLoaders
                 applyRanked,
                 applyMatches,
                 applyLoading,
-                cancellation.Token)
+                cancellation.Token,
+                logger)
             : LoadSelfAsync(
                 summonerService,
                 careerService,
@@ -182,7 +192,8 @@ internal static class CareerLoaders
                 applyLoot,
                 applyMastery,
                 applyLoading,
-                cancellation.Token);
+                cancellation.Token,
+                logger);
 
         return () =>
         {
@@ -208,7 +219,8 @@ internal static class CareerLoaders
         Action<PlayerLootOverview?> applyLoot,
         Action<MasteryOverview?> applyMastery,
         Action<bool> applyLoading,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ILogger? logger)
     {
         try
         {
@@ -227,6 +239,9 @@ internal static class CareerLoaders
             if (profile is null)
             {
                 // 未登录：全部给空态/失败提示，绝不回退样例数据（D1）
+                // 这条是「页面一片空白但没有任何错误」的唯一可诊断线索，必须留痕：
+                // 客户端端口已通、登录还没完成时 current-summoner 返回 404，属正常时序。
+                logger?.LogInformation("生涯取数中止：当前召唤师不可用（客户端可能尚未登录），已按空态收尾");
                 applyRanked(RankedStats.Empty);
                 applyMatches(EmptyMatches);
                 applyLoot(null);
@@ -258,16 +273,31 @@ internal static class CareerLoaders
                 return;
             }
 
-            applyRanked(await rankedTask.ConfigureAwait(false));
-            applyMatches((await historyTask.ConfigureAwait(false)).Games);
-            applyLoot(await lootTask.ConfigureAwait(false));
-            applyMastery(await masteryTask.ConfigureAwait(false));
+            RankedStats rankedResult = await rankedTask.ConfigureAwait(false);
+            MatchHistoryPage historyResult = await historyTask.ConfigureAwait(false);
+            PlayerLootOverview? lootResult = await lootTask.ConfigureAwait(false);
+            MasteryOverview? masteryResult = await masteryTask.ConfigureAwait(false);
+
+            applyRanked(rankedResult);
+            applyMatches(historyResult.Games);
+            applyLoot(lootResult);
+            applyMastery(masteryResult);
+
+            // 战利品/熟练度为 null 表示「读取失败」（界面会出提示条），与「成功但为空」不同，
+            // 这里分开记录，避免下次又只能靠猜。
+            logger?.LogInformation(
+                "生涯数据加载完成: 战绩 {MatchCount} 场，排位队列 {RankedQueues} 个，战利品={Loot}，熟练度={Mastery}",
+                historyResult.Games.Count,
+                rankedResult.Queues.Count,
+                lootResult is null ? "失败" : "正常",
+                masteryResult is null ? "失败" : "正常");
         }
         catch (OperationCanceledException)
         {
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger?.LogWarning(ex, "生涯数据加载失败，已降级为空态");
             applyRanked(RankedStats.Empty);
             applyMatches(EmptyMatches);
             applyLoot(null);
@@ -298,7 +328,8 @@ internal static class CareerLoaders
         Action<RankedStats> applyRanked,
         Action<IReadOnlyList<MatchSummary>> applyMatches,
         Action<bool> applyLoading,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ILogger? logger)
     {
         try
         {
@@ -351,8 +382,9 @@ internal static class CareerLoaders
         catch (OperationCanceledException)
         {
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger?.LogWarning(ex, "他人生涯数据加载失败，已降级为空态（目标={Target}）", target.Puuid);
             applyRanked(RankedStats.Empty);
             applyMatches(EmptyMatches);
         }
