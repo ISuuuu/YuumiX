@@ -254,9 +254,7 @@ internal static partial class GeneralSection
                 string.IsNullOrEmpty(info.Notes)
                     ? Empty()
                     : ScrollViewer(
-                        Caption(info.Notes)
-                            .Foreground(Theme.SecondaryText)
-                            .TextWrapping())
+                        MarkdownView.Render(info.Notes))
                         .MaxHeight(160)
                         .IsTabStop(true),
                 // 只在「想再确认一次」时才需要重新检查：主操作已经上移到标题卡，
