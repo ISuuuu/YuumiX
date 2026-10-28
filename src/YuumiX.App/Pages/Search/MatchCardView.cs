@@ -20,9 +20,9 @@ internal static class MatchCardView
 
     /// <summary>
     /// 卡片宽度。
-    /// 172 = 列表列 190 减去内边距与滚动条的余量。
+    /// 202 = 列表列 220 减去内边距与滚动条的余量。
     /// </summary>
-    public const double CardWidth = 172;
+    public const double CardWidth = 202;
 
     /// <summary>
     /// 卡片高度。
@@ -87,7 +87,7 @@ internal static class MatchCardView
             .Background(isSelected ? Theme.SubtleFill : Theme.CardBackground);
 
         card = isSelected
-            ? card.WithBorder(Theme.Accent, 2)
+            ? card.WithBorder(stripColor, 2)
             : card.WithBorder(Theme.CardStroke, 1);
 
         if (onSelect is not null)

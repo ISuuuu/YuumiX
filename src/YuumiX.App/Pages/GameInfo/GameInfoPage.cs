@@ -3,8 +3,8 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
-using YuumiX.App.Controls;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
 using YuumiX.Core;
@@ -173,18 +173,10 @@ public sealed class GameInfoPage : Component
                             ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch)
                             : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch, windowWidth));
 
-        var pageTitle = services.I18n.T("gameInfo.title", "对局信息");
-        var pageHeader = PageHeaders.PageHeader(pageTitle, includeBottomMargin: false)
-            .Margin(0, 0, 0, 12);
-
-        return Grid(
-            [GridSize.Star()],
-            [GridSize.Auto, GridSize.Star()],
-            [
-                pageHeader.Grid(row: 0),
-                content.Grid(row: 1),
-            ])
-            .Padding(8, 16, 24, 16);
+        return Border(content)
+            .Padding(8, 16, 24, 16)
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Stretch);
     }
 
     /// <summary>
