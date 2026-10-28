@@ -2,6 +2,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using YuumiX.App.Theming;
 using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Composition;
@@ -113,6 +114,14 @@ public sealed class ToastQueue : IToastService
 /// 全局 Toast 宿主：挂在窗口根（AppShell / OpggWindowRoot），订阅 <see cref="ToastQueue"/>
 /// 用原生 InfoBar 呈现队列。宿主不随页面卸载——页面切换后未过期的 Toast 继续展示直至超时，
 /// 页面级本地状态随组件卸载而残留/泄漏的问题由此消除。
+///
+/// 观感约定——只有两档，其余等级一律折进「正常」：
+///   1. **正常**（<c>Success</c> / <c>Informational</c>）：走「修复无限加载」那一条的原生外观——
+///      <see cref="InfoBarSeverity.Informational"/> 的中性底色 + 单色描边 + 原生 ⓘ 图标（系统蓝 #0078D4），
+///      图标/底色/描边/内边距/尺寸一律不覆盖。
+///   2. **异常**（<c>Error</c>）：保留原生 <see cref="InfoBarSeverity.Error"/> 的红底红框 + 红色 ! 图标，
+///      与正常态区分开——出错需要一眼看出来，否则用户会漏读。
+/// 刻意不用原生的 Success：成功与中性共用正常态，避免「同一屏三种颜色」的老问题。
 /// </summary>
 public sealed class ToastHost : Component
 {
@@ -140,19 +149,27 @@ public sealed class ToastHost : Component
         }
 
         return VStack(8,
-                items.Select(item =>
-                    (InfoBar(null, item.Message) with
-                    {
-                        Severity = item.Severity,
-                        IsOpen = true,
-                        // 用户点关闭：InfoBar 内部将 IsOpen 置 false 并触发 Closed，这里回删队列。
-                        OnClosed = () => queue.Dismiss(item.Id),
-                    })
-                    .MaxWidth(480)
-                    .WithKey(item.Id.ToString()))
+                items.Select(item => RenderBar(item, queue).WithKey(item.Id.ToString()))
                 .ToArray())
             .VAlign(VerticalAlignment.Top)
             .HAlign(HorizontalAlignment.Center)
             .Margin(new Thickness(0, 48, 0, 0));
     }
+
+    /// <summary>
+    /// 渲染一条提示。只有「正常 / 异常」两档（见类型注释），不做逐等级换图标：
+    /// 图标与材质都由 <see cref="InfoBarSeverity"/> 原生提供，不覆盖 <c>IconSource</c>——
+    /// 自定义 FontIcon 拿不到该等级的图标色，反而会渲染成普通前景色。
+    /// </summary>
+    private static Element RenderBar(ToastEntry item, ToastQueue queue) =>
+        (InfoBar(null, item.Message) with
+        {
+            Severity = item.Severity == InfoBarSeverity.Error
+                ? InfoBarSeverity.Error
+                : InfoBarSeverity.Informational,
+            IsOpen = true,
+            // 用户点关闭：InfoBar 内部将 IsOpen 置 false 并触发 Closed，这里回删队列。
+            OnClosed = () => queue.Dismiss(item.Id),
+        })
+        .MaxWidth(480);
 }
