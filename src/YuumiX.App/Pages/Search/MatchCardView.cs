@@ -48,7 +48,7 @@ internal static class MatchCardView
         var queueName = SearchFilters.TranslateQueueLabel(summary.QueueName, isEn);
 
         Element middle = VStack(2,
-            Caption(queueName)
+            Body(queueName)
                 .Foreground(Theme.PrimaryText),
             HStack(6,
                 Caption(summary.ShortDateText).Foreground(Theme.SecondaryText),

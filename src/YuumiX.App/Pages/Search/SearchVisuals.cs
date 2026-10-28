@@ -94,7 +94,7 @@ internal static class SearchVisuals
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(AugmentBackgroundColor)
             .WithBorder(AugmentBorderColor, 1)
-            .WithToolTip(Caption(name))
+            .WithToolTip(BodyStrong(name))
             .AutomationName($"海克斯强化：{name}");
     }
 
