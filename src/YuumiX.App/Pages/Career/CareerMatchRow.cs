@@ -272,24 +272,37 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 rightGroup.Grid(row: 0, column: 1),
             ]);
 
-        // 卡片底色、悬停底色与描边联动
-        string normalBg = summary.Remake ? palette.RemakeBg : (summary.Win ? palette.WinBg : palette.LoseBg);
-        string hoverBg = summary.Remake ? palette.RemakeBgHover : (summary.Win ? palette.WinBgHover : palette.LoseBgHover);
-        string normalBorder = summary.Remake ? palette.RemakeBorder : (summary.Win ? palette.WinBorder : palette.LoseBorder);
+        // 方案 A：卡片底走中性 CardBackground（悬停走 SubtleFill），左侧保留 4px 胜负色条
+        string stripColor = summary.Remake
+            ? palette.RemakeText
+            : summary.Placement is { } tftRank
+                ? tftRank == 1 ? AssetColors.Amber : tftRank <= 4 ? palette.WinText : palette.LoseText
+                : summary.Win ? palette.WinText : palette.LoseText;
 
-        string currentBg = isHovered ? hoverBg : normalBg;
+        Element indicatorStrip = Border(Empty())
+            .Width(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
+            .Background(stripColor)
+            .HAlign(HorizontalAlignment.Left)
+            .VAlign(VerticalAlignment.Stretch)
+            .Margin(0, 8, 0, 8);
 
-        // 业务描边是 string、悬停描边是 ThemeRef 令牌，两种形态无法共存于同一三元，因此在元素级分支。
-        var row = Border(cardContent)
+        Element rowContent = Grid(
+            [GridSize.Star()],
+            [GridSize.Star()],
+            [
+                indicatorStrip,
+                cardContent.Margin(20, 12, 20, 12),
+            ]);
+
+        var row = Border(rowContent)
             .Height(RowHeight)
-            // 旧版 `.match-card` padding 14×20；纵向 14 取 12（4px 网格），横向照抄 20
-            .Padding(20, 12)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Background(currentBg)
+            .Background(isHovered ? Theme.SubtleFill : Theme.CardBackground)
             .AutomationName($"查看对局 {summary.GameId}");
         row = isHovered
             ? row.WithBorder(Theme.ControlStroke, 1)
-            : row.WithBorder(normalBorder, 1);
+            : row.WithBorder(Theme.CardStroke, 1);
         return row
             // D6：悬停（含 focus 落入行内按钮）浮现回放；整行点击跳战绩详情（§4）
             .OnPointerEntered((_, _) => { setReplayRevealed(true); setIsHovered(true); })

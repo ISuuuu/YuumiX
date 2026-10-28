@@ -47,54 +47,48 @@ internal static class MatchCardView
         var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
         var queueName = SearchFilters.TranslateQueueLabel(summary.QueueName, isEn);
 
+        string stripColor = SearchVisuals.ResultAccent(palette, summary);
+        string resultText = SearchVisuals.ResultText(summary);
+
         Element middle = VStack(2,
-            Body(queueName)
-                .Foreground(Theme.PrimaryText),
+            HStack(6,
+                Body(queueName).Foreground(Theme.PrimaryText),
+                Body(resultText).Foreground(stripColor))
+                .VAlign(VerticalAlignment.Center),
             HStack(6,
                 Caption(summary.ShortDateText).Foreground(Theme.SecondaryText),
                 SearchVisuals.Kda(summary.Kills, summary.Deaths, summary.Assists, palette, strong: true)));
 
-        string borderBrush;
-        string bg;
-        double borderThickness;
+        Element indicatorStrip = Border(Empty())
+            .Width(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
+            .Background(stripColor)
+            .HAlign(HorizontalAlignment.Left)
+            .VAlign(VerticalAlignment.Stretch)
+            .Margin(0, 8, 0, 8);
 
-        if (isSelected)
-        {
-            borderThickness = 2;
-            if (summary.Remake)
-            {
-                borderBrush = palette.RemakeText;
-                bg = palette.RemakeBgHover;
-            }
-            else
-            {
-                borderBrush = summary.Win ? palette.WinText : palette.LoseText;
-                bg = summary.Win ? palette.WinBgHover : palette.LoseBgHover;
-            }
-        }
-        else
-        {
-            borderThickness = 1;
-            if (summary.Remake)
-            {
-                borderBrush = palette.RemakeBorder;
-                bg = palette.RemakeBg;
-            }
-            else
-            {
-                borderBrush = summary.Win ? palette.WinBorder : palette.LoseBorder;
-                bg = summary.Win ? palette.WinBg : palette.LoseBg;
-            }
-        }
+        Element content = HStack(8, champion, middle)
+            .VAlign(VerticalAlignment.Center)
+            .Margin(12, 8, 8, 8);
 
-        Element card = Border(HStack(8, champion, middle).VAlign(VerticalAlignment.Center))
+        Element cardBody = Grid(
+            [GridSize.Star()],
+            [GridSize.Star()],
+            [
+                indicatorStrip,
+                content,
+            ]);
+
+        var card = Border(cardBody)
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Stretch)
             .Margin(0, 0, 0, CardGap)
-            .Padding(8)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Background(bg)
-            .WithBorder(borderBrush, borderThickness);
+            .Background(isSelected ? Theme.SubtleFill : Theme.CardBackground);
+
+        card = isSelected
+            ? card.WithBorder(Theme.Accent, 2)
+            : card.WithBorder(Theme.CardStroke, 1);
 
         if (onSelect is not null)
         {
