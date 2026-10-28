@@ -159,7 +159,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
         Border(Empty())
             .Width(1)
             .Height(22)
-            .Background(Theme.CardStroke)
+            .Background(Theme.DividerStroke)
             .VAlign(VerticalAlignment.Center);
 
     private static Element RenderTierBadge(string? tier)
@@ -193,7 +193,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
 
                     Border(Empty())
                         .Width(1)
-                        .Background(Theme.CardStroke)
+                        .Background(Theme.DividerStroke)
                         .Margin(new Thickness(12, 0, 12, 0))
                         .Grid(0, 1),
 
@@ -287,7 +287,7 @@ public sealed class BuildDetailPanelView : Component<BuildDetailPanelProps>
                     // 中间分割线
                     Border(Empty())
                         .Width(1)
-                        .Background(Theme.CardStroke)
+                        .Background(Theme.DividerStroke)
                         .Margin(new Thickness(12, 0, 12, 0))
                         .Grid(0, 1),
 

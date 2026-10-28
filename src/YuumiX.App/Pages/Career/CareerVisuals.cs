@@ -257,7 +257,7 @@ internal static class CareerVisuals
                 TabButton(matchesText, CareerTab.Matches, current, setTab),
                 TabButton(lootText, CareerTab.Loot, current, setTab),
                 TabButton(masteryText, CareerTab.Mastery, current, setTab)),
-            Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch));
+            Border(Empty()).Height(1).Background(Theme.DividerStroke).HAlign(HorizontalAlignment.Stretch));
     }
 
     // ── 骨架屏（加载态的结构占位）────────────────────────────────────────
@@ -315,7 +315,7 @@ internal static class CareerVisuals
                 SkeletonTab(56),
                 SkeletonTab(42),
                 SkeletonTab(70)),
-            Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch));
+            Border(Empty()).Height(1).Background(Theme.DividerStroke).HAlign(HorizontalAlignment.Stretch));
 
     /// <summary>单个页签位：文字条 + 与真实页签相同的 padding 与高度（33）。</summary>
     private static Element SkeletonTab(double textWidth) =>
@@ -375,7 +375,7 @@ internal static class CareerVisuals
             .MinHeight(33);
 
         Element Divider() =>
-            Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch);
+            Border(Empty()).Height(1).Background(Theme.DividerStroke).HAlign(HorizontalAlignment.Stretch);
 
         return Card(
             VStack(0,

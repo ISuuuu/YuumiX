@@ -818,7 +818,7 @@ internal static class LootManagerView
 
     /// <summary>弹窗遮罩：半透明黑底 + 居中卡片（标题 + ✕ + 内容）。</summary>
     private static Element Divider() =>
-        Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch);
+        Border(Empty()).Height(1).Background(Theme.DividerStroke).HAlign(HorizontalAlignment.Stretch);
 
     private static Element DialogMask(Element content, YuumiPalette palette, string title, double cardWidth, Action onCancel) =>
         Grid(

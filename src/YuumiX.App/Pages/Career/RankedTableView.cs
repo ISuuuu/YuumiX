@@ -94,7 +94,7 @@ internal static class RankedTableView
 
     /// <summary>分隔线：1 DIP 的浅色横线。</summary>
     private static Element Divider() =>
-        Border(Empty()).Height(1).Background(Theme.CardStroke).HAlign(HorizontalAlignment.Stretch);
+        Border(Empty()).Height(1).Background(Theme.DividerStroke).HAlign(HorizontalAlignment.Stretch);
 
     public static Element Render(RankedStats stats, YuumiPalette palette)
     {

@@ -194,7 +194,7 @@ internal static class ProfileSection
                     },
                     ui.Palette
                 ),
-                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
+                Border(Empty()).Height(1).Background(Theme.DividerStroke).Margin(new Thickness(0, 4, 0, 4)),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
@@ -342,7 +342,7 @@ internal static class ProfileSection
                     clearBadgesAction,
                     clearBorderAction
                 ),
-                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 4, 0, 4)),
+                Border(Empty()).Height(1).Background(Theme.DividerStroke).Margin(new Thickness(0, 4, 0, 4)),
                 ChallengePreferencesView.Render(
                     challenges,
                     challengesLoading,
