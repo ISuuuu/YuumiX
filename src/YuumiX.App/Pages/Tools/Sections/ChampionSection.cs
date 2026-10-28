@@ -175,7 +175,7 @@ internal static class ChampionSection
                         config.Functions.EnableDodgeInGameInfo = v;
                         ui.Commit(nameof(FunctionsConfig.EnableDodgeInGameInfo));
                     }, "对局信息秒退按钮")),
-                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                Border(Empty()).Height(1).Background(Theme.DividerStroke).Margin(new Thickness(0, 6, 0, 6)),
                 Caption(i18n.T("tools.pickCandidatesLabel", "分路预选候选英雄库:")).Foreground(Theme.SecondaryText),
                 LaneTabs(ui, st.PickLaneIndex, idx => set(st with { PickLaneIndex = idx })),
                 ChampionPickerView.Render(
@@ -228,7 +228,7 @@ internal static class ChampionSection
                         },
                         ui.Palette,
                         "自动禁用延迟")),
-                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                Border(Empty()).Height(1).Background(Theme.DividerStroke).Margin(new Thickness(0, 6, 0, 6)),
                 Caption(i18n.T("tools.banCandidatesLabel", "分路禁用候选英雄库:")).Foreground(Theme.SecondaryText),
                 LaneTabs(ui, st.BanLaneIndex, idx => set(st with { BanLaneIndex = idx })),
                 ChampionPickerView.Render(
@@ -260,7 +260,7 @@ internal static class ChampionSection
                         config.Functions.EnableAutoSetSpells = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoSetSpells));
                     }, "自动召唤师技能")),
-                Border(Empty()).Height(1).Background(Theme.CardStroke).Margin(new Thickness(0, 6, 0, 6)),
+                Border(Empty()).Height(1).Background(Theme.DividerStroke).Margin(new Thickness(0, 6, 0, 6)),
                 Caption(i18n.T("tools.spellsByLaneLabel", "分路召唤师技能组:")).Foreground(Theme.SecondaryText),
                 LaneTabs(ui, st.SpellLaneIndex, idx => set(st with { SpellLaneIndex = idx })),
                 SpellPickerView.Render(

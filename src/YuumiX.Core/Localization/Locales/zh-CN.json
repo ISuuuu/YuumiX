@@ -12,6 +12,22 @@
     "opgg": "OP.GG",
     "savedPlayers": "路人集"
   },
+  "home": {
+    "title": "主页",
+    "description": "查看当前召唤师状态、游戏阶段与常用功能快捷直达",
+    "connected": "客户端连接成功",
+    "overview": "召唤师概览",
+    "viewCareer": "查看生涯",
+    "gamePhase": "游戏阶段",
+    "phaseIdle": "当前客户端处于空闲等待状态",
+    "quickAccess": "快捷入口",
+    "careerDesc": "查看历史战绩、战利品与熟练度",
+    "searchDesc": "搜索召唤师并分析对局详情",
+    "gameInfoDesc": "选人与对局中实时看板",
+    "opggDesc": "英雄出装、符文与克制排行",
+    "toolsDesc": "自动接受、自动选人与实用工具",
+    "unranked": "未定级"
+  },
   "noticePage": {
     "title": "公告",
     "sub": "Yuumi 官方公告 (动态同步自 GitHub)",
@@ -263,9 +279,9 @@
     "signalrStatus": "SignalR 连接状态",
     "signalrStatusDesc": "LCU 实时远程查询通道状态",
     "signalrFailed": "连接失败",
-    "winCardDesc": "战绩列表里胜利一方的底色（含透明度）",
-    "loseCardDesc": "失败一方的底色（含透明度）",
-    "remakeCardDesc": "重赛一方的底色（含透明度）",
+    "winCardDesc": "战绩列表里胜利一方的色条与文字颜色",
+    "loseCardDesc": "战绩列表里失败一方的色条与文字颜色",
+    "remakeCardDesc": "战绩列表里重赛一方的色条与文字颜色",
     "lightDeathDesc": "浅色主题下每局死亡数的颜色",
     "darkDeathDesc": "深色主题下每局死亡数的颜色",
     "setupUpdateDesc": "安装版通过 setup 静默重装；检查到新版后手动下载应用",
@@ -851,6 +867,7 @@
     "selectHeroFirst": "请先选择英雄以加载皮肤列表"
   },
   "gameInfo": {
+    "title": "对局信息",
     "myTeam": "友方 ({count})",
     "theirTeam": "敌方 ({count})",
     "premade": "组队",
@@ -932,6 +949,7 @@
     "settingsSaved": "设置已自动保存"
   },
   "career": {
+    "title": "生涯",
     "summonerInfo": "召唤师信息",
     "winRate": "胜率",
     "win": "胜",
@@ -954,6 +972,7 @@
     "lp": "胜点",
     "highest": "赛季最高",
     "prevSeason": "上赛季结算",
+    "unrankedSeason": "本赛季未定级",
     "type": "类型",
     "refresh": "刷新",
     "backToMe": "返回我的生涯",
@@ -981,6 +1000,7 @@
     "emptyQueueMatches": "该队列下没有近期对局"
   },
   "search": {
+    "title": "战绩查询",
     "searchPlaceholder": "输入召唤师名称进行搜索...",
     "history": "搜索历史",
     "clearHistory": "清除历史",

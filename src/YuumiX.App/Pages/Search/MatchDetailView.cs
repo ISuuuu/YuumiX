@@ -40,7 +40,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
 
         // 玩家名着色：查询者走胜负面板业务色；其余按可点击/悬停走语义令牌。
         // string 业务色与 ThemeRef 令牌无法共存于同一三元，因此按 CareerMatchRow 的既有做法在元素级分支。
-        var text = p.IsQueriedPlayer ? BodyStrong(p.DisplayName) : Caption(p.DisplayName);
+        var text = p.IsQueriedPlayer ? BodyStrong(p.DisplayName) : Body(p.DisplayName);
         if (p.IsQueriedPlayer)
         {
             text = text.Foreground(p.TeamWin ? p.Palette.WinText : p.Palette.LoseText);
@@ -106,7 +106,7 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
                 .AutomationName($"搜索 {p.DisplayName}");
         }
 
-        return Caption(p.DisplayName)
+        return Body(p.DisplayName)
             .Foreground(Theme.SecondaryText)
             .WithToolTip(TextBlock("机器人（不可查看战绩）"));
     }
@@ -216,7 +216,7 @@ internal static class MatchDetailView
             ? "Select a match on the left to view details"
             : "在左侧选择一局以查看详情";
 
-        return Border(Caption(text).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
+        return Border(Body(text).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center).VAlign(VerticalAlignment.Center))
             .Padding(24)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
@@ -248,11 +248,11 @@ internal static class MatchDetailView
                     [GridSize.Auto],
                     [
                         Block(140, 14).Grid(row: 0, column: 0),
-                        Block(60, 12).Grid(row: 0, column: 1),
-                        Block(30, 12).Grid(row: 0, column: 2),
-                        Block(30, 12).Grid(row: 0, column: 3),
-                        Block(30, 12).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 4),
-                        Block(30, 12).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 5),
+                        Block(60, 14).Grid(row: 0, column: 1),
+                        Block(30, 14).Grid(row: 0, column: 2),
+                        Block(30, 14).Grid(row: 0, column: 3),
+                        Block(30, 14).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 4),
+                        Block(30, 14).HAlign(HorizontalAlignment.Right).Grid(row: 0, column: 5),
                     ]))
             .Padding(12, 6, 24, 6);
 
@@ -428,7 +428,7 @@ internal static class MatchDetailView
         }
 
         Element body = team.Players.Count == 0
-            ? Border(Caption("无参与者数据").Foreground(Theme.SecondaryText)).Padding(12)
+            ? Border(Body("无参与者数据").Foreground(Theme.SecondaryText)).Padding(12)
             : Grid([GridSize.Star()], rowDefs, playerRows.ToArray())
                 .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
                 .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
@@ -486,7 +486,7 @@ internal static class MatchDetailView
 
     /// <summary>列名：按指定对齐方式对齐到各自数据列，保证表头与数字同一条基线。</summary>
     private static Element ColumnLabel(string text, int column, YuumiPalette palette, HorizontalAlignment alignment) =>
-        Caption(text)
+        Body(text)
             .Foreground(Theme.SecondaryText)
             .HAlign(alignment)
             .TextAlignment(alignment switch

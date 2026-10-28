@@ -150,14 +150,6 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
             ? (string.IsNullOrWhiteSpace(detail.CleanedDesc) ? detail.Name : $"{detail.Name}\n{detail.CleanedDesc}")
             : $"Perk {perkId}";
 
-        var borderBrush = isActive
-            ? (isShard ? OpggVisuals.GreenShardBorder : OpggVisuals.GoldRuneBorder)
-            : "transparent";
-
-        var bg = isActive
-            ? (isShard ? "rgba(81, 207, 102, 0.15)" : "rgba(229, 169, 59, 0.15)")
-            : "transparent";
-
         var item = Border(
             Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, iconSize, CornerRadius: iconSize / 2))
                 .HAlign(HorizontalAlignment.Center)
@@ -166,10 +158,19 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
         .Width(size)
         .Height(size)
         .CornerRadius(radius)
-        .Background(bg)
-        .WithBorder(borderBrush, isActive ? (isKeystone ? 2 : 1.5) : 0)
-        .Opacity(isActive ? 1.0 : (isShard ? 0.3 : 0.35))
         .WithToolTip(Caption(tooltipText).TextWrapping());
+
+        if (isActive)
+        {
+            item = item
+                .Background(Theme.SubtleFill)
+                .WithBorder(Theme.Accent, isShard ? 1 : 2)
+                .Opacity(1.0);
+        }
+        else
+        {
+            item = item.Opacity(isShard ? 0.3 : 0.35);
+        }
 
         return item;
     }

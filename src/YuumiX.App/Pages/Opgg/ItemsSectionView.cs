@@ -100,7 +100,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
                 // 中间垂直分割线
                 Border(Empty())
                     .Width(1)
-                    .Background(Theme.CardStroke)
+                    .Background(Theme.DividerStroke)
                     .Margin(new Thickness(12, 0, 12, 0))
                     .Grid(0, 1),
 
@@ -123,7 +123,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
         var matchesUnit = i18n?.T("common.matches", "场") ?? "场";
 
         return VStack(8,
-            Border(Empty()).Height(1).Background(Theme.CardStroke),
+            Border(Empty()).Height(1).Background(Theme.DividerStroke),
 
             BodyStrong(i18n?.T("opgg.items.core", "核心装备组合") ?? "核心装备组合")
                 .Foreground(Theme.SecondaryText),
@@ -173,7 +173,7 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
         var i18n = Composition.AppHost.Services?.I18n;
 
         return VStack(8,
-            Border(Empty()).Height(1).Background(Theme.CardStroke),
+            Border(Empty()).Height(1).Background(Theme.DividerStroke),
 
             BodyStrong(i18n?.T("opgg.items.last", "可选与推荐装备") ?? "可选与推荐装备")
                 .Foreground(Theme.SecondaryText),

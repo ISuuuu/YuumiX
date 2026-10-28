@@ -12,6 +12,22 @@
     "opgg": "OP.GG",
     "savedPlayers": "Players Met"
   },
+  "home": {
+    "title": "Home",
+    "description": "View summoner status, game phase, and quick navigation shortcuts",
+    "connected": "Client Connected",
+    "overview": "Summoner Overview",
+    "viewCareer": "View Career",
+    "gamePhase": "Game Phase",
+    "phaseIdle": "Client is currently idle",
+    "quickAccess": "Quick Access",
+    "careerDesc": "View match history, loot, and champion mastery",
+    "searchDesc": "Look up summoners and analyze match details",
+    "gameInfoDesc": "Real-time dashboard for champ select and in-game",
+    "opggDesc": "Builds, runes, and tier lists from OP.GG",
+    "toolsDesc": "Auto accept, auto pick/ban, and utilities",
+    "unranked": "Unranked"
+  },
   "noticePage": {
     "title": "Notice",
     "sub": "Official Yuumi Announcements (Synced from GitHub)",
@@ -263,9 +279,9 @@
     "signalrStatus": "SignalR Status",
     "signalrStatusDesc": "LCU real-time remote query status",
     "signalrFailed": "Connection Failed",
-    "winCardDesc": "Background color for win match card",
-    "loseCardDesc": "Background color for loss match card",
-    "remakeCardDesc": "Background color for remake match card",
+    "winCardDesc": "Color for win match indicator strip and text",
+    "loseCardDesc": "Color for defeat match indicator strip and text",
+    "remakeCardDesc": "Color for remake match indicator strip and text",
     "lightDeathDesc": "Death numbers color in light theme",
     "darkDeathDesc": "Death numbers color in dark theme",
     "setupUpdateDesc": "Setup build updates via silent installer overwrite",
@@ -851,6 +867,7 @@
     "selectHeroFirst": "Please select a champion first to load skins"
   },
   "gameInfo": {
+    "title": "Live Game",
     "myTeam": "Ally ({count})",
     "theirTeam": "Enemy ({count})",
     "premade": "Party",
@@ -932,6 +949,7 @@
     "settingsSaved": "Settings auto-saved"
   },
   "career": {
+    "title": "Career",
     "summonerInfo": "Summoner Info",
     "winRate": "Win Rate",
     "win": "W",
@@ -954,6 +972,7 @@
     "lp": "LP",
     "highest": "Highest",
     "prevSeason": "Prev Season",
+    "unrankedSeason": "Unranked this season",
     "type": "Type",
     "refresh": "Refresh",
     "backToMe": "Back to My Career",
@@ -981,6 +1000,7 @@
     "emptyQueueMatches": "No recent matches in this queue"
   },
   "search": {
+    "title": "Search",
     "searchPlaceholder": "Enter summoner name to search...",
     "history": "Search History",
     "clearHistory": "Clear History",

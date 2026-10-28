@@ -54,16 +54,16 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     internal const double RowHeight = 82;
 
     /// <summary>
-    /// 结果列：旧版 `.result-panel { min-width: 90px }`。取 96 让「海克斯大乱斗」等最长模式名
-    /// 在 12px 下不换行（90 会贴着边框），仍比原 115 窄 19，与旧版占比一致。
+    /// 结果列：旧版 `.result-panel { min-width: 90px }`。取 100 让「海克斯大乱斗」等最长模式名
+    /// 在 14px 下留足呼吸感，与旧版占比一致。
     /// </summary>
-    private const double ResultWidth = 96;
+    private const double ResultWidth = 100;
 
     /// <summary>KDA 列：旧版 `.kda-panel { min-width: 105px }`。</summary>
     private const double KdaWidth = 105;
 
-    /// <summary>补刀列：旧版 `.cs-panel` 44 + `margin-right: 6`，合计视觉宽 50，取 52。</summary>
-    private const double CsWidth = 52;
+    /// <summary>补刀列：旧版 `.cs-panel` 44 + `margin-right: 6`，合计视觉宽 50，取 56 承载 14px 补刀数值。</summary>
+    private const double CsWidth = 56;
 
     /// <summary>金币列：旧版 `.gold-panel { min-width: 62px }`，取 64。</summary>
     private const double GoldWidth = 64;
@@ -157,10 +157,10 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         Element result = VStack(2,
                 HStack(4,
                     resultTextBlock,
-                    Caption(Search.SearchVisuals.PositionText(summary.Position) ?? string.Empty)
+                    Body(Search.SearchVisuals.PositionText(summary.Position) ?? string.Empty)
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center)),
-                Caption(queueName).Foreground(Theme.SecondaryText),
+                Body(queueName).Foreground(Theme.PrimaryText),
                 Caption(summary.DurationText).Foreground(Theme.SecondaryText))
             .Width(ResultWidth)
             .VAlign(VerticalAlignment.Center);
@@ -195,9 +195,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         var csPerMinText = csPerMinFormat.Replace("{cs}", csPerMin.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
         Element cs = VStack(2,
                 HStack(2,
-                    Caption(summary.CreepScore.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .SemiBold(),
-                    Caption(csUnit).Foreground(Theme.SecondaryText)),
+                    BodyStrong(summary.CreepScore.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    Caption(csUnit).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom)),
                 Caption(csPerMinText).Foreground(Theme.SecondaryText))
             .Width(CsWidth)
             .VAlign(VerticalAlignment.Center);
@@ -221,8 +220,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         // 金币列
         var goldText = i18n?.T("search.gold", "金币") ?? "金币";
         Element gold = VStack(2,
-                Caption($"{summary.Gold:N0}")
-                    .SemiBold(),
+                BodyStrong($"{summary.Gold:N0}"),
                 Caption(goldText).Foreground(Theme.SecondaryText))
             .Width(GoldWidth)
             .VAlign(VerticalAlignment.Center);
@@ -274,24 +272,37 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 rightGroup.Grid(row: 0, column: 1),
             ]);
 
-        // 卡片底色、悬停底色与描边联动
-        string normalBg = summary.Remake ? palette.RemakeBg : (summary.Win ? palette.WinBg : palette.LoseBg);
-        string hoverBg = summary.Remake ? palette.RemakeBgHover : (summary.Win ? palette.WinBgHover : palette.LoseBgHover);
-        string normalBorder = summary.Remake ? palette.RemakeBorder : (summary.Win ? palette.WinBorder : palette.LoseBorder);
+        // 方案 A：卡片底走中性 CardBackground（悬停走 SubtleFill），左侧保留 4px 胜负色条
+        string stripColor = summary.Remake
+            ? palette.RemakeText
+            : summary.Placement is { } tftRank
+                ? tftRank == 1 ? AssetColors.Amber : tftRank <= 4 ? palette.WinText : palette.LoseText
+                : summary.Win ? palette.WinText : palette.LoseText;
 
-        string currentBg = isHovered ? hoverBg : normalBg;
+        Element indicatorStrip = Border(Empty())
+            .Width(4)
+            .CornerRadius(YuumiTheme.ControlRadius)
+            .Background(stripColor)
+            .HAlign(HorizontalAlignment.Left)
+            .VAlign(VerticalAlignment.Stretch)
+            .Margin(0, 8, 0, 8);
 
-        // 业务描边是 string、悬停描边是 ThemeRef 令牌，两种形态无法共存于同一三元，因此在元素级分支。
-        var row = Border(cardContent)
+        Element rowContent = Grid(
+            [GridSize.Star()],
+            [GridSize.Star()],
+            [
+                indicatorStrip,
+                cardContent.Margin(20, 12, 20, 12),
+            ]);
+
+        var row = Border(rowContent)
             .Height(RowHeight)
-            // 旧版 `.match-card` padding 14×20；纵向 14 取 12（4px 网格），横向照抄 20
-            .Padding(20, 12)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Background(currentBg)
+            .Background(isHovered ? Theme.SubtleFill : Theme.CardBackground)
             .AutomationName($"查看对局 {summary.GameId}");
         row = isHovered
             ? row.WithBorder(Theme.ControlStroke, 1)
-            : row.WithBorder(normalBorder, 1);
+            : row.WithBorder(Theme.CardStroke, 1);
         return row
             // D6：悬停（含 focus 落入行内按钮）浮现回放；整行点击跳战绩详情（§4）
             .OnPointerEntered((_, _) => { setReplayRevealed(true); setIsHovered(true); })

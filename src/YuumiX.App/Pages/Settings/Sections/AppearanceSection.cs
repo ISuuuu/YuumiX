@@ -201,7 +201,7 @@ internal static class AppearanceSection
                         ColorEditor(
                             ui, requestColorCommit,
                             i18n.T("settings.winCard", "胜利卡片"),
-                            i18n.T("settings.winCardDesc", "战绩列表里胜利一方的底色（含透明度）"),
+                            i18n.T("settings.winCardDesc", "战绩列表里胜利一方的色条与文字颜色"),
                             ui.Config.Personalization.WinCardColor,
                             withAlpha: true,
                             c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
@@ -211,7 +211,7 @@ internal static class AppearanceSection
                         ColorEditor(
                             ui, requestColorCommit,
                             i18n.T("settings.loseCard", "失败卡片"),
-                            i18n.T("settings.loseCardDesc", "失败一方的底色（含透明度）"),
+                            i18n.T("settings.loseCardDesc", "战绩列表里失败一方的色条与文字颜色"),
                             ui.Config.Personalization.LoseCardColor,
                             withAlpha: true,
                             c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),
@@ -221,7 +221,7 @@ internal static class AppearanceSection
                         ColorEditor(
                             ui, requestColorCommit,
                             i18n.T("settings.remakeCard", "重开卡片"),
-                            i18n.T("settings.remakeCardDesc", "重赛一方的底色（含透明度）"),
+                            i18n.T("settings.remakeCardDesc", "战绩列表里重赛一方的色条与文字颜色"),
                             ui.Config.Personalization.RemakeCardColor,
                             withAlpha: true,
                             c => ColorHex.ToArgb(c.A, c.R, c.G, c.B),

@@ -166,7 +166,7 @@ internal static class ToolsVisuals
         {
             var divider = Border(Empty())
                 .Height(1)
-                .Background(Theme.CardStroke)
+                .Background(Theme.DividerStroke)
                 .Margin(new Thickness(16, 0, 16, 4));
 
             var paddedContent = Border(innerContent)
