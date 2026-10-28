@@ -304,13 +304,17 @@ internal static partial class GeneralSection
     ///
     /// 与页面上「检查更新」按钮的区别：这条路径是开关的副作用，用户没有主动查看结果的预期，
     /// 因此失败只记日志、不弹 Toast——免得只是打开一个开关就被网络错误弹窗打断。
+    ///
+    /// 同样因为不是「用户要一个确定结论」，这里 <c>forceRefresh</c> 保持 false：
+    /// 反复拨动开关不该把 GitHub 未认证 API 的 60 次/小时配额消耗掉；
+    /// 真正需要「现在就查」的入口是设置页那个按钮（见 <c>SettingsPage.checkUpdate</c>）。
     /// </summary>
     private static async Task CheckOnceAsync(SettingsUi ui)
     {
         try
         {
             var service = ui.Services.Services.GetRequiredService<YuumiX.Core.Updates.UpdateService>();
-            var info = await service.CheckForUpdateAsync(ui.Services.Paths.IsPortable).ConfigureAwait(false);
+            var info = await service.CheckForUpdateAsync(ui.Services.Paths.IsPortable, forceRefresh: false).ConfigureAwait(false);
             ui.UpdateNotice.Publish(info);
         }
         catch (Exception ex)

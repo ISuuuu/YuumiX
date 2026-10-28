@@ -70,6 +70,7 @@ public static class AppHost
     /// 后台复查间隔。缓存有效期是 24 小时（<c>UpdateService.CacheTtl</c>），
     /// 缓存命中时 <c>CheckForUpdateAsync</c> 不发任何网络请求，
     /// 因此 6 小时复查的实际网络成本为零；真正的联网频率仍是每 24 小时一次。
+    /// 设置页「检查更新」按钮走 <c>forceRefresh: true</c> 不受此约束——用户点击的语义是「现在就查」。
     /// </summary>
     private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
 
@@ -343,7 +344,10 @@ public static class AppHost
                         return;
                     }
 
-                    var info = await updateService.CheckForUpdateAsync(services.Paths.IsPortable, token).ConfigureAwait(false);
+                    var info = await updateService.CheckForUpdateAsync(
+                        services.Paths.IsPortable,
+                        forceRefresh: false,
+                        token).ConfigureAwait(false);
 
                     // 检测期间开关可能刚被关掉：此时不再发布结果，避免刚熄灭的红点又被点亮。
                     if (!services.Config.General.EnableCheckUpdate)

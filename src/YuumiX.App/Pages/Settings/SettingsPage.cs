@@ -125,8 +125,11 @@ public sealed class SettingsPage : Component
         cloudTextRef.Current = cloudText;
 
         // ── 软件更新（R7）：检查与下载改走 UseMutation，执行态与异常由 hook 承载
+        // forceRefresh: true —— 这条路径只由用户显式点击「检查更新 / 重新检查」触发，
+        // 必须绕过 24h 缓存真正联网。否则缓存刚写完、新版刚发布时点击会得到「已是最新」的假结论
+        // （详见 UpdateService.CheckForUpdateAsync 的 forceRefresh 注释）。
         var checkUpdate = UseMutation<object?, YuumiX.Core.Updates.UpdateInfo?>(
-            (_, _) => updateService.CheckForUpdateAsync(services.Paths.IsPortable),
+            (_, _) => updateService.CheckForUpdateAsync(services.Paths.IsPortable, forceRefresh: true),
             new MutationOptions<object?, YuumiX.Core.Updates.UpdateInfo?>(
                 OnOptimistic: _ =>
                 {

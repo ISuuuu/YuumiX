@@ -376,6 +376,10 @@ public sealed class UpdateService
         }
 
         var config = _configProvider();
+        // 与「命中本地缓存」成对记录：排查「点了检查却没结果」时，
+        // 只需看这一行在不在就能判断请求到底有没有发出去。
+        _logger?.LogInformation(
+            forceRefresh ? "[更新日志] 调用方要求强制刷新，请求 GitHub" : "[更新日志] 缓存缺失/过期/缺当前版本，请求 GitHub");
         string text = await GitHubClient.FetchTextAsync(
             $"https://api.github.com/repos/{GitHubClient.Repository}/releases",
             config.General.EnableHttpProxy,
@@ -517,9 +521,21 @@ public sealed class UpdateService
     /// 通道规则见 <see cref="SelectCandidate"/>；两种形态各认自己的资产
     /// （便携版 <c>portable*.zip</c>，安装版 <c>*setup*.exe</c>）。
     /// </summary>
-    public async Task<UpdateInfo?> CheckForUpdateAsync(bool isPortable, CancellationToken token = default)
+    /// <param name="isPortable">当前是否为便携形态（决定挑 zip 还是 setup.exe）。</param>
+    /// <param name="forceRefresh">
+    /// 是否绕过 24h 缓存直接联网。**只有用户显式点「检查更新」时传 true**：
+    /// 缓存 TTL 从上次写入算起，若用户恰好在「缓存刚写完、新版刚发布」这段窗口里点检查，
+    /// 读缓存会得出「已是最新」的错误结论（实测踩过：缓存 18:10 写入，新版 18:22 发布，
+    /// 18:32 点检查仍提示已是最新）。启动检查与周期复查必须保持 false，
+    /// 否则 GitHub 未认证 API 的 60 次/小时配额会被周期任务吃光。
+    /// </param>
+    /// <param name="token">取消令牌。</param>
+    public async Task<UpdateInfo?> CheckForUpdateAsync(
+        bool isPortable,
+        bool forceRefresh = false,
+        CancellationToken token = default)
     {
-        var releases = await GetReleaseChangelogAsync(forceRefresh: false, token).ConfigureAwait(false);
+        var releases = await GetReleaseChangelogAsync(forceRefresh, token).ConfigureAwait(false);
         string current = CurrentVersion;
         var candidate = SelectCandidate(releases, current, isPortable);
         if (candidate is null)
