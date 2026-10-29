@@ -35,8 +35,16 @@ public sealed record SummonerPaneCardProps(
 /// </summary>
 public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
 {
-    /// <summary>头像边长（DIP）。与旧版 <c>.user-avatar</c> 的 32px 一致。</summary>
+    /// <summary>头像边长（DIP，含描边）。与旧版 <c>.user-avatar</c> 的 32px 一致。</summary>
     private const double AvatarSize = 32;
+
+    /// <summary>
+    /// 头像描边粗细（DIP）。对齐旧版 <c>.user-avatar</c> 的 1.5px 边框语义（本项目布局一律整数像素，取 1）。
+    /// </summary>
+    private const double AvatarRingThickness = 1;
+
+    /// <summary>头像内容边长（DIP）：外框减去描边后的可绘制区域。</summary>
+    private const double AvatarContentSize = AvatarSize - (AvatarRingThickness * 2);
 
     /// <summary>卡片高度（DIP）。与旧版 <c>.user-card</c> 的 52px 一致。</summary>
     private const double CardHeight = 52;
@@ -52,20 +60,28 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
                     .Foreground(Theme.SecondaryText)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))
-                .Width(AvatarSize)
-                .Height(AvatarSize)
-                .CornerRadius(AvatarSize / 2)
+                .Width(AvatarContentSize)
+                .Height(AvatarContentSize)
+                .CornerRadius(AvatarContentSize / 2)
                 .Background(Theme.CardBackground)
-                .WithBorder(Theme.CardStroke, 1)
             : Component<LcuImage, LcuImageProps>(
-                new LcuImageProps(CareerVisuals.ProfileIcon(profile.ProfileIconId), AvatarSize, AvatarSize / 2));
+                new LcuImageProps(
+                    CareerVisuals.ProfileIcon(profile.ProfileIconId),
+                    AvatarContentSize,
+                    AvatarContentSize / 2));
 
-        // hover 反馈：展开态用卡片底色/描边变化（见下方分支）；收起态用头像背后的圆形光晕
-        // （旧版收起态同款处理，不画卡片背景与描边——图标栏里那圈方框会显得像多画了个方块）。
+        // 描边由外层负责（1px，对齐旧版 .user-avatar 的 border）：深色头像（实测 #180805）与浅色背景
+        // 之间只有 1px 抗锯齿像素，32px 圆的几何阶梯在高对比下会被读成毛边，描边正好把这圈盖住。
+        // 注意内容必须**自己裁圆**：Border 的 CornerRadius 只裁「超出边界」的部分，
+        // 30px 的内容完全落在 32px 容器内时四角不会被裁，会显示成方形（踩过）。
+        // 内容圆（半径 15）与外层描边圆（半径 16）不同心同径，不存在 α→α² 的叠加压薄问题。
         Element avatarWrap = Border(avatar)
             .Width(AvatarSize)
             .Height(AvatarSize)
-            .CornerRadius(AvatarSize / 2);
+            .CornerRadius(AvatarSize / 2)
+            .WithBorder(Theme.CardStroke, AvatarRingThickness)
+            .HorizontalContentAlignment(HorizontalAlignment.Center)
+            .VerticalContentAlignment(VerticalAlignment.Center);
 
         var i18n = Composition.AppHost.Services?.I18n;
         var notLoggedIn = i18n?.T("home.notConnected", "未登录召唤师") ?? "未登录召唤师";
@@ -87,6 +103,8 @@ public sealed class SummonerPaneCard : Component<SummonerPaneCardProps>
                 .Height(AvatarSize)
                 .VerticalContentAlignment(VerticalAlignment.Center);
 
+        // hover 反馈：展开态改卡片底色/描边；收起态只在头像背后铺圆形光晕
+        // （旧版同款处理——图标栏里给整张卡片画方框会显得像多画了个方块）。
         Element card = Props.IsPaneOpen
             ? Border(HStack(12, avatarWrap, text))
                 .Width(Props.PaneWidth)

@@ -30,6 +30,12 @@ public sealed record LcuImageProps(string AssetPath, double Size = 40, double Co
 /// </summary>
 public sealed class LcuImage : Component<LcuImageProps>
 {
+    /// <summary>
+    /// 超采样上限（DIP）：边长不超过该值的图标按 2 倍解码再缩回显示，
+    /// 让小尺寸圆形/圆角边缘拿到更多灰度层次。更大的图自身像素充足，不值得多占 4 倍内存。
+    /// </summary>
+    private const double SupersampleMaxSize = 48;
+
     public override Element Render()
     {
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
@@ -69,16 +75,23 @@ public sealed class LcuImage : Component<LcuImageProps>
 
         if (uri is null)
         {
-            return Border(TextBlock(failed ? Icons.Error : string.Empty)
+            Element placeholder = Border(TextBlock(failed ? Icons.Error : string.Empty)
                     .FontFamily(Icons.FontFamily)
                     .FontSize(Props.Size * 0.4)
                     .Foreground(Theme.SecondaryText))
                 .Width(Props.Size)
                 .Height(Props.Size)
                 .CornerRadius(Props.CornerRadius)
-                .Background(Theme.CardBackground)
-                .WithBorder(Theme.CardStroke, 1)
-                .AutomationName($"图标占位：{Props.AssetPath}");
+                .Background(Theme.CardBackground);
+
+            // 调用方传 CornerRadius 0 表示「裁剪与描边由外层统一负责」（如侧边栏圆形头像），
+            // 此时占位不能再画自己的描边，否则两层描边会叠成双线。
+            if (Props.CornerRadius > 0)
+            {
+                placeholder = placeholder.WithBorder(Theme.CardStroke, 1);
+            }
+
+            return placeholder.AutomationName($"图标占位：{Props.AssetPath}");
         }
 
         Element img = Image(uri)
@@ -88,9 +101,16 @@ public sealed class LcuImage : Component<LcuImageProps>
             .Set(image =>
             {
                 // LCU 图标源图（英雄头像原生 120px+）远大于显示边长，不限制解码尺寸时
-                // 由 GPU 按非整数倍双线性缩小，轮廓边缘发虚发糊。按目标逻辑边长预解码
-                // （DecodePixelType.Logical 默认值，含 DPI 归算，WIC 高质量插值），
+                // 由 GPU 按非整数倍双线性缩小，轮廓边缘发虚发糊。按目标逻辑边长预解码，
                 // 渲染端 1:1 贴图，边缘保持干净。
+                //
+                // DecodePixelType 必须显式设 Logical：BitmapImage 的默认值是 Physical（官方文档），
+                // 按物理像素解码。100% 缩放下两者等价，但 125% / 150% 缩放下 32 物理像素会被
+                // 拉伸到 40 / 48 物理像素显示——整张图标连同圆形边缘一起发虚。
+                //
+                // 小尺寸再按 2 倍超采样解码（32 → 64），交给 D2D 下采样到目标尺寸：
+                // 圆形边缘因此能拿到更多灰度层次，抗锯齿过渡比 1:1 贴图更平滑。
+                // 大图本身像素充足，不超采样（否则白占 4 倍内存）。
                 // Set 每次重渲染都会重放（§5.12），已设置过解码尺寸就不再写。
                 if (image.Source is not BitmapImage bmp || bmp.DecodePixelWidth > 0)
                 {
@@ -98,7 +118,9 @@ public sealed class LcuImage : Component<LcuImageProps>
                 }
 
                 // 只约束宽度、不设 DecodePixelHeight，非正方形源图可保持纵横比不被拉变形。
-                bmp.DecodePixelWidth = Math.Max(1, (int)Math.Round(Props.Size));
+                bmp.DecodePixelType = DecodePixelType.Logical;
+                int sample = Props.Size <= SupersampleMaxSize ? 2 : 1;
+                bmp.DecodePixelWidth = Math.Max(1, (int)Math.Round(Props.Size * sample));
             });
 
         if (Props.CornerRadius > 0)
