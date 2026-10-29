@@ -37,12 +37,18 @@ public static class AppAssets
     public static string OpggLogoUri { get; } = File.Exists(OpggLogoPath) ? new Uri(OpggLogoPath).AbsoluteUri : "";
 
     /// <summary>
-    /// 侧边栏专用 OP.GG 图标（18px PNG，对应旧版 NavigationSidebar.vue 的
-    /// <c>width: 18px; border-radius: 3px</c>）。由 <c>opgg.svg</c> 光栅化而来。
+    /// 侧边栏专用 OP.GG 图标（54px PNG，显示面 16 DIP，约 3.4× 超采样）。
+    /// 由 <c>opgg.svg</c> 光栅化而来。
     ///
-    /// <c>Image()</c> 会按扩展名走 <see cref="Microsoft.UI.Xaml.Media.Imaging.SvgImageSource"/>
-    /// （静态 SVG 支持良好，动画/动态 SVG 支持有限）；但 <c>IconResolver</c> 这条图标链路
-    /// 固定用 <c>BitmapImage</c>，所以图标资源统一光栅化为 PNG。
+    /// 为什么不直接用 <c>opgg.svg</c>：<c>IconResolver</c> 把 <c>ImageIconData</c> 解析成
+    /// <c>ImageIcon { Source = new BitmapImage(uri) }</c>，而 <c>BitmapImage</c> 不认 SVG——
+    /// 加载静默失败、图标整个消失。WinUI 原生的
+    /// <c>IconSourceElement + ImageIconSource + SvgImageSource</c> 确实能在 <c>IconElement</c>
+    /// 槽位放矢量，但 Reactor 没有对应工厂（<c>IconData</c> 只有 Bitmap/Font/Image/Path/Symbol
+    /// 五个封闭 record，<c>RegisterHandler</c> 又只对 <c>Element</c> 生效），所以只能走位图。
+    ///
+    /// 尺寸取 54px 而非 18px：旧 18px 源在 200% 缩放下要放大 1.78×（方块内的白字糊成一团），
+    /// 54px 在 200%~300% 都是降采样，观感与矢量等价。
     /// </summary>
     public static string OpggNavIconPath { get; } = Path.Combine(AppContext.BaseDirectory, "Assets", "opgg-nav.png");
 
@@ -84,12 +90,30 @@ public static class AppAssets
     public static IReadOnlyDictionary<string, string> RankedIconUris { get; } = BuildRankedIconUris();
 
     /// <summary>
-    /// 对局详情双方资源统计图标（<c>Assets/MatchDetail/*.png</c>）。
+    /// 对局详情双方资源统计图标（<c>Assets/MatchDetail/*.svg</c>）。
+    ///
+    /// 共 11 个矢量文件：击杀、防御塔、巨龙、男爵、先锋、水晶，除击杀外都含
+    /// <c>-100</c>（蓝方）/ <c>-200</c>（红方）两套配色。全部由 <c>Image()</c> 渲染，
+    /// 而 <c>Image()</c> 按扩展名分派到 <c>SvgImageSource</c>，所以能直接吃 SVG，
+    /// 不受 <c>IconData</c> 通道只能位图的限制。这批图标显示面仅 16 DIP，
+    /// 矢量化后在任意缩放下都是重新光栅化，不会像原 14px/36px 位图那样放大发虚。
+    ///
+    /// 探测顺序 <c>.svg</c> → <c>.png</c>，PNG 分支作为兜底保留；调用方一律沿用
+    /// <c>kills.png</c> 这类旧名字，扩展名在这里被剥离，格式调整不需要动调用点。
     /// </summary>
     public static string? GetMatchDetailIconUri(string name)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "Assets", "MatchDetail", name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? name : name + ".png");
-        return File.Exists(path) ? new Uri(path).AbsoluteUri : null;
+        string directory = Path.Combine(AppContext.BaseDirectory, "Assets", "MatchDetail");
+        string stem = Path.GetFileNameWithoutExtension(name);
+
+        string svgPath = Path.Combine(directory, stem + ".svg");
+        if (File.Exists(svgPath))
+        {
+            return new Uri(svgPath).AbsoluteUri;
+        }
+
+        string pngPath = Path.Combine(directory, stem + ".png");
+        return File.Exists(pngPath) ? new Uri(pngPath).AbsoluteUri : null;
     }
 
     /// <summary>击杀图标 URI。</summary>
