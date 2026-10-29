@@ -66,4 +66,10 @@ public interface IMatchService
     /// 清空去重缓存。用于"刷新"按钮，以及检测到客户端重启（端口变化）后强制重取。
     /// </summary>
     void InvalidateCache();
+
+    /// <summary>
+    /// 只让列表池失效（详情缓存保留）。用于「对局结束 / 新对局开始」这类
+    /// 只影响列表首位、不影响已结束对局详情的事件——不依赖任何页面挂载即可生效。
+    /// </summary>
+    void InvalidateHistoryCache();
 }

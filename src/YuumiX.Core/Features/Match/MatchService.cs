@@ -35,11 +35,20 @@ public sealed class MatchService : IMatchService
     /// <summary>详情路径模板（参数：gameId）。</summary>
     internal const string DetailPathTemplate = "/lol-match-history/v1/games/{0}";
 
+    /// <summary>
+    /// 战绩池的新鲜度窗口。超出该时长后，下一次「首页」请求会丢弃池子并重新拉取。
+    /// 与 <c>CareerService.DefaultCacheTtl</c> 保持同一量级：进程内缓存同样需要过期，否则
+    /// 「应用常开 → 连打几局 → 首次进生涯」会拿到几小时前的列表（实测 22:27 建池、23:00 返回旧数据）。
+    /// </summary>
+    public static readonly TimeSpan DefaultHistoryTtl = TimeSpan.FromSeconds(60);
+
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly ISgpService? _sgpService;
     private readonly Func<LcuCredentials?>? _credentialsProvider;
     private readonly ILogger<MatchService>? _logger;
     private readonly EventStream<MatchServiceStatus> _status;
+    private readonly TimeSpan _historyTtl;
+    private readonly TimeProvider _time;
 
     /// <summary>详情缓存：已结束的对局不会变，可以长期复用，直到 <see cref="InvalidateCache"/>。</summary>
     private readonly ConcurrentDictionary<long, Lazy<Task<MatchDetail?>>> _details = new();
@@ -59,6 +68,10 @@ public sealed class MatchService : IMatchService
         public int LoadedGameIndex { get; set; }
         public int? TotalCount { get; set; }
         public bool HasReachedEnd { get; set; }
+
+        /// <summary>池子首页数据的写入时刻（UTC ticks）；<see cref="long.MinValue"/> 表示尚未写入。</summary>
+        public long RefreshedAtTicks { get; set; } = long.MinValue;
+
         public SemaphoreSlim Lock { get; } = new(1, 1);
     }
 
@@ -68,11 +81,15 @@ public sealed class MatchService : IMatchService
     /// <param name="sgpService">可选 SGP 腾讯国服外网服务，用于超出 20 条战绩后的增量分页拉取。</param>
     /// <param name="credentialsProvider">可选连接凭证提供器（获取当前大区标识）。</param>
     /// <param name="logger">可选日志。</param>
+    /// <param name="historyTtl">战绩池新鲜度窗口；传 <see cref="TimeSpan.Zero"/> 关闭复用（每次首页都重取，测试用）。</param>
+    /// <param name="timeProvider">可选时钟（测试注入）。</param>
     public MatchService(
         Func<ILcuTransport?> transportProvider,
         ISgpService? sgpService = null,
         Func<LcuCredentials?>? credentialsProvider = null,
-        ILogger<MatchService>? logger = null)
+        ILogger<MatchService>? logger = null,
+        TimeSpan? historyTtl = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(transportProvider);
 
@@ -80,6 +97,8 @@ public sealed class MatchService : IMatchService
         _sgpService = sgpService;
         _credentialsProvider = credentialsProvider;
         _logger = logger;
+        _historyTtl = historyTtl ?? DefaultHistoryTtl;
+        _time = timeProvider ?? TimeProvider.System;
         _status = new EventStream<MatchServiceStatus>(
             ex => _logger?.LogWarning(ex, "战绩状态观察者抛出异常，已隔离"));
     }
@@ -150,6 +169,44 @@ public sealed class MatchService : IMatchService
         _logger?.LogDebug("战绩缓存已清空（详情 {Count} 条）", details);
     }
 
+    public void InvalidateHistoryCache()
+    {
+        int pools = _playerStates.Count;
+        _pages.Clear();
+        _playerStates.Clear();
+        _logger?.LogDebug("战绩列表池已失效（{Count} 个玩家），下次首页请求将重新拉取", pools);
+    }
+
+    /// <summary>池子首页数据是否已超出新鲜度窗口（<see cref="TimeSpan.Zero"/> 视为永远过期）。</summary>
+    private bool IsHistoryExpired(PlayerMatchState state)
+    {
+        if (_historyTtl <= TimeSpan.Zero)
+        {
+            return true;
+        }
+
+        if (state.RefreshedAtTicks == long.MinValue)
+        {
+            return true;
+        }
+
+        return _time.GetUtcNow().UtcTicks - state.RefreshedAtTicks >= _historyTtl.Ticks;
+    }
+
+    /// <summary>
+    /// 丢弃池子里的列表数据，但保留锁实例（重建过程必须继续串行）。
+    /// 已加载的深层分页一并清掉：对局顺序会因新对局插入而整体后移，保留旧下标比重新拉更危险。
+    /// </summary>
+    private static void ResetPool(PlayerMatchState state)
+    {
+        state.Games.Clear();
+        state.SeenGameIds.Clear();
+        state.LoadedGameIndex = 0;
+        state.TotalCount = null;
+        state.HasReachedEnd = false;
+        state.RefreshedAtTicks = long.MinValue;
+    }
+
     /// <summary>
     /// 分页结果的 <c>HasMore</c>：有 <c>gameCount</c> 时按总数判断；
     /// 没有时退回"本页是否填满"，宁可多翻一页也不要漏掉最后一页。
@@ -175,7 +232,29 @@ public sealed class MatchService : IMatchService
         await state.Lock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            // 0. 大区与 SGP 可用性。首页取数也要用，故提到最前（原为第 2 步）。
+            // 0. 新鲜度校验：只对「首页」生效。池子存在但已过期时整池重建，让首位数据来自服务端。
+            //
+            //    这是「打完几局点进生涯，看到的还是几小时前的列表」的根因所在：池子此前只有
+            //    InvalidateCache 能清，而首屏加载（refreshToken=0）传的是 forceRefresh=false，
+            //    于是应用常开时生涯页/战绩页/对局信息页共用同一份陈旧池子，永远发现不了新对局。
+            if (beginIndex == 0 && IsHistoryExpired(state))
+            {
+                if (state.Games.Count > 0)
+                {
+                    _logger?.LogDebug(
+                        "战绩池已过期（缓存 {Age} 秒，上限 {Ttl} 秒），重建首页数据（puuid={Puuid}）",
+                        state.RefreshedAtTicks == long.MinValue
+                            ? -1
+                            : (_time.GetUtcNow().UtcTicks - state.RefreshedAtTicks) / TimeSpan.TicksPerSecond,
+                        (long)_historyTtl.TotalSeconds,
+                        puuid);
+                }
+
+                // 空池也一并复位：上次拉取失败时 HasReachedEnd 会被置位，不复位就再也不会重试。
+                ResetPool(state);
+            }
+
+            // 0.1 大区与 SGP 可用性。首页取数也要用，故提到最前（原为第 2 步）。
             string? server = _credentialsProvider?.Invoke()?.Server;
             bool sgpAvailable = _sgpService is not null && _sgpService.IsSupported(server);
 
@@ -227,6 +306,9 @@ public sealed class MatchService : IMatchService
                 {
                     state.HasReachedEnd = true;
                 }
+
+                // 记录首页数据的写入时刻：即使本次为空也置位，避免服务端异常时被反复重打。
+                state.RefreshedAtTicks = _time.GetUtcNow().UtcTicks;
             }
 
             // 当请求范围超出当前池子（例如生涯页 CareerGamesNumber > 20），

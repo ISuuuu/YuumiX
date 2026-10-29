@@ -2312,6 +2312,10 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             {
                 try
                 {
+                    // 回退前先让列表池失效：SGP 不可用（实测 503）时若直接读池，
+                    // 「上一场战绩」会停在池子建立那一刻（今晚实测停在第四局）。
+                    // 这条路径只在降级时多一次请求，正常路径不受影响。
+                    _matchService.InvalidateHistoryCache();
                     MatchHistoryPage page = await _matchService.GetMatchHistoryAsync(puuid, 0, 49, cancellationToken).ConfigureAwait(false);
                     raw = page.Games;
                 }

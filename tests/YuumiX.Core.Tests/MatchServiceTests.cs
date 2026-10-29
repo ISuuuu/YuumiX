@@ -276,6 +276,78 @@ public sealed class MatchServiceTests
     }
 
     /// <summary>
+    /// 池子新鲜时复用、不重复打 HTTP：这是分页与「首屏 + 翻页共用一份数据」的前提，
+    /// 若每次都重拉，翻页会退化成 N 次全量请求。
+    /// </summary>
+    [Fact]
+    public async Task GetMatchHistoryAsync_ReusesPoolWithinTtl()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        string body = MatchFixtures.ByName("top-solo").ReadText();
+        server.Handler = _ => FakeResponse.Ok(body);
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var clock = new ManualTimeProvider();
+        var service = new MatchService(() => transport, historyTtl: TimeSpan.FromSeconds(60), timeProvider: clock);
+
+        await service.GetMatchHistoryAsync(Puuid, 0, 19);
+        clock.Advance(TimeSpan.FromSeconds(30));
+        await service.GetMatchHistoryAsync(Puuid, 0, 19);
+
+        Assert.Single(server.Requests);
+    }
+
+    /// <summary>
+    /// 池子过期后首页请求必须重建：这是「应用常开 → 打完几局 → 首次进生涯仍是旧列表」
+    /// 的直接回归用例（旧实现里池子只能靠 InvalidateCache 清，首屏 forceRefresh=false 永远清不掉）。
+    /// </summary>
+    [Fact]
+    public async Task GetMatchHistoryAsync_RebuildsExpiredPool()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        string body = MatchFixtures.ByName("top-solo").ReadText();
+        server.Handler = _ => FakeResponse.Ok(body);
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var clock = new ManualTimeProvider();
+        var service = new MatchService(() => transport, historyTtl: TimeSpan.FromSeconds(60), timeProvider: clock);
+
+        await service.GetMatchHistoryAsync(Puuid, 0, 19);
+        clock.Advance(TimeSpan.FromSeconds(61));
+        await service.GetMatchHistoryAsync(Puuid, 0, 19);
+
+        Assert.Equal(2, server.Requests.Count);
+    }
+
+    /// <summary>对局结束触发的列表失效：下一帧即可拿到新对局，无需等 TTL。</summary>
+    [Fact]
+    public async Task InvalidateHistoryCache_ForcesRefetchOfFirstPage()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        string body = MatchFixtures.ByName("top-solo").ReadText();
+        server.Handler = _ => FakeResponse.Ok(body);
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new MatchService(() => transport);
+
+        await service.GetMatchHistoryAsync(Puuid, 0, 19);
+        service.InvalidateHistoryCache();
+        await service.GetMatchHistoryAsync(Puuid, 0, 19);
+
+        Assert.Equal(2, server.Requests.Count);
+    }
+
+    /// <summary>可手动推进的时钟：TTL 相关用例不允许依赖真实等待。</summary>
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 10, 29, 12, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow() => _now;
+
+        public void Advance(TimeSpan delta) => _now += delta;
+    }
+
+    /// <summary>
     /// 取出夹具里的单局对象。列表接口返回的是 <c>{ games: { games: [...] } }</c> 外层，
     /// 而详情接口返回的是单局对象本体——两者结构不同，不能直接拿列表载荷去调详情解析。
     /// </summary>

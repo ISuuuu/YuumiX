@@ -220,12 +220,24 @@ public static class AppHost
         var uploadLogger = _services.LoggerFactory.CreateLogger<YuumiX.Core.Upload.UploadQueueService>();
         _ = lifecycle.GameEnded.Subscribe(_timestamp =>
         {
+            // 对局一结束，战绩列表池立即失效：这条链路与页面挂载无关，是「应用常开 →
+            // 打完几局 → 首次进生涯/对局信息仍是几小时前列表」的止损点（页面没挂载时，
+            // 页面内的刷新订阅根本没生效）。只清列表池、保留详情缓存：已结束的对局详情不受影响。
+            //
+            // 必须同步做：对局信息页在 EndOfGame 阶段会以 SGP 0..49 同步最新战绩，
+            // SGP 失败（今晚实测 503）时回退到 IMatchService——晚一步失效就会把旧池子端出去。
+            matchService.InvalidateHistoryCache();
+
             _ = Task.Run(async () =>
             {
                 try
                 {
                     // 延迟 2 秒等待 LCU 数据写入（对齐旧 UploadTrigger）
                     await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+                    // 二次失效：上面那 2 秒里若有页面抢先取数，拿到的可能是不含本局的残缺列表
+                    //（LCU 落库有延迟），而池子会把它留到 TTL 到期。落库完成后再清一次，逼下一次取数走网络。
+                    matchService.InvalidateHistoryCache();
 
                     // 优先使用局内记录的真实对局 ID（对齐旧 upload.rs：LCU 战绩列表落库存在延迟，不能盲查第 0 场）
                     long targetGameId = lifecycle.LastEndedGameId ?? 0;
@@ -234,7 +246,6 @@ public static class AppHost
                         var profile = await summonerService.GetCurrentSummonerAsync().ConfigureAwait(false);
                         if (profile is not null)
                         {
-                            matchService.InvalidateCache();
                             var page = await matchService.GetMatchHistoryAsync(profile.Puuid, 0, 0).ConfigureAwait(false);
                             if (page.Games.Count > 0)
                             {
