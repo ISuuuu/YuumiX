@@ -116,7 +116,7 @@ jobs:
             'Assets\opgg-nav.png',
             'Assets\RankedIcons\challenger.png',
             'Assets\Positions\utility.png',
-            'Assets\MatchDetail\kills.png',
+            'Assets\MatchDetail\kills.svg',
             'Assets\Tier\tier-1.svg'
           )
           $missing = $required | Where-Object { -not (Test-Path (Join-Path $dir $_)) }
