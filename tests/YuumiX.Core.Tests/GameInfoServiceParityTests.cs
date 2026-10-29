@@ -256,6 +256,22 @@ public sealed class GameInfoServiceParityTests
         Assert.Equal(1, player.WinCount);
     }
 
+    [Fact]
+    public async Task LoadPlayerDataAsync_PrivateProfileWithMatches_NotHidden()
+    {
+        var config = new AppConfig();
+        await using var env = new GameInfoTestEnv(config);
+        env.Profiles["p-private"] = (901, 10);
+        env.MatchGames["p-private"] = [new GameDef(9002, 420, win: true, creation: 1_700_000_000_000)];
+
+        var player = await env.Service.LoadPlayerDataAsync(3, 901, "p-private", new PremadePlayerLike { CellId = 3, Puuid = "p-private", SummonerId = 901 });
+
+        Assert.NotNull(player);
+        Assert.False(player.MatchHistoryHidden);
+        Assert.Single(player.Matches);
+        Assert.Equal(1, player.WinCount);
+    }
+
     // ── 任务2：保留快照完整规则 ──────────────────────────────────────────
 
     [Fact]

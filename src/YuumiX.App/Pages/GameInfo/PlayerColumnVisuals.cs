@@ -144,7 +144,7 @@ internal static class PlayerColumnVisuals
 
         var items = new List<Element> { nameText };
 
-        if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
+        if (d?.MatchHistoryHidden == true)
         {
             items.Add(
                 Caption(Icons.View)
@@ -153,6 +153,16 @@ internal static class PlayerColumnVisuals
                     .Margin(4, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("战绩已隐藏")));
+        }
+        else if (d?.IsProfilePrivate == true)
+        {
+            items.Add(
+                Caption(Icons.View)
+                    .FontFamily(Icons.FontFamily)
+                    .Foreground(Theme.SecondaryText)
+                    .Margin(4, 0, 0, 0)
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("对局记录已设为私密（仍可读取公开战绩）")));
         }
 
         if (showFateBadge && !string.IsNullOrEmpty(d?.FateFlag))

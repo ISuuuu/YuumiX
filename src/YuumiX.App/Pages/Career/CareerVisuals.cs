@@ -125,6 +125,22 @@ internal static class CareerVisuals
             ?? (i18n?.T("career.posUnknown", "未知分路") ?? "未知分路");
     }
 
+    /// <summary>分路小图标（带专属色位图）。</summary>
+    public static Element PositionIcon(MatchPosition? pos, double size = 12)
+    {
+        string? uri = AppAssets.GetPositionIconUri(pos);
+        if (string.IsNullOrEmpty(uri))
+        {
+            return Empty();
+        }
+
+        return Image(uri)
+            .Width(size)
+            .Height(size)
+            .VAlign(VerticalAlignment.Center)
+            .AccessibilityHidden();
+    }
+
     /// <summary>卡片外框：生涯页所有区块共用的圆角、底色与描边。</summary>
     public static Element Card(Element content, double padding = 16) =>
         Card(content, padding, padding);

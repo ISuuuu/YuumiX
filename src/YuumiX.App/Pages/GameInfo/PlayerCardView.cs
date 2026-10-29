@@ -160,7 +160,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .VAlign(VerticalAlignment.Center));
         }
 
-        if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
+        if (d?.MatchHistoryHidden == true)
         {
             nameRowItems.Add(
                 Caption(Icons.View)
@@ -169,6 +169,16 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                     .Margin(3, 0, 0, 0)
                     .VAlign(VerticalAlignment.Center)
                     .WithToolTip(TextBlock("战绩已隐藏")));
+        }
+        else if (d?.IsProfilePrivate == true)
+        {
+            nameRowItems.Add(
+                Caption(Icons.View)
+                    .FontFamily(Icons.FontFamily)
+                    .Foreground(Theme.SecondaryText)
+                    .Margin(3, 0, 0, 0)
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("对局记录已设为私密（仍可读取公开战绩）")));
         }
 
         if (!string.IsNullOrEmpty(d?.FateFlag))
@@ -240,7 +250,7 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
         {
             statsRow = Caption("正在加载战绩...").Foreground(Theme.SecondaryText);
         }
-        else if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
+        else if (d?.MatchHistoryHidden == true)
         {
             statsRow = Caption("战绩已隐藏").Foreground(Theme.SecondaryText);
         }

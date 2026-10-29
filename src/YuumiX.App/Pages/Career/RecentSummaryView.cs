@@ -94,8 +94,9 @@ internal static class RecentSummaryView
                     Caption(positionsDistTitle),
                     VStack(2, summary.Positions.Select(pos =>
                         HStack(8,
+                            CareerVisuals.PositionIcon(pos.Position, 12),
                             Caption(CareerVisuals.PositionText(pos.Position))
-                                .Width(40),
+                                .Width(36),
                             Caption(gamesCountTemplate.Replace("{count}", pos.Games.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                                 .Foreground(Theme.SecondaryText)
                                 .Width(40),
@@ -266,12 +267,13 @@ internal static class RecentSummaryView
     private static Element PositionChip(RecentPositionStat position, YuumiPalette palette) =>
         Border(
             HStack(4,
+                CareerVisuals.PositionIcon(position.Position, 12),
                 Caption(CareerVisuals.PositionText(position.Position))
                     .Foreground(Theme.PrimaryText),
                 Caption($"{position.Percentage}%")
                     .SemiBold()
                     .Foreground(Theme.SecondaryText)))
-            .Padding(8, 2)
+            .Padding(6, 2)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.CardStroke, 1)

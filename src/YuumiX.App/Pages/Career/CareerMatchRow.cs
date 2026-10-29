@@ -154,12 +154,24 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
 
         // 结果与模式列
         var queueName = Search.SearchFilters.TranslateQueueLabel(summary.QueueName, isEn);
+        var posIcon = CareerVisuals.PositionIcon(summary.Position, 14);
+        var posText = Search.SearchVisuals.PositionText(summary.Position);
+
+        var resultHeaderItems = new List<Element> { resultTextBlock };
+        if (summary.Position.HasValue)
+        {
+            resultHeaderItems.Add(posIcon.Margin(2, 0, 0, 0));
+        }
+        if (!string.IsNullOrEmpty(posText))
+        {
+            resultHeaderItems.Add(
+                Body(posText)
+                    .Foreground(Theme.SecondaryText)
+                    .VAlign(VerticalAlignment.Center));
+        }
+
         Element result = VStack(2,
-                HStack(4,
-                    resultTextBlock,
-                    Body(Search.SearchVisuals.PositionText(summary.Position) ?? string.Empty)
-                        .Foreground(Theme.SecondaryText)
-                        .VAlign(VerticalAlignment.Center)),
+                HStack(4, resultHeaderItems.ToArray()),
                 Body(queueName).Foreground(Theme.PrimaryText),
                 Caption(summary.DurationText).Foreground(Theme.SecondaryText))
             .Width(ResultWidth)

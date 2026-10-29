@@ -258,21 +258,18 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .WithToolTip(TextBlock(GetMatchTopTooltip(m)));
 
         // KDA 行（击杀/死亡/助攻，死亡红色加粗）
-        // 五个独立 TextBlock 拼出来的 KDA，斜杠两侧各带约 1.5px 字形留白，看起来比实际字符间距松。
-        // 这里只给斜杠加 -1 的横向负 margin，让三组数字与斜杠靠拢（不动任何其他尺寸）；
-        // 顺带把星号列的需求宽度省下 4 DIP，避免 10 列视图下「13/12/18」末尾数字再次被裁。
+        // 五段独立文本的字形 advance 自带约 1px 留白，拼起来显得松。10 列视图统一收紧字距
+        //（CharacterSpacing -80 = -0.08em，12px 下约 -0.96px/字间），数字与斜杠即靠拢；
+        // 不用负 margin——间距门禁只认 4 的倍数与 1–7 整数（GateRules.SpacingOff4Grid）。
         string slash = isTenCol ? "/" : " / ";
-        Element SlashElement() => isTenCol
-            ? Caption(slash).Foreground(Theme.SecondaryText).Margin(-1, 0, -1, 0)
-            : Caption(slash).Foreground(Theme.SecondaryText);
-
+        int kdaTracking = isTenCol ? -80 : 0;
         var kdaItems = new List<Element>
         {
-            Caption($"{m.Kills}").SemiBold().Foreground(Theme.PrimaryText),
-            SlashElement(),
-            Caption($"{m.Deaths}").SemiBold().Foreground(palette.DeathText),
-            SlashElement(),
-            Caption($"{m.Assists}").SemiBold().Foreground(Theme.PrimaryText),
+            Caption($"{m.Kills}").SemiBold().Foreground(Theme.PrimaryText).CharacterSpacing(kdaTracking),
+            Caption(slash).Foreground(Theme.SecondaryText).CharacterSpacing(kdaTracking),
+            Caption($"{m.Deaths}").SemiBold().Foreground(palette.DeathText).CharacterSpacing(kdaTracking),
+            Caption(slash).Foreground(Theme.SecondaryText).CharacterSpacing(kdaTracking),
+            Caption($"{m.Assists}").SemiBold().Foreground(Theme.PrimaryText).CharacterSpacing(kdaTracking),
         };
 
         var kdaLine = HStack(0, kdaItems.ToArray());

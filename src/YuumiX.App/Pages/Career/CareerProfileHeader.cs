@@ -100,22 +100,32 @@ internal static class CareerProfileHeader
                     .VAlign(VerticalAlignment.Center)
                 : Empty());
 
-        Element nameRow = HStack(8,
+        var nameRowItems = new List<Element>
+        {
             Title(mainName)
                 .HeadingLevel(AutomationHeadingLevel.Level2)
                 .VAlign(VerticalAlignment.Center),
-            copySlot.VAlign(VerticalAlignment.Center));
+        };
+
+        // 私密档案：名字旁只留锁图标，说明文案沉到悬停提示（与对局信息页同一形态）
+        if (string.Equals(summoner.Privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase))
+        {
+            nameRowItems.Add(
+                BodyLarge(Icons.View)
+                    .FontFamily(Icons.FontFamily)
+                    .Foreground(Theme.SecondaryText)
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("对局记录已设为私密")));
+        }
+
+        nameRowItems.Add(copySlot.VAlign(VerticalAlignment.Center));
+
+        Element nameRow = HStack(8, nameRowItems.ToArray());
 
         var nameColumn = new List<Element> { nameRow };
         if (!string.IsNullOrEmpty(summoner.TagLine))
         {
             nameColumn.Add(Body($"# {summoner.TagLine}")
-                .Foreground(Theme.SecondaryText));
-        }
-
-        if (string.Equals(summoner.Privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase))
-        {
-            nameColumn.Add(Body("🔒 对局记录已设为私密")
                 .Foreground(Theme.SecondaryText));
         }
 

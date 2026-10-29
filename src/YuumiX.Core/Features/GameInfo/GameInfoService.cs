@@ -1190,7 +1190,6 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
             bool isPrivate = profile.Privacy is not null &&
                              !profile.Privacy.Equals("PUBLIC", StringComparison.OrdinalIgnoreCase);
-            bool isHidden = isPrivate;
 
             bool isMe = profile.SummonerId == _state.CurrentSummonerId ||
                         (!string.IsNullOrEmpty(_state.CurrentSummonerPuuid) && profile.Puuid == _state.CurrentSummonerPuuid);
@@ -1206,12 +1205,9 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             RankedStats ranked = await rankTask.ConfigureAwait(false);
             IReadOnlyList<PlayerChampionMastery> masteries = await masteryTask.ConfigureAwait(false);
 
-            // 旧版口径：战绩返回空（或拉取被拒）即标隐藏；等级条件不参与判定（§0-18 / §11.0-8）
+            // 无论 privacy 是否为 PRIVATE，以实际能否拉取到对局为准（国服即使设为私密通常也能拉取到战绩；只有当拉取被拒或返回空时才判定为隐藏）
             IReadOnlyList<MatchSummary> rawMatches = history.Games;
-            if (rawMatches.Count == 0)
-            {
-                isHidden = true;
-            }
+            bool isHidden = rawMatches.Count == 0;
 
             // GameInfoFilter 开启时按当前队列过滤首屏战绩
             List<MatchSummary> matches = ApplyQueueFilter(rawMatches);
@@ -1247,8 +1243,8 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             // 异步触发宿命检测
             _ = TriggerFateDetectionAsync(player, matches, cancellationToken);
 
-            // 第二阶段：非隐藏非私密时后台静默扩充第 11~50 局样本（仅刷新统计字段）
-            if (!player.MatchHistoryHidden && !player.IsProfilePrivate)
+            // 第二阶段：战绩未隐藏时后台静默扩充第 11~50 局样本（仅刷新统计字段）
+            if (!player.MatchHistoryHidden)
             {
                 _ = EnqueueExtraMatchesAsync(player, matches);
             }

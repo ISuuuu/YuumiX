@@ -88,7 +88,7 @@ public static class Icons
     /// <summary>复制：对局 ID / 资料卡复制按钮。</summary>
     public const string Copy = "\uE8C8";
 
-    /// <summary>眼睛：战绩已隐藏提示。</summary>
+    /// <summary>锁（E72E 在 Segoe MDL2 / Fluent 里是 Lock，不是眼睛）：对局记录私密 / 战绩已隐藏提示。</summary>
     public const string View = "\uE72E";
 
     /// <summary>人形占位：无头像时的兜底图形。</summary>
