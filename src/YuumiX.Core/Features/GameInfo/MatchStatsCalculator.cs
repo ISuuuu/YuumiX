@@ -209,7 +209,9 @@ public static class MatchStatsCalculator
 
         if (m.RoleBoundItem.HasValue && m.RoleBoundItem.Value > 0)
         {
-            MatchPosition? rolePos = MatchPositionResolver.ResolveRoleBoundItem(m.RoleBoundItem.Value);
+            // 这是 roleBoundItem 字段值，必须走字段专用映射（含靴子=下路、2055 控制守卫=辅助）；
+            // 下面的装备栏扫描才用只认任务道具的 ResolveRoleBoundItem。
+            MatchPosition? rolePos = MatchPositionResolver.ResolveRoleBoundPosition(m.RoleBoundItem.Value);
             if (rolePos.HasValue)
             {
                 return rolePos.Value;

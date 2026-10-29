@@ -49,7 +49,8 @@ public sealed class MatchService : IMatchService
 
     /// <summary>
     /// 玩家战绩池缓存：按 puuid 存储已拉取并去重的战绩流。
-    /// 支撑前 2 页由 LCU 预拉 20 场、第 2 页触发 SGP 拉取第 21 场起的增量加载机制。
+    /// 首页 20 场优先由 SGP 提供（分路字段完整），SGP 不可用/超时才退回 LCU；
+    /// 第 2 页起继续按批次向后拉取。
     /// </summary>
     private sealed class PlayerMatchState
     {
@@ -174,19 +175,45 @@ public sealed class MatchService : IMatchService
         await state.Lock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            // 1. 若当前池子为空且未标记到达尽头：首次拉取前 20 条（LCU 0~19）
+            // 0. 大区与 SGP 可用性。首页取数也要用，故提到最前（原为第 2 步）。
+            string? server = _credentialsProvider?.Invoke()?.Server;
+            bool sgpAvailable = _sgpService is not null && _sgpService.IsSupported(server);
+
+            // 1. 若当前池子为空且未标记到达尽头：首次拉取前 20 条。
+            //
+            //    **优先 SGP，失败退回 LCU**（2026-10-29 调整，原为 LCU 优先）：
+            //    LCU 的 `lol-match-history` 参与者里只有 championId/spell1Id/spell2Id/stats/timeline，
+            //    既没有 `individualPosition` 也没有 `teamPosition`，只剩 `timeline.lane/role` 可判分路；
+            //    而国服 430（盲选匹配）的 `timeline.role` 对全部 10 人恒为 `SUPPORT`、`lane` 恒为 `NONE`，
+            //    结果是把上路/中路/下路全判成辅助（见 MatchPositionResolver 类注释里的 40 局实测）。
+            //    另外国服 LCU 本地历史会被截断（实测某账号只剩最近 4 局），按"返回不满即到底"的旧规则
+            //    会让生涯页只剩 4 场，SGP 优先后这条规则对 SGP 生效，顺带修好截断。
             if (state.Games.Count == 0 && !state.HasReachedEnd)
             {
                 int initialBeg = (beginIndex == 0) ? 0 : beginIndex;
                 int initialEnd = (beginIndex == 0) ? 19 : endIndex;
+                int initialCount = initialEnd - initialBeg + 1;
 
-                var (lcuGames, totalCount) = await FetchLcuGamesAsync(puuid, initialBeg, initialEnd, cancellationToken).ConfigureAwait(false);
-                if (totalCount.HasValue)
+                IReadOnlyList<MatchSummary> initialGames = [];
+                if (sgpAvailable)
                 {
-                    state.TotalCount = totalCount;
+                    _status.Publish(MatchServiceStatus.Loading($"正在通过腾讯 SGP 接口查询第 {initialBeg + 1} 场起的数据"));
+                    initialGames = await FetchSgpGamesWithTimeoutAsync(
+                        server, puuid, initialBeg, initialCount, cancellationToken).ConfigureAwait(false);
                 }
 
-                foreach (MatchSummary summary in lcuGames)
+                if (initialGames.Count == 0)
+                {
+                    var (lcuGames, totalCount) = await FetchLcuGamesAsync(puuid, initialBeg, initialEnd, cancellationToken).ConfigureAwait(false);
+                    if (totalCount.HasValue)
+                    {
+                        state.TotalCount = totalCount;
+                    }
+
+                    initialGames = lcuGames;
+                }
+
+                foreach (MatchSummary summary in initialGames)
                 {
                     if (state.SeenGameIds.Add(summary.GameId))
                     {
@@ -196,15 +223,11 @@ public sealed class MatchService : IMatchService
 
                 state.LoadedGameIndex = Math.Max(initialEnd + 1, state.Games.Count);
                 // 首次请求 0..19 若返回不满 20 条（例如只有 1 场），说明该账号全部战绩就只有这几场，直接标记到底
-                if (lcuGames.Count < (initialEnd - initialBeg + 1))
+                if (initialGames.Count < initialCount)
                 {
                     state.HasReachedEnd = true;
                 }
             }
-
-            // 2. 检查大区与 SGP 状态
-            string? server = _credentialsProvider?.Invoke()?.Server;
-            bool sgpAvailable = _sgpService is not null && _sgpService.IsSupported(server);
 
             // 当请求范围超出当前池子（例如生涯页 CareerGamesNumber > 20），
             // 或用户在战绩页翻到第 2 页（beginIndex >= 10）时，触发从 LoadedGameIndex 开始按批次拉取更多对局。
@@ -292,6 +315,45 @@ public sealed class MatchService : IMatchService
         finally
         {
             state.Lock.Release();
+        }
+    }
+
+    /// <summary>
+    /// 首页 SGP 拉取的超时预算。LCU 本地历史是毫秒级，SGP 要走外网；SGP 不可达（断网/代理异常）时
+    /// 不能让首屏陪 HttpClient 的 15 秒超时一起等，超时即视为失败并退回 LCU。
+    /// </summary>
+    private static readonly TimeSpan InitialSgpTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// 带超时预算的 SGP 战绩拉取：外层取消照常抛，自身超时降级为空列表（交由调用方退回 LCU）。
+    /// </summary>
+    private async Task<IReadOnlyList<MatchSummary>> FetchSgpGamesWithTimeoutAsync(
+        string? server,
+        string puuid,
+        int startIndex,
+        int count,
+        CancellationToken cancellationToken)
+    {
+        if (_sgpService is null)
+        {
+            return [];
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(InitialSgpTimeout);
+        try
+        {
+            return await _sgpService
+                .GetMatchHistoryAsync(server, puuid, startIndex, count, timeoutCts.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger?.LogWarning(
+                "SGP 首页战绩拉取超过 {Timeout} 秒，退回 LCU（puuid={Puuid}）",
+                InitialSgpTimeout.TotalSeconds,
+                puuid);
+            return [];
         }
     }
 

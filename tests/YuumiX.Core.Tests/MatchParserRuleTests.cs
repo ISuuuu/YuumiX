@@ -107,55 +107,125 @@ public sealed class MatchParserRuleTests
         Assert.Equal(expected, MatchPositionResolver.ResolveRoleBoundItem(itemId));
     }
 
-    [Theory]
-    [InlineData("TOP", "SOLO", MatchPosition.Top)]
-    [InlineData("JUNGLE", "NONE", MatchPosition.Jungle)]
-    [InlineData("MIDDLE", "SOLO", MatchPosition.Middle)]
-    [InlineData("MID", "SOLO", MatchPosition.Middle)]
-    [InlineData("BOTTOM", "DUO_CARRY", MatchPosition.Bottom)]
-    [InlineData("BOTTOM", "DUO_SUPPORT", MatchPosition.Utility)]
-    [InlineData("BOT", "SUPPORT", MatchPosition.Utility)]
-    // 关键场景：排位/匹配里大量辅助玩家 lane 为 NONE、role 为 SUPPORT
-    [InlineData("NONE", "SUPPORT", MatchPosition.Utility)]
-    [InlineData("", "SUPPORT", MatchPosition.Utility)]
-    [InlineData("NONE", "DUO_SUPPORT", MatchPosition.Utility)]
-    [InlineData("NONE", "DUO_CARRY", MatchPosition.Bottom)]
-    [InlineData("NONE", "NONE", null)]
-    [InlineData("", "", null)]
-    [InlineData(null, null, null)]
-    public void ResolveFromTimeline_MapsLanesAndRoles(string? lane, string? role, MatchPosition? expected)
-    {
-        Assert.Equal(expected, MatchPositionResolver.ResolveFromTimeline(lane, role));
-    }
-
-    /// <summary>整条判定链的优先级：roleBoundItem 压过 timeline，且娱乐模式恒为 null。</summary>
+    /// <summary>
+    /// 整条判定链的优先级：<c>roleBoundItem</c> 压过一切；无可靠信号时宁可返回 <c>null</c> 也不猜。
+    /// </summary>
     [Fact]
-    public void Resolve_PrioritizesRoleBoundItemOverTimeline()
+    public void Resolve_PrioritizesRoleBoundItemAndRefusesToGuess()
     {
-        // lane 说打野、role 说 SOLO，但分路任务装备是上路奖励 → 上单
+        // 分路任务装备是上路奖励 → 上单（旧实现会被 lane=JUNGLE 带偏，这正是去掉 timeline 的原因）
         Assert.Equal(
             MatchPosition.Top,
-            MatchPositionResolver.Resolve(430, 1220, [0, 0, 0, 0, 0, 0, 0], 4, 12, "JUNGLE", "NONE"));
+            MatchPositionResolver.Resolve(430, 1220, [0, 0, 0, 0, 0, 0, 0], 4, 12));
 
-        // 无分路任务装备、无惩戒、无辅助装 → 只能信 timeline
+        // 字段为 0、没出任何带分路语义的装备、也没有 SGP 位置字段 → 不猜，返回 null
+        Assert.Null(MatchPositionResolver.Resolve(430, 0, [0, 0, 0, 0, 0, 0, 0], 4, 12));
+
+        // roleBoundItem 为靴子 → 直接判下路（下路任务奖励就是靴子升级）
         Assert.Equal(
             MatchPosition.Bottom,
-            MatchPositionResolver.Resolve(430, 3006, [3006, 0, 0, 0, 0, 0, 0], 4, 12, "BOTTOM", "DUO_CARRY"));
+            MatchPositionResolver.Resolve(430, 3006, [0, 0, 0, 0, 0, 0, 0], 4, 12));
 
-        // 惩戒优先于 timeline
+        // 惩戒 → 打野
         Assert.Equal(
             MatchPosition.Jungle,
             MatchPositionResolver.Resolve(
-                430, null, [0, 0, 0, 0, 0, 0, 0], MatchPositionResolver.SmiteSpellId, 4, "TOP", "SOLO"));
+                430, null, [0, 0, 0, 0, 0, 0, 0], MatchPositionResolver.SmiteSpellId, 4));
 
         // 辅助装先于打野装判定
         Assert.Equal(
             MatchPosition.Utility,
-            MatchPositionResolver.Resolve(430, 2055, [3871, 1101, 0, 0, 0, 0, 0], 4, 12, "NONE", "NONE"));
+            MatchPositionResolver.Resolve(430, 2055, [3871, 1101, 0, 0, 0, 0, 0], 4, 12));
 
         // 大乱斗：无论载荷给什么都不推分路
         Assert.Null(
-            MatchPositionResolver.Resolve(450, 1220, [3871, 0, 0, 0, 0, 0, 0], 11, 12, "BOTTOM", "SUPPORT"));
+            MatchPositionResolver.Resolve(450, 1220, [3871, 0, 0, 0, 0, 0, 0], 11, 12));
+    }
+
+    /// <summary>
+    /// SGP 的 individualPosition 必须压过 teamPosition，且仍低于分路任务装备。
+    ///
+    /// 两条断言都来自国服实测（2026-10-29，430 盲选）：
+    /// <c>gid=11420374915</c> 是下路 AD（CS 86），官方 teamPosition 给 UTILITY（判成辅助），
+    /// 同局 individualPosition 才是 BOTTOM；<c>gid=11390689646</c> 是辅助（辅助装 3865），
+    /// 分路任务装备 1203 与 individualPosition 一致，teamPosition 却给 TOP。
+    /// </summary>
+    [Fact]
+    public void Resolve_PrefersIndividualPositionOverTeamPosition()
+    {
+        // 字段与装备栏都给不出分路（roleBoundItem=0）→ 落到 individualPosition
+        Assert.Equal(
+            MatchPosition.Bottom,
+            MatchPositionResolver.Resolve(
+                430,
+                0,
+                [1056, 2031, 3087, 3147, 0, 0, 3364],
+                4,
+                14,
+                individualPosition: "BOTTOM",
+                teamPosition: "UTILITY"));
+
+        // 分路任务装备（辅助任务 1203）仍是最高优先级，压过 individualPosition 与 teamPosition
+        Assert.Equal(
+            MatchPosition.Utility,
+            MatchPositionResolver.Resolve(
+                430,
+                1203,
+                [3865, 2003, 0, 0, 0, 0, 3340],
+                4,
+                14,
+                individualPosition: "BOTTOM",
+                teamPosition: "BOTTOM"));
+    }
+
+    /// <summary>
+    /// <c>roleBoundItem</c> 的靴子 / 控制守卫分支：与 12xx 任务道具同档，压过全部位置字段。
+    /// 取值集合依据 50 局实测（同队五人字段值互不重复、恰好覆盖五路）。
+    /// </summary>
+    [Theory]
+    [InlineData(1001)] // 鞋子
+    [InlineData(2422)] // 有点神奇之鞋
+    [InlineData(3006)] // 狂战士胫甲
+    [InlineData(3009)] // 轻灵之靴
+    [InlineData(3020)] // 法师之靴
+    [InlineData(3047)] // 铁板靴
+    [InlineData(3111)] // 水银之靴
+    [InlineData(3158)] // 明朗之靴
+    [InlineData(3172)] // 炮铜胫甲（3006 升级版）
+    [InlineData(3175)] // 灵能使之靴（3020 升级版）
+    public void ResolveRoleBoundPosition_MapsBootsToBottom(int itemId)
+    {
+        Assert.True(MatchPositionResolver.IsBootsItem(itemId));
+        Assert.Equal(MatchPosition.Bottom, MatchPositionResolver.ResolveRoleBoundPosition(itemId));
+    }
+
+    /// <summary>2055 控制守卫是辅助任务的绑定物；在装备栏里则不具备分路含义。</summary>
+    [Fact]
+    public void ResolveRoleBoundPosition_MapsControlWardToUtility()
+    {
+        Assert.Equal(MatchPosition.Utility, MatchPositionResolver.ResolveRoleBoundPosition(2055));
+
+        // 装备栏里买了真眼不构成辅助证据：该玩家应按分路任务装备判上单
+        Assert.Equal(
+            MatchPosition.Top,
+            MatchPositionResolver.Resolve(430, 1220, [2055, 1001, 0, 0, 0, 0, 3340], 4, 12));
+    }
+
+    /// <summary>
+    /// 靴子规则<b>不得</b>泄漏到装备栏扫描：否则任何穿鞋的玩家都会被判成下路。
+    /// 同时验证字段缺失、只剩一双鞋时不会拿 timeline 硬猜。
+    /// </summary>
+    [Theory]
+    [InlineData(3006)]
+    [InlineData(3158)]
+    [InlineData(3172)]
+    public void Resolve_DoesNotTreatBootsInInventoryAsBottom(int bootsId)
+    {
+        // 装备栏只有一双鞋、无任务道具、无位置字段 → 判不出分路，返回 null（不得是 Bottom）
+        Assert.Null(MatchPositionResolver.Resolve(430, 0, [bootsId, 1055, 3078, 0, 0, 0, 3340], 4, 12));
+
+        // 该装备在"任务道具"映射里必须仍然无解
+        Assert.Null(MatchPositionResolver.ResolveRoleBoundItem(bootsId));
     }
 
     [Theory]

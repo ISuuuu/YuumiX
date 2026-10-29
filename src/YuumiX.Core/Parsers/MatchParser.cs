@@ -87,7 +87,6 @@ public static class MatchParser
 
         JsonElement participantValue = participant.Value;
         JsonElement stats = JsonRead.Property(participantValue, "stats") ?? default;
-        JsonElement timeline = JsonRead.Property(participantValue, "timeline") ?? default;
 
         int queueId = JsonRead.Int(game, "queueId");
 
@@ -96,14 +95,13 @@ public static class MatchParser
         int spell2Id = JsonRead.Int(participantValue, "spell2Id");
         int? roleBoundItem = JsonRead.NullableInt(stats, "roleBoundItem");
 
+        // 注意：不传 timeline.lane / timeline.role，见 MatchPositionResolver 类文档
         MatchPosition? position = MatchPositionResolver.Resolve(
             queueId,
             roleBoundItem,
             itemIds,
             spell1Id,
-            spell2Id,
-            JsonRead.String(timeline, "lane"),
-            JsonRead.String(timeline, "role"));
+            spell2Id);
 
         return BuildSummary(
             JsonRead.Long(game, "gameId"),
@@ -182,8 +180,9 @@ public static class MatchParser
     ///   <item><b><c>stats</c> 可能不存在</b>：此时统计字段直接挂在参与者对象上。</item>
     ///   <item><b><c>perk0</c> 有第二来源</b>：缺失时读
     ///         <c>perks.styles[0].selections[0].perk</c>。</item>
-    ///   <item><b>分路多两级依据</b>：<c>teamPosition</c> 与 <c>selectedPosition</c>，见
-    ///         <see cref="MatchPositionResolver.Resolve"/>。</item>
+    ///   <item><b>分路多三级依据</b>：<c>individualPosition</c>、<c>teamPosition</c> 与
+    ///         <c>selectedPosition</c>，见 <see cref="MatchPositionResolver.Resolve"/>；LCU 载荷一个都没有，
+    ///         这也是首页必须走 SGP 的原因（见 <c>MatchService</c>）。</item>
     /// </list>
     /// 另：每局可能被包在 <c>{"json": {...}}</c> 里，这里自动拆包。
     /// </remarks>
@@ -251,7 +250,6 @@ public static class MatchParser
 
         JsonElement participantValue = participant.Value;
         JsonElement stats = JsonRead.Property(participantValue, "stats") ?? participantValue;
-        JsonElement timeline = JsonRead.Property(participantValue, "timeline") ?? default;
 
         int queueId = JsonRead.Int(game, "queueId");
         int[] itemIds = ReadItemIds(stats);
@@ -262,14 +260,14 @@ public static class MatchParser
         int? roleBoundItem = JsonRead.NullableInt(stats, "roleBoundItem")
             ?? JsonRead.NullableInt(participantValue, "roleBoundItem");
 
+        // 注意：不传 timeline.lane / timeline.role，见 MatchPositionResolver 类文档
         MatchPosition? position = MatchPositionResolver.Resolve(
             queueId,
             roleBoundItem,
             itemIds,
             spell1Id,
             spell2Id,
-            JsonRead.String(timeline, "lane"),
-            JsonRead.String(timeline, "role"),
+            JsonRead.String(participantValue, "individualPosition"),
             JsonRead.String(participantValue, "teamPosition"),
             JsonRead.String(participantValue, "selectedPosition"));
 

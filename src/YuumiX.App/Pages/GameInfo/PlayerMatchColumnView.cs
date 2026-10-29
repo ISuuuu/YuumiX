@@ -130,7 +130,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             );
         }
 
-        if (d?.MatchHistoryHidden == true || d?.IsProfilePrivate == true)
+        if (d?.MatchHistoryHidden == true)
         {
             return Border(Empty()).Padding(0, 24, 0, 0);
         }
@@ -177,6 +177,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
         string championAsset = $"/lol-game-data/assets/v1/champion-icons/{m.ChampionId}.png";
 
+        // 10 列的横向松紧只靠 KDA 斜杠的负 margin 调节：内边距 / 头像 / 头像间距一律恢复改动前的原值
+        //（2026-10-29 反馈：只收紧 KDA 的数字与斜杠，其余全部还原）。
         double iconSize = isTenCol ? 28 : 32;
         double radius = isTenCol ? 5 : 6;
 
@@ -191,7 +193,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center),
                 AssetColors.BadgeDark,
-                padH: isTenCol ? 1.5 : 2,
+                padH: 2,
                 padV: 0)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom)
@@ -256,12 +258,20 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .WithToolTip(TextBlock(GetMatchTopTooltip(m)));
 
         // KDA 行（击杀/死亡/助攻，死亡红色加粗）
+        // 五个独立 TextBlock 拼出来的 KDA，斜杠两侧各带约 1.5px 字形留白，看起来比实际字符间距松。
+        // 这里只给斜杠加 -1 的横向负 margin，让三组数字与斜杠靠拢（不动任何其他尺寸）；
+        // 顺带把星号列的需求宽度省下 4 DIP，避免 10 列视图下「13/12/18」末尾数字再次被裁。
+        string slash = isTenCol ? "/" : " / ";
+        Element SlashElement() => isTenCol
+            ? Caption(slash).Foreground(Theme.SecondaryText).Margin(-1, 0, -1, 0)
+            : Caption(slash).Foreground(Theme.SecondaryText);
+
         var kdaItems = new List<Element>
         {
             Caption($"{m.Kills}").SemiBold().Foreground(Theme.PrimaryText),
-            Caption(" / ").Foreground(Theme.SecondaryText),
+            SlashElement(),
             Caption($"{m.Deaths}").SemiBold().Foreground(palette.DeathText),
-            Caption(" / ").Foreground(Theme.SecondaryText),
+            SlashElement(),
             Caption($"{m.Assists}").SemiBold().Foreground(Theme.PrimaryText),
         };
 
@@ -307,12 +317,10 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         return Border(cardBody)
             .Background(cardBg)
             .WithBorder(cardBorder, 1)
-            // 旧版 `.col-match { padding: 4px 7px; border-radius: 8px }`：横向 7 让头像与右边缘
-            // 各留 7，10 列视图也沿用同一圆角（旧版没有按列数改圆角）。
             .CornerRadius(8)
             .VAlign(VerticalAlignment.Stretch)
             .Margin(0, 0, 0, isLast ? 0 : MatchCardGap)
-            .Padding(7, 4);
+            .Padding(isTenCol ? 4 : 7, 4);
     }
 
     private static (string text, string? color) FormatKdaRatio(MatchSummary m, YuumiPalette palette)
