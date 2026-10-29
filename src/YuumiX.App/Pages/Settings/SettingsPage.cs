@@ -22,8 +22,10 @@ namespace YuumiX.App.Pages.Settings;
 /// （主题 / 日志等级）→ <see cref="ConfigStore.SaveWithBackup"/>（会话首写自动备份）→ 状态条反馈。
 ///
 /// 状态约定（AGENTS.md §5.10）：草稿与防抖序号走 UseState（不可变 record），
-/// 不参与渲染的数据（代理草稿、待写颜色字段、防抖计数、dispatcher、logger）走 UseRef；
+/// 不参与渲染的数据（代理草稿、待写颜色字段、防抖计数、logger）走 UseRef；
 /// 异步回调消费"最新值"一律经镜像 ref，避免闭包捕获过期渲染。没有任何"踢重渲染"辅助。
+/// DispatcherQueue 不缓存：它只在 UI 线程可得，缓存到 ref 反而给了"在线程池取到 null"的机会
+/// （见下方 StartDebounce 注释）。
 /// 防抖落地的纯过程部分在 <see cref="SettingsWriteback"/>；页面超 300 行的原因：
 /// 27 个 hook 的声明与三个防抖 UseEffect 必须留在组件渲染函数内（过渡期上限 400）。
 /// </summary>
@@ -111,7 +113,6 @@ public sealed class SettingsPage : Component
         // 非渲染数据（AGENTS.md §5.10）：ref 持有，渲染期只做镜像写入
         var loggerRef = UseRef<ILogger<SettingsPage>>(null!);
         var logger = loggerRef.Current ??= services.LoggerFactory.CreateLogger<SettingsPage>();
-        var dispatcherRef = UseRef<Microsoft.UI.Dispatching.DispatcherQueue?>(null);
         var colorTickRef = UseRef(0);
         var pendingColorFieldRef = UseRef<string?>(null);
         var pathTickRef = UseRef(0);
@@ -326,13 +327,41 @@ public sealed class SettingsPage : Component
             setCloudTextTick(++cloudTickRef.Current);
         }
 
-        Microsoft.UI.Dispatching.DispatcherQueue Dispatcher() =>
-            dispatcherRef.Current ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-
         var ui = new SettingsUi(config, services, toast, theme, menu, updateNotice, palette, logger, Commit, setError, window);
 
         // ── 防抖 effect：序号每变一次就重置定时器，只有最后一次会真正落盘 ────────
         // 定时器回调在线程池，写盘与改状态一律 TryEnqueue 回 UI 线程（ADR-12 决策一）。
+
+        // DispatcherQueue 必须在 UI 线程取好再交给定时器：ThreadPool 线程上
+        // DispatcherQueue.GetForCurrentThread() 返回 null，回调里再取就等于解引用 null，
+        // 而未处理异常在 ThreadPool 上会把整个进程打死（用户看到的是「点颜色后卡死」，实际是闪退）。
+        // 故此处（UseEffect 体，UI 线程）取一次，随闭包交给回调；回调体也要兜住异常，
+        // 写回链路的任何意外都不该演变成进程级崩溃。
+        Timer? StartDebounce(int delayMs, Action work)
+        {
+            var queue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+            if (queue is null)
+            {
+                logger.LogWarning("防抖写回未启动：当前线程没有 DispatcherQueue");
+                return null;
+            }
+
+            return new Timer(
+                _ => queue.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        work();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "防抖写回执行失败");
+                    }
+                }),
+                null,
+                delayMs,
+                Timeout.Infinite);
+        }
 
         UseEffect(
             () =>
@@ -342,22 +371,18 @@ public sealed class SettingsPage : Component
                     return static () => { };
                 }
 
-                var timer = new Timer(
-                    _ => Dispatcher().TryEnqueue(() =>
+                var timer = StartDebounce(ColorCommitDelayMs, () =>
+                {
+                    var field = pendingColorFieldRef.Current;
+                    if (field is null)
                     {
-                        var field = pendingColorFieldRef.Current;
-                        if (field is null)
-                        {
-                            return;
-                        }
+                        return;
+                    }
 
-                        pendingColorFieldRef.Current = null;
-                        Commit(field);
-                    }),
-                    null,
-                    ColorCommitDelayMs,
-                    Timeout.Infinite);
-                return () => timer.Dispose();
+                    pendingColorFieldRef.Current = null;
+                    Commit(field);
+                });
+                return timer is null ? static () => { } : timer.Dispose;
             },
             colorTick);
 
@@ -369,12 +394,10 @@ public sealed class SettingsPage : Component
                     return static () => { };
                 }
 
-                var timer = new Timer(
-                    _ => Dispatcher().TryEnqueue(() => SettingsWriteback.ApplyPathEdit(ui, pathEditRef, setPathEdit)),
-                    null,
+                var timer = StartDebounce(
                     PathCommitDelayMs,
-                    Timeout.Infinite);
-                return () => timer.Dispose();
+                    () => SettingsWriteback.ApplyPathEdit(ui, pathEditRef, setPathEdit));
+                return timer is null ? static () => { } : timer.Dispose;
             },
             pathEditTick);
 
@@ -386,12 +409,10 @@ public sealed class SettingsPage : Component
                     return static () => { };
                 }
 
-                var timer = new Timer(
-                    _ => Dispatcher().TryEnqueue(() => SettingsWriteback.ApplyCloudTextEdit(ui, cloudTextRef, setCloudText, InitialCloudText)),
-                    null,
+                var timer = StartDebounce(
                     PathCommitDelayMs,
-                    Timeout.Infinite);
-                return () => timer.Dispose();
+                    () => SettingsWriteback.ApplyCloudTextEdit(ui, cloudTextRef, setCloudText, InitialCloudText));
+                return timer is null ? static () => { } : timer.Dispose;
             },
             cloudTextTick);
 
