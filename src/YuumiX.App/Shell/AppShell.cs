@@ -97,6 +97,12 @@ public sealed class AppShell : Component
                 if (dispatcherQueue is not null)
                 {
                     AppLifetime.RegisterExitAction(RequestExit, dispatcherQueue);
+
+                    // 单例唤醒：重复启动的第二个实例被拦下时会点亮命名事件，由这里把主窗拉回前台。
+                    // 复用 ShowMainWindow 而不是另写一套 Win32 置前：窗口可能正藏在托盘里
+                    //（关闭到托盘），Show + Activate 与「点托盘图标」完全同一条路径，
+                    // 不会出现「窗口存在但没有焦点 / AppWindow 可见性与内核窗口不一致」。
+                    SingleInstance.RegisterActivation(ShowMainWindow, dispatcherQueue);
                 }
 
                 void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -124,6 +130,7 @@ public sealed class AppShell : Component
                 return () =>
                 {
                     AppLifetime.UnregisterExitAction();
+                    SingleInstance.UnregisterActivation();
                     window.Closing -= OnClosing;
                 };
             },
