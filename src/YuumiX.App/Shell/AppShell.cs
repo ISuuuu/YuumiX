@@ -1239,7 +1239,7 @@ public sealed class AppShell : Component
     /// 动作项（OP.GG / 修复无限加载 / 公告）在前、路由项（设置）在后，
     /// 拼出来的顺序即旧版 sidebar-bottom 的排列顺序。
     ///
-    /// OP.GG 用旧版同款品牌图标（18px PNG）覆盖 Segoe 字形；公告与其余菜单项
+    /// OP.GG 用旧版同款品牌图标（54px PNG，3.4× 超采样，对应显示面 16 DIP）覆盖 Segoe 字形；公告与其余菜单项
     /// 一致走 Segoe 字形（<see cref="Icons.Notice"/>，RouteCatalog.FooterActions 已配好），
     /// 不再保留旧版 Feather 铃铛的填充几何特殊渲染。
     /// </summary>

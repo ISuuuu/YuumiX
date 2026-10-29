@@ -79,12 +79,13 @@
          重复 Include 会触发 NETSDK1022，故一律用 Update 而非 Include。 -->
     <Content Update="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 
-    <!-- .ico/.svg 不在 SDK 默认 Content 集内，属 None 默认项，Update 有效。 -->
+    <!-- .ico/.svg 不在 SDK 默认 Content 集内，属 None 默认项，Update 有效。
+         svg 用通配覆盖全部子目录（Tier\、MatchDetail\ 与根目录的 opgg.svg），
+         新增矢量资源不必再改本文件。 -->
     <None Update="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="Assets\Tier\*.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="Assets\opgg.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <!-- 段位奖章（10 张）、资源统计（11 张）、分路位置（5 张）、Logo 与 opgg-nav 均由
-         上面的 Assets\**\*.png 规则覆盖，不再逐目录声明。 -->
+    <None Update="Assets\**\*.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- 段位奖章（10 张）、分路位置（5 张）、Logo 与 opgg-nav 均由上面的
+         Assets\**\*.png 规则覆盖，不再逐目录声明；MatchDetail 已全部矢量化。 -->
   </ItemGroup>
 
   <ItemGroup>
