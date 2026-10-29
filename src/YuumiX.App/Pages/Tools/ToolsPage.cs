@@ -92,8 +92,9 @@ public sealed class ToolsPage : Component
             }
         }
 
-        // 正文列宽度：跟随滚动区宽度收缩，超过上限后固定并居中（原因见 ContentColumn 注释）。
+        // 正文列宽度与左边距：跟随滚动区收缩；边距必须取整，避免 ComboBox 弹层落在半像素上。
         var (columnWidth, setColumnWidth) = UseState(ContentColumn.MaxWidth, threadSafe: true);
+        var (columnOffset, setColumnOffset) = UseState(0.0, threadSafe: true);
 
         // 连接态必须订阅：原来直接读 lcu.CurrentState，客户端启动或退出都不会触发重渲染，
         // 「离线禁用」就会一直停在进页那一刻的判断上。
@@ -280,18 +281,25 @@ public sealed class ToolsPage : Component
                 ToolsVisuals.GroupHeader(services.I18n.T("tools.groupProfile", "个人主页")),
                 ProfileSection.Render(ui, draft, setDraft, bg, setBg, spoof, setSpoof, confirm, setConfirm, badge, setBadge, champions, challenges, challengesLoading, () => setChallengesTick(challengesTick + 1))
             )
-            // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
+            // 显式宽度 + 整数左边距：不要用 HAlign(Center)，奇数宽度差会产生半像素偏移。
             .Width(columnWidth)
-            .HAlign(HorizontalAlignment.Center)
+            .HAlign(HorizontalAlignment.Left)
+            .Margin(left: columnOffset)
             .Padding(24)
         );
 
         mainScroll = mainScroll.OnSizeChanged((_, e) =>
         {
-            var target = ContentColumn.Fit(e.NewSize.Width);
-            if (Math.Abs(target - columnWidth) >= 0.5)
+            var targetWidth = ContentColumn.Fit(e.NewSize.Width);
+            var targetOffset = ContentColumn.CenterOffset(e.NewSize.Width, targetWidth);
+            if (Math.Abs(targetWidth - columnWidth) >= 0.5)
             {
-                setColumnWidth(target);
+                setColumnWidth(targetWidth);
+            }
+
+            if (Math.Abs(targetOffset - columnOffset) >= 0.5)
+            {
+                setColumnOffset(targetOffset);
             }
         });
 

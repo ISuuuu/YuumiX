@@ -89,6 +89,27 @@ public static class SettingsCardKit
             content: content.HAlign(HorizontalAlignment.Stretch))
         .HAlign(HorizontalAlignment.Stretch);
 
+    /// <summary>
+    /// 设置卡片内的下拉选择框：收敛宽度与无障碍名称，选项固定走原生 <c>string[]</c> 重载。
+    /// <para>
+    /// 底层为 <see cref="PixelComboBox"/>（主树内浮层）而非原生 <c>ComboBox</c>：
+    /// 界面缩放走 Viewbox 时原生下拉宿主在独立 PopupRoot，会被整层位图拉伸而发虚（2026-10-29 定性）。
+    /// 同样不要给选项传 <c>Element[]</c>：自绘浮层与原生路径都只支持纯文本选项。
+    /// </para>
+    /// <para>
+    /// <paramref name="automationName"/> 为必填：可交互控件缺无障碍名会被
+    /// <c>REACTOR_A11Y_001</c> 拦下，不给默认值是为了避免「忘了填就静默为空」。
+    /// </para>
+    /// </summary>
+    public static Element Select(
+        IReadOnlyList<string> labels,
+        int selectedIndex,
+        Action<int> onSelectedIndexChanged,
+        string automationName,
+        double width = 160) =>
+        PixelComboBox.Render([.. labels], selectedIndex, onSelectedIndexChanged, automationName)
+            .Width(width);
+
     /// <summary>原生开关控件封装：自动注入多语言开/关文本，避免未显式设置时回退系统默认语言。</summary>
     public static Element Switch(
         bool value,

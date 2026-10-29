@@ -327,16 +327,16 @@ internal static class LootManagerView
         Element filterBar = HStack(16,
             HStack(6,
                 Caption("碎片类型").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                ComboBox(TypeFilters, typeFilterIndex, idx => onTypeFilterChanged?.Invoke(idx)).Width(110).AutomationName("碎片类型")),
+                PixelComboBox.Render(TypeFilters, typeFilterIndex, idx => onTypeFilterChanged?.Invoke(idx)).Width(110).AutomationName("碎片类型")),
             HStack(6,
                 Caption("拥有状态").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                ComboBox(OwnedFilters, ownedFilterIndex, idx => onOwnedFilterChanged?.Invoke(idx)).Width(100).AutomationName("拥有状态")),
+                PixelComboBox.Render(OwnedFilters, ownedFilterIndex, idx => onOwnedFilterChanged?.Invoke(idx)).Width(100).AutomationName("拥有状态")),
             HStack(6,
                 Caption("价值基准").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                ComboBox(ValueTypeFilters, valueTypeIndex, idx => onValueTypeChanged?.Invoke(idx)).Width(110).AutomationName("价值基准")),
+                PixelComboBox.Render(ValueTypeFilters, valueTypeIndex, idx => onValueTypeChanged?.Invoke(idx)).Width(110).AutomationName("价值基准")),
             HStack(6,
                 Caption("价值").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                ComboBox(OperatorFilters, operatorIndex, idx => onOperatorChanged?.Invoke(idx)).Width(125).AutomationName("价值运算符"),
+                PixelComboBox.Render(OperatorFilters, operatorIndex, idx => onOperatorChanged?.Invoke(idx)).Width(125).AutomationName("价值运算符"),
                 TextBox(valueThreshold, text => onValueThresholdChanged?.Invoke(text), "不限").Width(80).Height(30).AutomationName("价值阈值")))
             .VAlign(VerticalAlignment.Center);
 

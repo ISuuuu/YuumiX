@@ -1,4 +1,5 @@
 using Microsoft.UI.Reactor;
+using YuumiX.App.Controls;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
@@ -234,7 +235,7 @@ internal static class ProfileSection
             false,
             VStack(12,
                 ToolsVisuals.CardRow(i18n.T("tools.spoofQueueLabel", "排位队列类型:"),
-                    ComboBox(spoofQueueLabels, spoof.QueueIndex, index =>
+                    PixelComboBox.Render(spoofQueueLabels, spoof.QueueIndex, index =>
                     {
                         if (index >= 0 && index < spoofQueueLabels.Length)
                         {
@@ -243,7 +244,7 @@ internal static class ProfileSection
                     })
                         .Width(180).AutomationName("伪装队列选择")),
                 ToolsVisuals.CardRow(i18n.T("tools.spoofTierLabel", "伪装段位级别:"),
-                    ComboBox(spoofTierLabels, spoof.TierIndex, index =>
+                    PixelComboBox.Render(spoofTierLabels, spoof.TierIndex, index =>
                     {
                         if (index >= 0 && index < spoofTierLabels.Length)
                         {
@@ -252,7 +253,7 @@ internal static class ProfileSection
                     })
                         .Width(220).AutomationName("伪装段位选择")),
                 ToolsVisuals.CardRow(i18n.T("tools.spoofDivisionLabel", "伪装小段级别 (Division):"),
-                    ComboBox(spoofDivisionLabels, spoof.DivisionIndex, index =>
+                    PixelComboBox.Render(spoofDivisionLabels, spoof.DivisionIndex, index =>
                     {
                         if (index >= 0 && index < spoofDivisionLabels.Length)
                         {

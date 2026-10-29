@@ -14,6 +14,7 @@ using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
 using YuumiX.App.Pages.Bench;
@@ -908,6 +909,9 @@ public sealed class AppShell : Component
                 updateOverlay,
                 // 全局 Toast 宿主（R5）：压在页面内容之上，队列由 ToastContext 提供。
                 Component<ToastHost>(),
+                // 自绘下拉浮层宿主（PixelComboBox）：挂在缩放内容根内与页面同渲染路径，
+                // Viewbox 缩放档位下浮层文字不再被整层位图拉伸发虚。
+                Component<DropDownLayer>(),
                 // 大乱斗板凳席悬浮窗的显隐协调者：不产生视觉输出，只把 LCU 状态翻译成窗口开关。
                 Component<AramBenchOverlayCoordinator>(),
                 // 公告弹窗：右下角覆盖层（对应旧版 NoticePopup 的 position: fixed）。

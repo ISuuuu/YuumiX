@@ -1,4 +1,5 @@
 using Microsoft.UI.Reactor;
+using YuumiX.App.Controls;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
@@ -174,17 +175,17 @@ internal static class ChampionMasteryView
                 .Width(170)
                 .Height(30)
                 .AutomationName("搜索英雄名称"),
-            ComboBox(ChestOptions, chestFilterIndex, idx => onChestFilterChanged?.Invoke(idx))
+            PixelComboBox.Render(ChestOptions, chestFilterIndex, idx => onChestFilterChanged?.Invoke(idx))
                 .Width(130)
                 .AutomationName("宝箱状态"),
-            ComboBox(LevelOptions, levelFilterIndex, idx => onLevelFilterChanged?.Invoke(idx))
+            PixelComboBox.Render(LevelOptions, levelFilterIndex, idx => onLevelFilterChanged?.Invoke(idx))
                 .Width(110)
                 .AutomationName("英雄等级"))
             .VAlign(VerticalAlignment.Center);
 
         Element rightToolbar = HStack(8,
             Caption("排序:").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-            ComboBox(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx))
+            PixelComboBox.Render(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx))
                 .Width(125)
                 .AutomationName("排序方式"),
             Button(Body("刷新"), onRefresh).Height(32).Padding(12, 0).AutomationName("刷新熟练度"))

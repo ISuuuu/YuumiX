@@ -178,7 +178,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             [
                 flyoutSearchBox,
                 Button(careerBtnText, p.OnCareer).IsEnabled(p.HasSummoner).AutomationName("跳转生涯").Grid(row: 0, column: 1),
-                ComboBox(p.FilterLabels, p.FilterIndex, p.OnFilterChanged)
+                PixelComboBox.Render(p.FilterLabels, p.FilterIndex, p.OnFilterChanged)
                     .AutomationName("队列筛选")
                     .Width(130)
                     .Grid(row: 0, column: 2),

@@ -21,9 +21,26 @@ public static class ContentColumn
     /// <summary>可用宽度小于该值时不再收窄（宁可让窗口更窄，也不把内容压到不可读）。</summary>
     public const double MinWidth = 320;
 
-    /// <summary>按滚动区可用宽度算出正文列宽度。</summary>
+    /// <summary>
+    /// 按滚动区可用宽度算出正文列宽度。
+    /// <para>
+    /// 宽度必须取整，但仅取整宽度还不够：<c>HAlign(Center)</c> 的左偏移是
+    /// <c>(viewportWidth - columnWidth) / 2</c>，两个整数相减为奇数时仍会产生半像素偏移。
+    /// 主树文字会被布局取整掩盖这个问题，独立 Popup 树中的 <c>ComboBox</c> 弹层则会被重采样，
+    /// 表现为「下拉列表文字比收起态虚」。因此调用方必须用 <see cref="CenterOffset"/> 算出整数左边距，
+    /// 并改用左对齐，不能继续依赖居中布局隐式计算偏移（AGENTS.md §1.2）。
+    /// </para>
+    /// </summary>
     public static double Fit(double viewportWidth) =>
         double.IsNaN(viewportWidth) || viewportWidth <= 0
             ? MaxWidth
-            : Math.Clamp(viewportWidth, MinWidth, MaxWidth);
+            : Math.Floor(Math.Clamp(viewportWidth, MinWidth, MaxWidth));
+
+    /// <summary>
+    /// 计算正文列的整数左边距。右侧允许比左侧多不足 1 DIP，以保证左侧落在像素网格上。
+    /// </summary>
+    public static double CenterOffset(double viewportWidth, double columnWidth) =>
+        !double.IsFinite(viewportWidth) || !double.IsFinite(columnWidth)
+            ? 0
+            : Math.Max(0, Math.Floor((viewportWidth - columnWidth) / 2));
 }

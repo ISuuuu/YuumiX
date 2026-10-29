@@ -32,18 +32,22 @@ internal static class LogNetworkSection
         var logLevelCard = SettingsCardKit.Card(
             i18n.T("settings.logLevelTitle", "日志等级"),
             i18n.T("settings.logLevelDesc", "写入 <exe>/log 的日志记录详细程度，修改后立即生效"),
-            ComboBox(logLevelLabels, SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
-            {
-                if (index < 0 || index >= LogLevelValues.Length)
+            SettingsCardKit.Select(
+                logLevelLabels,
+                SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1),
+                index =>
                 {
-                    return;
-                }
+                    if (index < 0 || index >= LogLevelValues.Length)
+                    {
+                        return;
+                    }
 
-                var level = LogLevelValues[index];
-                config.General.LogLevel = level;
-                ui.Services.ApplyLogLevel(level);
-                ui.Commit(nameof(GeneralConfig.LogLevel));
-            }).Width(160).AutomationName("日志等级选择"));
+                    var level = LogLevelValues[index];
+                    config.General.LogLevel = level;
+                    ui.Services.ApplyLogLevel(level);
+                    ui.Commit(nameof(GeneralConfig.LogLevel));
+                },
+                automationName: "日志等级选择"));
 
         var logDirPrompt = i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs
             ? $"Stored at {ui.Services.Paths.LogDirectory}"

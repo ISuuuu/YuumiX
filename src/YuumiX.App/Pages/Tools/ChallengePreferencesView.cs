@@ -1,4 +1,5 @@
 using Microsoft.UI.Reactor;
+using YuumiX.App.Controls;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
@@ -66,7 +67,7 @@ internal static class ChallengePreferencesView
                     .Margin(new Thickness(0, 0, 8, 0))
                     .AutomationName("勋章搜索框")
                     .Grid(row: 0, column: 0),
-                ComboBox(TierFilters, tierFilterIndex, onTierFilterIndexChanged)
+                PixelComboBox.Render(TierFilters, tierFilterIndex, onTierFilterIndexChanged)
                     .Width(160)
                     .Margin(new Thickness(0, 0, 8, 0))
                     .AutomationName("段位筛选下拉")

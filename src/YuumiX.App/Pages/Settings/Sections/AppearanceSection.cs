@@ -52,64 +52,76 @@ internal static class AppearanceSection
         var themeModeCard = SettingsCardKit.Card(
             i18n.T("settings.themeModeTitle", "主题模式"),
             i18n.T("settings.themeModeDesc", "浅色 / 深色 / 跟随系统主题自适应切换"),
-            ComboBox(themeModeLabels, SettingsVisuals.IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
-            {
-                if (index < 0 || index >= ThemeModeValues.Length)
+            SettingsCardKit.Select(
+                themeModeLabels,
+                SettingsVisuals.IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1),
+                index =>
                 {
-                    return;
-                }
+                    if (index < 0 || index >= ThemeModeValues.Length)
+                    {
+                        return;
+                    }
 
-                config.Personalization.ThemeMode = ThemeModeValues[index];
-                ui.Theme.Apply(config.Personalization);
-                ui.Commit(nameof(PersonalizationConfig.ThemeMode));
-            }).Width(160).AutomationName("主题模式选择"));
+                    config.Personalization.ThemeMode = ThemeModeValues[index];
+                    ui.Theme.Apply(config.Personalization);
+                    ui.Commit(nameof(PersonalizationConfig.ThemeMode));
+                },
+                automationName: "主题模式选择"));
 
         var dpiScaleCard = SettingsCardKit.Card(
             i18n.T("settings.dpiScaleTitle", "界面缩放"),
             i18n.T("settings.dpiScaleDesc", "调整应用界面基础显示比例与窗口尺寸"),
-            ComboBox(dpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
-            {
-                if (index < 0 || index >= DpiScaleValues.Length)
+            SettingsCardKit.Select(
+                dpiScaleLabels,
+                SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0),
+                index =>
                 {
-                    return;
-                }
+                    if (index < 0 || index >= DpiScaleValues.Length)
+                    {
+                        return;
+                    }
 
-                var scaleValue = DpiScaleValues[index];
-                var scaleLabel = dpiScaleLabels[index];
-                config.Personalization.DpiScale = scaleValue;
-                ui.Commit(nameof(PersonalizationConfig.DpiScale));
-                AppHost.Scale.SetScale(scaleValue);
+                    var scaleValue = DpiScaleValues[index];
+                    var scaleLabel = dpiScaleLabels[index];
+                    config.Personalization.DpiScale = scaleValue;
+                    ui.Commit(nameof(PersonalizationConfig.DpiScale));
+                    AppHost.Scale.SetScale(scaleValue);
 
-                var window = ui.Window ?? ReactorApp.PrimaryWindow;
-                if (window is not null)
-                {
-                    var (width, height) = WindowMetrics.CalculateWindowSize(scaleValue);
-                    WindowMetrics.ApplyScaleAndRestoreIfMaximized(window, scaleValue);
-                    ui.Toast.Success($"界面缩放已设为 {scaleLabel}，窗口尺寸已调整为 {width}×{height}");
-                }
-                else
-                {
-                    ui.Toast.Success($"界面缩放已设为 {scaleLabel}");
-                }
-            }).Width(160).AutomationName("界面缩放选择"));
+                    var window = ui.Window ?? ReactorApp.PrimaryWindow;
+                    if (window is not null)
+                    {
+                        var (width, height) = WindowMetrics.CalculateWindowSize(scaleValue);
+                        WindowMetrics.ApplyScaleAndRestoreIfMaximized(window, scaleValue);
+                        ui.Toast.Success($"界面缩放已设为 {scaleLabel}，窗口尺寸已调整为 {width}×{height}");
+                    }
+                    else
+                    {
+                        ui.Toast.Success($"界面缩放已设为 {scaleLabel}");
+                    }
+                },
+                automationName: "界面缩放选择"));
 
         var languageCard = SettingsCardKit.Card(
             i18n.T("settings.langTitle", "语言设置"),
             i18n.T("settings.langDesc", "选择应用界面显示语言"),
-            ComboBox(languageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
-            {
-                if (index < 0 || index >= LanguageValues.Length)
+            SettingsCardKit.Select(
+                languageLabels,
+                SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0),
+                index =>
                 {
-                    return;
-                }
+                    if (index < 0 || index >= LanguageValues.Length)
+                    {
+                        return;
+                    }
 
-                var lang = LanguageValues[index];
-                config.Personalization.Language = lang;
-                ui.Commit(nameof(PersonalizationConfig.Language));
-                AppHost.ApplyPrimaryLanguageOverride(lang);
-                ui.Services.I18n.SetLanguage(lang);
-                ui.Toast.Success(i18n.T("settings.langSaved", "语言已更新并即时生效"));
-            }).Width(160).AutomationName("语言选择"));
+                    var lang = LanguageValues[index];
+                    config.Personalization.Language = lang;
+                    ui.Commit(nameof(PersonalizationConfig.Language));
+                    AppHost.ApplyPrimaryLanguageOverride(lang);
+                    ui.Services.I18n.SetLanguage(lang);
+                    ui.Toast.Success(i18n.T("settings.langSaved", "语言已更新并即时生效"));
+                },
+                automationName: "语言选择"));
 
         return VStack(8,
             SettingsCardKit.Toggle(

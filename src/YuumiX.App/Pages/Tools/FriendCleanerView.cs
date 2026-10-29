@@ -1,4 +1,5 @@
 using Microsoft.UI.Reactor;
+using YuumiX.App.Controls;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
@@ -83,7 +84,7 @@ internal static class FriendCleanerView
                     .AutomationName("好友搜索框")
                     .Grid(row: 0, column: 0),
 
-                ComboBox(filterLabels, filterIndex, idx =>
+                PixelComboBox.Render(filterLabels, filterIndex, idx =>
                 {
                     if (idx >= 0 && idx < filterLabels.Length) onFilterIndexChanged(idx);
                 })

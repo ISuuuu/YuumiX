@@ -105,8 +105,9 @@ public sealed class SettingsPage : Component
         var (pathEdit, setPathEdit) = UseState<PathEditUi?>(null, threadSafe: true);
         var (cloudText, setCloudText) = UseState(InitialCloudText, threadSafe: true);
 
-        // 正文列宽度：跟随滚动区宽度收缩，超过上限后固定并居中（原因见 ContentColumn 注释）。
+        // 正文列宽度与左边距：跟随滚动区收缩；边距必须取整，避免 ComboBox 弹层落在半像素上。
         var (columnWidth, setColumnWidth) = UseState(ContentColumn.MaxWidth, threadSafe: true);
+        var (columnOffset, setColumnOffset) = UseState(0.0, threadSafe: true);
 
         // 非渲染数据（AGENTS.md §5.10）：ref 持有，渲染期只做镜像写入
         var loggerRef = UseRef<ILogger<SettingsPage>>(null!);
@@ -446,9 +447,10 @@ public sealed class SettingsPage : Component
                 SettingsVisuals.GroupHeader(services.I18n.T("settings.aboutTitle", "关于")),
                 AboutSection.Render(ui)
             )
-            // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
+            // 显式宽度 + 整数左边距：不要用 HAlign(Center)，奇数宽度差会产生半像素偏移。
             .Width(columnWidth)
-            .HAlign(HorizontalAlignment.Center)
+            .HAlign(HorizontalAlignment.Left)
+            .Margin(left: columnOffset)
             .Padding(24)
         )
         // 点击页面空白处时，WinUI 会把焦点下发给滚动容器内容里的「第一个可聚焦控件」，
@@ -458,10 +460,16 @@ public sealed class SettingsPage : Component
         .IsTabStop(true);
         mainScroll = mainScroll.OnSizeChanged((_, e) =>
         {
-            var target = ContentColumn.Fit(e.NewSize.Width);
-            if (Math.Abs(target - columnWidth) >= 0.5)
+            var targetWidth = ContentColumn.Fit(e.NewSize.Width);
+            var targetOffset = ContentColumn.CenterOffset(e.NewSize.Width, targetWidth);
+            if (Math.Abs(targetWidth - columnWidth) >= 0.5)
             {
-                setColumnWidth(target);
+                setColumnWidth(targetWidth);
+            }
+
+            if (Math.Abs(targetOffset - columnOffset) >= 0.5)
+            {
+                setColumnOffset(targetOffset);
             }
         });
 

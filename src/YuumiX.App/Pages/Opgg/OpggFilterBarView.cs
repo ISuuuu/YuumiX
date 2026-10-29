@@ -1,4 +1,5 @@
 using Microsoft.UI.Reactor;
+using YuumiX.App.Controls;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
@@ -45,7 +46,7 @@ public sealed class OpggFilterBarView : Component<OpggFilterBarProps>
         var items = new List<Element>
         {
             // 1. 大区
-            ComboBox(regionLabels, regionIndex, idx =>
+            PixelComboBox.Render(regionLabels, regionIndex, idx =>
             {
                 if (idx >= 0 && idx < regions.Count && regions[idx].Value != Props.Region)
                 {
@@ -56,7 +57,7 @@ public sealed class OpggFilterBarView : Component<OpggFilterBarProps>
             .AutomationName("OPGG大区选择"),
 
             // 2. 模式
-            ComboBox(modeLabels, modeIndex, idx =>
+            PixelComboBox.Render(modeLabels, modeIndex, idx =>
             {
                 if (idx >= 0 && idx < modes.Count && modes[idx].Value != Props.Mode)
                 {
@@ -67,7 +68,7 @@ public sealed class OpggFilterBarView : Component<OpggFilterBarProps>
             .AutomationName("OPGG模式选择"),
 
             // 3. 段位
-            ComboBox(tierLabels, tierIndex, idx =>
+            PixelComboBox.Render(tierLabels, tierIndex, idx =>
             {
                 if (idx >= 0 && idx < tiers.Count && tiers[idx].Value != Props.Tier)
                 {
@@ -82,7 +83,7 @@ public sealed class OpggFilterBarView : Component<OpggFilterBarProps>
         if (string.Equals(Props.Mode, OpggMode.Ranked, StringComparison.OrdinalIgnoreCase))
         {
             items.Add(
-                ComboBox(positionLabels, positionIndex, idx =>
+                PixelComboBox.Render(positionLabels, positionIndex, idx =>
                 {
                     if (idx >= 0 && idx < positions.Count && positions[idx].Value != Props.Position)
                     {

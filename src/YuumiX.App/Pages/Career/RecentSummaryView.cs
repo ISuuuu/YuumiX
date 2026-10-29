@@ -1,4 +1,5 @@
 using Microsoft.UI.Reactor;
+using YuumiX.App.Controls;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
@@ -45,7 +46,7 @@ internal static class RecentSummaryView
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(row: 0, column: 0),
-                        ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
+                        PixelComboBox.Render(queueLabels, currentQueueIndex, onSelectQueue)
                             .Width(140)
                             .HAlign(HorizontalAlignment.Right)
                             .VAlign(VerticalAlignment.Center)
@@ -134,7 +135,7 @@ internal static class RecentSummaryView
 
         Element rightSection = HStack(8,
             flyoutButton,
-            ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
+            PixelComboBox.Render(queueLabels, currentQueueIndex, onSelectQueue)
                 .Width(140)
                 .AutomationName("队列筛选"))
             .VAlign(VerticalAlignment.Center)
