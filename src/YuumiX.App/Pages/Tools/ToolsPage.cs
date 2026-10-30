@@ -46,6 +46,8 @@ public sealed class ToolsPage : Component
     {
         var services = UseContext(AppHost.Context);
         var theme = UseContext(AppHost.ThemeContext);
+        var scale = UseContext(AppHost.ScaleContext)!;
+        var window = UseWindow()!;
         var config = services.Config;
         var toolsService = services.Services.GetRequiredService<IToolsService>();
         var friendCleanerService = services.Services.GetRequiredService<IFriendCleanerService>();
@@ -94,8 +96,10 @@ public sealed class ToolsPage : Component
             }
         }
 
-        // 正文列宽度：跟随滚动区宽度收缩，超过上限后固定并居中（原因见 ContentColumn 注释）。
+        // 正文列宽度与左边距：跟随滚动区宽度收缩；边距按像素网格量化（原因见 ContentColumn 注释），
+        // ComboBox 弹层继承这个锚点位置，落点半像素就会文字发虚。
         var (columnWidth, setColumnWidth) = UseState(ContentColumn.MaxWidth, threadSafe: true);
+        var (columnLeft, setColumnLeft) = UseState(0.0, threadSafe: true);
 
         // 连接态必须订阅：原来直接读 lcu.CurrentState，客户端启动或退出都不会触发重渲染，
         // 「离线禁用」就会一直停在进页那一刻的判断上。
@@ -339,18 +343,28 @@ public sealed class ToolsPage : Component
                 ToolsVisuals.GroupHeader(services.I18n.T("tools.groupProfile", "个人主页")),
                 ProfileSection.Render(ui, draft, setDraft, bg, setBg, spoof, setSpoof, confirm, setConfirm, clearBadges.IsPending, clearBorder.IsPending, badge, setBadge, champions, challenges, challengesLoading, () => setChallengesTick(challengesTick + 1))
             )
-            // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
+            // 正文列：显式宽度 + 整数左边距 + 左对齐。不要写回 HAlign(Center)：
+            // 宽度差为奇数时 Center 产生 .5 偏移，独立 Popup 树里的 ComboBox 弹层被半像素重采样（见 ContentColumn）。
             .Width(columnWidth)
-            .HAlign(HorizontalAlignment.Center)
+            .HAlign(HorizontalAlignment.Left)
+            .Margin(left: columnLeft)
             .Padding(24)
         );
 
+        // 弹层落点的像素网格 = 系统 DPI 缩放 × 界面缩放档位（Viewbox 会把子树坐标再乘一次），见 ContentColumn.CenterOffset。
+        double PixelScale() => Math.Max(1.0, window.DipScale) * scale.Current;
         mainScroll = mainScroll.OnSizeChanged((_, e) =>
         {
-            var target = ContentColumn.Fit(e.NewSize.Width);
-            if (Math.Abs(target - columnWidth) >= 0.5)
+            var targetWidth = ContentColumn.Fit(e.NewSize.Width);
+            var targetLeft = ContentColumn.CenterOffset(e.NewSize.Width, targetWidth, PixelScale());
+            if (Math.Abs(targetWidth - columnWidth) >= 0.5)
             {
-                setColumnWidth(target);
+                setColumnWidth(targetWidth);
+            }
+
+            if (Math.Abs(targetLeft - columnLeft) >= 0.5)
+            {
+                setColumnLeft(targetLeft);
             }
         });
 

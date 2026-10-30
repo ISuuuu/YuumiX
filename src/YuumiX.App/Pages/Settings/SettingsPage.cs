@@ -51,10 +51,11 @@ public sealed class SettingsPage : Component
         var theme = UseContext(AppHost.ThemeContext);
         var menu = UseContext(AppHost.MenuContext);
         var updateNotice = UseContext(AppHost.UpdateNoticeContext);
+        var scale = UseContext(AppHost.ScaleContext)!;
         var config = services.Config;
         var i18n = services.I18n;
         var toast = UseContext(AppHost.ToastContext)!;
-        var window = UseWindow();
+        var window = UseWindow()!;
 
         // threadSafe: true —— 保存与重渲染的调用点虽在 UI 线程，但保留统一语义，
         // 以免将来把写回挪到线程池时漏改（ADR-07 的成本是崩溃，不是降级）。
@@ -107,8 +108,10 @@ public sealed class SettingsPage : Component
         var (pathEdit, setPathEdit) = UseState<PathEditUi?>(null, threadSafe: true);
         var (cloudText, setCloudText) = UseState(InitialCloudText, threadSafe: true);
 
-        // 正文列宽度：跟随滚动区宽度收缩，超过上限后固定并居中（原因见 ContentColumn 注释）。
+        // 正文列宽度与左边距：跟随滚动区宽度收缩；边距按像素网格量化（原因见 ContentColumn 注释），
+        // ComboBox 弹层继承这个锚点位置，落点半像素就会文字发虚。
         var (columnWidth, setColumnWidth) = UseState(ContentColumn.MaxWidth, threadSafe: true);
+        var (columnLeft, setColumnLeft) = UseState(0.0, threadSafe: true);
 
         // 非渲染数据（AGENTS.md §5.10）：ref 持有，渲染期只做镜像写入
         var loggerRef = UseRef<ILogger<SettingsPage>>(null!);
@@ -467,9 +470,11 @@ public sealed class SettingsPage : Component
                 SettingsVisuals.GroupHeader(services.I18n.T("settings.aboutTitle", "关于")),
                 AboutSection.Render(ui)
             )
-            // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
+            // 正文列：显式宽度 + 整数左边距 + 左对齐。不要写回 HAlign(Center)：
+            // 宽度差为奇数时 Center 产生 .5 偏移，独立 Popup 树里的 ComboBox 弹层被半像素重采样（见 ContentColumn）。
             .Width(columnWidth)
-            .HAlign(HorizontalAlignment.Center)
+            .HAlign(HorizontalAlignment.Left)
+            .Margin(left: columnLeft)
             .Padding(24)
         )
         // 点击页面空白处时，WinUI 会把焦点下发给滚动容器内容里的「第一个可聚焦控件」，
@@ -477,12 +482,20 @@ public sealed class SettingsPage : Component
         // 让滚动容器自身成为可聚焦元素后，焦点停在容器上，不再下发给子控件。
         // 用修饰符而非 .Set(...)：控件走池回收，Set 写入会在重渲染时被重置（REACTOR_POOL_001）。
         .IsTabStop(true);
+        // 弹层落点的像素网格 = 系统 DPI 缩放 × 界面缩放档位（Viewbox 会把子树坐标再乘一次），见 ContentColumn.CenterOffset。
+        double PixelScale() => Math.Max(1.0, window.DipScale) * scale.Current;
         mainScroll = mainScroll.OnSizeChanged((_, e) =>
         {
-            var target = ContentColumn.Fit(e.NewSize.Width);
-            if (Math.Abs(target - columnWidth) >= 0.5)
+            var targetWidth = ContentColumn.Fit(e.NewSize.Width);
+            var targetLeft = ContentColumn.CenterOffset(e.NewSize.Width, targetWidth, PixelScale());
+            if (Math.Abs(targetWidth - columnWidth) >= 0.5)
             {
-                setColumnWidth(target);
+                setColumnWidth(targetWidth);
+            }
+
+            if (Math.Abs(targetLeft - columnLeft) >= 0.5)
+            {
+                setColumnLeft(targetLeft);
             }
         });
 

@@ -61,13 +61,11 @@ internal static class FriendCleanerView
                     .AutomationName(i18n.T("tools.friendSearchAutomation", "好友搜索框"))
                     .Grid(row: 0, column: 0),
 
-                ComboBox(filterLabels, filterIndex, idx =>
+                PixelComboBox.Render(filterLabels, filterIndex, idx =>
                 {
                     if (idx >= 0 && idx < filterLabels.Length) onFilterIndexChanged(idx);
-                })
-                    .Width(200)
+                }, automationName: i18n.T("tools.friendFilterAutomation", "好友筛选下拉"), width: 200)
                     .Margin(new Thickness(0, 0, 8, 0))
-                    .AutomationName(i18n.T("tools.friendFilterAutomation", "好友筛选下拉"))
                     .Grid(row: 0, column: 1),
 
                 Button(rescanText, onStartScan)

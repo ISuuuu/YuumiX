@@ -52,7 +52,7 @@ internal static class AppearanceSection
         var themeModeCard = SettingsCardKit.Card(
             i18n.T("settings.themeModeTitle", "主题模式"),
             i18n.T("settings.themeModeDesc", "浅色 / 深色 / 跟随系统主题自适应切换"),
-            ComboBox(themeModeLabels, SettingsVisuals.IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
+            PixelComboBox.Render(themeModeLabels, SettingsVisuals.IndexOf(ThemeModeValues, config.Personalization.ThemeMode, ThemeModeValues.Length - 1), index =>
             {
                 if (index < 0 || index >= ThemeModeValues.Length)
                 {
@@ -62,12 +62,12 @@ internal static class AppearanceSection
                 config.Personalization.ThemeMode = ThemeModeValues[index];
                 ui.Theme.Apply(config.Personalization);
                 ui.Commit(nameof(PersonalizationConfig.ThemeMode));
-            }).Width(160).AutomationName("主题模式选择"));
+            }, automationName: "主题模式选择", width: 160));
 
         var dpiScaleCard = SettingsCardKit.Card(
             i18n.T("settings.dpiScaleTitle", "界面缩放"),
             i18n.T("settings.dpiScaleDesc", "调整应用界面基础显示比例与窗口尺寸"),
-            ComboBox(dpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
+            PixelComboBox.Render(dpiScaleLabels, SettingsVisuals.IndexOf(DpiScaleValues, config.Personalization.DpiScale, 0), index =>
             {
                 if (index < 0 || index >= DpiScaleValues.Length)
                 {
@@ -91,12 +91,12 @@ internal static class AppearanceSection
                 {
                     ui.Toast.Success($"界面缩放已设为 {scaleLabel}");
                 }
-            }).Width(160).AutomationName("界面缩放选择"));
+            }, automationName: "界面缩放选择", width: 160));
 
         var languageCard = SettingsCardKit.Card(
             i18n.T("settings.langTitle", "语言设置"),
             i18n.T("settings.langDesc", "选择应用界面显示语言"),
-            ComboBox(languageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
+            PixelComboBox.Render(languageLabels, SettingsVisuals.IndexOf(LanguageValues, config.Personalization.Language, 0), index =>
             {
                 if (index < 0 || index >= LanguageValues.Length)
                 {
@@ -109,7 +109,7 @@ internal static class AppearanceSection
                 AppHost.ApplyPrimaryLanguageOverride(lang);
                 ui.Services.I18n.SetLanguage(lang);
                 ui.Toast.Success(i18n.T("settings.langSaved", "语言已更新并即时生效"));
-            }).Width(160).AutomationName("语言选择"));
+            }, automationName: "语言选择", width: 160));
 
         return VStack(8,
             SettingsCardKit.Toggle(
