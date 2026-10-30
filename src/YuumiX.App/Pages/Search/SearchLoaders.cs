@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
@@ -19,7 +20,7 @@ using YuumiX.Core.Upload;
 namespace YuumiX.App.Pages.Search;
 
 /// <summary>搜索命令的解析目标：Riot ID / puuid / 召唤师 ID 三选一，GameId 为可选的跳转选中局。</summary>
-internal sealed record SearchTargetInput(string? Query, string? Puuid, long? SummonerId, long TargetGameId)
+internal sealed record SearchTargetInput(string? Query, string? Puuid, long? SummonerId, long TargetGameId, int Sequence = 0)
 {
     /// <summary>三种入口的"未找到"文案口径不同（名字搜索 / 召唤师 ID 点击），保持原样区分。</summary>
     public string NotFoundMessage =>
@@ -34,6 +35,9 @@ internal sealed record SearchTargetInput(string? Query, string? Puuid, long? Sum
 /// 均可能因"客户端没开"返回空，异常一律吞掉让页面停在空列表，不抛给 UI。
 /// 本文件 345 行（R14 过渡期，超 300 理由：10 人名单段位/隐私渐进加载为单块并发逻辑，拆开反而难读）。
 /// </summary>
+internal sealed record SearchHistoryResult(string Key, MatchHistoryPage Page);
+internal sealed record SearchEnrichmentResult(MatchDetail? Detail, bool HasFailures);
+
 internal static class SearchLoaders
 {
     /// <summary>战绩列表单页条数：前两页由 LCU 预拉取，第 21 局起走腾讯 SGP 接口增量。</summary>
@@ -86,118 +90,43 @@ internal static class SearchLoaders
         return found;
     }
 
-    /// <summary>解析当前登录召唤师（首屏 / 刷新）。失败保持 <c>null</c>，界面显示"未连接"。</summary>
-    internal static async Task ResolveSummonerAsync(
-        ISummonerService summonerService,
-        Action<SummonerProfile?> apply,
-        Action<bool> applyResolved,
-        CancellationToken cancellationToken)
+    internal static async Task<MatchHistoryPage> GetHistoryAsync(
+        AppServices services, IMatchService matchService, string? puuid, int pageIndex, CancellationToken cancellationToken)
     {
-        try
+        if (string.IsNullOrEmpty(puuid)) return MatchHistoryPage.Empty;
+        int begin = pageIndex * PageSize;
+        var page = await matchService.GetMatchHistoryAsync(puuid, begin, begin + PageSize - 1, cancellationToken).ConfigureAwait(false);
+        if (!page.Succeeded) throw new InvalidOperationException("读取战绩失败");
+        if (page.Games.Count > 0)
         {
-            SummonerProfile? profile = await summonerService
-                .GetCurrentSummonerAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                apply(profile);
-                applyResolved(true);
-            }
+            var assets = services.Services.GetRequiredService<AssetService>();
+            await Task.WhenAll(page.Games.Select(g => assets.GetCachedPathAsync(SearchVisuals.ChampionIcon(g.ChampionId), cancellationToken))).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
-        {
-            // 页面已卸载
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return page;
     }
 
-    /// <summary>拉一页战绩。任何失败都只是让页面停在空列表，不抛给 UI。</summary>
-    internal static async Task LoadHistoryAsync(
-        AppServices services,
-        IMatchService matchService,
-        string puuid,
-        int pageIndex,
-        Action<IReadOnlyList<MatchSummary>> applyMatches,
-        Action<bool> applyHasMore,
-        CancellationToken cancellationToken)
+    internal static async Task<MatchDetail?> GetDetailAsync(IMatchService matchService, long gameId, string? puuid, CancellationToken cancellationToken)
     {
-        try
-        {
-            int begin = pageIndex * PageSize;
-            MatchHistoryPage page = await matchService
-                .GetMatchHistoryAsync(puuid, begin, begin + PageSize - 1, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-
-            // 预热本页英雄头像：在交付渲染前确保本地已有图片缓存，
-            // 使得卡片挂载首帧即可同步命中 Image(file://)，彻底杜绝空白头像。
-            if (page.Games.Count > 0)
-            {
-                var assets = services.Services.GetRequiredService<AssetService>();
-                var preloadTasks = page.Games.Select(g =>
-                    assets.GetCachedPathAsync(SearchVisuals.ChampionIcon(g.ChampionId), cancellationToken));
-                await Task.WhenAll(preloadTasks).ConfigureAwait(false);
-            }
-
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                applyMatches(page.Games);
-                applyHasMore(page.HasMore);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // 页面已卸载或翻页过快
-        }
-    }
-
-    /// <summary>加载单局详情；失败保持 <c>null</c>，面板会显示"读取中/未取到"。</summary>
-    internal static async Task LoadDetailAsync(
-        AppServices services,
-        IMatchService matchService,
-        long gameId,
-        string? puuid,
-        Action<MatchDetail?> apply,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            MatchDetail? loaded = await matchService
-                .GetMatchDetailAsync(gameId, puuid, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                apply(loaded);
-                if (loaded is not null)
-                {
-                    _ = LoadParticipantRanksAndPrivacyAsync(services, loaded, apply, cancellationToken);
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // 选中项已切换
-        }
+        if (gameId == 0) return null;
+        var detail = await matchService.GetMatchDetailAsync(gameId, puuid, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return detail ?? throw new InvalidOperationException("读取对局详情失败");
     }
 
     /// <summary>后台渐进加载对局 10 人名单的段位与战绩隐私状态。</summary>
-    internal static async Task LoadParticipantRanksAndPrivacyAsync(
+    internal static async Task<SearchEnrichmentResult> LoadParticipantRanksAndPrivacyAsync(
         AppServices services,
-        MatchDetail detail,
-        Action<MatchDetail?> apply,
+        MatchDetail? detail,
         CancellationToken cancellationToken)
     {
+        if (detail is null) return new(null, false);
         var careerService = services.Services.GetService<ICareerService>();
         var lcu = services.Services.GetService<LcuConnection>();
-        if (careerService is null || lcu is null) return;
+        if (careerService is null || lcu is null) return new(detail, false);
 
         var allPlayers = detail.Blue.Players.Concat(detail.Red.Players).Where(p => !string.IsNullOrEmpty(p.Puuid)).ToList();
-        if (allPlayers.Count == 0) return;
+        if (allPlayers.Count == 0) return new(detail, false);
 
         // 「对局详情中显示段位」关闭时跳过段位拉取（Tier 为空即不渲染勋章，
         // 对照旧 Search.vue loadRanksInBackground 的 showTier 判定）
@@ -208,81 +137,88 @@ internal static class SearchLoaders
         var privacyMap = new ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
 
         long now = Environment.TickCount64;
+        int failures = 0;
+        var logger = services.LoggerFactory.CreateLogger("YuumiX.App.Pages.Search");
 
         var tasks = allPlayers.Select(async p =>
         {
             await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                // 1. 段位（仅在配置开启时加载，TTL 5min 缓存，solo 优先、flex 兜底）
-                if (showTier)
+                await RunParticipantEnrichmentAsync(async () =>
                 {
-                    if (RankCache.TryGetValue(p.Puuid, out var cachedRank) && now - cachedRank.Timestamp < RankCacheTtl.TotalMilliseconds)
+                    // 1. 段位（仅在配置开启时加载，TTL 5min 缓存，solo 优先、flex 兜底）
+                    if (showTier)
                     {
-                        if (!string.IsNullOrEmpty(cachedRank.Tier))
+                        if (RankCache.TryGetValue(p.Puuid, out var cachedRank) && now - cachedRank.Timestamp < RankCacheTtl.TotalMilliseconds)
                         {
-                            rankMap[p.Puuid] = (cachedRank.Tier, cachedRank.RankText);
+                            if (!string.IsNullOrEmpty(cachedRank.Tier))
+                            {
+                                rankMap[p.Puuid] = (cachedRank.Tier, cachedRank.RankText);
+                            }
+                        }
+                        else
+                        {
+                            var stats = await careerService.GetRankedStatsAsync(p.Puuid, cancellationToken: cancellationToken).ConfigureAwait(false);
+                            var entry = stats.SoloDuo;
+                            if (entry is null || string.IsNullOrEmpty(entry.Tier) || entry.Tier == "NONE" || entry.Tier == "UNRANKED")
+                            {
+                                entry = stats.Flex;
+                            }
+
+                            if (entry is not null && !string.IsNullOrEmpty(entry.Tier) && entry.Tier != "NONE" && entry.Tier != "UNRANKED")
+                            {
+                                rankMap[p.Puuid] = (entry.Tier, entry.TierText);
+                                RankCache[p.Puuid] = (entry.Tier, entry.TierText, now);
+                            }
+                            else
+                            {
+                                RankCache[p.Puuid] = (null, null, now);
+                            }
+                        }
+                    }
+
+                    // 2. 隐私状态（TTL 10min 缓存，仅缓存 PRIVATE）
+                    if (PrivacyCache.TryGetValue(p.Puuid, out var cachedPriv) && now - cachedPriv.Timestamp < PrivacyCacheTtl.TotalMilliseconds)
+                    {
+                        if (cachedPriv.IsPrivate)
+                        {
+                            privacyMap[p.Puuid] = true;
                         }
                     }
                     else
                     {
-                        var stats = await careerService.GetRankedStatsAsync(p.Puuid, cancellationToken: cancellationToken).ConfigureAwait(false);
-                        var entry = stats.SoloDuo;
-                        if (entry is null || string.IsNullOrEmpty(entry.Tier) || entry.Tier == "NONE" || entry.Tier == "UNRANKED")
+                        var transport = lcu.Transport;
+                        if (transport is not null)
                         {
-                            entry = stats.Flex;
-                        }
-
-                        if (entry is not null && !string.IsNullOrEmpty(entry.Tier) && entry.Tier != "NONE" && entry.Tier != "UNRANKED")
-                        {
-                            rankMap[p.Puuid] = (entry.Tier, entry.TierText);
-                            RankCache[p.Puuid] = (entry.Tier, entry.TierText, now);
-                        }
-                        else
-                        {
-                            RankCache[p.Puuid] = (null, null, now);
-                        }
-                    }
-                }
-
-                // 2. 隐私状态（TTL 10min 缓存，仅缓存 PRIVATE）
-                if (PrivacyCache.TryGetValue(p.Puuid, out var cachedPriv) && now - cachedPriv.Timestamp < PrivacyCacheTtl.TotalMilliseconds)
-                {
-                    if (cachedPriv.IsPrivate)
-                    {
-                        privacyMap[p.Puuid] = true;
-                    }
-                }
-                else
-                {
-                    var transport = lcu.Transport;
-                    if (transport is not null)
-                    {
-                        var resp = await transport.SendAsync(
-                            LcuRequest.Get($"/lol-summoner/v2/summoners/puuid/{p.Puuid}"),
-                            cancellationToken).ConfigureAwait(false);
-                        if (resp.IsSuccess && !string.IsNullOrWhiteSpace(resp.Body))
-                        {
-                            using var doc = JsonDocument.Parse(resp.Body);
-                            string? privacy = doc.RootElement.TryGetProperty("privacy", out JsonElement pEl) && pEl.ValueKind == JsonValueKind.String
-                                ? pEl.GetString()
-                                : null;
-                            bool isPriv = string.Equals(privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase);
-                            if (isPriv)
+                            var resp = await transport.SendAsync(
+                                LcuRequest.Get($"/lol-summoner/v2/summoners/puuid/{p.Puuid}"),
+                                cancellationToken).ConfigureAwait(false);
+                            if (!resp.IsSuccess) throw new InvalidOperationException("读取隐私状态失败");
+                            if (!string.IsNullOrWhiteSpace(resp.Body))
                             {
-                                privacyMap[p.Puuid] = true;
-                                PrivacyCache[p.Puuid] = (true, now);
-                            }
-                            else
-                            {
-                                PrivacyCache[p.Puuid] = (false, now);
+                                using var doc = JsonDocument.Parse(resp.Body);
+                                string? privacy = doc.RootElement.TryGetProperty("privacy", out JsonElement pEl) && pEl.ValueKind == JsonValueKind.String
+                                    ? pEl.GetString()
+                                    : null;
+                                bool isPriv = string.Equals(privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase);
+                                if (isPriv)
+                                {
+                                    privacyMap[p.Puuid] = true;
+                                    PrivacyCache[p.Puuid] = (true, now);
+                                }
+                                else
+                                {
+                                    PrivacyCache[p.Puuid] = (false, now);
+                                }
                             }
                         }
                     }
-                }
-            }
-            catch
-            {
+                }, ex =>
+                {
+                    Interlocked.Increment(ref failures);
+                    logger.LogWarning(ex, "读取参与者段位或隐私失败（Puuid={Puuid}）", p.Puuid);
+                }, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -292,7 +228,7 @@ internal static class SearchLoaders
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
 
-        if (cancellationToken.IsCancellationRequested) return;
+        cancellationToken.ThrowIfCancellationRequested();
 
         MatchDetailPlayer MapPlayer(MatchDetailPlayer player)
         {
@@ -308,7 +244,23 @@ internal static class SearchLoaders
 
         var updatedBlue = detail.Blue with { Players = detail.Blue.Players.Select(MapPlayer).ToList() };
         var updatedRed = detail.Red with { Players = detail.Red.Players.Select(MapPlayer).ToList() };
-        apply(detail with { Blue = updatedBlue, Red = updatedRed });
+        return new(detail with { Blue = updatedBlue, Red = updatedRed }, failures > 0);
+    }
+
+    internal static async Task RunParticipantEnrichmentAsync(Func<Task> load, Action<Exception> onError, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await load().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            onError(ex);
+        }
     }
 
     /// <summary>
@@ -316,31 +268,38 @@ internal static class SearchLoaders
     ///
     /// 无论成败都给一次提示：静默失败会让人误以为传过了，静默成功又无从确认。
     /// </summary>
-    internal static async Task UploadMatchesAsync(
+    internal static async Task<bool> UploadMatchesAsync(
         AppServices services,
         long[] gameIds,
         string? currentSummonerPuuid,
-        Action<string?> setNotice)
+        Action<string?, int> setNotice,
+        CancellationToken cancellationToken)
     {
         try
         {
             var batch = services.Services.GetRequiredService<UploadBatchService>();
             BatchUploadResult result = await batch
-                .UploadAsync(gameIds, currentSummonerPuuid)
+                .UploadAsync(gameIds, currentSummonerPuuid, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
+            cancellationToken.ThrowIfCancellationRequested();
             setNotice(result switch
             {
                 { Error: not null, SuccessCount: 0 } => $"上传失败: {result.Error}",
                 { SuccessCount: > 0 } => $"已上传 {result.SuccessCount} 场对局",
                 _ => "所有对局已存在，无需上传",
-            });
-
-            await SearchEffects.ClearNoticeLaterAsync(setNotice, 2500).ConfigureAwait(false);
+            }, 2500);
+            return result.FailedCount == 0 && result.Error is null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 页面离开时停止等待上传结果，不再显示提示。
+            return false;
         }
         catch (Exception ex)
         {
-            setNotice($"上传异常: {ex.Message}");
+            if (!cancellationToken.IsCancellationRequested) setNotice($"上传异常: {ex.Message}", 0);
+            return false;
         }
     }
 }

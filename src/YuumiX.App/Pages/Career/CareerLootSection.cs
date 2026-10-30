@@ -11,12 +11,11 @@ using YuumiX.Core.Features.Career.Models;
 
 namespace YuumiX.App.Pages.Career;
 
-/// <summary>单件开启数量弹窗的请求载荷：页面持有弹窗状态渲染遮罩，确认时回传数量（R14 拆分）。</summary>
+/// <summary>单件开启数量弹窗的请求载荷，确认时回传数量。</summary>
 internal sealed record LootQuantityDialog(OpenableLootItem Item, int MaxQuantity, Action<int> OnConfirm);
 
 /// <summary>
-/// 战利品弹窗遮罩渲染（页面级调用）：单件数量弹窗 / 批量确认弹窗，覆盖在正文之上
-///（就近遮罩，不用新窗口）。弹窗必须盖整个正文区域，因此渲染留在页面、实现集中在此。
+/// 页面级单件数量与批量操作确认弹窗。
 /// </summary>
 internal static class CareerLootOverlay
 {
@@ -66,11 +65,13 @@ internal sealed record CareerLootSectionProps(
 
 /// <summary>
 /// 战利品页签（自 <c>CareerPage</c> 拆出，R14）：过滤/选中交互状态、五个批量操作
-///（UseMutation，R7）与操作进度提示都在本组件；确认弹窗与数量弹窗由页面统一遮罩，
+///（UseMutation，R7）与操作进度提示都在本组件；确认弹窗与数量弹窗由页面统一呈现，
 /// 经 props 回调请求、回调闭包随载荷传回。
 /// </summary>
 internal sealed class CareerLootSection : Component<CareerLootSectionProps>
 {
+    private static string T(string key, string fallback) => AppHost.CurrentI18n?.T(key, fallback) ?? fallback;
+
     public override Element Render()
     {
         var services = UseContext(AppHost.Context);
@@ -156,15 +157,28 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
                     Props.OnRefresh();
                 }));
 
+        var operationGate = UseRef<LootOperationGate?>(null);
+        operationGate.Current ??= new LootOperationGate();
+        async Task RunGuarded(Func<Task> operation)
+        {
+            var gate = operationGate.Current;
+            if (gate is null || !gate.TryBegin()) return;
+            try { await operation(); }
+            finally { gate.End(); }
+        }
+
         // 点击卡片弹数量选择弹窗（旧版 openLootModal），初始数量 = 最大可开启数；
-        // 弹窗渲染在页面遮罩层，确认时把数量传回本组件的 openMutation。
+        // 确认时把数量传回本组件的 openMutation。
         void HandleOpenLootItem(OpenableLootItem item) =>
             Props.OnRequestQuantityDialog(new LootQuantityDialog(
                 item,
                 LootManagerView.MaxOpenQuantity(item),
-                quantity => _ = openMutation.RunAsync((item, Math.Clamp(quantity, 1, Math.Max(LootManagerView.MaxOpenQuantity(item), 1))))));
+                quantity => _ = RunGuarded(() => openMutation.RunAsync((item, Math.Clamp(quantity, 1, Math.Max(LootManagerView.MaxOpenQuantity(item), 1)))))));
 
-        void HandleSmartOpenAll() => _ = smartOpenAllMutation.RunAsync(true);
+        void HandleSmartOpenAll() => Props.OnRequestConfirmDialog(new LootConfirmDialog(
+            T("career.lootOpenAllTitle", "全部开启"),
+            T("career.lootOpenAllConfirm", "确认后将刷新战利品库存，并开启当时全部可开启物品。此操作无法撤销。"),
+            [], () => _ = RunGuarded(() => smartOpenAllMutation.RunAsync(true))));
 
         void HandleToggleSelect(string lootId)
         {
@@ -220,7 +234,7 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
             if (items.Count == 0) return;
 
             Props.OnRequestConfirmDialog(CareerLootDialogs.DisenchantDialog(
-                kinds, blue, orange, () => _ = disenchantMutation.RunAsync(items)));
+                kinds, blue, orange, () => _ = RunGuarded(() => disenchantMutation.RunAsync(items))));
         }
 
         // 重铸（裁决 A3）：按 lootId 分组、每组凑 3 的倍数、余数保留；
@@ -235,12 +249,12 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
             var (items, groups, consumed, remaining) = LootManagerView.PlanReroll(lootData.InventoryItems, selectedLootIds);
             if (groups == 0)
             {
-                setLootNotice("所选战利品凑不齐一组重随（每类至少 3 个）");
+                setLootNotice(T("career.lootRerollInsufficient", "所选战利品凑不齐一组重随（每类至少 3 个）"));
                 return;
             }
 
             Props.OnRequestConfirmDialog(CareerLootDialogs.RerollDialog(
-                groups, consumed, remaining, () => _ = rerollMutation.RunAsync(items)));
+                groups, consumed, remaining, () => _ = RunGuarded(() => rerollMutation.RunAsync(items))));
         }
 
         // 升级/解锁：前置校验（明细在 CareerLootDialogs.PlanUpgrade）不过只发提示
@@ -258,7 +272,7 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
                 plan.Title,
                 plan.Message,
                 plan.Details,
-                () => _ = upgradeMutation.RunAsync(plan.Items)));
+                () => _ = RunGuarded(() => upgradeMutation.RunAsync(plan.Items))));
         }
 
         return LootManagerView.Render(
@@ -287,4 +301,11 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
             progress: lootProgress,
             operationNotice: lootNotice);
     }
+}
+
+internal sealed class LootOperationGate
+{
+    private int _pending;
+    internal bool TryBegin() => Interlocked.CompareExchange(ref _pending, 1, 0) == 0;
+    internal void End() => Interlocked.Exchange(ref _pending, 0);
 }

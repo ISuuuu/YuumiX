@@ -76,7 +76,13 @@ public sealed class SavedPlayersPage : Component
         // 内联编辑与安全删除状态
         var (editingPuuid, setEditingPuuid) = UseState<string?>(null, threadSafe: true);
         var (editingTag, setEditingTag) = UseState(string.Empty, threadSafe: true);
-        var (pendingDeletePuuid, setPendingDeletePuuid) = UseState<string?>(null, threadSafe: true);
+        var (pendingDelete, setPendingDelete) = UseState<SavedPlayerRecord?>(null, threadSafe: true);
+        var pendingDeleteRef = UseRef<SavedPlayerRecord?>(null);
+        void SetPendingDelete(SavedPlayerRecord? player)
+        {
+            pendingDeleteRef.Current = player;
+            setPendingDelete(player);
+        }
 
         // 展开与收起相遇对局
         var (expanded, setExpanded) = UseState<ExpandedTarget?>(null, threadSafe: true);
@@ -100,7 +106,7 @@ public sealed class SavedPlayersPage : Component
         cleanupRef.Current = () =>
         {
             setEditingPuuid(null);
-            setPendingDeletePuuid(null);
+            SetPendingDelete(null);
         };
         var isFirstNavigatedToRef = UseRef(true);
         var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
@@ -293,7 +299,6 @@ public sealed class SavedPlayersPage : Component
             options: new MutationOptions<SavedPlayerRecord, object?>(
                 OnSuccess: (_, player) =>
                 {
-                    setPendingDeletePuuid(null);
                     if (expanded?.Puuid == player.Puuid)
                     {
                         setExpanded(null);
@@ -349,8 +354,15 @@ public sealed class SavedPlayersPage : Component
         void HandleSaveTag(SavedPlayerRecord player) =>
             _ = saveTagMutation.RunAsync((player, editingTag));
 
-        void HandleConfirmDelete(SavedPlayerRecord player) =>
+        void HandleConfirmDelete(SavedPlayerRecord player)
+        {
+            if (!ReferenceEquals(pendingDeleteRef.Current, player) || deleteMutation.IsPending) return;
+            SetPendingDelete(null);
             _ = deleteMutation.RunAsync(player);
+        }
+
+        var i18n = AppHost.CurrentI18n;
+        string T(string key, string fallback) => i18n?.T(key, fallback) ?? fallback;
 
         void HandleExport() => _ = exportMutation.RunAsync(selfPuuid);
 
@@ -391,12 +403,19 @@ public sealed class SavedPlayersPage : Component
                     editingTag,
                     setEditingTag,
                     setEditingPuuid,
-                    pendingDeletePuuid,
-                    setPendingDeletePuuid,
+                    SetPendingDelete,
                     ToggleExpand,
                     HandleSaveTag,
-                    HandleConfirmDelete,
                     palette).Grid(row: 2),
+                pendingDelete is { } target
+                    ? ConfirmationDialog.Render(
+                        T("savedPlayersPage.deleteConfirmTitle", "删除玩家记录"),
+                        Body(T("savedPlayersPage.deleteConfirmMessage", "确定删除 {name} 及其所有相遇记录吗？此操作无法撤销。").Replace("{name}", target.SummonerName)).TextWrapping(),
+                        T("savedPlayersPage.deleteConfirmButton", "确认删除"),
+                        T("savedPlayersPage.cancel", "取消"),
+                        true, () => HandleConfirmDelete(target), () => SetPendingDelete(null), palette,
+                        !deleteMutation.IsPending)
+                    : null,
             ]
         )
         .Padding(20, 16, 20, 16);
