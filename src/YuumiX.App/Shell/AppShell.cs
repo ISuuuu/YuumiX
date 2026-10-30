@@ -1,3 +1,4 @@
+using YuumiX.App.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI;
@@ -621,6 +622,12 @@ public sealed class AppShell : Component
         // 取数链路，首帧必定闪出「正在读取生涯数据…」——旧版 Vue 用 v-show 平级切换，
         // 组件实例常驻，从来没有这个空态。CacheSize 取 RouteCatalog.All 的条数，
         // 保证全站页面都能命中缓存而不是被 LRU 推出（占位页状态极轻，多留几份无成本）。
+        UseEffect(() =>
+        {
+            DropDownServiceHost.Close();
+            return static () => { };
+        }, RouteCatalog.KeyFor(nav.CurrentRoute));
+
         var pageHost = NavigationHost(nav, BuildPage) with
         {
             Transition = NavigationTransition.None,
@@ -915,6 +922,7 @@ public sealed class AppShell : Component
                 updateOverlay,
                 // 全局 Toast 宿主（R5）：压在页面内容之上，队列由 ToastContext 提供。
                 Component<ToastHost>(),
+                Component<DropDownLayer>(),
                 // 大乱斗板凳席悬浮窗的显隐协调者：不产生视觉输出，只把 LCU 状态翻译成窗口开关。
                 Component<AramBenchOverlayCoordinator>(),
                 // 公告弹窗：右下角覆盖层（对应旧版 NoticePopup 的 position: fixed）。

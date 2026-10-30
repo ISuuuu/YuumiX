@@ -1,3 +1,4 @@
+using YuumiX.App.Controls;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
@@ -148,15 +149,13 @@ internal static class GameSection
                 Body(i18n.T("tools.spectateIntro", "输入目标召唤师的 Riot ID 或游戏名称，启动实时对局观战："))
                     .Foreground(Theme.SecondaryText),
                 ToolsVisuals.CardRow(i18n.T("tools.spectateMethodLabel", "观战通道:"),
-                    ComboBox(spectateMethodLabels, spectate.MethodIndex, idx =>
+                    PixelComboBox.Render(spectateMethodLabels, spectate.MethodIndex, idx =>
                     {
                         if (idx >= 0 && idx < spectateMethodLabels.Length)
                         {
                             setSpectate(spectate with { MethodIndex = idx });
                         }
-                    })
-                        .Width(340)
-                        .AutomationName("观战方式选择")),
+                    }, automationName: "观战方式选择", width: 340)),
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
@@ -294,14 +293,14 @@ internal static class GameSection
                         ui.Commit(nameof(FunctionsConfig.EnableAutoCreateLobby));
                     }, "自动创建大厅开关")),
                 ToolsVisuals.CardRow(i18n.T("tools.defaultModeLabel", "默认模式选择:"),
-                    ComboBox(LobbyModeLabels, IndexOfLobbyMode(config.Functions.DefaultGameMode), idx =>
+                    PixelComboBox.Render(LobbyModeLabels, IndexOfLobbyMode(config.Functions.DefaultGameMode), idx =>
                     {
                         if (idx < 0 || idx >= LobbyModes.Length) return;
                         var mode = LobbyModes[idx];
                         if (mode == config.Functions.DefaultGameMode) return;
                         config.Functions.DefaultGameMode = mode;
                         ui.Commit(nameof(FunctionsConfig.DefaultGameMode));
-                    }).Width(220).HAlign(HorizontalAlignment.Right).IsEnabled(config.Functions.EnableAutoCreateLobby).AutomationName("默认队列选择")),
+                    }, automationName: "默认队列选择", width: 220, isEnabled: config.Functions.EnableAutoCreateLobby).HAlign(HorizontalAlignment.Right)),
                 HStack(8,
                     Button(i18n.T("tools.createLobbyBtn", "立即创建该模式大厅"), async () =>
                     {
