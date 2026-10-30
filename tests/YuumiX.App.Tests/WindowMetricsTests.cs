@@ -1,4 +1,5 @@
 using Xunit;
+using YuumiX.App.Controls;
 using YuumiX.App.Windowing;
 
 namespace YuumiX.App.Tests;
@@ -45,5 +46,49 @@ public sealed class WindowMetricsTests
     {
         var result = WindowMetrics.ApplyScaleToWindow(null, "125");
         Assert.False(result);
+    }
+
+    [Theory]
+    [InlineData(1199, 1100)]
+    [InlineData(1000, 1000)]
+    [InlineData(1100.75, 1100)]
+    [InlineData(1341, 1100)]
+    public void ContentColumnFit_FloorsClampedWidth(double viewportWidth, double expectedWidth)
+    {
+        var width = ContentColumn.Fit(viewportWidth);
+        Assert.Equal(expectedWidth, width);
+        Assert.Equal(Math.Floor(width), width);
+    }
+
+    [Theory]
+    [InlineData(1199, 1100, 1.0, 49)]
+    [InlineData(1184, 1100, 1.0, 42)]
+    [InlineData(1000, 1000, 1.0, 0)]
+    [InlineData(1100.75, 1100, 1.0, 0)]
+    [InlineData(1199, 1100, 1.25, 48)]
+    [InlineData(1199, 1100, 1.5, 48)]
+    [InlineData(1341, 1100, 1.0, 120)]
+    [InlineData(1341, 1100, 1.25, 120)]
+    public void ContentColumnCenterOffset_AlwaysLandsOnPhysicalPixelGrid(
+        double viewportWidth,
+        double columnWidth,
+        double pixelScale,
+        double expectedOffset)
+    {
+        var width = ContentColumn.Fit(viewportWidth);
+        Assert.Equal(columnWidth, width);
+
+        var offset = ContentColumn.CenterOffset(viewportWidth, width, pixelScale);
+
+        Assert.Equal(expectedOffset, offset);
+
+        // 弹层锚点必须落在整数物理像素上：offset × 缩放系数 ∈ ℤ。
+        // 系统缩放 125% 下整数 DIP 仍是半像素（49×1.25=61.25），所以断言乘积而不是 offset 本身。
+        Assert.Equal(Math.Round(offset * pixelScale), offset * pixelScale, 6);
+
+        // 负数与非法输入回退为 0，不产生负边距。
+        Assert.Equal(0, ContentColumn.CenterOffset(-1, width, pixelScale));
+        Assert.Equal(0, ContentColumn.CenterOffset(double.NaN, width, pixelScale));
+        Assert.Equal(0, ContentColumn.CenterOffset(viewportWidth, width, double.NaN));
     }
 }
