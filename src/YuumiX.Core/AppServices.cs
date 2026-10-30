@@ -276,12 +276,16 @@ public sealed class AppServices : IAsyncDisposable
             logger: provider.GetService<ILogger<AgentSupervisor>>()));
         collection.AddSingleton<AgentLifecycle>();
 
+        collection.AddSingleton<IChampionAliasProvider>(provider => new ChampionAliasProvider(
+            provider.GetRequiredService<RuntimePaths>(),
+            logger: provider.GetService<ILogger<ChampionAliasProvider>>()));
         collection.AddSingleton<IToolsService>(provider => new ToolsService(
             () => provider.GetRequiredService<LcuConnection>().Transport,
             provider.GetRequiredService<ISgpService>(),
             () => provider.GetRequiredService<LcuConnection>().Credentials,
             () => provider.GetRequiredService<AppConfig>(),
-            provider.GetService<ILogger<ToolsService>>()));
+            provider.GetService<ILogger<ToolsService>>(),
+            aliasProvider: provider.GetRequiredService<IChampionAliasProvider>()));
         collection.AddSingleton<IFriendCleanerService>(provider => new FriendCleanerService(
             () => provider.GetRequiredService<LcuConnection>().Transport,
             provider.GetService<ILogger<FriendCleanerService>>()));

@@ -763,7 +763,7 @@
     "clearBorderBtn": "卸下頭像框",
     "clickToExpand": "點擊展開",
     "clearBtn": "清空",
-    "searchChampPlaceholder": "搜索英雄名稱、別名或稱號...",
+    "searchChampPlaceholder": "搜索英雄名稱、稱號、拼音或別稱...",
     "loadingChamps": "正在加載英雄數據...",
     "noChampsFound": "未搜索到相關英雄",
     "noCandidates": "未配置候選英雄",

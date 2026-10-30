@@ -10,6 +10,7 @@ using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Pages.Tools.Sections;
 using YuumiX.App.Theming;
+using YuumiX.Core.Assets;
 using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Features.Tools.Models;
 using YuumiX.Core.Lcu;
@@ -108,9 +109,11 @@ public sealed class ToolsPage : Component
         var friendRef = UseRef(friend);
         friendRef.Current = friend;
 
-        // ── 异步资源（R7）：英雄/技能目录在任一相关卡片展开时拉取；挑战勋章在勋章卡展开时拉取。
-        // 收起 → 展开命中 StaleTime 内的缓存，不再重复请求 LCU（对齐旧"列表非空不重拉"语义）。
-        bool catalogNeeded = isLcuConnected && (expandedKeys.Contains("autoHover") || expandedKeys.Contains("autoBan") || expandedKeys.Contains("autoSpells"));
+        // ── 异步资源（R7）：英雄/技能目录**进页即预热**，挑战勋章仍在勋章卡展开时才拉。
+        // 原先目录是按需拉取（展开 autoHover/autoBan/autoSpells 才请求），代价是展开那一下要等
+        // LCU 往返 + 之后再渲染一百多个英雄项，手感明显比其它卡片慢一拍；改成进页先拉一次，
+        // 8 小时缓存窗口内展开就是纯渲染，不再有网络等待（离线时不拉）。
+        bool catalogNeeded = isLcuConnected;
         bool badgesNeeded = isLcuConnected && expandedKeys.Contains("badges");
         var catalogOptions = new ResourceOptions(StaleTime: CatalogStaleWindow, CacheTime: CatalogStaleWindow);
 
@@ -157,6 +160,28 @@ public sealed class ToolsPage : Component
         var challenges = challengesRes.AsList();
         bool championsLoading = championsRes.IsLoading() || spellsRes.IsLoading();
         bool challengesLoading = challengesRes.IsLoading();
+
+        // 头像预热：展开「自动选用 / 自动禁用」那一下之所以比别的卡片慢，不是数据多，
+        // 是要在一帧里挂 173 个英雄头像，每个都要走一次「LCU 请求 → 落盘 → 解码」。
+        // 目录一就绪就在后台把这些图标逐个过一遍（命中缓存直接跳过），展开时就只剩布局与解码。
+        UseEffect(
+            () =>
+            {
+                if (champions.Count == 0)
+                {
+                    return static () => { };
+                }
+
+                var assets = services.Services.GetRequiredService<AssetService>();
+                var warmCts = new CancellationTokenSource();
+                _ = WarmChampionIconsAsync(assets, champions, logger, warmCts.Token);
+                return () =>
+                {
+                    warmCts.Cancel();
+                    warmCts.Dispose();
+                };
+            },
+            champions.Count);
 
         // 挑战勋章加载完成的提示（对齐旧 LoadChallenges 的 toast：每次真实拉取成功提示一次）
         UseEffect(
@@ -302,5 +327,43 @@ public sealed class ToolsPage : Component
                 mainScroll.Grid(row: 0, column: 0),
             ]
         );
+    }
+
+    /// <summary>
+    /// 后台预热英雄头像：并发 4（<see cref="AssetService"/> 自身还有 8 个许可，不会把页面自己的请求挤掉），
+    /// 命中本地缓存的直接返回。目标是把「展开选人/禁用卡片」的等待从一百多次资源请求降成一次布局。
+    /// 任何失败都只是少预热一张图 —— 展开时仍会走 <c>LcuImage</c> 的普通加载兜底。
+    /// </summary>
+    private static async Task WarmChampionIconsAsync(
+        AssetService assets,
+        IReadOnlyList<ChampionSummaryItem> champions,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Parallel.ForEachAsync(
+                champions,
+                new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
+                async (champion, token) =>
+                {
+                    try
+                    {
+                        await assets.GetCachedPathAsync(champion.IconPath, token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // 页面卸载或切走：正常退出路径
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogDebug(ex, "英雄头像预热失败: {Path}", champion.IconPath);
+                    }
+                }).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // 同上：取消不需要上报
+        }
     }
 }

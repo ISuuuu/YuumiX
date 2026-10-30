@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using YuumiX.Core.Features.Tools;
 
 namespace YuumiX.Core.Persistence;
 
@@ -74,18 +75,18 @@ public sealed class AppConfig
         Personalization.LightDeathsNumberColor ??= "#ffb60000";
         Personalization.DarkDeathsNumberColor ??= "#ffff8d8d";
 
-        Functions.AutoSelectChampion ??= [];
-        Functions.AutoSelectChampionTop ??= [];
-        Functions.AutoSelectChampionJug ??= [];
-        Functions.AutoSelectChampionMid ??= [];
-        Functions.AutoSelectChampionBot ??= [];
-        Functions.AutoSelectChampionSup ??= [];
-        Functions.AutoBanChampion ??= [];
-        Functions.AutoBanChampionTop ??= [];
-        Functions.AutoBanChampionJug ??= [];
-        Functions.AutoBanChampionMid ??= [];
-        Functions.AutoBanChampionBot ??= [];
-        Functions.AutoBanChampionSup ??= [];
+        Functions.AutoSelectChampion = NormalizeChampionIds(Functions.AutoSelectChampion ??= []);
+        Functions.AutoSelectChampionTop = NormalizeChampionIds(Functions.AutoSelectChampionTop ??= []);
+        Functions.AutoSelectChampionJug = NormalizeChampionIds(Functions.AutoSelectChampionJug ??= []);
+        Functions.AutoSelectChampionMid = NormalizeChampionIds(Functions.AutoSelectChampionMid ??= []);
+        Functions.AutoSelectChampionBot = NormalizeChampionIds(Functions.AutoSelectChampionBot ??= []);
+        Functions.AutoSelectChampionSup = NormalizeChampionIds(Functions.AutoSelectChampionSup ??= []);
+        Functions.AutoBanChampion = NormalizeChampionIds(Functions.AutoBanChampion ??= []);
+        Functions.AutoBanChampionTop = NormalizeChampionIds(Functions.AutoBanChampionTop ??= []);
+        Functions.AutoBanChampionJug = NormalizeChampionIds(Functions.AutoBanChampionJug ??= []);
+        Functions.AutoBanChampionMid = NormalizeChampionIds(Functions.AutoBanChampionMid ??= []);
+        Functions.AutoBanChampionBot = NormalizeChampionIds(Functions.AutoBanChampionBot ??= []);
+        Functions.AutoBanChampionSup = NormalizeChampionIds(Functions.AutoBanChampionSup ??= []);
         Functions.AutoSetSummonerSpell ??= [];
         Functions.AutoSetSummonerSpellTop ??= [];
         Functions.AutoSetSummonerSpellJug ??= [];
@@ -99,6 +100,29 @@ public sealed class AppConfig
 
         Other.LastNoticeSha ??= string.Empty;
         Other.SearchHistory ??= string.Empty;
+    }
+
+    /// <summary>
+    /// 把英雄 id 统一到「当前版本」形态并去重。
+    /// <para>
+    /// 选择器历史上把经典模式（Jade）英雄也列了出来，用户可能已经存下 60000+原id 的经典 id；
+    /// 现在列表只列当前版本，若不折算，这些条目在选择器里认不出来（会显示成 <c>ID:60001</c>）、
+    /// 选中态也对不上。真正发往 LCU 时由 <see cref="ChampionVariants"/> 按会话形态映射。
+    /// </para>
+    /// </summary>
+    private static List<int> NormalizeChampionIds(List<int> ids)
+    {
+        var normalized = new List<int>(ids.Count);
+        foreach (var raw in ids)
+        {
+            int id = ChampionVariants.ToCurrent(raw);
+            if (id > 0 && !normalized.Contains(id))
+            {
+                normalized.Add(id);
+            }
+        }
+
+        return normalized;
     }
 }
 

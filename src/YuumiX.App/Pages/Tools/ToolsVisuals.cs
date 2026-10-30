@@ -151,15 +151,39 @@ internal static class ToolsVisuals
             ]
         ).HAlign(HorizontalAlignment.Stretch);
 
-        var headerButton = Button(headerContent, () => ui.ToggleExpanded(key))
-            .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-            .BorderThickness(0)
+        // 头部刻意不用 Button：原生 Button 模板在 PointerOver / Pressed 上会把整块背景换成另一支画刷，
+        // 且 ContentPresenter 挂着 83ms 的 BrushTransition —— 卡片有近千像素宽，点一下就是整片可见的
+        // 渐变。改用普通容器承载点击（与 MatchCardView / SummonerPaneCard 同款写法）：
+        // 容器没有视觉状态，所以点击处不会有任何动画；键盘 Tab + Enter/Space 与无障碍名照旧。
+        var header = Border(headerContent)
             .Padding(new Thickness(16, 12, 16, 12))
-            .HAlign(HorizontalAlignment.Stretch)
-            .HorizontalContentAlignment(HorizontalAlignment.Stretch)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .IsEnabled(ui.IsLcuConnected)
-            .AutomationName(title);
+            // Background 为 null 的元素不参与命中测试 —— 不给这支全透明画刷，只有文字字形能点到，
+            // 卡片头部的空白区域会「点了没反应」（原生 Button 自带 Background，所以以前不显）。
+            // 全透明 = 看得见效果为零，命中测试照常。
+            .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
+            .IsTabStop(ui.IsLcuConnected)
+            .IsHitTestVisible(ui.IsLcuConnected)
+            .AutomationName(title)
+            // 用 PointerReleased 而不是 OnTapped：Tapped 要等手势识别完成（按下-抬起的消歧），
+            // 在 ScrollViewer 内容里会明显「迟一拍」；释放即切换，手感才跟手。
+            // 只认左键释放，避免右键松手也切换。
+            .OnPointerReleased((_, args) =>
+            {
+                if (args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                    == Microsoft.UI.Input.PointerUpdateKind.LeftButtonReleased)
+                {
+                    ui.ToggleExpanded(key);
+                }
+            })
+            .OnKeyDown((_, args) =>
+            {
+                if (args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
+                {
+                    ui.ToggleExpanded(key);
+                    args.Handled = true;
+                }
+            });
 
         Element body;
         if (isExpanded)
@@ -172,11 +196,11 @@ internal static class ToolsVisuals
             var paddedContent = Border(innerContent)
                 .Padding(new Thickness(16, 4, 16, 12));
 
-            body = VStack(0, headerButton, divider, paddedContent);
+            body = VStack(0, header, divider, paddedContent);
         }
         else
         {
-            body = headerButton;
+            body = header;
         }
 
         return Border(body)

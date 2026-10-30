@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Automation.Models;
 using YuumiX.Core.Features.Opgg;
 using YuumiX.Core.Features.Opgg.Models;
+using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Parsers;
 using YuumiX.Core.Persistence;
@@ -152,11 +153,15 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         if (player.ChampionId != 0 || player.ChampionPickIntent != 0) return;
 
         string pos = player.AssignedPosition;
-        var allBans = new HashSet<int>(session.Bans.MyTeamBans.Concat(session.Bans.TheirTeamBans));
+        // 会话里的禁选 id 可能是经典模式形态（60000+原 id），一律折回当前版本再比较，
+        // 否则「已禁英雄」过滤会失效（同一英雄两种 id 互不相等）。
+        var allBans = new HashSet<int>(session.Bans.MyTeamBans
+            .Concat(session.Bans.TheirTeamBans)
+            .Select(ChampionVariants.ToCurrent));
 
         var candidates = GetPositionSelectCandidates(pos, cfg);
         candidates.AddRange(cfg.AutoSelectChampion);
-        candidates = candidates.Distinct().Where(c => !allBans.Contains(c)).ToList();
+        candidates = candidates.Select(ChampionVariants.ToCurrent).Distinct().Where(c => !allBans.Contains(c)).ToList();
 
         if (cfg.EnableAutoBanChampion)
         {
@@ -166,7 +171,9 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         }
 
         if (candidates.Count == 0) return;
-        int championId = candidates[0];
+
+        // 配置里存的是当前版本 id；经典模式会话要换成经典形态的 id 才认。
+        int championId = ChampionVariants.Resolve(candidates[0], IsClassicSession(session));
 
         // 寻找 pick action
         ChampSelectAction? pickAction = null;
@@ -215,19 +222,25 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         string pos = session.MyTeam.FirstOrDefault(p => p.CellId == cellId)?.AssignedPosition ?? "";
         var candidates = GetPositionBanCandidates(pos, cfg);
         candidates.AddRange(cfg.AutoBanChampion);
+        candidates = candidates.Select(ChampionVariants.ToCurrent).Distinct().ToList();
 
-        var allBans = new HashSet<int>(session.Bans.MyTeamBans.Concat(session.Bans.TheirTeamBans));
-        candidates = candidates.Distinct().Where(c => !allBans.Contains(c)).ToList();
+        var allBans = new HashSet<int>(session.Bans.MyTeamBans
+            .Concat(session.Bans.TheirTeamBans)
+            .Select(ChampionVariants.ToCurrent));
+        candidates = candidates.Where(c => !allBans.Contains(c)).ToList();
 
         if (cfg.PretendBan)
         {
             var intents = new HashSet<int>(session.MyTeam
                 .Select(p => p.ChampionPickIntent)
-                .Where(id => id > 0));
+                .Where(id => id > 0)
+                .Select(ChampionVariants.ToCurrent));
             candidates = candidates.Where(c => !intents.Contains(c)).ToList();
         }
 
         if (candidates.Count == 0) return;
+
+        bool classicSession = IsClassicSession(session);
 
         int actionId = banAction.Id;
         var currentLifecycle = _lifecycle.Snapshot();
@@ -253,9 +266,14 @@ public sealed class AutoBanPickAgent : IAutomationAgent
             var freshLifecycle = _lifecycle.Snapshot();
             lease.VerifyTarget(freshLifecycle, freshSession);
 
-            var newBans = new HashSet<int>(freshSession.Bans.MyTeamBans.Concat(freshSession.Bans.TheirTeamBans));
+            var newBans = new HashSet<int>(freshSession.Bans.MyTeamBans
+                .Concat(freshSession.Bans.TheirTeamBans)
+                .Select(ChampionVariants.ToCurrent));
             int championId = candidates.FirstOrDefault(c => !newBans.Contains(c));
             if (championId == 0) return;
+
+            // 候选是当前版本 id，发请求前换成会话形态（经典模式下是 60000+原 id）。
+            championId = ChampionVariants.Resolve(championId, classicSession);
 
             _logger?.LogInformation("自动禁用英雄: {ChampionId} (actionId={ActionId})", championId, actionId);
             await PatchActionAsync(actionId, championId, completed: true, ct).ConfigureAwait(false);
@@ -417,19 +435,19 @@ public sealed class AutoBanPickAgent : IAutomationAgent
                         && a.Completed
                         && a.ActorCellId != cellId)
                     {
-                        cantSelect.Add(a.ChampionId);
+                        cantSelect.Add(ChampionVariants.ToCurrent(a.ChampionId));
                     }
                 }
             }
-            foreach (var b in freshSession.Bans.MyTeamBans) cantSelect.Add(b);
-            foreach (var b in freshSession.Bans.TheirTeamBans) cantSelect.Add(b);
+            foreach (var b in freshSession.Bans.MyTeamBans) cantSelect.Add(ChampionVariants.ToCurrent(b));
+            foreach (var b in freshSession.Bans.TheirTeamBans) cantSelect.Add(ChampionVariants.ToCurrent(b));
 
             int targetChampId = freshSession.Actions
                 .SelectMany(g => g)
                 .FirstOrDefault(a => a.Id == lease.ActionId)?.ChampionId ?? 0;
 
             if (targetChampId == 0) targetChampId = lease.ExpectedChampionId;
-            if (targetChampId == 0 || cantSelect.Contains(targetChampId)) return;
+            if (targetChampId == 0 || cantSelect.Contains(ChampionVariants.ToCurrent(targetChampId))) return;
 
             _logger?.LogInformation("超时自动锁定英雄: {ChampionId}", targetChampId);
             await PatchActionAsync(lease.ActionId, targetChampId, completed: true, ct).ConfigureAwait(false);
@@ -471,6 +489,9 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         int championId = player.ChampionId != 0 ? player.ChampionId : player.ChampionPickIntent;
         if (championId == 0) return Task.CompletedTask;
 
+        // OP.GG 的数据只按当前版本英雄组织，经典模式会话里拿到的是 60000+原 id，先折回来。
+        championId = ChampionVariants.ToCurrent(championId);
+
         lock (_stateLock)
         {
             if (championId == _lastOpggChampionId)
@@ -491,6 +512,28 @@ public sealed class AutoBanPickAgent : IAutomationAgent
 
         _opggService.PublishChampSelectBuild(new OpggBuildEvent(championId, mode, opggPosition));
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 本次选人是否为经典模式会话。
+    /// <para>
+    /// 主判据是队列 id（4300 / 4310，见 <c>MatchQueueCatalog</c>）；兜底看会话里是否已经出现
+    /// 经典形态的英雄 id（禁选列表、队友已选与预选）—— 经典模式的会话内 id 是 60000+原 id，
+    /// 出现即证明形态，不再依赖队列 id 是否配置齐全。
+    /// </para>
+    /// </summary>
+    private static bool IsClassicSession(ChampSelectSession session)
+    {
+        if (session.QueueId is 4300 or 4310)
+        {
+            return true;
+        }
+
+        return session.Bans.MyTeamBans
+            .Concat(session.Bans.TheirTeamBans)
+            .Concat(session.MyTeam.Select(p => p.ChampionId))
+            .Concat(session.MyTeam.Select(p => p.ChampionPickIntent))
+            .Any(ChampionVariants.IsClassic);
     }
 
     private static ulong ComputeLockDelayMs(ChampSelectTimer? timer)

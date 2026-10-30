@@ -25,6 +25,7 @@ public sealed class ToolsService : IToolsService
     private readonly ISgpService _sgpService;
     private readonly Action<ProcessStartInfo>? _processStartOverride;
     private readonly ILogger<ToolsService>? _logger;
+    private readonly IChampionAliasProvider? _aliasProvider;
 
     private IReadOnlyList<ChampionSummaryItem>? _championSummaryCache;
     private IReadOnlyList<SummonerSpellItem>? _summonerSpellsCache;
@@ -36,7 +37,8 @@ public sealed class ToolsService : IToolsService
         Func<LcuCredentials?>? credentialsProvider = null,
         Func<Persistence.AppConfig?>? configProvider = null,
         ILogger<ToolsService>? logger = null,
-        Action<ProcessStartInfo>? processStartOverride = null)
+        Action<ProcessStartInfo>? processStartOverride = null,
+        IChampionAliasProvider? aliasProvider = null)
     {
         ArgumentNullException.ThrowIfNull(transportProvider);
         ArgumentNullException.ThrowIfNull(sgpService);
@@ -48,6 +50,8 @@ public sealed class ToolsService : IToolsService
         _logger = logger;
         // 测试注入点：单元测试不能真的拉起游戏进程，用钩子捕获启动参数做断言
         _processStartOverride = processStartOverride;
+        // 别名索引：拿到英雄 id 全集后才好判断「表里有没有新英雄」，故在目录加载时按需刷新
+        _aliasProvider = aliasProvider;
     }
 
     private ILcuTransport GetRequiredTransport()
@@ -739,6 +743,11 @@ public sealed class ToolsService : IToolsService
                 int id = elem.TryGetProperty("id", out var pId) && pId.TryGetInt32(out var idVal) ? idVal : 0;
                 if (id <= 0) continue;
 
+                // 经典模式（Jade）是独立的一套英雄 id（60000 + 原 id），与当前版本同名重复，
+                // 254 条里有 81 条属于它。选择器只列当前版本，避免同一个英雄出现两遍；
+                // 真正发往 LCU 前由 ChampionVariants 按会话形态映射回经典 id。
+                if (ChampionVariants.IsClassic(id)) continue;
+
                 string name = elem.TryGetProperty("name", out var pName) ? pName.GetString() ?? "" : "";
                 string alias = elem.TryGetProperty("alias", out var pAlias) ? pAlias.GetString() ?? "" : "";
                 string title = elem.TryGetProperty("title", out var pTitle) ? pTitle.GetString() ?? "" : "";
@@ -753,12 +762,46 @@ public sealed class ToolsService : IToolsService
 
             var sorted = list.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
             _championSummaryCache = sorted;
+
+            // 别名索引按需刷新（首次运行 / 应用版本变化 / 超过 7 天 / 出现表里没有的新英雄）。
+            // 刻意不 await：网络最坏要等满超时，不能让「展开选人卡片」跟着一起等；
+            // 刷新完成前搜索用内置基线，完成后下一次按键即生效。
+            QueueAliasRefresh(sorted);
+
             return sorted;
         }
         finally
         {
             _catalogLock.Release();
         }
+    }
+
+    /// <summary>后台按需刷新英雄别名索引；任何异常只记日志，绝不影响英雄列表本身。</summary>
+    private void QueueAliasRefresh(IReadOnlyList<ChampionSummaryItem> champions)
+    {
+        if (_aliasProvider is null || champions.Count == 0)
+        {
+            return;
+        }
+
+        int[] ids = new int[champions.Count];
+        for (int i = 0; i < champions.Count; i++)
+        {
+            ids[i] = champions[i].Id;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _aliasProvider.RefreshIfNeededAsync(ids).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // RefreshIfNeededAsync 自身已吞掉网络/解析异常，此处只兜底不可预期错误
+                _logger?.LogDebug(ex, "英雄别名索引后台刷新异常");
+            }
+        });
     }
 
     public async Task<IReadOnlyList<SummonerSpellItem>> GetSummonerSpellsAsync(CancellationToken cancellationToken = default)

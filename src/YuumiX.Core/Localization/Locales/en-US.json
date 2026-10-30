@@ -766,7 +766,7 @@
     "clearBorderBtn": "Unequip Border",
     "clickToExpand": "Click to expand",
     "clearBtn": "Clear",
-    "searchChampPlaceholder": "Search champion by name, alias or title...",
+    "searchChampPlaceholder": "Search by name, title, pinyin or nickname...",
     "loadingChamps": "Loading champion data...",
     "noChampsFound": "No matching champions found",
     "noCandidates": "No candidate champions configured",
