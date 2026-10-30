@@ -801,36 +801,51 @@ public sealed class AppShell : Component
             });
 
         // 侧边栏是平级切换语义，因此用 Replace 而非 Navigate，避免堆积返回栈。
+        //
+        // 底部动作项（OP.GG / 修复无限加载 / 公告）点击后不导航，选中态会停留在该项上；
+        // SelectedTagChanged（= WinUI SelectionChanged）对「再次点击已选中项」不触发
+        // （Reactor 文档明确：OnSelectedTagChanged does not report re-invoking），
+        // 表现为关闭 OP.GG 窗口 / 公告弹窗后再点同一菜单毫无反应。动作项因此统一走
+        // ItemInvoked（每次点击都触发，包括重复点击已选中项），SelectedTagChanged 只管路由项。
+        void HandleActionTag(string? tag)
+        {
+            if (tag == SidebarTags.Opgg)
+            {
+                if (!isClientConnected)
+                {
+                    toastQueue.Error("请先连接英雄联盟客户端");
+                }
+                else
+                {
+                    OpggWindowHost.ShowOrActivate();
+                }
+                return;
+            }
+
+            if (tag == SidebarTags.Reconnect)
+            {
+                // 旧版的「修复无限加载」是手动重连动作；新项目目前只有自动重连代理，
+                // 入口先预留在这里，点击给出明确反馈而不是静默无响应。
+                toastQueue.Info("「修复无限加载」待迁移：当前仅支持自动重连");
+                return;
+            }
+
+            if (tag == SidebarTags.Notice)
+            {
+                // 旧版行为（App.vue navigate('notice')）：不切换页面，只弹出右下角公告弹窗。
+                // threadSafe：自动关闭计时器在后台线程触发 OnClose（ADR-07）。
+                setShowNotice(true);
+            }
+        }
+
         navigationView = navigationView with
         {
+            OnItemInvoked = HandleActionTag,
             OnSelectedTagChanged = tag =>
             {
-                if (tag == SidebarTags.Opgg)
+                // 动作项已由 OnItemInvoked 处理：首次点击时两个回调都会触发，这里跳过避免重复执行。
+                if (tag is SidebarTags.Opgg or SidebarTags.Reconnect or SidebarTags.Notice)
                 {
-                    if (!isClientConnected)
-                    {
-                        toastQueue.Error("请先连接英雄联盟客户端");
-                    }
-                    else
-                    {
-                        OpggWindowHost.ShowOrActivate();
-                    }
-                    return;
-                }
-
-                if (tag == SidebarTags.Reconnect)
-                {
-                    // 旧版的「修复无限加载」是手动重连动作；新项目目前只有自动重连代理，
-                    // 入口先预留在这里，点击给出明确反馈而不是静默无响应。
-                    toastQueue.Info("「修复无限加载」待迁移：当前仅支持自动重连");
-                    return;
-                }
-
-                if (tag == SidebarTags.Notice)
-                {
-                    // 旧版行为（App.vue navigate('notice')）：不切换页面，只弹出右下角公告弹窗。
-                    // threadSafe：自动关闭计时器在后台线程触发 OnClose（ADR-07）。
-                    setShowNotice(true);
                     return;
                 }
 
