@@ -208,6 +208,53 @@ internal static class MatchDetailView
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
     }
 
+    /// <summary>
+    /// 默认空态（未查询任何召唤师）的明细面板空壳：Banner + 两张队伍表骨架，
+    /// 与 <see cref="Render"/> 的终态结构同构（同 Grid 行列与 RowSpacing），搜索出结果后原地填充。
+    /// 灰块一律中性结构色，不带胜负业务色——此时还没有任何对局。
+    /// </summary>
+    public static Element Skeleton(YuumiPalette palette)
+    {
+        Element bannerSkeleton = Border(
+                Grid(
+                    [GridSize.Star(), GridSize.Auto],
+                    [GridSize.Auto],
+                    [
+                        HStack(12,
+                            Block(4, 40, YuumiTheme.PillRadius),
+                            VStack(4, Block(140, 14), Block(300, 12)))
+                            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
+                            .Grid(row: 0, column: 0),
+                        HStack(8, Block(28, 28), Block(28, 28))
+                            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
+                            .Grid(row: 0, column: 1),
+                    ]))
+            .Padding(12)
+            .CornerRadius(YuumiTheme.OverlayRadius)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch);
+
+        var detailGrid = (Grid(
+            [GridSize.Star()],
+            [GridSize.Auto, GridSize.Star(), GridSize.Star()],
+            [
+                bannerSkeleton.Grid(row: 0, column: 0),
+                SkeletonTable(isAugment: false).Grid(row: 1, column: 0),
+                SkeletonTable(isAugment: false).Grid(row: 2, column: 0),
+            ]) with { RowSpacing = 8 })
+            .Padding(12)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
+
+        return Border(detailGrid)
+            .CornerRadius(YuumiTheme.OverlayRadius)
+            .Background(Theme.CardBackground)
+            .WithBorder(Theme.CardStroke, 1)
+            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
+    }
+
     /// <summary>未选中任何对局时的占位：保持面板存在，避免整页在「有/无选中」之间跳动。</summary>
     private static Element EmptyPanel(YuumiPalette palette)
     {

@@ -249,13 +249,11 @@ internal static class SearchChrome
     internal static Element RetryHint(string message, string retry, Action onRetry) =>
         VStack(8, Hint(message), Button(retry, onRetry).AutomationName(retry));
 
-    internal static Element ResourceState(AsyncValue<SummonerProfile?> summoner, AsyncValue<SearchHistoryResult> history,
+    internal static Element ResourceState(AsyncValue<SearchHistoryResult> history,
         bool hasCurrentPage, bool hasSummoner, bool hasMatches, YuumiPalette palette, Action retry, I18nService i18n)
     {
-        if (!hasSummoner && summoner is AsyncValue<SummonerProfile?>.Loading or AsyncValue<SummonerProfile?>.Reloading) return BuildSkeletons(palette);
-        if (!hasSummoner && summoner is AsyncValue<SummonerProfile?>.Error)
-            return RetryHint(i18n.T("search.resolveFailed", "读取召唤师失败"), i18n.T("search.retry", "重试"), retry);
-        if (!hasSummoner) return Hint(i18n.T("search.noSummoner", "未取得召唤师，请检查客户端连接"));
+        // 默认不查询任何人：summoner 为空是初始状态而非异常，用骨架屏占位（与加载态同观感），等用户输入
+        if (!hasSummoner) return BuildSkeletons(palette);
         if (history is AsyncValue<SearchHistoryResult>.Error)
             return RetryHint(i18n.T("search.historyFailed", "读取战绩失败"), i18n.T("search.retry", "重试"), retry);
         if (!hasCurrentPage) return BuildSkeletons(palette);

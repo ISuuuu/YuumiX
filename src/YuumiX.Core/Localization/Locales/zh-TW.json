@@ -1093,7 +1093,6 @@
   "search": {
     "resolveFailed": "讀取召喚師失敗",
     "retry": "重試",
-    "noSummoner": "未取得召喚師，請檢查客戶端連線",
     "historyFailed": "讀取戰績失敗",
     "filteredEmpty": "沒有符合篩選條件的對局",
     "historyEmpty": "暫無戰績",

@@ -1096,7 +1096,6 @@
   "search": {
     "resolveFailed": "读取召唤师失败",
     "retry": "重试",
-    "noSummoner": "未取得召唤师，请检查客户端连接",
     "historyFailed": "读取战绩失败",
     "filteredEmpty": "没有符合筛选条件的对局",
     "historyEmpty": "暂无战绩",

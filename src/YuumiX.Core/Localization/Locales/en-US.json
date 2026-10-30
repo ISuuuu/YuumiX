@@ -1096,7 +1096,6 @@
   "search": {
     "resolveFailed": "Failed to load summoner",
     "retry": "Retry",
-    "noSummoner": "Summoner unavailable. Check the client connection.",
     "historyFailed": "Failed to load match history",
     "filteredEmpty": "No matches meet the filters",
     "historyEmpty": "No match history",

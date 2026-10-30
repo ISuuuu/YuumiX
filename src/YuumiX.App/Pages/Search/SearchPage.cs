@@ -123,7 +123,6 @@ public sealed class SearchPage : Component<SearchPageProps>
         var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
         var (selectedGameId, setSelectedGameId) = UseState(0L, threadSafe: true);
         var (pageIndex, setPageIndex) = UseState(0, threadSafe: true);
-        var (summonerVersion, setSummonerVersion) = UseState(0, threadSafe: true);
         var (detailVersion, setDetailVersion) = UseState(0, threadSafe: true);
         var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
         var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
@@ -306,16 +305,13 @@ public sealed class SearchPage : Component<SearchPageProps>
             Props.Puuid ?? "",
             Props.GameId ?? 0L);
 
-        var currentSummonerResource = UseResource(
-            ct => summonerService.GetCurrentSummonerAsync(ct),
-            deps: new object[] { (int)connState.Status, summonerVersion });
-        var currentSummoner = currentSummonerResource is AsyncValue<SummonerProfile?>.Data currentData ? currentData.Value : null;
-        var activeSummoner = summoner ?? currentSummoner;
-        string historyCacheKey = SearchEffects.HistoryCacheKey(activeSummoner?.Puuid, pageIndex, (int)connState.Status);
+        // 默认不查询任何人（用户要求）：查询对象只来自显式搜索或路由跳转；
+        // summoner 为空时列表保持初始空态，等用户输入。
+        string historyCacheKey = SearchEffects.HistoryCacheKey(summoner?.Puuid, pageIndex, (int)connState.Status);
         var historyPageResource = UseResource(
             async ct => new SearchHistoryResult(historyCacheKey,
-                await SearchLoaders.GetHistoryAsync(services, matchService, activeSummoner?.Puuid, pageIndex, ct).ConfigureAwait(false)),
-            deps: new object[] { activeSummoner?.Puuid ?? "", pageIndex, requestVersion, (int)connState.Status });
+                await SearchLoaders.GetHistoryAsync(services, matchService, summoner?.Puuid, pageIndex, ct).ConfigureAwait(false)),
+            deps: new object[] { summoner?.Puuid ?? "", pageIndex, requestVersion, (int)connState.Status });
         var previousHistory = UseRef<SearchHistoryResult?>(null);
         if (historyPageResource is AsyncValue<SearchHistoryResult>.Data historyData && historyData.Value.Key == historyCacheKey)
             previousHistory.Current = historyData.Value;
@@ -374,12 +370,12 @@ public sealed class SearchPage : Component<SearchPageProps>
         long currentGameId = current?.GameId ?? 0;
 
         var detailResource = UseResource(
-            ct => SearchLoaders.GetDetailAsync(matchService, currentGameId, activeSummoner?.Puuid, ct),
-            deps: new object[] { currentGameId, activeSummoner?.Puuid ?? "", detailVersion });
+            ct => SearchLoaders.GetDetailAsync(matchService, currentGameId, summoner?.Puuid, ct),
+            deps: new object[] { currentGameId, summoner?.Puuid ?? "", detailVersion });
         var rawDetail = detailResource is AsyncValue<MatchDetail?>.Data detailData ? detailData.Value : null;
         var enrichmentResource = UseResource(
             ct => SearchLoaders.LoadParticipantRanksAndPrivacyAsync(services, rawDetail, ct),
-            deps: new object[] { currentGameId, activeSummoner?.Puuid ?? "", detailVersion, rawDetail is not null });
+            deps: new object[] { currentGameId, summoner?.Puuid ?? "", detailVersion, rawDetail is not null });
         var detail = enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data enriched ? enriched.Value.Detail : rawDetail;
 
         // 载入一页后补传本页对局（对齐旧 Search.vue：翻页即补传，服务端已有会返回 exists）。
@@ -389,7 +385,7 @@ public sealed class SearchPage : Component<SearchPageProps>
             {
                 if (services.Config.Functions.UploadEnabled && uploadConfigured)
                 {
-                    SearchEffects.RunAutoUpload(services, matches, uploadedGameIdsRef.Current, activeSummoner?.Puuid, SetNotice, pageCancellation.Current.Token);
+                    SearchEffects.RunAutoUpload(services, matches, uploadedGameIdsRef.Current, summoner?.Puuid, SetNotice, pageCancellation.Current.Token);
                 }
 
                 return static () => { };
@@ -406,7 +402,7 @@ public sealed class SearchPage : Component<SearchPageProps>
         Array.Fill(matchRows, GridSize.Star());
 
         Element list = visible.Count == 0
-            ? SearchChrome.ResourceState(currentSummonerResource, historyPageResource, historyPage is not null, activeSummoner is not null, matches.Count > 0, palette, () => { setSummonerVersion(summonerVersion + 1); requestSeqRef.Current++; setRequestVersion(requestSeqRef.Current); }, services.I18n)
+            ? SearchChrome.ResourceState(historyPageResource, historyPage is not null, summoner is not null, matches.Count > 0, palette, () => { requestSeqRef.Current++; setRequestVersion(requestSeqRef.Current); }, services.I18n)
             : Grid(
                 [GridSize.Star()],
                 matchRows,
@@ -455,7 +451,9 @@ public sealed class SearchPage : Component<SearchPageProps>
                 leftColumn
                     .Margin(0, 0, 8, 0)
                     .Grid(row: 0, column: 0),
-                (currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Error
+                (summoner is null
+                    ? MatchDetailView.Skeleton(palette)
+                    : currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Error
                     ? SearchChrome.RetryHint(services.I18n.T("search.detailFailed", "读取对局详情失败"), services.I18n.T("search.retry", "重试"), () => setDetailVersion(detailVersion + 1))
                     : currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Loading
                     ? SearchChrome.Hint(services.I18n.T("search.detailLoading", "正在读取对局详情…"))
@@ -469,7 +467,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                     current,
                     catalog,
                     palette,
-                    currentSearchPuuid: activeSummoner?.Puuid,
+                    currentSearchPuuid: summoner?.Puuid,
                     onCopyGameId: OnCopyGameId,
                     onClickPlayerPuuid: OnClickPlayerPuuid,
                     onClickPlayerSummonerId: OnClickPlayerSummonerId).Grid(row: 1, column: 0)]))
@@ -481,16 +479,11 @@ public sealed class SearchPage : Component<SearchPageProps>
         // 提交搜索：名字空时只更新提示，不清空当前已显示的战绩（否则一次手滑就把列表清空）。
         void SubmitSearch(string? targetPuuid = null, long targetGameId = 0)
         {
-            string query = (draftRef.Current ?? activeSummoner?.RiotId ?? string.Empty).Trim();
+            string query = (draftRef.Current ?? string.Empty).Trim();
             if (query.Length == 0 && string.IsNullOrWhiteSpace(targetPuuid))
             {
                 SetPersistentNotice("请输入召唤师名称（形如 名字#TAG）");
                 return;
-            }
-
-            if (draftRef.Current is null && !string.IsNullOrEmpty(query))
-            {
-                draftRef.Current = query;
             }
 
             RunSearch(new SearchTargetInput(query, targetPuuid, null, targetGameId));
@@ -514,7 +507,7 @@ public sealed class SearchPage : Component<SearchPageProps>
 
         void OnCareer()
         {
-            if (activeSummoner is not null) nav.Replace(new AppRoute.CareerRoute(activeSummoner.Puuid, activeSummoner));
+            if (summoner is not null) nav.Replace(new AppRoute.CareerRoute(summoner.Puuid, summoner));
         }
 
         void OnSearchButton()
@@ -539,7 +532,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                 [
                     Component<SearchToolbar, SearchToolbarProps>(
                         new SearchToolbarProps(
-                            draftRef.Current ?? activeSummoner?.RiotId ?? string.Empty,
+                            draftRef.Current ?? string.Empty,
                             draft => draftRef.Current = draft,
                             historyList,
                             OnSelectHistory,
@@ -547,7 +540,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                             OnClearHistory,
                             OnSearchButton,
                             OnCareer,
-                            activeSummoner is not null,
+                            summoner is not null,
                             filterLabels,
                             effectiveFilter,
                             value =>
@@ -559,7 +552,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                             },
                             notice,
                             searchMutation.IsPending,
-                            activeSummoner,
+                            summoner,
                             uploadConfigured,
                             uploadOn,
                             enabled => SearchEffects.ApplyUploadToggle(services, uploadQueue, enabled, setUploadOn, SetPersistentNotice)))

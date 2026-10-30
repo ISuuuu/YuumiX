@@ -60,7 +60,6 @@ public sealed class ExperienceLocalizationTests
             "career.lootConfirm",
             "search.resolveFailed",
             "search.retry",
-            "search.noSummoner",
             "search.historyFailed",
             "search.filteredEmpty",
             "search.historyEmpty",
