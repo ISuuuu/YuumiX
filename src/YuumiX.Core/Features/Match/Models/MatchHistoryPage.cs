@@ -25,6 +25,9 @@ public sealed record MatchHistoryPage
     /// <summary>是否还有下一页。由服务端结合 <see cref="TotalCount"/> 与本页条数判定。</summary>
     public required bool HasMore { get; init; }
 
+    /// <summary>区分成功的空结果与读取失败。</summary>
+    public bool Succeeded { get; init; } = true;
+
     /// <summary>空页（无对局或请求失败降级时返回，避免调用方判断 <c>null</c>）。</summary>
     public static MatchHistoryPage Empty { get; } = new()
     {

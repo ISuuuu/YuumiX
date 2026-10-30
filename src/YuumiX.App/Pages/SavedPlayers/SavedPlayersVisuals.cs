@@ -149,11 +149,9 @@ internal static class SavedPlayersVisuals
         string editingTag,
         Action<string> setEditingTag,
         Action<string?> setEditingPuuid,
-        string? pendingDeletePuuid,
-        Action<string?> setPendingDeletePuuid,
+        Action<SavedPlayerRecord> onRequestDelete,
         Action<SavedPlayerRecord> onToggleExpand,
         Action<SavedPlayerRecord> onSaveTag,
-        Action<SavedPlayerRecord> onConfirmDelete,
         YuumiPalette palette)
     {
         if (loading && players.Count == 0)
@@ -205,11 +203,9 @@ internal static class SavedPlayersVisuals
             editingTag,
             setEditingTag,
             setEditingPuuid,
-            pendingDeletePuuid == p.Puuid,
-            setPendingDeletePuuid,
+            () => onRequestDelete(p),
             () => onToggleExpand(p),
             () => onSaveTag(p),
-            () => onConfirmDelete(p),
             palette
         )).ToList();
 

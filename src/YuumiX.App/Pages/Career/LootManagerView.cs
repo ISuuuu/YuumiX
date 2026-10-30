@@ -26,7 +26,7 @@ public sealed record LootConfirmDialog(
 /// 1. 材料面板：宝箱/法球/钥匙碎片开启与合成（点击卡片弹数量选择弹窗，对齐旧版 openLootModal）；
 /// 2. 碎片库存管理面板：类型/拥有状态/价值过滤与批量操作栏。
 /// 单件数量弹窗与批量确认弹窗的渲染也在本类（<see cref="RenderOpenQuantityDialog"/> /
-/// <see cref="RenderConfirmDialog"/>），由页面在正文之上覆盖一层遮罩承载。
+/// <see cref="RenderConfirmDialog"/>），由页面承载。
 /// </summary>
 internal static class LootManagerView
 {
@@ -705,16 +705,16 @@ internal static class LootManagerView
         bool isFragment = item.IsKeyFragment;
         int maxQuantity = MaxOpenQuantity(item);
 
-        string keyName = item.KeyLootId == "MATERIAL_key_premium" ? "杰作钥匙" : "海克斯科技钥匙";
-        string title = isFragment ? $"批量合成 - {item.Name}" : $"批量开启 - {item.Name}";
+        string keyName = item.KeyLootId == "MATERIAL_key_premium" ? T("career.lootMasterworkKey", "杰作钥匙") : T("career.lootHextechKey", "海克斯科技钥匙");
+        string title = isFragment ? T("career.lootForgeTitle", "批量合成 - {name}").Replace("{name}", item.Name) : T("career.lootOpenTitle", "批量开启 - {name}").Replace("{name}", item.Name);
         string confirmText = isFragment
-            ? $"开始合成 ({quantity.ToString(CultureInfo.InvariantCulture)})"
-            : $"开始开启 ({quantity.ToString(CultureInfo.InvariantCulture)})";
+            ? T("career.lootStartForge", "开始合成 ({count})").Replace("{count}", quantity.ToString(CultureInfo.InvariantCulture))
+            : T("career.lootStartOpen", "开始开启 ({count})").Replace("{count}", quantity.ToString(CultureInfo.InvariantCulture));
         string insufficientHint = maxQuantity <= 0
             ? isFragment
-                ? "钥匙碎片不足 3 个，无法合成"
+                ? T("career.lootInsufficientFragments", "钥匙碎片不足 3 个，无法合成")
                 : item.NeedKey
-                    ? "钥匙不足，无法开启"
+                    ? T("career.lootInsufficientKeys", "钥匙不足，无法开启")
                     : string.Empty
             : string.Empty;
         var bodyChildren = new List<Element>
@@ -724,7 +724,7 @@ internal static class LootManagerView
                 Search.SearchVisuals.Icon(item.TilePath, 50, 8).VAlign(VerticalAlignment.Center),
                 VStack(4,
                     BodyStrong(item.Name),
-                    Caption($"拥有: x{item.Count.ToString(CultureInfo.InvariantCulture)}")
+                    Caption(T("career.lootOwned", "拥有: x{count}").Replace("{count}", item.Count.ToString(CultureInfo.InvariantCulture)))
                         .Foreground(Theme.SecondaryText))
                     .VAlign(VerticalAlignment.Center)),
         };
@@ -732,13 +732,13 @@ internal static class LootManagerView
         if (item.NeedKey && item.KeyLootId is not null)
         {
             bodyChildren.Add(HStack(8,
-                Caption("需要钥匙").Foreground(Theme.SecondaryText),
-                Caption($"{keyName} x{quantity.ToString(CultureInfo.InvariantCulture)}（拥有：{item.KeyCount.ToString(CultureInfo.InvariantCulture)}）")
-                    .Foreground(CareerVisuals.GoldColor)));
+                Caption(T("career.lootNeedsKey", "需要钥匙")).Foreground(Theme.SecondaryText),
+                Caption(T("career.lootKeyCount", "{name} x{count}（拥有：{owned}）").Replace("{name}", keyName).Replace("{count}", quantity.ToString(CultureInfo.InvariantCulture)).Replace("{owned}", item.KeyCount.ToString(CultureInfo.InvariantCulture)))
+                    .Foreground(Theme.SecondaryText)));
         }
 
         bodyChildren.Add(HStack(8,
-            Caption(isFragment ? "合成次数" : "开启数量").Foreground(Theme.SecondaryText),
+            Caption(isFragment ? T("career.lootForgeQuantity", "合成次数") : T("career.lootOpenQuantity", "开启数量")).Foreground(Theme.SecondaryText),
             NumberBox(quantity, v =>
             {
                 if (double.IsNaN(v))
@@ -754,26 +754,16 @@ internal static class LootManagerView
                 }
 
                 onQuantityChanged?.Invoke(next);
-            }).Width(120).AutomationName("开启数量")));
+            }).Width(120).AutomationName(isFragment ? T("career.lootForgeQuantity", "合成次数") : T("career.lootOpenQuantity", "开启数量"))));
 
         if (maxQuantity <= 0)
         {
             bodyChildren.Add(Caption(insufficientHint)
-                .Foreground(CareerVisuals.LoseText));
+                .Foreground(Theme.SystemCritical));
         }
 
-        bodyChildren.Add(HStack(12,
-            Button("取消", onCancel)
-                .Width(90)
-                .Height(32),
-            Button(confirmText, onConfirm)
-                .Width(130)
-                .Height(32)
-                .IsEnabled(maxQuantity > 0)
-                .AutomationName(isFragment ? "确认合成钥匙" : "确认开启战利品"))
-            .HAlign(HorizontalAlignment.Right));
-
-        return DialogMask(VStack(12, bodyChildren.ToArray()), palette, title, 380, onCancel);
+        return ConfirmationDialog.Render(title, VStack(12, bodyChildren.ToArray()), confirmText,
+            T("career.lootCancel", "取消"), true, onConfirm, onCancel, palette, maxQuantity > 0);
     }
 
     /// <summary>单件可开启的最大数量：钥匙碎片 = ⌊count/3⌋，needKey = min(count, 钥匙数)，其余 = count。</summary>
@@ -803,50 +793,15 @@ internal static class LootManagerView
                 .HAlign(HorizontalAlignment.Stretch));
         }
 
-        bodyChildren.Add(HStack(12,
-            Button("取消", onCancel)
-                .Width(90)
-                .Height(32),
-            Button("确定执行", dialog.OnConfirm)
-                .Width(110)
-                .Height(32)
-                .AutomationName("确定执行批量操作"))
-            .HAlign(HorizontalAlignment.Right));
-
-        return DialogMask(VStack(12, bodyChildren.ToArray()), palette, dialog.Title, 420, onCancel);
+        return ConfirmationDialog.Render(dialog.Title, VStack(12, bodyChildren.ToArray()),
+            T("career.lootConfirm", "确定执行"), T("career.lootCancel", "取消"),
+            true, dialog.OnConfirm, onCancel, palette);
     }
 
-    /// <summary>弹窗遮罩：半透明黑底 + 居中卡片（标题 + ✕ + 内容）。</summary>
+    private static string T(string key, string fallback) => Composition.AppHost.CurrentI18n?.T(key, fallback) ?? fallback;
+
+    /// <summary>分隔线。</summary>
     private static Element Divider() =>
         Border(Empty()).Height(1).Background(Theme.DividerStroke).HAlign(HorizontalAlignment.Stretch);
 
-    private static Element DialogMask(Element content, YuumiPalette palette, string title, double cardWidth, Action onCancel) =>
-        Grid(
-                [GridSize.Star()],
-                [GridSize.Star()],
-                [
-                    Border(Empty())
-                        .Background(Theme.SmokeFill)
-                        .HAlign(HorizontalAlignment.Stretch)
-                        .VAlign(VerticalAlignment.Stretch),
-                    Border(VStack(12,
-                            HStack(8,
-                                BodyStrong(title)
-                                    .HAlign(HorizontalAlignment.Left),
-                                Button(Caption("✕"), onCancel)
-                                    .Width(28)
-                                    .Height(28)
-                                    .Padding(0)
-                                    .HAlign(HorizontalAlignment.Right)
-                                    .AutomationName("关闭弹窗"))
-                                .HAlign(HorizontalAlignment.Stretch),
-                            content))
-                        .Width(cardWidth)
-                        .Padding(20)
-                        .CornerRadius(YuumiTheme.OverlayRadius)
-                        .Background(Theme.CardBackground)
-                        .WithBorder(Theme.CardStroke, 1)
-                        .VAlign(VerticalAlignment.Center)
-                        .HAlign(HorizontalAlignment.Center),
-                ]);
 }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
@@ -26,10 +27,6 @@ namespace YuumiX.App.Pages.Search;
 ///（对应原 <c>Search.vue</c> 与 <c>MatchDetailPanel.vue</c>）。
 /// 本页只做状态编排（R14）：视觉构件在 <see cref="SearchChrome"/>，筛选纯函数在
 /// <see cref="SearchFilters"/>，异步辅助与 effect 回调体在 <see cref="SearchLoaders"/>。
-///
-/// <b>为什么状态流要订阅而不是自己拼文案</b>：<c>MatchServiceStatus.Message</c> 里区分了
-/// 「正在拉取第 N–M 场」与「正在读取对局 X 的详情」，列表加载与详情加载共用同一条流，
-/// 因此这里只把**失败**透出到列表区的占位里，加载中的提示由骨架卡与详情面板各自承担。
 ///
 /// <b>线程</b>：服务在后台线程发布状态、异步返回结果，所有 <c>UseState</c> 都必须带
 /// <c>threadSafe: true</c>（ADR-07）。
@@ -81,28 +78,95 @@ public sealed class SearchPage : Component<SearchPageProps>
 
         var langRef = UseRef(lang);
         langRef.Current = lang;
+        var searchSeqRef = UseRef(0);
+        var initialPageCancellation = UseMemo(() => new CancellationTokenSource(), 0);
+        var pageCancellation = UseRef(initialPageCancellation);
+        var refreshCancellation = UseRef<CancellationTokenSource?>(null);
+        var noticeVersion = UseRef(0);
+        var noticeCancellation = UseRef<CancellationTokenSource?>(null);
+        var initialNoticeLock = UseMemo(() => new object(), 0);
+        var noticeLock = UseRef(initialNoticeLock);
+        var clearNoticeRef = UseRef<Action?>(null);
+        var refreshOnReturnRef = UseRef<Action?>(null);
+        var (clearHistoryOpen, setClearHistoryOpen) = UseState(false);
+        var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
+        navigatedFromRef.Current ??= _ =>
+        {
+            setClearHistoryOpen(false);
+            searchSeqRef.Current++;
+            pageCancellation.Current.Cancel();
+            refreshCancellation.Current?.Cancel();
+            lock (noticeLock.Current)
+            {
+                noticeVersion.Current++;
+                noticeCancellation.Current?.Cancel();
+            }
+            clearNoticeRef.Current?.Invoke();
+        };
         var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
         navigatedToRef.Current ??= _ =>
         {
+            if (pageCancellation.Current.IsCancellationRequested)
+            {
+                pageCancellation.Current.Dispose();
+                pageCancellation.Current = new CancellationTokenSource();
+                refreshOnReturnRef.Current?.Invoke();
+            }
             var curLang = services.I18n.CurrentLanguage;
             if (langRef.Current != curLang)
             {
                 setLang(curLang);
             }
         };
-        UseNavigationLifecycle(onNavigatedTo: navigatedToRef.Current);
+        UseNavigationLifecycle(onNavigatedTo: navigatedToRef.Current, onNavigatedFrom: navigatedFromRef.Current);
 
         var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
-        var (summonerResolved, setSummonerResolved) = UseState(false, threadSafe: true);
-        var (matches, setMatches) = UseState(EmptyMatches, threadSafe: true);
-        var (status, setStatus) = UseState(MatchServiceStatus.Idle, threadSafe: true);
-        var (detail, setDetail) = UseState<MatchDetail?>(null, threadSafe: true);
         var (selectedGameId, setSelectedGameId) = UseState(0L, threadSafe: true);
         var (pageIndex, setPageIndex) = UseState(0, threadSafe: true);
-        var (hasMore, setHasMore) = UseState(false, threadSafe: true);
+        var (summonerVersion, setSummonerVersion) = UseState(0, threadSafe: true);
+        var (detailVersion, setDetailVersion) = UseState(0, threadSafe: true);
         var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
         var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
-        var (notice, setNotice) = UseState<string?>(null, threadSafe: true);
+        var (notice, setNoticeState) = UseState<string?>(null, threadSafe: true);
+        void SetNotice(string? value, int timeout = 0)
+        {
+            int version;
+            CancellationToken token = default;
+            lock (noticeLock.Current)
+            {
+                if (pageCancellation.Current.IsCancellationRequested) return;
+                noticeCancellation.Current?.Cancel();
+                noticeCancellation.Current?.Dispose();
+                noticeCancellation.Current = timeout > 0
+                    ? CancellationTokenSource.CreateLinkedTokenSource(pageCancellation.Current.Token)
+                    : null;
+                if (noticeCancellation.Current is not null) token = noticeCancellation.Current.Token;
+                version = ++noticeVersion.Current;
+                setNoticeState(value);
+            }
+            if (timeout > 0)
+                _ = SearchEffects.ClearNoticeLaterAsync(() =>
+                {
+                    lock (noticeLock.Current)
+                        if (noticeVersion.Current == version) setNoticeState(null);
+                }, timeout, token, services.LoggerFactory.CreateLogger("YuumiX.App.Pages.Search"));
+        }
+        void SetPersistentNotice(string? value) => SetNotice(value);
+        clearNoticeRef.Current = () => setNoticeState(null);
+        UseEffect(() => () =>
+        {
+            pageCancellation.Current.Cancel();
+            refreshCancellation.Current?.Cancel();
+            lock (noticeLock.Current)
+            {
+                noticeCancellation.Current?.Cancel();
+                noticeCancellation.Current?.Dispose();
+                noticeCancellation.Current = null;
+            }
+            refreshCancellation.Current?.Dispose();
+            refreshCancellation.Current = null;
+            pageCancellation.Current.Dispose();
+        }, 0);
         var (uploadOn, setUploadOn) = UseState(services.Config.Functions.UploadEnabled, threadSafe: true);
 
         // R6：非响应式数据走 UseRef——
@@ -113,6 +177,7 @@ public sealed class SearchPage : Component<SearchPageProps>
         var uploadedGameIdsRef = UseRef<HashSet<long>?>(null);
         uploadedGameIdsRef.Current ??= [];
         var requestSeqRef = UseRef(0);
+        refreshOnReturnRef.Current = () => { requestSeqRef.Current++; setRequestVersion(requestSeqRef.Current); };
 
         // 没配服务器地址时整个上传入口都不出现（对齐旧 Search.vue 的 v-if）：
         // 给了开关却没有地址，点了只会得到一串"未配置"的报错。
@@ -124,12 +189,13 @@ public sealed class SearchPage : Component<SearchPageProps>
         var searchMutation = UseMutation<SearchTargetInput, SummonerProfile?>(
             mutator: (input, ct) => SearchLoaders.ResolveTargetAsync(summonerService, historyStore, input, ct),
             options: new MutationOptions<SearchTargetInput, SummonerProfile?>(
-                OnOptimistic: _ => setNotice(null),
+                OnOptimistic: _ => SetPersistentNotice(null),
                 OnSuccess: (found, input) =>
                 {
+                    if (input.Sequence != searchSeqRef.Current) return;
                     if (found is null)
                     {
-                        setNotice(input.NotFoundMessage);
+                        SetPersistentNotice(input.NotFoundMessage);
                         return;
                     }
 
@@ -139,17 +205,23 @@ public sealed class SearchPage : Component<SearchPageProps>
                     }
 
                     // 先清空列表再换人：否则新召唤师的头像旁边会短暂挂着上一个人的战绩
-                    setMatches(EmptyMatches);
                     setSelectedGameId(input.TargetGameId);
                     setPageIndex(0);
                     setSummoner(found);
-                    setSummonerResolved(true);
 
                     // 搜到的是同一个人时取数依赖键不变（puuid、页号都没动），必须显式触发一次重取
                     requestSeqRef.Current += 1;
                     setRequestVersion(requestSeqRef.Current);
                 },
+                OnError: (_, input) => { if (input.Sequence == searchSeqRef.Current) SetPersistentNotice(services.I18n.T("search.resolveFailed", "查询召唤师失败")); },
                 InvalidateKeys: ["search/history"]));
+
+        void RunSearch(SearchTargetInput input)
+        {
+            searchSeqRef.Current++;
+            refreshCancellation.Current?.Cancel();
+            _ = searchMutation.RunAsync(input with { Sequence = searchSeqRef.Current });
+        }
 
         var removeHistoryMutation = UseMutation<string, bool>(
             mutator: async (item, ct) =>
@@ -180,26 +252,6 @@ public sealed class SearchPage : Component<SearchPageProps>
             _ => [],
         };
 
-        // 对局结束自动静默刷新战绩
-        UseEffect(
-            () =>
-            {
-                if (lifecycle is null) return static () => { };
-                var sub = lifecycle.GameEnded.Subscribe(time =>
-                {
-                    long? prevLatestId = matches.Count > 0 ? matches[0].GameId : null;
-                    long? targetGameId = lifecycle.LastEndedGameId;
-                    _ = SearchEffects.DelayedRefreshAsync(
-                        requestSeqRef,
-                        setRequestVersion,
-                        () => matches.Count > 0 ? matches[0].GameId : null,
-                        prevLatestId,
-                        targetGameId);
-                });
-                return () => sub.Dispose();
-            },
-            0);
-
         var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
         UseEffect(
             () =>
@@ -210,8 +262,8 @@ public sealed class SearchPage : Component<SearchPageProps>
                     if (state.Status == LcuConnectionStatus.Connected)
                     {
                         // 客户端连接就绪时，重置召唤师解析状态，触发重新加载当前登录玩家与首屏战绩
+                        searchSeqRef.Current++;
                         setSummoner(null);
-                        setSummonerResolved(false);
                         requestSeqRef.Current += 1;
                         setRequestVersion(requestSeqRef.Current);
                     }
@@ -234,15 +286,6 @@ public sealed class SearchPage : Component<SearchPageProps>
             _ => GameDataCatalog.Empty,
         };
 
-        // 状态流：一次订阅，覆盖列表与详情两类请求（消息里自带是哪一个）。
-        UseEffect(
-            () =>
-            {
-                var subscription = matchService.Status.Subscribe(setStatus);
-                return () => subscription.Dispose();
-            },
-            0);
-
         // 外部跳转（如生涯页点击最近队友、生涯资料卡点击战绩查询）传入的待查询目标：
         // 路由参数驱动（R8），deps 用参数值，同目标重复跳转不重复查询。
         UseEffect(
@@ -255,7 +298,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                         draftRef.Current = Props.Query;
                     }
 
-                    _ = SearchEffects.RunRoutedSearchAsync(searchMutation, Props.Query, Props.Puuid, Props.GameId ?? 0);
+                    RunSearch(new SearchTargetInput(Props.Query, Props.Puuid, null, Props.GameId ?? 0));
                 }
                 return static () => { };
             },
@@ -263,21 +306,48 @@ public sealed class SearchPage : Component<SearchPageProps>
             Props.Puuid ?? "",
             Props.GameId ?? 0L);
 
-        // 首屏 / 搜索 / 翻页 / 刷新 共用一个入口（实现见 SearchEffects.BeginHistoryLoad）：
-        // setSummoner 会改变依赖键，下一轮再进来拉战绩（因此不会重复请求）。
-        string historyKey = $"{summoner?.Puuid}|{pageIndex}|{requestVersion}|{connState.Status}";
+        var currentSummonerResource = UseResource(
+            ct => summonerService.GetCurrentSummonerAsync(ct),
+            deps: new object[] { (int)connState.Status, summonerVersion });
+        var currentSummoner = currentSummonerResource is AsyncValue<SummonerProfile?>.Data currentData ? currentData.Value : null;
+        var activeSummoner = summoner ?? currentSummoner;
+        string historyCacheKey = SearchEffects.HistoryCacheKey(activeSummoner?.Puuid, pageIndex, (int)connState.Status);
+        var historyPageResource = UseResource(
+            async ct => new SearchHistoryResult(historyCacheKey,
+                await SearchLoaders.GetHistoryAsync(services, matchService, activeSummoner?.Puuid, pageIndex, ct).ConfigureAwait(false)),
+            deps: new object[] { activeSummoner?.Puuid ?? "", pageIndex, requestVersion, (int)connState.Status });
+        var previousHistory = UseRef<SearchHistoryResult?>(null);
+        if (historyPageResource is AsyncValue<SearchHistoryResult>.Data historyData && historyData.Value.Key == historyCacheKey)
+            previousHistory.Current = historyData.Value;
+        var historyPage = SearchEffects.CurrentHistoryPage(historyPageResource, historyCacheKey, previousHistory.Current);
+        IReadOnlyList<MatchSummary> matches = historyPage?.Games ?? EmptyMatches;
+        bool hasMore = historyPage?.HasMore ?? false;
+        var matchesRef = UseRef(matches);
+        matchesRef.Current = matches;
+        // 对局结束自动静默刷新战绩
         UseEffect(
-            () => SearchEffects.BeginHistoryLoad(
-                services,
-                matchService,
-                summonerService,
-                summoner,
-                pageIndex,
-                setSummoner,
-                setSummonerResolved,
-                setMatches,
-                setHasMore),
-            historyKey);
+            () =>
+            {
+                if (lifecycle is null) return static () => { };
+                var sub = lifecycle.GameEnded.Subscribe(time =>
+                {
+                    if (pageCancellation.Current.IsCancellationRequested) return;
+                    refreshCancellation.Current?.Cancel();
+                    refreshCancellation.Current?.Dispose();
+                    refreshCancellation.Current = CancellationTokenSource.CreateLinkedTokenSource(pageCancellation.Current.Token);
+                    long? prevLatestId = matchesRef.Current.Count > 0 ? matchesRef.Current[0].GameId : null;
+                    long? targetGameId = lifecycle.LastEndedGameId;
+                    _ = SearchEffects.DelayedRefreshAsync(
+                        requestSeqRef,
+                        setRequestVersion,
+                        () => matchesRef.Current.Count > 0 ? matchesRef.Current[0].GameId : null,
+                        prevLatestId,
+                        targetGameId, refreshCancellation.Current.Token, services.LoggerFactory.CreateLogger("YuumiX.App.Pages.Search"));
+                });
+                return () => sub.Dispose();
+            },
+            0);
+
 
         // 筛选：结果按（源列表, 语言, 筛选序号）UseMemo 缓存引用——
         // 卡片元素按"列表引用"判等，每帧新数组会让卡片反复重建（改造前踩过的渲染自激）。
@@ -303,10 +373,14 @@ public sealed class SearchPage : Component<SearchPageProps>
         MatchSummary? current = (index >= 0 && index < visible.Count) ? visible[index] : null;
         long currentGameId = current?.GameId ?? 0;
 
-        // 详情：按当前选中的 gameId 加载（实现见 SearchEffects.BeginDetailLoad）。
-        UseEffect(
-            () => SearchEffects.BeginDetailLoad(services, matchService, currentGameId, summoner?.Puuid, setDetail),
-            currentGameId);
+        var detailResource = UseResource(
+            ct => SearchLoaders.GetDetailAsync(matchService, currentGameId, activeSummoner?.Puuid, ct),
+            deps: new object[] { currentGameId, activeSummoner?.Puuid ?? "", detailVersion });
+        var rawDetail = detailResource is AsyncValue<MatchDetail?>.Data detailData ? detailData.Value : null;
+        var enrichmentResource = UseResource(
+            ct => SearchLoaders.LoadParticipantRanksAndPrivacyAsync(services, rawDetail, ct),
+            deps: new object[] { currentGameId, activeSummoner?.Puuid ?? "", detailVersion, rawDetail is not null });
+        var detail = enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data enriched ? enriched.Value.Detail : rawDetail;
 
         // 载入一页后补传本页对局（对齐旧 Search.vue：翻页即补传，服务端已有会返回 exists）。
         // 依赖键只取 matches 引用：换页或刷新会拿到新引用，纯筛选不会。勾选开关本身不应触发当前已有对局的上传。
@@ -315,12 +389,12 @@ public sealed class SearchPage : Component<SearchPageProps>
             {
                 if (services.Config.Functions.UploadEnabled && uploadConfigured)
                 {
-                    SearchEffects.RunAutoUpload(services, matches, uploadedGameIdsRef.Current, summoner?.Puuid, setNotice);
+                    SearchEffects.RunAutoUpload(services, matches, uploadedGameIdsRef.Current, activeSummoner?.Puuid, SetNotice, pageCancellation.Current.Token);
                 }
 
                 return static () => { };
             },
-            matches);
+            matches, requestVersion);
 
         // 列表卡片：ScrollViewer 自适应滚动并支持完全自定义的选中边框与胜负色，
         // 彻底消除 ListView 原生控件的蓝色选中矩形和焦点边框干扰。
@@ -332,7 +406,7 @@ public sealed class SearchPage : Component<SearchPageProps>
         Array.Fill(matchRows, GridSize.Star());
 
         Element list = visible.Count == 0
-            ? SearchChrome.SkeletonList(status, summonerResolved, summoner is not null, palette)
+            ? SearchChrome.ResourceState(currentSummonerResource, historyPageResource, historyPage is not null, activeSummoner is not null, matches.Count > 0, palette, () => { setSummonerVersion(summonerVersion + 1); requestSeqRef.Current++; setRequestVersion(requestSeqRef.Current); }, services.I18n)
             : Grid(
                 [GridSize.Star()],
                 matchRows,
@@ -366,13 +440,13 @@ public sealed class SearchPage : Component<SearchPageProps>
             .VAlign(VerticalAlignment.Stretch)
             .HAlign(HorizontalAlignment.Stretch);
 
-        void OnCopyGameId(long gameId) => SearchEffects.CopyGameId(gameId, setNotice);
+        void OnCopyGameId(long gameId) => SearchEffects.CopyGameId(gameId, SetNotice);
 
         void OnClickPlayerPuuid(string puuid, SummonerProfile? preloaded) =>
             nav.Replace(new AppRoute.CareerRoute(puuid, preloaded));
 
         void OnClickPlayerSummonerId(long id) =>
-            _ = searchMutation.RunAsync(new SearchTargetInput(null, null, id, 0));
+            RunSearch(new SearchTargetInput(null, null, id, 0));
 
         Element content = Grid(
             [GridSize.Px(ListWidth), GridSize.Star()],
@@ -381,15 +455,24 @@ public sealed class SearchPage : Component<SearchPageProps>
                 leftColumn
                     .Margin(0, 0, 8, 0)
                     .Grid(row: 0, column: 0),
-                MatchDetailView.Render(
+                (currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Error
+                    ? SearchChrome.RetryHint(services.I18n.T("search.detailFailed", "读取对局详情失败"), services.I18n.T("search.retry", "重试"), () => setDetailVersion(detailVersion + 1))
+                    : currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Loading
+                    ? SearchChrome.Hint(services.I18n.T("search.detailLoading", "正在读取对局详情…"))
+                    : Grid([GridSize.Star()], [GridSize.Auto, GridSize.Star()], [
+                        (enrichmentResource is AsyncValue<SearchEnrichmentResult>.Error ||
+                            enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data { Value.HasFailures: true }
+                            ? SearchChrome.RetryHint(services.I18n.T("search.enrichmentFailed", "段位和隐私状态读取失败"), services.I18n.T("search.retry", "重试"), () => setDetailVersion(detailVersion + 1))
+                            : Empty()).Grid(row: 0, column: 0),
+                        MatchDetailView.Render(
                     detail,
                     current,
                     catalog,
                     palette,
-                    currentSearchPuuid: summoner?.Puuid,
+                    currentSearchPuuid: activeSummoner?.Puuid,
                     onCopyGameId: OnCopyGameId,
                     onClickPlayerPuuid: OnClickPlayerPuuid,
-                    onClickPlayerSummonerId: OnClickPlayerSummonerId)
+                    onClickPlayerSummonerId: OnClickPlayerSummonerId).Grid(row: 1, column: 0)]))
                 .Grid(row: 0, column: 1),
             ])
             .VAlign(VerticalAlignment.Stretch)
@@ -398,10 +481,10 @@ public sealed class SearchPage : Component<SearchPageProps>
         // 提交搜索：名字空时只更新提示，不清空当前已显示的战绩（否则一次手滑就把列表清空）。
         void SubmitSearch(string? targetPuuid = null, long targetGameId = 0)
         {
-            string query = (draftRef.Current ?? summoner?.RiotId ?? string.Empty).Trim();
+            string query = (draftRef.Current ?? activeSummoner?.RiotId ?? string.Empty).Trim();
             if (query.Length == 0 && string.IsNullOrWhiteSpace(targetPuuid))
             {
-                setNotice("请输入召唤师名称（形如 名字#TAG）");
+                SetPersistentNotice("请输入召唤师名称（形如 名字#TAG）");
                 return;
             }
 
@@ -410,7 +493,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                 draftRef.Current = query;
             }
 
-            _ = searchMutation.RunAsync(new SearchTargetInput(query, targetPuuid, null, targetGameId));
+            RunSearch(new SearchTargetInput(query, targetPuuid, null, targetGameId));
         }
 
         void OnSelectHistory(string item)
@@ -426,18 +509,18 @@ public sealed class SearchPage : Component<SearchPageProps>
 
         void OnClearHistory()
         {
-            _ = clearHistoryMutation.RunAsync(true);
+            setClearHistoryOpen(true);
         }
 
         void OnCareer()
         {
-            if (summoner is not null) nav.Replace(new AppRoute.CareerRoute(summoner.Puuid, summoner));
+            if (activeSummoner is not null) nav.Replace(new AppRoute.CareerRoute(activeSummoner.Puuid, activeSummoner));
         }
 
         void OnSearchButton()
         {
             // 换人即重置上传去重集合：新召唤师的对局与上一人无关
-            uploadedGameIdsRef.Current.Clear();
+            uploadedGameIdsRef.Current = [];
             SubmitSearch();
         }
 
@@ -456,7 +539,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                 [
                     Component<SearchToolbar, SearchToolbarProps>(
                         new SearchToolbarProps(
-                            draftRef.Current ?? summoner?.RiotId ?? string.Empty,
+                            draftRef.Current ?? activeSummoner?.RiotId ?? string.Empty,
                             draft => draftRef.Current = draft,
                             historyList,
                             OnSelectHistory,
@@ -464,7 +547,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                             OnClearHistory,
                             OnSearchButton,
                             OnCareer,
-                            summoner is not null,
+                            activeSummoner is not null,
                             filterLabels,
                             effectiveFilter,
                             value =>
@@ -476,12 +559,19 @@ public sealed class SearchPage : Component<SearchPageProps>
                             },
                             notice,
                             searchMutation.IsPending,
-                            summoner,
+                            activeSummoner,
                             uploadConfigured,
                             uploadOn,
-                            enabled => SearchEffects.ApplyUploadToggle(services, uploadQueue, enabled, setUploadOn, setNotice)))
+                            enabled => SearchEffects.ApplyUploadToggle(services, uploadQueue, enabled, setUploadOn, SetPersistentNotice)))
                         .Grid(row: 0, column: 0),
                     content.Grid(row: 1, column: 0),
+                    ConfirmationDialog.Render(
+                        services.I18n.T("search.clearHistoryTitle", "清空搜索历史"),
+                        Body(services.I18n.T("search.clearHistoryMessage", "确定清空搜索历史吗？")),
+                        services.I18n.T("search.clearHistoryConfirm", "清空"),
+                        services.I18n.T("search.cancel", "取消"), clearHistoryOpen,
+                        () => { setClearHistoryOpen(false); _ = clearHistoryMutation.RunAsync(true); },
+                        () => setClearHistoryOpen(false), palette),
                 ]) with { RowSpacing = 8 })
             .Padding(12)
             .HAlign(HorizontalAlignment.Stretch)

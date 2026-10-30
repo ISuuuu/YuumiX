@@ -150,14 +150,26 @@ public sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(gameId);
+        cancellationToken.ThrowIfCancellationRequested();
 
         Lazy<Task<MatchDetail?>> entry = _details.GetOrAdd(
             gameId,
             id => new Lazy<Task<MatchDetail?>>(
-                () => FetchDetailAsync(id, cancellationToken),
+                () => FetchDetailAsync(id, CancellationToken.None),
                 LazyThreadSafetyMode.ExecutionAndPublication));
 
-        return ApplyQueriedPlayerAsync(entry, queriedPuuid);
+        Task<MatchDetail?> task = entry.Value;
+        Task cleanup = task.ContinueWith(completed =>
+        {
+            if (!completed.IsCompletedSuccessfully || completed.Result is null)
+            {
+                // 等待者可能全部取消，仍须观察失败并只移除原条目。
+                _ = completed.Exception;
+                _details.TryRemove(new KeyValuePair<long, Lazy<Task<MatchDetail?>>>(gameId, entry));
+            }
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+        return ApplyQueriedPlayerAsync(task, cleanup, queriedPuuid, cancellationToken);
     }
 
     public void InvalidateCache()
@@ -232,6 +244,7 @@ public sealed class MatchService : IMatchService
         await state.Lock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            bool fetchFailed = false;
             // 0. 新鲜度校验：只对「首页」生效。池子存在但已过期时整池重建，让首位数据来自服务端。
             //
             //    这是「打完几局点进生涯，看到的还是几小时前的列表」的根因所在：池子此前只有
@@ -283,7 +296,15 @@ public sealed class MatchService : IMatchService
 
                 if (initialGames.Count == 0)
                 {
-                    var (lcuGames, totalCount) = await FetchLcuGamesAsync(puuid, initialBeg, initialEnd, cancellationToken).ConfigureAwait(false);
+                    var (lcuGames, totalCount, succeeded) = await FetchLcuGamesAsync(puuid, initialBeg, initialEnd, cancellationToken).ConfigureAwait(false);
+                    if (!succeeded)
+                    {
+                        return new MatchHistoryPage
+                        {
+                            Games = [], BeginIndex = beginIndex, EndIndex = endIndex,
+                            TotalCount = state.TotalCount, HasMore = false, Succeeded = false,
+                        };
+                    }
                     if (totalCount.HasValue)
                     {
                         state.TotalCount = totalCount;
@@ -307,7 +328,7 @@ public sealed class MatchService : IMatchService
                     state.HasReachedEnd = true;
                 }
 
-                // 记录首页数据的写入时刻：即使本次为空也置位，避免服务端异常时被反复重打。
+                // 成功的空结果也缓存；读取失败在上方返回，不会阻止后续重试。
                 state.RefreshedAtTicks = _time.GetUtcNow().UtcTicks;
             }
 
@@ -336,11 +357,16 @@ public sealed class MatchService : IMatchService
                 // 若非腾讯服，或 SGP 未命中任何数据，则降级尝试 LCU
                 if (newBatch.Count == 0)
                 {
-                    var (lcuBatch, _) = await FetchLcuGamesAsync(
+                    var (lcuBatch, _, succeeded) = await FetchLcuGamesAsync(
                         puuid,
                         fetchBeg,
                         fetchBeg + fetchCount - 1,
                         cancellationToken).ConfigureAwait(false);
+                    if (!succeeded)
+                    {
+                        fetchFailed = true;
+                        break;
+                    }
                     newBatch = lcuBatch;
                 }
 
@@ -367,6 +393,7 @@ public sealed class MatchService : IMatchService
             // 3. 切片返回
             if (beginIndex >= state.Games.Count)
             {
+                if (!fetchFailed) _status.Publish(MatchServiceStatus.Loaded("已加载 0 场对局"));
                 return new MatchHistoryPage
                 {
                     Games = [],
@@ -374,6 +401,7 @@ public sealed class MatchService : IMatchService
                     EndIndex = endIndex,
                     TotalCount = state.TotalCount,
                     HasMore = false,
+                    Succeeded = !fetchFailed,
                 };
             }
 
@@ -383,7 +411,7 @@ public sealed class MatchService : IMatchService
             // 核心修复：只要池子里还有后续数据，或者尚未确认到达远端尽头，就允许向后翻页！
             bool hasMore = (state.Games.Count > endIndex + 1) || (!state.HasReachedEnd);
 
-            _status.Publish(MatchServiceStatus.Loaded($"已加载 {slice.Count} 场对局"));
+            if (!fetchFailed) _status.Publish(MatchServiceStatus.Loaded($"已加载 {slice.Count} 场对局"));
 
             return new MatchHistoryPage
             {
@@ -392,6 +420,7 @@ public sealed class MatchService : IMatchService
                 EndIndex = endIndex,
                 TotalCount = state.TotalCount,
                 HasMore = hasMore,
+                Succeeded = !fetchFailed,
             };
         }
         finally
@@ -439,7 +468,7 @@ public sealed class MatchService : IMatchService
         }
     }
 
-    private async Task<(IReadOnlyList<MatchSummary> Games, int? TotalCount)> FetchLcuGamesAsync(
+    private async Task<(IReadOnlyList<MatchSummary> Games, int? TotalCount, bool Succeeded)> FetchLcuGamesAsync(
         string puuid,
         int beginIndex,
         int endIndex,
@@ -449,7 +478,7 @@ public sealed class MatchService : IMatchService
         if (transport is null)
         {
             _status.Publish(MatchServiceStatus.Failed("客户端未连接，无法读取战绩"));
-            return ([], null);
+            return ([], null, false);
         }
 
         _status.Publish(MatchServiceStatus.Loading($"正在拉取第 {beginIndex}–{endIndex} 场"));
@@ -471,17 +500,23 @@ public sealed class MatchService : IMatchService
             _status.Publish(MatchServiceStatus.Idle);
             throw;
         }
+        catch (LcuTransportException ex)
+        {
+            _logger?.LogWarning(ex, "读取战绩时 LCU 传输失败（puuid={Puuid}）", puuid);
+            _status.Publish(MatchServiceStatus.Failed("读取战绩失败，请重试"));
+            return ([], null, false);
+        }
 
         if (response.IsNotFound)
         {
             _status.Publish(MatchServiceStatus.Failed("玩家不存在，或该账号的战绩不可见"));
-            return ([], null);
+            return ([], null, false);
         }
 
         if (!response.IsSuccess)
         {
             _status.Publish(MatchServiceStatus.Failed($"读取战绩失败（HTTP {response.StatusCode}）"));
-            return ([], null);
+            return ([], null, false);
         }
 
         try
@@ -502,13 +537,13 @@ public sealed class MatchService : IMatchService
                 }
             }
 
-            return (games, totalCount);
+            return (games, totalCount, true);
         }
         catch (JsonException ex)
         {
             _logger?.LogWarning(ex, "战绩载荷解析失败（{Bytes} 字节）", response.Body.Length);
             _status.Publish(MatchServiceStatus.Failed("战绩载荷解析失败，可能是客户端版本变更"));
-            return ([], null);
+            return ([], null, false);
         }
     }
 
@@ -534,6 +569,12 @@ public sealed class MatchService : IMatchService
         {
             _status.Publish(MatchServiceStatus.Idle);
             throw;
+        }
+        catch (LcuTransportException ex)
+        {
+            _logger?.LogWarning(ex, "读取对局详情时 LCU 传输失败（GameId={GameId}）", gameId);
+            _status.Publish(MatchServiceStatus.Failed("读取对局详情失败，请重试"));
+            return null;
         }
 
         if (response.IsNotFound)
@@ -580,10 +621,13 @@ public sealed class MatchService : IMatchService
     /// 否则 A 先查过、B 再查同一局会看到 A 的胜负。
     /// </summary>
     private static async Task<MatchDetail?> ApplyQueriedPlayerAsync(
-        Lazy<Task<MatchDetail?>> entry,
-        string? queriedPuuid)
+        Task<MatchDetail?> task,
+        Task cleanup,
+        string? queriedPuuid,
+        CancellationToken cancellationToken)
     {
-        MatchDetail? detail = await entry.Value.ConfigureAwait(false);
+        await cleanup.WaitAsync(cancellationToken).ConfigureAwait(false);
+        MatchDetail? detail = await task.ConfigureAwait(false);
 
         if (detail is null || string.IsNullOrEmpty(queriedPuuid))
         {

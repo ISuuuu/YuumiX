@@ -459,8 +459,17 @@ public sealed class CareerPage : Component<CareerPageProps>
                                 palette,
                                 BumpRefresh,
                                 // 数量弹窗带初值打开；确认弹窗存储时重包 onConfirm（先关窗再执行，对齐旧版闭包）
-                                dialog => { setQuantityDialog(dialog); setOpenQuantity(Math.Max(dialog.MaxQuantity, 0)); },
-                                dialog => setConfirmDialog(dialog with { OnConfirm = () => { setConfirmDialog(null); dialog.OnConfirm(); } })))),
+                                dialog =>
+                                {
+                                    int confirmed = 0;
+                                    setQuantityDialog(dialog with { OnConfirm = quantity => { if (Interlocked.Exchange(ref confirmed, 1) == 0) dialog.OnConfirm(quantity); } });
+                                    setOpenQuantity(Math.Max(dialog.MaxQuantity, 0));
+                                },
+                                dialog =>
+                                {
+                                    int confirmed = 0;
+                                    setConfirmDialog(dialog with { OnConfirm = () => { if (Interlocked.Exchange(ref confirmed, 1) != 0) return; setConfirmDialog(null); dialog.OnConfirm(); } });
+                                }))),
                 CareerTab.Mastery => mastery is null
                     ? (loading ? CareerVisuals.SkeletonMastery() : masteryFailureHint)
                     : ChampionMasteryView.Render(

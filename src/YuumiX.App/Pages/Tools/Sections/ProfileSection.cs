@@ -58,6 +58,8 @@ internal static class ProfileSection
         Action<SpoofUi> setSpoof,
         ConfirmUi confirm,
         Action<ConfirmUi> setConfirm,
+        bool clearBadgesPending,
+        bool clearBorderPending,
         BadgeUi badge,
         Action<BadgeUi> setBadge,
         IReadOnlyList<ChampionSummaryItem> champions,
@@ -292,43 +294,15 @@ internal static class ProfileSection
                 StatusButton(ui, i18n.T("tools.statusAway", "离开"), "away", "已切换为离开状态", "设为离开"),
                 StatusButton(ui, i18n.T("tools.statusOffline", "隐身"), "offline", "已切换为隐身离线状态", "设为隐身")));
 
-        Element clearBadgesAction = confirm.ClearBadges
-            ? (Element)HStack(6,
-                Caption("🏅 确定清除所有勋章？").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                Button(Caption(i18n.T("common.cancel", "取消")), () => setConfirm(confirm with { ClearBadges = false })).Padding(6, 2).AutomationName("取消卸下勋章"),
-                Button(Caption(i18n.T("common.confirm", "确认卸下")), async () =>
-                {
-                    setConfirm(confirm with { ClearBadges = false });
-                    try
-                    {
-                        await ui.Tools.ClearChallengeBadgesAsync();
-                        ui.Toast.Success("已卸下展示的全部挑战勋章");
-                    }
-                    catch (Exception ex)
-                    {
-                        ui.Toast.Error($"卸下勋章失败: {ex.Message}");
-                    }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下勋章"))
-            : (Element)Button(i18n.T("tools.clearAllBadgesBtn", "卸下全部勋章"), () => setConfirm(confirm with { ClearBadges = true })).AutomationName("卸下勋章");
+        Element clearBadgesAction = Button(i18n.T("tools.clearAllBadgesBtn", "卸下全部勋章"),
+            () => setConfirm(confirm with { ClearBadges = true }))
+            .IsEnabled(ui.IsLcuConnected && !clearBadgesPending)
+            .AutomationName(i18n.T("tools.clearBadgesAutomation", "卸下勋章"));
 
-        Element clearBorderAction = confirm.ClearBorder
-            ? (Element)HStack(6,
-                Caption("🖼️ 确定清除头像框？").Foreground(Theme.Ref("SystemFillColorCriticalBrush")).VAlign(VerticalAlignment.Center),
-                Button(Caption(i18n.T("common.cancel", "取消")), () => setConfirm(confirm with { ClearBorder = false })).Padding(6, 2).AutomationName("取消卸下头像框"),
-                Button(Caption(i18n.T("common.confirm", "确认卸下")), async () =>
-                {
-                    setConfirm(confirm with { ClearBorder = false });
-                    try
-                    {
-                        await ui.Tools.ClearProfileTokensAsync();
-                        ui.Toast.Success("已卸下生涯头像框");
-                    }
-                    catch (Exception ex)
-                    {
-                        ui.Toast.Error($"卸下头像框失败: {ex.Message}");
-                    }
-                }).Background(Theme.Ref("SystemFillColorCriticalBrush")).Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush")).Padding(6, 2).AutomationName("确认卸下头像框"))
-            : (Element)Button(i18n.T("tools.clearBorderBtn", "卸下头像框"), () => setConfirm(confirm with { ClearBorder = true })).AutomationName("卸下头像框");
+        Element clearBorderAction = Button(i18n.T("tools.clearBorderBtn", "卸下头像框"),
+            () => setConfirm(confirm with { ClearBorder = true }))
+            .IsEnabled(ui.IsLcuConnected && !clearBorderPending)
+            .AutomationName(i18n.T("tools.clearBorderAutomation", "卸下头像框"));
 
         var badgesCard = ToolsVisuals.ToolCard(
             ui,

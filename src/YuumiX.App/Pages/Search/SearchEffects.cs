@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor.Hooks;
 using YuumiX.Core;
 using YuumiX.Core.Features.Match;
@@ -16,85 +17,6 @@ namespace YuumiX.App.Pages.Search;
 /// </summary>
 internal static class SearchEffects
 {
-    /// <summary>路由跳转触发的搜索：若上一轮搜索还在进行中，等待空闲再提交（防重入，最多 30s）。</summary>
-    internal static async Task RunRoutedSearchAsync(
-        Mutation<SearchTargetInput, SummonerProfile?> mutation,
-        string? query,
-        string? puuid,
-        long targetGameId)
-    {
-        int waitCount = 0;
-        while (mutation.IsPending && waitCount < 600)
-        {
-            await Task.Delay(50).ConfigureAwait(false);
-            waitCount++;
-        }
-
-        _ = mutation.RunAsync(new SearchTargetInput(query, puuid, null, targetGameId));
-    }
-
-    /// <summary>
-    /// 首屏 / 翻页 / 刷新共用的取数入口（UseEffect 回调体）：
-    /// 还没有召唤师就先解析当前登录账号（setSummoner 会改变依赖键，下一轮再拉战绩，
-    /// 不会重复请求）；有 puuid 就拉这一页。返回值即 effect 的 cleanup（取消在途请求）。
-    /// </summary>
-    internal static Action BeginHistoryLoad(
-        AppServices services,
-        IMatchService matchService,
-        ISummonerService summonerService,
-        SummonerProfile? summoner,
-        int pageIndex,
-        Action<SummonerProfile?> applySummoner,
-        Action<bool> applySummonerResolved,
-        Action<IReadOnlyList<MatchSummary>> applyMatches,
-        Action<bool> applyHasMore)
-    {
-        if (summoner is null)
-        {
-            var resolveCancellation = new CancellationTokenSource();
-            _ = SearchLoaders.ResolveSummonerAsync(summonerService, applySummoner, applySummonerResolved, resolveCancellation.Token);
-            return () =>
-            {
-                resolveCancellation.Cancel();
-                resolveCancellation.Dispose();
-            };
-        }
-
-        var cancellation = new CancellationTokenSource();
-        _ = SearchLoaders.LoadHistoryAsync(services, matchService, summoner.Puuid, pageIndex, applyMatches, applyHasMore, cancellation.Token);
-        return () =>
-        {
-            cancellation.Cancel();
-            cancellation.Dispose();
-        };
-    }
-
-    /// <summary>详情加载 effect 回调体：先清空再取详情（服务内部按 gameId 缓存，来回切换不重复请求）。</summary>
-    internal static Action BeginDetailLoad(
-        AppServices services,
-        IMatchService matchService,
-        long gameId,
-        string? puuid,
-        Action<MatchDetail?> apply)
-    {
-        if (gameId == 0)
-        {
-            apply(null);
-            return static () => { };
-        }
-
-        // 先清空：否则新选中项会短暂顶着上一局的 10 人名单，看起来像数据错位
-        apply(null);
-
-        var cancellation = new CancellationTokenSource();
-        _ = SearchLoaders.LoadDetailAsync(services, matchService, gameId, puuid, apply, cancellation.Token);
-        return () =>
-        {
-            cancellation.Cancel();
-            cancellation.Dispose();
-        };
-    }
-
     /// <summary>
     /// 载入一页后补传本页对局（对齐旧 Search.vue：翻页即补传，服务端已有会返回 exists）。
     /// </summary>
@@ -103,14 +25,46 @@ internal static class SearchEffects
         IReadOnlyList<MatchSummary> matches,
         HashSet<long> uploadedGameIds,
         string? summonerPuuid,
-        Action<string?> setNotice)
+        Action<string?, int> setNotice,
+        CancellationToken cancellationToken)
     {
-        long[] pending = matches.Select(m => m.GameId)
-            .Where(id => uploadedGameIds.Add(id))
-            .ToArray();
-        if (pending.Length > 0)
+        _ = RunUploadBatchAsync(matches.Select(m => m.GameId), uploadedGameIds,
+            (pending, ct) => SearchLoaders.UploadMatchesAsync(services, pending, summonerPuuid, setNotice, ct), cancellationToken,
+            services.LoggerFactory.CreateLogger("YuumiX.App.Pages.Search"));
+    }
+
+    internal static async Task RunUploadBatchAsync(
+        IEnumerable<long> gameIds, HashSet<long> uploadedGameIds,
+        Func<long[], CancellationToken, Task<bool>> upload, CancellationToken cancellationToken, ILogger? logger = null)
+    {
+        long[] pending;
+        lock (uploadedGameIds)
+            pending = gameIds.Where(uploadedGameIds.Add).ToArray();
+        if (pending.Length == 0) return;
+
+        int rolledBack = 0;
+        void RollBack()
         {
-            _ = SearchLoaders.UploadMatchesAsync(services, pending, summonerPuuid, setNotice);
+            if (Interlocked.Exchange(ref rolledBack, 1) != 0) return;
+            lock (uploadedGameIds)
+                foreach (long id in pending) uploadedGameIds.Remove(id);
+        }
+
+        using var registration = cancellationToken.Register(RollBack);
+        try
+        {
+            if (cancellationToken.IsCancellationRequested || !await upload(pending, cancellationToken).ConfigureAwait(false))
+                RollBack();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 取消时同步撤销去重标记，返回页面即可重试。
+            RollBack();
+        }
+        catch (Exception ex)
+        {
+            RollBack();
+            logger?.LogWarning(ex, "上传对局批次失败");
         }
     }
 
@@ -135,19 +89,18 @@ internal static class SearchEffects
     }
 
     /// <summary>复制游戏 ID 到剪贴板，2 秒后清除提示。</summary>
-    internal static void CopyGameId(long gameId, Action<string?> setNotice)
+    internal static void CopyGameId(long gameId, Action<string?, int> setNotice)
     {
         try
         {
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
             package.SetText(gameId.ToString(CultureInfo.InvariantCulture));
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-            setNotice($"游戏 ID: {gameId} 已复制到剪贴板");
-            _ = ClearNoticeLaterAsync(setNotice, 2000);
+            setNotice($"游戏 ID: {gameId} 已复制到剪贴板", 2000);
         }
         catch
         {
-            setNotice("复制到剪贴板失败");
+            setNotice("复制到剪贴板失败", 0);
         }
     }
 
@@ -157,35 +110,70 @@ internal static class SearchEffects
         Action<int> apply,
         Func<long?> getCurrentLatestGameId,
         long? prevLatestId,
-        long? expectedNewGameId)
+        long? expectedNewGameId,
+        CancellationToken cancellationToken = default,
+        ILogger? logger = null)
     {
-        requestSeq.Current += 1;
-        apply(requestSeq.Current);
-
-        int[] retryDelays = [1500, 2000, 3000, 3000];
-        foreach (int delay in retryDelays)
+        try
         {
-            await Task.Delay(delay).ConfigureAwait(false);
-
-            long? currentLatest = getCurrentLatestGameId();
-            if (expectedNewGameId is { } target && target > 0 && currentLatest == target)
-            {
-                break;
-            }
-            if (prevLatestId is { } prev && prev > 0 && currentLatest is { } cur && cur > 0 && cur != prev)
-            {
-                break;
-            }
-
+            cancellationToken.ThrowIfCancellationRequested();
             requestSeq.Current += 1;
             apply(requestSeq.Current);
+
+            int[] retryDelays = [1500, 2000, 3000, 3000];
+            foreach (int delay in retryDelays)
+            {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                long? currentLatest = getCurrentLatestGameId();
+                if (expectedNewGameId is { } target && target > 0 && currentLatest == target)
+                {
+                    break;
+                }
+                if (prevLatestId is { } prev && prev > 0 && currentLatest is { } cur && cur > 0 && cur != prev)
+                {
+                    break;
+                }
+
+                requestSeq.Current += 1;
+                apply(requestSeq.Current);
+            }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 离页或新的刷新请求会取消旧轮询，属于正常结束。
+        }
+        catch (Exception ex) { logger?.LogWarning(ex, "刷新战绩轮询失败"); }
     }
 
-    /// <summary>提示文案自动消失（复制游戏 ID 等）。页面卸载后 setter 为 no-op，无需取消。</summary>
-    internal static async Task ClearNoticeLaterAsync(Action<string?> apply, int delayMilliseconds)
+    internal static string HistoryCacheKey(string? puuid, int pageIndex, int connectionStatus) =>
+        $"search/matches/{puuid ?? string.Empty}/{pageIndex}/{connectionStatus}";
+
+    internal static MatchHistoryPage? CurrentHistoryPage(AsyncValue<SearchHistoryResult> resource, string key, SearchHistoryResult? previous = null)
     {
-        await Task.Delay(delayMilliseconds).ConfigureAwait(false);
-        apply(null);
+        var result = resource switch
+        {
+            AsyncValue<SearchHistoryResult>.Data data => data.Value,
+            AsyncValue<SearchHistoryResult>.Reloading reloading => reloading.Previous,
+            AsyncValue<SearchHistoryResult>.Loading => previous,
+            _ => null,
+        };
+        return result?.Key == key ? result.Page : null;
+    }
+
+    internal static async Task ClearNoticeLaterAsync(Action clear, int delayMilliseconds, CancellationToken cancellationToken, ILogger? logger = null)
+    {
+        try
+        {
+            await Task.Delay(delayMilliseconds, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            clear();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 离页或新提示会取消旧计时，避免清除较新的提示。
+        }
+        catch (Exception ex) { logger?.LogWarning(ex, "清除搜索提示失败"); }
     }
 }

@@ -1,5 +1,8 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Reactor.Hooks;
+using YuumiX.Core.Features.Match.Models;
+using YuumiX.Core.Localization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -243,23 +246,20 @@ internal static class SearchChrome
             .HAlign(HorizontalAlignment.Stretch);
     }
 
-    /// <summary>
-    /// 列表为空时的占位。三种情形要分开：
-    /// 召唤师还没解析完（骨架）→ 客户端确实没连上（骨架）→ 读取失败（服务给的原因）。
-    /// 全部渲染浅色圆角占位卡（对齐 pic/战绩查询1.png）。
-    /// </summary>
-    internal static Element SkeletonList(
-        MatchServiceStatus status,
-        bool summonerResolved,
-        bool hasSummoner,
-        YuumiPalette palette)
-    {
-        if (status.State == MatchLoadState.Failed)
-        {
-            return Hint(status.Message ?? "读取战绩失败");
-        }
+    internal static Element RetryHint(string message, string retry, Action onRetry) =>
+        VStack(8, Hint(message), Button(retry, onRetry).AutomationName(retry));
 
-        return BuildSkeletons(palette);
+    internal static Element ResourceState(AsyncValue<SummonerProfile?> summoner, AsyncValue<SearchHistoryResult> history,
+        bool hasCurrentPage, bool hasSummoner, bool hasMatches, YuumiPalette palette, Action retry, I18nService i18n)
+    {
+        if (!hasSummoner && summoner is AsyncValue<SummonerProfile?>.Loading or AsyncValue<SummonerProfile?>.Reloading) return BuildSkeletons(palette);
+        if (!hasSummoner && summoner is AsyncValue<SummonerProfile?>.Error)
+            return RetryHint(i18n.T("search.resolveFailed", "读取召唤师失败"), i18n.T("search.retry", "重试"), retry);
+        if (!hasSummoner) return Hint(i18n.T("search.noSummoner", "未取得召唤师，请检查客户端连接"));
+        if (history is AsyncValue<SearchHistoryResult>.Error)
+            return RetryHint(i18n.T("search.historyFailed", "读取战绩失败"), i18n.T("search.retry", "重试"), retry);
+        if (!hasCurrentPage) return BuildSkeletons(palette);
+        return Hint(hasMatches ? i18n.T("search.filteredEmpty", "没有符合筛选条件的对局") : i18n.T("search.historyEmpty", "暂无战绩"));
     }
 
     /// <summary>列表区的说明块：与卡片同宽，避免右侧面板被拉宽。</summary>

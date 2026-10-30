@@ -19,6 +19,7 @@ internal sealed record FriendUi(
     int FilterIndex,
     HashSet<string> SelectedIds,
     bool ConfirmingDelete,
+    IReadOnlyList<string> PendingDeleteIds,
     int ScanCompleted,
     int ScanTotal);
 
@@ -42,6 +43,10 @@ internal static class GameSection
         "单双排位 (420)", "灵活排位 (440)", "无限火力 (900)", "克隆模式 (1020)",
         "极限闪击 (1300)", "斗魂竞技场 (1700)", "经典模式 (4300)"
     ];
+
+    internal static string[] SnapshotDeletableIds(IReadOnlyList<FriendEntry> friends, ISet<string> selectedIds) =>
+        friends.Where(f => f.CanDelete && selectedIds.Contains(f.Friend.Id))
+            .Select(f => f.Friend.Id).Distinct().ToArray();
 
     private static int IndexOfLobbyMode(int mode)
     {
@@ -245,12 +250,20 @@ internal static class GameSection
                 },
                 () => setFriend(friend with { SelectedIds = [] }),
                 friend.ConfirmingDelete,
-                () => setFriend(friend with { ConfirmingDelete = true }),
-                () => setFriend(friend with { ConfirmingDelete = false }),
+                friend.PendingDeleteIds.Count,
+                i18n,
                 () =>
                 {
-                    if (friend.SelectedIds.Count == 0) return;
-                    _ = deleteFriends.RunAsync([.. friend.SelectedIds]);
+                    var ids = SnapshotDeletableIds(friend.AllFriends, friend.SelectedIds);
+                    if (ids.Length > 0 && !deleteFriends.IsPending)
+                        setFriend(friend with { ConfirmingDelete = true, PendingDeleteIds = ids });
+                },
+                () => setFriend(friend with { ConfirmingDelete = false, PendingDeleteIds = [] }),
+                () =>
+                {
+                    if (deleteFriends.IsPending || friend.PendingDeleteIds.Count == 0) return;
+                    setFriend(friend with { ConfirmingDelete = false });
+                    _ = deleteFriends.RunAsync([.. friend.PendingDeleteIds]);
                 },
                 () => _ = scanFriends.RunAsync(null),
                 ui.Palette

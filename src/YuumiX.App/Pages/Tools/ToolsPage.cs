@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using static Microsoft.UI.Reactor.Factories;
@@ -34,7 +35,7 @@ public sealed class ToolsPage : Component
 
     private static readonly ChampionUi InitialChampion = new(0, 0, 0, 0, string.Empty, string.Empty);
     private static readonly SpectateUi InitialSpectate = new(string.Empty, 0);
-    private static readonly FriendUi InitialFriend = new([], string.Empty, 0, [], false, 0, 0);
+    private static readonly FriendUi InitialFriend = new([], string.Empty, 0, [], false, [], 0, 0);
     private static readonly ProfileDraftUi InitialDraft = new(string.Empty, string.Empty);
     private static readonly ProfileBgUi InitialBg = new("1", [], 0, false);
     private static readonly SpoofUi InitialSpoof = new(0, 0, 0);
@@ -108,6 +109,17 @@ public sealed class ToolsPage : Component
         // 避免闭包里捕获过期渲染的 friend（UseState 的 setter 没有 updater 形态）。
         var friendRef = UseRef(friend);
         friendRef.Current = friend;
+
+        var closeDialogsRef = UseRef<Action?>(null);
+        closeDialogsRef.Current = () =>
+        {
+            setConfirm(InitialConfirm);
+            setFriend(friendRef.Current with { ConfirmingDelete = false, PendingDeleteIds = [] });
+        };
+        var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
+        navigatedFromRef.Current ??= _ => closeDialogsRef.Current?.Invoke();
+        UseNavigationLifecycle(onNavigatedFrom: navigatedFromRef.Current);
+
 
         // ── 异步资源（R7）：英雄/技能目录**进页即预热**，挑战勋章仍在勋章卡展开时才拉。
         // 原先目录是按需拉取（展开 autoHover/autoBan/autoSpells 才请求），代价是展开那一下要等
@@ -197,27 +209,49 @@ public sealed class ToolsPage : Component
         // ── 好友清理（R7）：扫描是带进度的按钮触发读，删除是写，二者都走 UseMutation
         //（IsPending 即 loading，卸载自动取消，异常统一进 toast）。
         var scanFriends = UseMutation<object?, IReadOnlyList<FriendEntry>>(
-            (_, _) => friendCleanerService.ScanFriendsAsync((done, total) =>
-                setFriend(friendRef.Current with { ScanCompleted = done, ScanTotal = total })),
+            (_, ct) => friendCleanerService.ScanFriendsAsync((done, total) =>
+                setFriend(friendRef.Current with { ScanCompleted = done, ScanTotal = total }), ct),
             new MutationOptions<object?, IReadOnlyList<FriendEntry>>(
                 OnOptimistic: _ => setFriend(friendRef.Current with { ScanCompleted = 0, ScanTotal = 0 }),
                 OnSuccess: (list, _) =>
                 {
                     setFriend(friendRef.Current with { AllFriends = list });
-                    toast.Success($"好友扫描完成，共找到 {list.Count} 位好友");
+                    toast.Success(services.I18n.T("tools.friendScanSuccess", "好友扫描完成，共找到 {count} 位好友").Replace("{count}", list.Count.ToString()));
                 },
-                OnError: (ex, _) => toast.Error($"好友扫描失败: {ex.Message}")));
+                OnError: (ex, _) => toast.Error(services.I18n.T("tools.friendScanFailed", "好友扫描失败: {error}").Replace("{error}", ex.Message))));
 
         var deleteFriends = UseMutation<List<string>, int>(
-            (ids, _) => friendCleanerService.BatchDeleteFriendsAsync(ids),
+            (ids, ct) => friendCleanerService.BatchDeleteFriendsAsync(ids, ct),
             new MutationOptions<List<string>, int>(
                 OnSuccess: (count, ids) =>
                 {
-                    toast.Success($"成功清理 {count} 位离线好友");
-                    setFriend(friendRef.Current with { SelectedIds = [], ConfirmingDelete = false });
+                    toast.Success(services.I18n.T("tools.friendDeleteSuccess", "成功清理 {count} 位离线好友").Replace("{count}", count.ToString()));
+                    setFriend(friendRef.Current with { SelectedIds = [], ConfirmingDelete = false, PendingDeleteIds = [] });
                     _ = scanFriends.RunAsync(null);
                 },
-                OnError: (ex, _) => toast.Error($"删除好友失败: {ex.Message}")));
+                OnError: (ex, _) => toast.Error(services.I18n.T("tools.friendDeleteFailed", "删除好友失败: {error}").Replace("{error}", ex.Message))));
+
+        var restartClient = UseMutation<object?, bool>(
+            async (_, ct) =>
+            {
+                var transport = lcuConnection.Transport ?? throw new InvalidOperationException(services.I18n.T("tools.clientDisconnected", "LCU 客户端未连接，请先启动英雄联盟客户端"));
+                var response = await transport.SendAsync(LcuRequest.Post("/riotclient/kill-and-restart-ux", "{}"), ct);
+                EnsureRestartSucceeded(response, services.I18n.T("tools.httpStatusError", "HTTP 状态码 {status}").Replace("{status}", response.StatusCode.ToString()));
+                return true;
+            },
+            new MutationOptions<object?, bool>(
+                OnSuccess: (_, _) => toast.Success(services.I18n.T("tools.restartSuccess", "已向 Riot Client 发送重启指令，客户端正在重新引导...")),
+                OnError: (ex, _) => toast.Error(services.I18n.T("tools.operationFailed", "操作失败: {error}").Replace("{error}", ex.Message))));
+        var clearBadges = UseMutation<object?, bool>(
+            async (_, ct) => { await toolsService.ClearChallengeBadgesAsync(ct); return true; },
+            new MutationOptions<object?, bool>(
+                OnSuccess: (_, _) => toast.Success(services.I18n.T("tools.clearBadgesSuccess", "已卸下展示的全部挑战勋章")),
+                OnError: (ex, _) => toast.Error(services.I18n.T("tools.clearBadgesFailed", "卸下勋章失败: {error}").Replace("{error}", ex.Message))));
+        var clearBorder = UseMutation<object?, bool>(
+            async (_, ct) => { await toolsService.ClearProfileTokensAsync(ct); return true; },
+            new MutationOptions<object?, bool>(
+                OnSuccess: (_, _) => toast.Success(services.I18n.T("tools.clearBorderSuccess", "已卸下生涯头像框")),
+                OnError: (ex, _) => toast.Error(services.I18n.T("tools.clearBorderFailed", "卸下头像框失败: {error}").Replace("{error}", ex.Message))));
 
         UseEffect(
             () =>
@@ -299,11 +333,11 @@ public sealed class ToolsPage : Component
 
                 // 3. 客户端
                 ToolsVisuals.GroupHeader(services.I18n.T("tools.groupClient", "客户端")),
-                ClientSection.Render(ui, confirm, setConfirm),
+                ClientSection.Render(ui, confirm, setConfirm, restartClient.IsPending),
 
                 // 4. 个人主页
                 ToolsVisuals.GroupHeader(services.I18n.T("tools.groupProfile", "个人主页")),
-                ProfileSection.Render(ui, draft, setDraft, bg, setBg, spoof, setSpoof, confirm, setConfirm, badge, setBadge, champions, challenges, challengesLoading, () => setChallengesTick(challengesTick + 1))
+                ProfileSection.Render(ui, draft, setDraft, bg, setBg, spoof, setSpoof, confirm, setConfirm, clearBadges.IsPending, clearBorder.IsPending, badge, setBadge, champions, challenges, challengesLoading, () => setChallengesTick(challengesTick + 1))
             )
             // 正文列：显式宽度 + 居中（不要写成 MaxWidth + Stretch，原因见 ContentColumn 注释）。
             .Width(columnWidth)
@@ -325,8 +359,37 @@ public sealed class ToolsPage : Component
             [GridSize.Star()],
             [
                 mainScroll.Grid(row: 0, column: 0),
+                ConfirmationDialog.Render(
+                    services.I18n.T("tools.restartConfirmTitle", "重启客户端"),
+                    Body(services.I18n.T("tools.restartConfirmPrompt", "确定重启客户端？无需重新登录。")).TextWrapping(),
+                    services.I18n.T("tools.restartConfirmAction", "确认重启"), services.I18n.T("common.cancel", "取消"),
+                    confirm.RestartClient,
+                    () => { setConfirm(confirm with { RestartClient = false }); if (isLcuConnected && !restartClient.IsPending) _ = restartClient.RunAsync(null); },
+                    () => setConfirm(confirm with { RestartClient = false }), palette, isLcuConnected && !restartClient.IsPending),
+                ConfirmationDialog.Render(
+                    services.I18n.T("tools.clearBadgesTitle", "卸下全部勋章"),
+                    Body(services.I18n.T("tools.clearBadgesPrompt", "确定卸下展示的全部挑战勋章吗？")).TextWrapping(),
+                    services.I18n.T("tools.clearConfirmAction", "确认卸下"), services.I18n.T("common.cancel", "取消"),
+                    confirm.ClearBadges,
+                    () => { setConfirm(confirm with { ClearBadges = false }); if (isLcuConnected && !clearBadges.IsPending) _ = clearBadges.RunAsync(null); },
+                    () => setConfirm(confirm with { ClearBadges = false }), palette, isLcuConnected && !clearBadges.IsPending),
+                ConfirmationDialog.Render(
+                    services.I18n.T("tools.clearBorderTitle", "卸下头像框"),
+                    Body(services.I18n.T("tools.clearBorderPrompt", "确定卸下生涯头像框吗？")).TextWrapping(),
+                    services.I18n.T("tools.clearConfirmAction", "确认卸下"), services.I18n.T("common.cancel", "取消"),
+                    confirm.ClearBorder,
+                    () => { setConfirm(confirm with { ClearBorder = false }); if (isLcuConnected && !clearBorder.IsPending) _ = clearBorder.RunAsync(null); },
+                    () => setConfirm(confirm with { ClearBorder = false }), palette, isLcuConnected && !clearBorder.IsPending),
             ]
         );
+    }
+
+    internal static void EnsureRestartSucceeded(LcuResponse response, string errorMessage)
+    {
+        if (!response.IsSuccess)
+        {
+            throw new InvalidOperationException(errorMessage);
+        }
     }
 
     /// <summary>

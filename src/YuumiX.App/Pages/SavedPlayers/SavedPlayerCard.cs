@@ -23,11 +23,9 @@ internal static class SavedPlayerCard
         string editingTag,
         Action<string> setEditingTag,
         Action<string?> setEditingPuuid,
-        bool isPendingDelete,
-        Action<string?> setPendingDeletePuuid,
+        Action onRequestDelete,
         Action onToggle,
         Action onSaveTag,
-        Action onConfirmDelete,
         YuumiPalette palette)
     {
         var i18n = Composition.AppHost.Services?.I18n;
@@ -114,7 +112,7 @@ internal static class SavedPlayerCard
             .AutomationName(editTagText)
             .Padding(8, 4),
 
-            Button(Body(deleteText), () => setPendingDeletePuuid(player.Puuid))
+            Button(Body(deleteText), onRequestDelete)
                 .AutomationName(deleteText)
                 .Padding(8, 4)
                 .Foreground(palette.LoseAccent),
@@ -150,32 +148,6 @@ internal static class SavedPlayerCard
                 rightStack.Grid(column: 1),
             ]
         );
-
-        // 安全删除确认条（防误触）
-        Element? deleteConfirmRow = null;
-        if (isPendingDelete)
-        {
-            deleteConfirmRow = Border(
-                HStack(
-                    12,
-                    Body("⚠️ 确定要删除该玩家及其所有相遇记录吗？")
-                        .Foreground(palette.LoseAccent)
-                        .VerticalAlignment(VerticalAlignment.Center),
-                    Button(Body("确认删除"), onConfirmDelete)
-                        .Padding(8, 4)
-                        .Background(palette.LoseAccent)
-                        .AutomationName("确认删除"),
-                    Button(Body("取消"), () => setPendingDeletePuuid(null))
-                        .Padding(8, 4)
-                        .AutomationName("取消")
-                )
-                .Padding(8, 4)
-            )
-            .Background(Theme.CardBackground)
-            .WithBorder(palette.LoseAccent, 1)
-            .CornerRadius(YuumiTheme.OverlayRadius)
-            .Margin(0, 8, 0, 2);
-        }
 
         // 编辑行
         Element? editRow = null;
@@ -262,7 +234,6 @@ internal static class SavedPlayerCard
             VStack(
                 4,
                 mainRow,
-                deleteConfirmRow,
                 editRow,
                 historySection
             )

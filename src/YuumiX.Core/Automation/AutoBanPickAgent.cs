@@ -31,7 +31,10 @@ public sealed class AutoBanPickAgent : IAutomationAgent
     private bool _isRunning;
     private long _lastEpoch;
     private bool _isSummonerSpellSet;
+    private bool _isSummonerSpellSetting;
     private bool _isChampionPickedCompleted;
+    private bool _isPresetting;
+    private long _selectionGeneration;
     private int? _lastPresetActionId;
     private int _lastPresetChampionId;
     private int _lastOpggChampionId;
@@ -92,8 +95,11 @@ public sealed class AutoBanPickAgent : IAutomationAgent
 
     private void ResetSelectionTracking()
     {
+        _selectionGeneration++;
         _isSummonerSpellSet = false;
+        _isSummonerSpellSetting = false;
         _isChampionPickedCompleted = false;
+        _isPresetting = false;
         _lastPresetActionId = null;
         _lastPresetChampionId = 0;
         _lastOpggChampionId = 0;
@@ -108,6 +114,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         ArgumentNullException.ThrowIfNull(session);
 
         var snap = _lifecycle.Snapshot();
+        long generation;
         lock (_stateLock)
         {
             if (snap.MatchEpoch != _lastEpoch || snap.Phase != GamePhase.ChampSelect)
@@ -126,14 +133,15 @@ public sealed class AutoBanPickAgent : IAutomationAgent
                 _supervisor.CancelKind(TaskKind.AutoTrade);
                 return;
             }
+            generation = _selectionGeneration;
         }
 
         var cfg = _configProvider().Functions;
 
         // 执行顺序：亮英雄/预选 → 禁人 → 技能 → 交换 → 交易 → 锁定 → OP.GG 联动
-        await DoAutoPresetChampionAsync(session, cfg).ConfigureAwait(false);
+        await DoAutoPresetChampionAsync(session, cfg, generation).ConfigureAwait(false);
         await DoAutoBanAsync(session, cfg).ConfigureAwait(false);
-        await DoAutoSpellAsync(session, cfg).ConfigureAwait(false);
+        await DoAutoSpellAsync(session, cfg, generation).ConfigureAwait(false);
         await DoAutoSwapAsync(session, cfg).ConfigureAwait(false);
         await DoAutoTradeAsync(session, cfg).ConfigureAwait(false);
         await DoAutoCompleteAsync(session, cfg).ConfigureAwait(false);
@@ -141,7 +149,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
     }
 
     // ─── 1. 自动预选/亮英雄 ───
-    private async Task DoAutoPresetChampionAsync(ChampSelectSession session, FunctionsConfig cfg)
+    private async Task DoAutoPresetChampionAsync(ChampSelectSession session, FunctionsConfig cfg, long generation)
     {
         if (!cfg.EnableAutoHoverChampion && !cfg.EnableAutoSelectChampion) return;
         if (session.BenchEnabled) return;
@@ -189,16 +197,39 @@ public sealed class AutoBanPickAgent : IAutomationAgent
 
         lock (_stateLock)
         {
-            if (_lastPresetActionId == pickAction.Id && _lastPresetChampionId == championId)
+            if (generation != _selectionGeneration || _isPresetting ||
+                (_lastPresetActionId == pickAction.Id && _lastPresetChampionId == championId))
             {
                 return;
             }
-            _lastPresetActionId = pickAction.Id;
-            _lastPresetChampionId = championId;
+            _isPresetting = true;
         }
 
         _logger?.LogDebug("预选亮出英雄: ChampionId={ChampId}, ActionId={ActionId}", championId, pickAction.Id);
-        await PatchActionAsync(pickAction.Id, championId, completed: false).ConfigureAwait(false);
+        bool succeeded = false;
+        try
+        {
+            succeeded = await PatchActionAsync(pickAction.Id, championId, completed: false).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "自动预选英雄失败");
+        }
+        finally
+        {
+            lock (_stateLock)
+            {
+                if (generation == _selectionGeneration)
+                {
+                    _isPresetting = false;
+                    if (succeeded)
+                    {
+                        _lastPresetActionId = pickAction.Id;
+                        _lastPresetChampionId = championId;
+                    }
+                }
+            }
+        }
     }
 
     // ─── 2. 自动禁用 ───
@@ -281,16 +312,19 @@ public sealed class AutoBanPickAgent : IAutomationAgent
     }
 
     // ─── 3. 自动召唤师技能 ───
-    private async Task DoAutoSpellAsync(ChampSelectSession session, FunctionsConfig cfg)
+    private async Task DoAutoSpellAsync(ChampSelectSession session, FunctionsConfig cfg, long generation)
     {
         lock (_stateLock)
         {
-            if (_isSummonerSpellSet) return;
+            if (generation != _selectionGeneration || _isSummonerSpellSet || _isSummonerSpellSetting) return;
         }
 
         if (!cfg.EnableAutoSetSpells)
         {
-            lock (_stateLock) _isSummonerSpellSet = true;
+            lock (_stateLock)
+            {
+                if (generation == _selectionGeneration) _isSummonerSpellSet = true;
+            }
             return;
         }
 
@@ -307,26 +341,47 @@ public sealed class AutoBanPickAgent : IAutomationAgent
 
         if (spells.Count < 2 || spells.Contains(54) || spells[0] == 0 || spells[1] == 0)
         {
-            lock (_stateLock) _isSummonerSpellSet = true;
+            lock (_stateLock)
+            {
+                if (generation == _selectionGeneration) _isSummonerSpellSet = true;
+            }
             return;
         }
 
         var transport = _transportProvider();
         if (transport is null) return;
 
-        var body = JsonSerializer.Serialize(new { spell1Id = spells[0], spell2Id = spells[1] });
-        var resp = await transport.SendAsync(
-            LcuRequest.Patch("/lol-champ-select/v1/session/my-selection", body)).ConfigureAwait(false);
-
         lock (_stateLock)
         {
-            _isSummonerSpellSet = true;
+            if (generation != _selectionGeneration || _isSummonerSpellSet || _isSummonerSpellSetting) return;
+            _isSummonerSpellSetting = true;
         }
 
-        if (resp.IsSuccess)
+        var body = JsonSerializer.Serialize(new { spell1Id = spells[0], spell2Id = spells[1] });
+        bool succeeded = false;
+        try
         {
-            _logger?.LogInformation("自动配置召唤师技能成功: {S1} / {S2}", spells[0], spells[1]);
+            var resp = await transport.SendAsync(
+                LcuRequest.Patch("/lol-champ-select/v1/session/my-selection", body)).ConfigureAwait(false);
+            succeeded = resp.IsSuccess;
         }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "自动配置召唤师技能失败");
+        }
+        finally
+        {
+            lock (_stateLock)
+            {
+                if (generation == _selectionGeneration)
+                {
+                    _isSummonerSpellSetting = false;
+                    _isSummonerSpellSet = succeeded;
+                }
+            }
+        }
+
+        if (succeeded) _logger?.LogInformation("自动配置召唤师技能成功: {S1} / {S2}", spells[0], spells[1]);
     }
 
     // ─── 4. 自动接受楼层交换 ───
@@ -577,10 +632,10 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         }
     }
 
-    private async Task PatchActionAsync(int actionId, int championId, bool completed, CancellationToken ct = default)
+    private async Task<bool> PatchActionAsync(int actionId, int championId, bool completed, CancellationToken ct = default)
     {
         var transport = _transportProvider();
-        if (transport is null) return;
+        if (transport is null) return false;
 
         var body = JsonSerializer.Serialize(new
         {
@@ -588,9 +643,10 @@ public sealed class AutoBanPickAgent : IAutomationAgent
             completed,
         });
 
-        await transport.SendAsync(
+        var response = await transport.SendAsync(
             LcuRequest.Patch($"/lol-champ-select/v1/session/actions/{actionId}", body),
             ct).ConfigureAwait(false);
+        return response.IsSuccess;
     }
 
     private static List<int> GetPositionSelectCandidates(string pos, FunctionsConfig cfg) => pos.ToLowerInvariant() switch
