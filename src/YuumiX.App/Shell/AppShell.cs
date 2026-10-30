@@ -14,6 +14,7 @@ using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
 using YuumiX.App.Pages.Bench;
@@ -706,7 +707,7 @@ public sealed class AppShell : Component
 
             // 优先直接取图标本体的实测角点：
             // 收起/展开两种状态的内边距完全不同，用固定数字估会在某一种状态下偏到图标上方。
-            if (FindIconHost(item) is { ActualWidth: > 0 } icon)
+            if (NavItemVisuals.FindIconHost(item) is { ActualWidth: > 0 } icon)
             {
                 Point corner;
                 try
@@ -873,15 +874,22 @@ public sealed class AppShell : Component
 
         // 挂载时挂上 Loaded 钩子：Loaded 是「框架复位已发生」的确定时刻，
         // 在那里做最终校正（校正被推到调度器队列，等首轮布局结束再执行）。
+        //
+        // 同一处顺带挂上图标按下回弹：这是纯视觉反馈，与导航逻辑无关，
+        // 因此只在挂载/卸载时成对加减，不参与每次渲染。
         navigationView = navigationView
             .OnMountAdd(element =>
             {
-                navViewRef.Current = (NavigationView)element;
-                ((NavigationView)element).Loaded += paneLoadedHandler.Current!;
+                var view = (NavigationView)element;
+                navViewRef.Current = view;
+                view.Loaded += paneLoadedHandler.Current!;
+                NavIconPressFeedback.Attach(view, shellLogger);
             })
             .OnUnmountAdd(element =>
             {
-                ((NavigationView)element).Loaded -= paneLoadedHandler.Current!;
+                var view = (NavigationView)element;
+                view.Loaded -= paneLoadedHandler.Current!;
+                NavIconPressFeedback.Detach(view);
                 navViewRef.Current = null;
             });
 
@@ -1084,46 +1092,6 @@ public sealed class AppShell : Component
         YuumiX.Core.Updates.UpdateService.FailureCodeSetupFailed => "安装程序返回失败",
         _ => "原因未知",
     };
-
-    /// <summary>
-    /// 找「设置」菜单项里的图标本体（或其 ContentPresenter 宿主）。
-    ///
-    /// 用它而不是按内边距估算：图标在收起态（栏内居中）与展开态（16px 内边距）的位置完全不同，
-    /// 任何写死的偏移都只会在其中一种状态下正确——实测展开态会偏到图标上方。
-    /// 取实测角点则可以两种状态通用，也顺带适应 DPI 缩放与模板尺寸调整。
-    ///
-    /// 三条识别路径按精确度排序：<c>IconElement</c> 本体 → 其 <c>ContentPresenter</c> 宿主
-    /// （模板里叫 <c>IconPresenter</c>，但名字并非公开契约，因此再兜一层名字匹配）。
-    /// </summary>
-    private static FrameworkElement? FindIconHost(DependencyObject root)
-    {
-        int count = VisualTreeHelper.GetChildrenCount(root);
-        for (int i = 0; i < count; i++)
-        {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (child is Microsoft.UI.Xaml.Controls.IconElement icon)
-            {
-                return icon;
-            }
-
-            if (child is ContentPresenter { Content: Microsoft.UI.Xaml.Controls.IconElement } host)
-            {
-                return host;
-            }
-
-            if (child is FrameworkElement { Name: "IconPresenter" } named)
-            {
-                return named;
-            }
-
-            if (FindIconHost(child) is { } nested)
-            {
-                return nested;
-            }
-        }
-
-        return null;
-    }
 
     /// <summary>
     /// 给「设置」菜单项补上无障碍提示与悬停说明。
