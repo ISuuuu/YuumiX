@@ -24,7 +24,9 @@ public sealed class OpggPage : Component<OpggPageProps>
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
         var opggService = services.Services.GetRequiredService<IOpggService>();
         var theme = UseContext(AppHost.ThemeContext) ?? AppHost.Theme;
-        bool isDark = string.Equals(theme.Current.ThemeMode, "Dark", StringComparison.OrdinalIgnoreCase);
+        // 不能用 ThemeMode == "Dark" 反推：跟随系统模式下 ThemeMode 是 Auto，恒判为浅色。
+        // palette.IsDark 走 ActualTheme 兜底（ThemeState 挂载/事件链写回），三种模式都正确。
+        bool isDark = theme.Current.IsDark;
 
         var (currentView, setCurrentView) = UseState("tier"); // "tier" | "build"
         var (region, setRegion) = UseState(OpggRegion.Kr);
