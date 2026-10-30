@@ -145,15 +145,15 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
                 _logger?.LogDebug(
                     "LCU 请求失败 ({Attempt}/{MaxRetries}): {Method} {Path} - {Error}",
                     attempt, MaxRetries, request.Method.Method, request.Path, ex.Message);
-
-                if (attempt < MaxRetries)
-                {
-                    await Task.Delay(DefaultRetryDelay, cancellationToken).ConfigureAwait(false);
-                }
             }
             finally
             {
                 _permits.Release();
+            }
+
+            if (attempt < MaxRetries)
+            {
+                await Task.Delay(DefaultRetryDelay, cancellationToken).ConfigureAwait(false);
             }
         }
 

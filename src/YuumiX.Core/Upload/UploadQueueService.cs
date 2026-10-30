@@ -69,7 +69,7 @@ public sealed class UploadQueueService : IDisposable
 
         _channel = Channel.CreateBounded<UploadQueueItem>(new BoundedChannelOptions(ChannelCapacity)
         {
-            FullMode = BoundedChannelFullMode.DropWrite,
+            FullMode = BoundedChannelFullMode.Wait,
             SingleReader = true,
             SingleWriter = false,
         });

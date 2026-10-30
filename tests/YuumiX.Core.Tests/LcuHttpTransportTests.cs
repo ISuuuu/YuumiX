@@ -91,6 +91,33 @@ public sealed class LcuHttpTransportTests
     }
 
     [Fact]
+    public async Task Send_BackoffReleasesPermit_AndCancellationDoesNotLeakIt()
+    {
+        var handler = new StubHandler((_, attempt, _) => attempt == 1
+            ? throw new HttpRequestException("连接被拒绝")
+            : Task.FromResult(JsonResponse(HttpStatusCode.OK, "{}")));
+        using var transport = NewTransport(handler, maxConcurrency: 1);
+        using var cancellation = new CancellationTokenSource();
+
+        var retrying = transport.SendAsync(LcuRequest.Get("/system/v1/builds"), cancellation.Token);
+        try
+        {
+            var other = transport.SendAsync(LcuRequest.Get("/system/v1/builds"));
+            var response = await other.WaitAsync(TimeSpan.FromMilliseconds(300));
+            Assert.True(response.IsSuccess);
+            Assert.Equal(2, handler.Calls);
+        }
+        finally
+        {
+            await cancellation.CancelAsync();
+        }
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => retrying);
+        Assert.True((await transport.SendAsync(LcuRequest.Get("/system/v1/builds"))).IsSuccess);
+        Assert.Equal(3, handler.Calls);
+    }
+
+    [Fact]
     public async Task Send_AfterExhaustingRetries_ThrowsTransportException()
     {
         var handler = new StubHandler((_, _, _) => throw new HttpRequestException("连接被拒绝"));

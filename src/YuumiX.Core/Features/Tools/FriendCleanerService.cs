@@ -107,7 +107,7 @@ public sealed class FriendCleanerService : IFriendCleanerService
     {
         if (string.IsNullOrWhiteSpace(friend.Puuid))
         {
-            return new FriendMatchStatus(null, FriendActivityStatus.None);
+            return new FriendMatchStatus(null, FriendActivityStatus.Hidden);
         }
 
         // 1. 在线保护：如果当前好友处于非离线状态，直接认定活跃
@@ -123,31 +123,35 @@ public sealed class FriendCleanerService : IFriendCleanerService
                 LcuRequest.Get($"/lol-match-history/v1/products/lol/{friend.Puuid}/matches?begIndex=0&endIndex=1"),
                 cancellationToken).ConfigureAwait(false);
 
+            bool matchEmpty = false;
             if (matchResp.IsSuccess)
             {
                 using var matchDoc = JsonDocument.Parse(matchResp.Body);
                 if (matchDoc.RootElement.TryGetProperty("games", out var gamesObj)
                     && gamesObj.TryGetProperty("games", out var gamesArr)
-                    && gamesArr.ValueKind == JsonValueKind.Array
-                    && gamesArr.GetArrayLength() > 0)
+                    && gamesArr.ValueKind == JsonValueKind.Array)
                 {
-                    var g = gamesArr[0];
-                    long ts = 0;
-                    if (g.TryGetProperty("gameCreation", out var gc) && gc.ValueKind == JsonValueKind.Number)
+                    matchEmpty = gamesArr.GetArrayLength() == 0;
+                    if (!matchEmpty)
                     {
-                        ts = gc.GetInt64();
-                    }
-                    else if (g.TryGetProperty("gameCreationDate", out var gcd) && gcd.ValueKind == JsonValueKind.String)
-                    {
-                        if (DateTimeOffset.TryParse(gcd.GetString(), out var dt))
+                        var g = gamesArr[0];
+                        long ts = 0;
+                        if (g.TryGetProperty("gameCreation", out var gc) && gc.ValueKind == JsonValueKind.Number)
                         {
-                            ts = dt.ToUnixTimeMilliseconds();
+                            ts = gc.GetInt64();
                         }
-                    }
+                        else if (g.TryGetProperty("gameCreationDate", out var gcd) && gcd.ValueKind == JsonValueKind.String)
+                        {
+                            if (DateTimeOffset.TryParse(gcd.GetString(), out var dt))
+                            {
+                                ts = dt.ToUnixTimeMilliseconds();
+                            }
+                        }
 
-                    if (ts > 0)
-                    {
-                        return new FriendMatchStatus(ts, FriendActivityStatus.Ok);
+                        if (ts > 0)
+                        {
+                            return new FriendMatchStatus(ts, FriendActivityStatus.Ok);
+                        }
                     }
                 }
             }
@@ -157,11 +161,13 @@ public sealed class FriendCleanerService : IFriendCleanerService
                 LcuRequest.Get($"/lol-champion-mastery/v1/{friend.Puuid}/champion-mastery"),
                 cancellationToken).ConfigureAwait(false);
 
+            bool masteryEmpty = false;
             if (masteryResp.IsSuccess)
             {
                 using var masteryDoc = JsonDocument.Parse(masteryResp.Body);
-                if (masteryDoc.RootElement.ValueKind == JsonValueKind.Array && masteryDoc.RootElement.GetArrayLength() > 0)
+                if (masteryDoc.RootElement.ValueKind == JsonValueKind.Array)
                 {
+                    masteryEmpty = masteryDoc.RootElement.GetArrayLength() == 0;
                     long maxPlayTime = 0;
                     foreach (var m in masteryDoc.RootElement.EnumerateArray())
                     {
@@ -191,7 +197,8 @@ public sealed class FriendCleanerService : IFriendCleanerService
                 return new FriendMatchStatus(null, FriendActivityStatus.Hidden);
             }
 
-            return new FriendMatchStatus(null, FriendActivityStatus.None);
+            return new FriendMatchStatus(null, matchEmpty && masteryEmpty
+                ? FriendActivityStatus.None : FriendActivityStatus.Hidden);
         }
         catch (OperationCanceledException)
         {

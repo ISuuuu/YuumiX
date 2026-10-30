@@ -205,6 +205,121 @@ public sealed class MatchServiceTests
         Assert.Equal(1, service.CachedDetailCount);
     }
 
+    [Theory]
+    [InlineData(503, "")]
+    [InlineData(200, "invalid json")]
+    [InlineData(200, "{}")]
+    public async Task GetMatchDetailAsync_FailedResultIsNotCached(int statusCode, string body)
+    {
+        int calls = 0;
+        using var transport = new DetailTransport(_ => Task.FromResult(
+            Interlocked.Increment(ref calls) == 1
+                ? new LcuResponse(statusCode, body)
+                : new LcuResponse(200, GameBodyOf("top-solo"))));
+        var service = new MatchService(() => transport);
+
+        Assert.Null(await service.GetMatchDetailAsync(42));
+        Assert.Equal(0, service.CachedDetailCount);
+        Assert.NotNull(await service.GetMatchDetailAsync(42));
+        Assert.Equal(2, calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetMatchDetailAsync_FaultOrCanceledRequestCanBeRetried(bool canceled)
+    {
+        int calls = 0;
+        using var transport = new DetailTransport(_ => Interlocked.Increment(ref calls) == 1
+            ? Task.FromException<LcuResponse>(canceled
+                ? new OperationCanceledException("模拟请求取消")
+                : new InvalidOperationException("模拟请求异常"))
+            : Task.FromResult(new LcuResponse(200, GameBodyOf("top-solo"))));
+        var service = new MatchService(() => transport);
+
+        if (canceled)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetMatchDetailAsync(42));
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetMatchDetailAsync(42));
+        }
+
+        Assert.NotNull(await service.GetMatchDetailAsync(42));
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task GetMatchDetailAsync_CanceledWaiterDoesNotCancelSharedRequest()
+    {
+        var response = new TaskCompletionSource<LcuResponse>();
+        int calls = 0;
+        using var transport = new DetailTransport(token =>
+        {
+            Assert.False(token.CanBeCanceled);
+            Interlocked.Increment(ref calls);
+            return response.Task;
+        });
+        var service = new MatchService(() => transport);
+        using var cancellation = new CancellationTokenSource();
+
+        Task<MatchDetail?> first = service.GetMatchDetailAsync(42, cancellationToken: cancellation.Token);
+        Task<MatchDetail?> second = service.GetMatchDetailAsync(42);
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        Assert.False(second.IsCompleted);
+        response.SetResult(new LcuResponse(200, GameBodyOf("top-solo")));
+
+        Assert.NotNull(await second);
+        Assert.NotNull(await service.GetMatchDetailAsync(42));
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task GetMatchDetailAsync_BackgroundFailureAfterCancellationIsEvicted()
+    {
+        var response = new TaskCompletionSource<LcuResponse>();
+        int calls = 0;
+        using var transport = new DetailTransport(_ => Interlocked.Increment(ref calls) == 1
+            ? response.Task
+            : Task.FromResult(new LcuResponse(200, GameBodyOf("top-solo"))));
+        var service = new MatchService(() => transport);
+        using var cancellation = new CancellationTokenSource();
+
+        Task<MatchDetail?> first = service.GetMatchDetailAsync(42, cancellationToken: cancellation.Token);
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        response.SetResult(new LcuResponse(503, ""));
+
+        Assert.True(SpinWait.SpinUntil(() => service.CachedDetailCount == 0, TimeSpan.FromSeconds(3)));
+        Assert.NotNull(await service.GetMatchDetailAsync(42));
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task GetMatchDetailAsync_OldFailureDoesNotEvictReplacement()
+    {
+        var oldResponse = new TaskCompletionSource<LcuResponse>();
+        var newResponse = new TaskCompletionSource<LcuResponse>();
+        int calls = 0;
+        using var transport = new DetailTransport(_ => Interlocked.Increment(ref calls) == 1
+            ? oldResponse.Task : newResponse.Task);
+        var service = new MatchService(() => transport);
+
+        Task<MatchDetail?> oldRequest = service.GetMatchDetailAsync(42);
+        service.InvalidateCache();
+        Task<MatchDetail?> newRequest = service.GetMatchDetailAsync(42);
+        oldResponse.SetResult(new LcuResponse(503, ""));
+        Assert.Null(await oldRequest);
+        Assert.Equal(1, service.CachedDetailCount);
+
+        newResponse.SetResult(new LcuResponse(200, GameBodyOf("top-solo")));
+        Assert.NotNull(await newRequest);
+        Assert.NotNull(await service.GetMatchDetailAsync(42));
+        Assert.Equal(2, calls);
+    }
+
     /// <summary>
     /// 详情按 gameId 缓存，但"查询者胜负"必须按调用方的 puuid 现场补算——
     /// 否则 A 查过之后，B 查询同一局会看到 A 的胜负结论。
@@ -357,6 +472,14 @@ public sealed class MatchServiceTests
             System.Text.Json.JsonDocument.Parse(MatchFixtures.ByName(fixtureName).ReadText());
 
         return document.RootElement.GetProperty("games").GetProperty("games")[0].GetRawText();
+    }
+
+    private sealed class DetailTransport(Func<CancellationToken, Task<LcuResponse>> respond) : ILcuTransport
+    {
+        public Task<LcuResponse> SendAsync(LcuRequest request, CancellationToken cancellationToken = default) =>
+            respond(cancellationToken);
+
+        public void Dispose() { }
     }
 
     private static LcuHttpTransport NewTransport(FakeLcuServer server) => new(

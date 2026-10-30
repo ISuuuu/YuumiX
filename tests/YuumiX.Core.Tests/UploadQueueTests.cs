@@ -107,6 +107,58 @@ public sealed class UploadQueueTests
         Assert.Equal(0, queue.TriggerPendingRetry());
     }
 
+    [Fact]
+    public async Task Queue_FullRejectsAndAllowsPendingRecordToBeRetried()
+    {
+        using var store = new PendingUploadStore(NextDatabasePath());
+        store.AddOrUpdate(Payload(9000), "失败");
+        var config = new AppConfig();
+        var uploadService = new UploadService(() => null, () => config);
+        using var release = new ManualResetEventSlim();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int configReads = 0;
+        using var queue = new UploadQueueService(
+            uploadService,
+            store,
+            () =>
+            {
+                if (Interlocked.Increment(ref configReads) == 1)
+                {
+                    entered.TrySetResult();
+                    release.Wait();
+                }
+
+                return config;
+            },
+            () => Task.FromResult<string?>(null));
+
+        try
+        {
+            queue.Enqueue(1);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            for (int id = 2; id <= 129; id++)
+            {
+                queue.Enqueue(id);
+            }
+
+            queue.Enqueue(2); // 已入队的重复任务不占额外容量
+            queue.Enqueue(9000); // 队列已满，必须撤销去重标记
+            Assert.Equal(0, queue.TriggerPendingRetry());
+            Assert.Equal(9000, Assert.Single(store.Load()).GameId);
+
+            release.Set();
+            Assert.True(await WaitUntilAsync(() => Volatile.Read(ref configReads) >= 129));
+            Assert.Equal(1, queue.TriggerPendingRetry());
+            Assert.True(await WaitUntilAsync(() => Volatile.Read(ref configReads) >= 130));
+            Assert.Equal(130, Volatile.Read(ref configReads));
+            Assert.Equal(9000, Assert.Single(store.Load()).GameId);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
     /// <summary>
     /// 单条记录处理失败不能打断队列消费。
     ///
