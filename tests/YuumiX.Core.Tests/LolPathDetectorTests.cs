@@ -343,4 +343,27 @@ public sealed class LolClientLauncherTests : IDisposable
         Assert.NotNull(error);
         Assert.Contains("WeGame", error, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Launch_WeGameMarkerAnywhere_TakesPriorityOverEarlierClientPath()
+    {
+        // marker 排在列表末位也要优先启动 WeGame：即便前面的真实客户端目录能探测到 exe，
+        // 也不应抢先启动（错误文案含 WeGame 即证明走的是 WeGame 分支）。
+        string dir = Path.Combine(_tempDir, "real-client-priority");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "LeagueClient.exe"), "stub");
+
+        var launcher = new LolClientLauncher(new FakeProcesses());
+
+        var error = launcher.Launch(
+            [dir, AppConfig.WeGameMarker],
+            wegamePath: null,
+            detector: new LolPathDetector(
+                new LolPathDetectorTests.FakeRegistry(),
+                new FakeProcesses(),
+                probeCommonDirectories: false));
+
+        Assert.NotNull(error);
+        Assert.Contains("WeGame", error, StringComparison.Ordinal);
+    }
 }

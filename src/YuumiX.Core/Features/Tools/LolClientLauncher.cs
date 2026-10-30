@@ -10,8 +10,8 @@ namespace YuumiX.Core.Features.Tools;
 /// 语义与旧实现对齐：
 /// <list type="number">
 ///   <item>客户端已在运行（LeagueClientUx.exe）时直接跳过；</item>
-///   <item>路径列表中的 <see cref="AppConfig.WeGameMarker"/> 条目走 WeGame 启动
-///         （配置路径 → 自动探测）；遍历列表时首次遇到 marker 即接管启动；</item>
+///   <item>路径列表含 <see cref="AppConfig.WeGameMarker"/> 条目时优先启动 WeGame
+///         （配置路径 → 自动探测），不依赖其在列表中的顺序；失败即短路，不回退普通条目；</item>
 ///   <item>普通条目按 LeagueClient.exe / Client.exe / client.exe / TCLS\client.exe 等候选探测；</item>
 ///   <item>探测到 LeagueClient.exe 且同级（或上一级）存在 RiotClientServices.exe 时，
 ///         改由 Riot 客户端服务启动（外服形态），PBE 目录用 pbe 补丁线；</item>
@@ -43,14 +43,15 @@ public sealed class LolClientLauncher
             return null;
         }
 
+        // 配置了 WeGame 启动项时优先走 WeGame，不再依赖其在列表中的顺序
+        // （与旧实现一致：WeGame 启动失败即短路返回错误，不回退普通路径条目）
+        if (paths.Contains(AppConfig.WeGameMarker))
+        {
+            return LaunchWeGame(wegamePath, detector);
+        }
+
         foreach (string p in paths)
         {
-            if (p == AppConfig.WeGameMarker)
-            {
-                // 旧实现：遍历中首次遇到 WeGame 条目即接管启动（含失败短路）
-                return LaunchWeGame(wegamePath, detector);
-            }
-
             string? exe = FindExecutableInPath(p);
             if (exe is null)
             {

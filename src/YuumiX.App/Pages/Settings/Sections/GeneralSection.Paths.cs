@@ -36,7 +36,8 @@ internal static partial class GeneralSection
 
     // 路径条目行：普通条目 = 可编辑输入框 + 删除；WeGame 条目 = 徽章 + WegamePath 输入框 + 删除。
     // 输入框值优先取编辑草稿（防抖期间的重渲染不能打断正在输入的文本）。
-    private static Element PathRow(SettingsUi ui, PathEditUi? pathEdit, Action<int, bool, string> requestPathCommit, int index, string path)
+    // index 是 LolPath 中的真实索引（编辑/删除按它落位）；ordinal 是显示序号，仅用于无障碍标签编号。
+    private static Element PathRow(SettingsUi ui, PathEditUi? pathEdit, Action<int, bool, string> requestPathCommit, int index, int ordinal, string path)
     {
         var config = ui.Config;
         var isWeGame = path == AppConfig.WeGameMarker;
@@ -55,7 +56,7 @@ internal static partial class GeneralSection
             ? TextBox(textValue, v => requestPathCommit(index, true, v), ui.Services.I18n.T("settings.wegameDirPlaceholder", "WeGame 安装目录"))
                 .AutomationName("WeGame 路径")
             : TextBox(textValue, v => requestPathCommit(index, false, v), ui.Services.I18n.T("settings.clientDirPlaceholder", "英雄联盟客户端安装目录"))
-                .AutomationName($"客户端路径 {index + 1}");
+                .AutomationName($"客户端路径 {ordinal}");
 
         var rowChildren = new List<Element>();
         if (isWeGame)
@@ -88,7 +89,7 @@ internal static partial class GeneralSection
             })
                 .Padding(new Thickness(6, 2, 6, 2))
                 .MinWidth(0)
-                .AutomationName($"删除路径 {index + 1}")
+                .AutomationName($"删除路径 {ordinal}")
                 .VAlign(VerticalAlignment.Center)
                 .Grid(column: 1));
 
@@ -103,10 +104,15 @@ internal static partial class GeneralSection
     private static Element LolPathEditor(SettingsUi ui, PathEditUi? pathEdit, Action<int, bool, string> requestPathCommit)
     {
         var config = ui.Config;
+        // WeGame 启动项固定显示在最前（与启动优先级一致），其余条目保持原顺序；
+        // 行仍携带真实索引，编辑与删除落到正确条目。
+        var orderedIndices = Enumerable.Range(0, config.General.LolPath.Count)
+            .OrderByDescending(i => config.General.LolPath[i] == AppConfig.WeGameMarker);
         var rows = new List<Element>();
-        for (var i = 0; i < config.General.LolPath.Count; i++)
+        var ordinal = 0;
+        foreach (var i in orderedIndices)
         {
-            rows.Add(PathRow(ui, pathEdit, requestPathCommit, i, config.General.LolPath[i]));
+            rows.Add(PathRow(ui, pathEdit, requestPathCommit, i, ++ordinal, config.General.LolPath[i]));
         }
 
         var content = new List<Element>

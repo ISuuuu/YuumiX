@@ -63,7 +63,10 @@ public static class LcuOfflineState
         // 动作区：主页是真入口；业务页不重复放入口，但启动按钮必须留在布局里撑出与主页一致的高度。
         // 有 extra 时（对局信息的「预览演示对局」）把它叠在占位按钮上，而不是顶替——extra 比启动按钮矮，
         // 顶替后整组内容变矮，垂直居中会让 Logo 比主页低几像素，切页时就能看出位移。
-        Element launchSlot = Button(launchBtnText)
+        // 启动回调必须挂在 Button 工厂参数上（此前重构时丢失过挂接，按钮沦为摆设）；
+        // 业务页 onLaunchClient 为 null，lambda 为空操作，且按钮本就禁用并视觉隐藏。
+        Element launchSlot = Button(launchBtnText, () => onLaunchClient?.Invoke())
+            .AutomationName(launchBtnText)
             .IsEnabled(interactive)
             .Padding(24, 8)
             .Margin(0, 0, 0, 8)
