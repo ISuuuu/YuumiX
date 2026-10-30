@@ -12,10 +12,16 @@ using YuumiX.App.Windowing;
 // 被拦下的进程已经尽力把已运行的主窗拉到前台（见 SingleInstance），这里直接结束。
 // 不传 logger：日志基础设施属于 AppHost，为记一行「已存在实例」而提前初始化它，
 // 会让被拦截的进程去打开首实例正在写的日志文件，代价大于收益。
+//
+// Debug 构建不设单例：开发/测试期需要同时跑多份（新旧构建对照、配合 devtools 反复重启、
+// 走一遍升级替换路径），而被拦下的进程会直接 return，连断点都停不下来。
+// 代价只落在开发机：多份实例共享同一份 config.json / 日志 / saved_players.db，属刻意为之。
+#if !DEBUG
 if (!SingleInstance.TryAcquire())
 {
     return;
 }
+#endif
 
 // 服务必须在窗口创建之前就绪：配置与日志都是 UI 的前置依赖。
 AppHost.Initialize();
