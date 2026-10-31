@@ -484,3 +484,6 @@ $RECYCLE.BIN/
 .workbuddy
 
 docs/internal/
+
+# ZCode session working directory (plans / workflow drafts)
+.zcode/
