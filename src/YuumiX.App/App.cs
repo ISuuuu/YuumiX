@@ -40,11 +40,23 @@ try
     //
     // 为什么首帧不直接给 1216×918：DWM 边框厚度随 DPI / 系统主题变化，
     // 写死外框补偿只在本机成立，而挂载时的校正能实测出来。
-    ReactorApp.Run<AppShell>(
-        "YuumiX",
-        width: initialWidth,
-        height: initialHeight,
-        icon: WindowIcon.FromPath(AppAssets.AppIconPath));
+    //
+    // WithPersistence：跨启动记住窗口位置/尺寸——AppShell 在 Closing 时 SavePlacement，
+    // 下次建窗由框架还原；无存档（首次启动/存储被清）走 Default 起始位，与旧行为一致。
+    //
+    // MinWidth/MinHeight：从拖拽源头挡住"窗口被缩到极小后被持久化"——布局存档对
+    // 合法的小尺寸原样还原（框架 IsPlausiblePlacement 只拦荒谬值），下次开局会近乎无法操作。
+    // 旧版 Yuumi（Tauri）没有最小尺寸，此约束是 YuumiX 新增的防护，值取桌面应用惯例，可调。
+    var spec = new WindowSpec
+    {
+        Title = "YuumiX",
+        Width = initialWidth,
+        Height = initialHeight,
+        MinWidth = 800,
+        MinHeight = 600,
+        Icon = WindowIcon.FromPath(AppAssets.AppIconPath),
+    }.WithPersistence("main", WindowStartPosition.Default);
+    ReactorApp.Run<AppShell>(spec);
 }
 finally
 {

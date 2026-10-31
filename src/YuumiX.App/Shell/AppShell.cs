@@ -108,6 +108,11 @@ public sealed class AppShell : Component
 
                 void OnClosing(object? sender, WindowClosingEventArgs e)
                 {
+                    // 关闭（含被取消的「关闭到托盘」）前先存窗口布局：这是所有退出路径上
+                    // 位置仍有效的最后时机——藏进托盘的窗口不会再移动，托盘「退出」
+                    // 在隐藏态走 ReactorApp.Exit 不再触发 Closing，靠的就是这里存下的那份。
+                    window.SavePlacement();
+
                     // 托盘菜单的「退出」或外部退出（控制台 Ctrl+C / 进程关闭）必须放行，否则窗口永远关不掉。
                     if (exitRequested.Current ||
                         AppLifetime.IsExitRequested ||
@@ -134,6 +139,59 @@ public sealed class AppShell : Component
                     SingleInstance.UnregisterActivation();
                     window.Closing -= OnClosing;
                 };
+            },
+            0);
+
+        // 还原位置可见性自检：布局存档在显示器布局未变时按原坐标还原，框架只拦
+        // 「荒谬到屏外」的值，不拦「被挪到几乎不可见」（如只露一角）——这类存档合法，
+        // 但下次开局窗口近乎找不到。检查窗口与各显示器的可见交集，过小则拉回主屏居中。
+        //
+        // 检查挂在首次 Activated：框架在 WM_SHOWWINDOW 才应用存档（TryApplyInitialPlacement），
+        // 组件挂载 effect 直接读位置会赶在还原之前、读到的是还原前的默认位置（实测踩坑）。
+        // 首次激活时还原已完成，时序有保证；触发一次即自摘，托盘 hide/show 的后续激活不再重复检查。
+        // 不干预运行期拖拽。阈值刻意取小（100 DIP），尊重用户刻意的极限摆放。
+        // 依赖固定为 0：窗口实例跨渲染稳定（AGENTS.md §5.7）。
+        UseEffect(
+            () =>
+            {
+                if (window is null)
+                {
+                    return static () => { };
+                }
+
+                void OnFirstActivated(object? sender, EventArgs e)
+                {
+                    window.Activated -= OnFirstActivated;
+
+                    if (window.DipScale <= 0)
+                    {
+                        return;
+                    }
+
+                    var scale = window.DipScale;
+                    var (left, top) = window.Position;
+                    var width = window.AppWindow.Size.Width / scale;
+                    var height = window.AppWindow.Size.Height / scale;
+
+                    var maxVisibleWidth = 0d;
+                    var maxVisibleHeight = 0d;
+                    foreach (var display in ReactorDisplay.Displays)
+                    {
+                        var bounds = display.BoundsDip;
+                        var visibleWidth = Math.Min(left + width, bounds.X + bounds.Width) - Math.Max(left, bounds.X);
+                        var visibleHeight = Math.Min(top + height, bounds.Y + bounds.Height) - Math.Max(top, bounds.Y);
+                        maxVisibleWidth = Math.Max(maxVisibleWidth, visibleWidth);
+                        maxVisibleHeight = Math.Max(maxVisibleHeight, visibleHeight);
+                    }
+
+                    if (maxVisibleWidth < 100 || maxVisibleHeight < 100)
+                    {
+                        window.CenterOnScreen();
+                    }
+                }
+
+                window.Activated += OnFirstActivated;
+                return () => { window.Activated -= OnFirstActivated; };
             },
             0);
 
