@@ -131,13 +131,19 @@ internal static class SavedPlayersVisuals
         .Margin(0, 0, 0, 12);
     }
 
-    /// <summary>卡片列表视图与分页（空态三分支：加载中 / 搜索无结果 / 无记录）</summary>
+    /// <summary>
+    /// 卡片列表视图与分页（空态三分支：加载中 / 搜索无结果 / 无记录）。
+    /// 加载更多由页面在 <see cref="ScrollViewer"/> 的 ViewChanged 里自动触发：
+    /// 这里只负责把滚动控件捕获进 <paramref name="scrollerRef"/> 并转发滚动事件，
+    /// 底部不再提供手动按钮，仅保留加载中提示与「已加载全部」尾标。
+    /// </summary>
     internal static Element RenderList(
         IReadOnlyList<SavedPlayerRecord> players,
         long totalCount,
         bool loading,
         bool loadingMore,
-        Action onLoadMorePlayers,
+        Ref<Microsoft.UI.Xaml.Controls.ScrollViewer?> scrollerRef,
+        Action<Microsoft.UI.Xaml.Controls.ScrollViewerViewChangedEventArgs> onViewChanged,
         string committedSearch,
         Action onClearSearch,
         string? expandedPuuid,
@@ -209,7 +215,7 @@ internal static class SavedPlayersVisuals
             palette
         )).ToList();
 
-        // 列表底部加载状态或按钮
+        // 列表底部状态：翻页由页面在滚动到底时自动触发，这里只做提示
         Element? footerSentinel = null;
         if (loadingMore)
         {
@@ -220,14 +226,6 @@ internal static class SavedPlayersVisuals
             )
             .HorizontalAlignment(HorizontalAlignment.Center)
             .Margin(0, 8, 0, 16);
-        }
-        else if (players.Count < totalCount)
-        {
-            footerSentinel = Button(Body("加载更多玩家"), onLoadMorePlayers)
-                .AutomationName("加载更多玩家")
-                .Padding(16, 4)
-                .HorizontalAlignment(HorizontalAlignment.Center)
-                .Margin(0, 8, 0, 16);
         }
         else if (players.Count >= totalCount && totalCount > 0)
         {
@@ -244,7 +242,11 @@ internal static class SavedPlayersVisuals
 
         return ScrollViewer(
             VStack(cards.ToArray()).Spacing(8)
-        );
+        )
+        // .Set 仅捕获控件引用供页面读滚动偏移，不写任何属性（控件走池回收，属性写入须走修饰符）；
+        // Set 每次重渲染重放，池化换控件后引用也随之刷新。
+        .Set(sv => scrollerRef.Current = sv)
+        .ViewChanged(onViewChanged);
     }
 
     /// <summary>

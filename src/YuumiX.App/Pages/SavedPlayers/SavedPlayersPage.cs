@@ -35,6 +35,9 @@ public sealed class SavedPlayersPage : Component
     private const int PageSize = 50;
     private const int GamesPageSize = 20;
 
+    // 滚动到底自动加载的提前量：距列表底部不足此距离即预取下一页（约 2~3 张卡片高度）
+    private const double NearBottomThresholdPx = 160;
+
     private static readonly IReadOnlyList<SavedPlayerRecord> EmptyPlayers = [];
     private static readonly IReadOnlyList<EncounteredGameRecord> EmptyGames = [];
 
@@ -238,6 +241,31 @@ public sealed class SavedPlayersPage : Component
             || (selfPuuid is not null && players.Count == 0 && playersResource.LoadState is LoadState.Loading);
         bool loadingMore = rawPlayers.Count > 0 && playersResource.LoadState is LoadState.Loading;
 
+        // 滚动到底自动加载（替代原「加载更多玩家」按钮）：玩家列表滚停稳（!IsIntermediate）且
+        // 距底部不足阈值时拉下一页。FetchNext 自带 no-op（非 Idle 或无更多页直接返回），一次停稳
+        // 至多触发一页，无需额外防抖；失败态改走 Retry，否则 FetchNext 在 Error 态 no-op，列表会卡住。
+        var playersScrollerRef = UseRef<Microsoft.UI.Xaml.Controls.ScrollViewer?>(null);
+        void OnPlayersListScrolled(Microsoft.UI.Xaml.Controls.ScrollViewerViewChangedEventArgs args)
+        {
+            if (args.IsIntermediate) return;
+            var scroller = playersScrollerRef.Current;
+            if (scroller is null
+                || scroller.ExtentHeight <= 0
+                || scroller.VerticalOffset + scroller.ViewportHeight < scroller.ExtentHeight - NearBottomThresholdPx)
+            {
+                return;
+            }
+
+            if (playersResource.LoadState is LoadState.Error)
+            {
+                playersResource.Retry();
+            }
+            else
+            {
+                playersResource.FetchNext();
+            }
+        }
+
         // 列表加载失败：一次性 toast（LoadState 值相等，同一失败不重复弹）
         UseEffect(
             () =>
@@ -385,13 +413,14 @@ public sealed class SavedPlayersPage : Component
                     setFilter,
                     palette).Grid(row: 1),
 
-                // 3. 列表区域（带无限滚动与相遇历史）
+                // 3. 列表区域（滚动到底自动加载玩家；相遇历史展开后仍由卡片内按钮翻页）
                 SavedPlayersVisuals.RenderList(
                     players,
                     totalCount,
                     loading,
                     loadingMore,
-                    playersResource.FetchNext,
+                    playersScrollerRef,
+                    OnPlayersListScrolled,
                     committedSearch,
                     OnClearSearch,
                     expanded?.Puuid,
