@@ -29,21 +29,39 @@ internal static class LogNetworkSection
             i18n.T("settings.logLevelError", "错误（Error）"),
         };
 
-        var logLevelCard = SettingsCardKit.Card(
+        var logLevelControl = PixelComboBox.Render(logLevelLabels, SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
+        {
+            if (index < 0 || index >= LogLevelValues.Length)
+            {
+                return;
+            }
+
+            var level = LogLevelValues[index];
+            config.General.LogLevel = level;
+            ui.Services.ApplyLogLevel(level);
+            ui.Commit(nameof(GeneralConfig.LogLevel));
+        }, automationName: "日志等级选择", width: 160);
+        // 【临时调试，测完删除】a5fcac6 引入自绘 PixelComboBox 之前的原生 ComboBox 版本逐字还原
+        // （回调真实生效：与自绘下拉同写 config，选中后两者保持同步）。默认隐藏，
+        // 长按卡片 2 秒显示在自绘下拉左侧（见文件尾部 LogLevelRevealHost）。
+        var legacyLogLevelControl = ComboBox(logLevelLabels, SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
+        {
+            if (index < 0 || index >= LogLevelValues.Length)
+            {
+                return;
+            }
+
+            var level = LogLevelValues[index];
+            config.General.LogLevel = level;
+            ui.Services.ApplyLogLevel(level);
+            ui.Commit(nameof(GeneralConfig.LogLevel));
+        }).Width(160).AutomationName("日志等级选择");
+
+        var logLevelCard = Component<LogLevelRevealHost, LogLevelRevealHostProps>(new LogLevelRevealHostProps(
             i18n.T("settings.logLevelTitle", "日志等级"),
             i18n.T("settings.logLevelDesc", "写入 <exe>/log 的日志记录详细程度，修改后立即生效"),
-            PixelComboBox.Render(logLevelLabels, SettingsVisuals.IndexOf(LogLevelValues, config.General.LogLevel, LogLevelValues.Length - 1), index =>
-            {
-                if (index < 0 || index >= LogLevelValues.Length)
-                {
-                    return;
-                }
-
-                var level = LogLevelValues[index];
-                config.General.LogLevel = level;
-                ui.Services.ApplyLogLevel(level);
-                ui.Commit(nameof(GeneralConfig.LogLevel));
-            }, automationName: "日志等级选择", width: 160));
+            logLevelControl,
+            legacyLogLevelControl));
 
         var logDirPrompt = i18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs
             ? $"Stored at {ui.Services.Paths.LogDirectory}"
@@ -116,5 +134,93 @@ internal static class LogNetworkSection
             })
             .IsEnabled(config.General.EnableHttpProxy)
             .AutomationName("应用代理"));
+    }
+}
+
+/// <summary>
+/// 【临时调试，测完删除】显形状态的进程级存根：界面缩放跨过 100% 档位时，
+/// AppShell 会在 Viewbox 与裸内容容器之间切换元素结构，整棵内容子树
+/// （含 NavigationHost 页面缓存与全部组件 UseState）被重建，显形状态随之丢失；
+/// 把最新值镜像到静态字段，重建后按它复位，改缩放不再需要重新长按。
+/// </summary>
+internal static class LogLevelRevealState
+{
+    internal static bool Revealed;
+}
+
+/// <summary>
+/// 【临时调试，测完删除】日志等级卡片宿主：默认渲染形态与线上完全一致；
+/// 长按卡片 2 秒后，在自绘下拉左侧显示旧版原生 ComboBox（弹层文字清晰度对比）。
+/// 按下期间任意释放 / 离开 / 系统打断 / 指针捕获转移都会取消计时；
+/// 显示状态存于本组件 UseState，写回时镜像到 <see cref="LogLevelRevealState"/>（缩放切档整树重建后恢复）。
+/// </summary>
+public sealed record LogLevelRevealHostProps(string Title, string Description, Element PixelCombo, Element LegacyCombo);
+
+public sealed class LogLevelRevealHost : Component<LogLevelRevealHostProps>
+{
+    private static readonly TimeSpan LongPressDuration = TimeSpan.FromSeconds(2);
+
+    public override Element Render()
+    {
+        var (revealed, setRevealedState) = UseState(LogLevelRevealState.Revealed);
+        void SetRevealed(bool value)
+        {
+            LogLevelRevealState.Revealed = value;
+            setRevealedState(value);
+        }
+
+        var pressTimerRef = UseRef<Microsoft.UI.Dispatching.DispatcherQueueTimer?>(null);
+
+        void StopPressTimer()
+        {
+            pressTimerRef.Current?.Stop();
+            pressTimerRef.Current = null;
+        }
+
+        void StartPressTimer()
+        {
+            StopPressTimer();
+            // 指针事件固定在 UI 线程触发，GetForCurrentThread 在此必得（同 SettingsPage.StartDebounce 的前提）
+            var timer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
+            timer.Interval = LongPressDuration;
+            timer.IsRepeating = false;
+            timer.Tick += (_, _) => SetRevealed(true);
+            timer.Start();
+            pressTimerRef.Current = timer;
+        }
+
+        // 事件委托必须跨渲染同一实例（§5.7，-= 才摘得掉），处理体经 ref 中转、每次渲染刷新闭包；
+        // 订阅不能走 Reactor 的 OnPointerPressed 修饰符：SettingsCard 是 ButtonBase 派生，
+        // 类处理器会把 PointerPressed 标记 Handled，普通订阅收不到（同 NavIconPressFeedback 的结论），
+        // 必须 AddHandler(handledEventsToo: true)。
+        var startRef = UseRef<Action?>(null);
+        var stopRef = UseRef<Action?>(null);
+        startRef.Current = StartPressTimer;
+        stopRef.Current = StopPressTimer;
+        var pressedRef = UseRef<Microsoft.UI.Xaml.Input.PointerEventHandler?>(null);
+        var releasedRef = UseRef<Microsoft.UI.Xaml.Input.PointerEventHandler?>(null);
+        pressedRef.Current ??= (_, _) => startRef.Current?.Invoke();
+        releasedRef.Current ??= (_, _) => stopRef.Current?.Invoke();
+
+        var row = revealed
+            ? HStack(8, Props.LegacyCombo, Props.PixelCombo)
+            : Props.PixelCombo;
+
+        return SettingsCardKit.Card(Props.Title, Props.Description, row)
+            .OnMountAdd(element =>
+            {
+                element.AddHandler(UIElement.PointerPressedEvent, pressedRef.Current!, handledEventsToo: true);
+                element.AddHandler(UIElement.PointerReleasedEvent, releasedRef.Current!, handledEventsToo: true);
+                element.AddHandler(UIElement.PointerCaptureLostEvent, releasedRef.Current!, handledEventsToo: true);
+                element.AddHandler(UIElement.PointerCanceledEvent, releasedRef.Current!, handledEventsToo: true);
+            })
+            .OnUnmountAdd(element =>
+            {
+                element.RemoveHandler(UIElement.PointerPressedEvent, pressedRef.Current!);
+                element.RemoveHandler(UIElement.PointerReleasedEvent, releasedRef.Current!);
+                element.RemoveHandler(UIElement.PointerCaptureLostEvent, releasedRef.Current!);
+                element.RemoveHandler(UIElement.PointerCanceledEvent, releasedRef.Current!);
+                StopPressTimer();
+            });
     }
 }
