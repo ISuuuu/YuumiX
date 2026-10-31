@@ -95,6 +95,26 @@ public sealed class HomePage : Component
             },
             0);
 
+        // 登录完成才有资料可取：Connected（事件流建立）早于客户端登录就绪，首次取数常拿到 null；
+        // 而登录完成不改变连接状态，deps 不变就不会重取，概览卡会永久停在错误占位。
+        // AppShell 在未登录期间每 2 秒探测一次，成功后 SummonerService 发布 CurrentChanged——
+        // 订阅它作为主页的重取信号（null 发布来自缓存失效，忽略）。
+        var summonerService = services.Services.GetRequiredService<ISummonerService>();
+        var (summonerTick, setSummonerTick) = UseState(0, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = summonerService.CurrentChanged.Subscribe(profile =>
+                {
+                    if (profile is not null)
+                    {
+                        setSummonerTick(Environment.TickCount);
+                    }
+                });
+                return () => subscription.Dispose();
+            },
+            0);
+
         var isConnected = connState.Status == LcuConnectionStatus.Connected;
         if (!isConnected)
         {
@@ -104,7 +124,6 @@ public sealed class HomePage : Component
         var homeResource = UseResource(
             async ct =>
             {
-                var summonerService = services.Services.GetRequiredService<ISummonerService>();
                 var careerService = services.Services.GetRequiredService<ICareerService>();
                 var logger = services.LoggerFactory.CreateLogger<HomePage>();
 
@@ -134,7 +153,7 @@ public sealed class HomePage : Component
 
                 return new HomeSummary(profile, soloDuo);
             },
-            deps: [connState.Status]);
+            deps: [connState.Status, summonerTick]);
 
         return RenderConnectedView(connState, gamePhase, homeResource, nav, i18n, palette);
     }
@@ -219,6 +238,8 @@ public sealed class HomePage : Component
         var summary = homeResource switch
         {
             AsyncValue<HomeSummary>.Data data => data.Value,
+            // 重取期间保留旧值展示（stale-while-revalidate），否则会闪回错误占位
+            AsyncValue<HomeSummary>.Reloading reloading => reloading.Previous,
             _ => null,
         };
 
