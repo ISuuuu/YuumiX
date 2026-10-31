@@ -19,7 +19,7 @@
 <p align="center">
   <a href="https://github.com/ISuuuu/YuumiX/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ISuuuu/YuumiX?display_name=tag&sort=semver"></a>
   <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet">
-  <img alt="Windows App SDK" src="https://img.shields.io/badge/Windows_App_SDK-2.5-0078D4?logo=windows11">
+  <img alt="Windows App SDK" src="https://img.shields.io/badge/Windows_App_SDK-2.6-0078D4?logo=windows11">
   <img alt="Reactor" src="https://img.shields.io/badge/Microsoft.UI.Reactor-0.1.0--preview-FF8C00">
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10_%7C_11-0078D4?logo=windows11">
   <img alt="Tests" src="https://img.shields.io/badge/tests-xUnit-blue">
@@ -76,7 +76,7 @@
 | 层级     | 技术选型                                 | 说明                                |
 | -------- | ---------------------------------------- | ----------------------------------- |
 | UI 框架  | Microsoft.UI.Reactor `0.1.0-preview.16`  | 基于 WinUI 3 的声明式组件化 C# 框架 |
-| 平台层   | Windows App SDK `2.5.1`、WinUI 3         | Windows 现代桌面应用基础设施        |
+| 平台层   | Windows App SDK `2.6.4`、WinUI 3         | Windows 现代桌面应用基础设施        |
 | 运行时   | .NET 10（`net10.0-windows10.0.22621.0`） | 由 `global.json` 锁定 SDK 版本      |
 | 领域层   | `YuumiX.Core`（`net10.0`）               | 纯 C# 类库，零 UI 依赖，便于单测    |
 | 打包部署 | 自包含发布 + Inno Setup 6                 | 不发 MSIX 包（`WindowsPackageType=None`），同时出安装版与便携版，两者均免装运行时 |
