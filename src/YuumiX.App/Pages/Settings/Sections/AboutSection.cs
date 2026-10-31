@@ -35,7 +35,7 @@ internal static class AboutSection
                 SettingsVisuals.InfoRow(i18n.T("settings.configVersion", "配置版本"), $"v{ui.Config.Version}"),
                 SettingsVisuals.InfoRow(i18n.T("settings.configFile", "配置文件"), ui.Services.ConfigStore.FilePath),
                 SettingsVisuals.InfoRow(i18n.T("settings.dataDirectory", "数据目录"), ui.Services.Paths.DataDirectory),
-                SettingsVisuals.InfoRow(i18n.T("settings.portableMode", "便携模式"), ui.Config.General.EnableCheckUpdate ? i18n.T("settings.enabled", "已开启") : i18n.T("settings.disabled", "已关闭")),
+                SettingsVisuals.InfoRow(i18n.T("settings.portableMode", "便携模式"), ui.Services.Paths.IsPortable ? i18n.T("settings.enabled", "已开启") : i18n.T("settings.disabled", "已关闭")),
                 SettingsVisuals.InfoRow(i18n.T("settings.logDirectory", "日志目录"), ui.Services.Paths.LogDirectory),
                 SettingsVisuals.InfoRow(i18n.T("settings.backups", "写回备份"), isEn ? $"{ui.Services.ConfigStore.ListBackups().Count} backups (max {ConfigStore.MaxBackups})" : $"{ui.Services.ConfigStore.ListBackups().Count} 份（保留最近 {ConfigStore.MaxBackups} 份）"),
                 HStack(8,
