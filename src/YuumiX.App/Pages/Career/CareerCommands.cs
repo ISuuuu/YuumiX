@@ -26,7 +26,7 @@ internal static class CareerCommands
             return;
         }
 
-        nav.Replace(new AppRoute.SearchRoute(tm.Name, tm.Puuid));
+        nav.Navigate(new AppRoute.SearchRoute(tm.Name, tm.Puuid));
     }
 
     /// <summary>返回我的生涯：清空查看目标走现有加载链路（召唤师走 5 分钟缓存）。</summary>
@@ -45,7 +45,7 @@ internal static class CareerCommands
     {
         if (summoner is not null)
         {
-            nav.Replace(new AppRoute.SearchRoute(summoner.RiotId, summoner.Puuid, GameId: -1));
+            nav.Navigate(new AppRoute.SearchRoute(summoner.RiotId, summoner.Puuid, GameId: -1));
         }
     }
 
@@ -54,7 +54,7 @@ internal static class CareerCommands
     {
         if (summoner is not null)
         {
-            nav.Replace(new AppRoute.SearchRoute(summoner.RiotId, summoner.Puuid, GameId: match.GameId));
+            nav.Navigate(new AppRoute.SearchRoute(summoner.RiotId, summoner.Puuid, GameId: match.GameId));
         }
     }
 

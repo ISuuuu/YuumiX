@@ -312,7 +312,7 @@ public sealed class HomePage : Component
                 Body(i18n.T("home.viewCareer", "查看生涯")),
                 Caption(Icons.ChevronRight).FontFamily(Icons.FontFamily).VAlign(VerticalAlignment.Center)
             ),
-            () => nav.Replace(new AppRoute.CareerRoute())
+            () => nav.Navigate(new AppRoute.CareerRoute())
         )
         .VAlign(VerticalAlignment.Center)
         .AutomationName("查看完整生涯");
@@ -459,19 +459,19 @@ public sealed class HomePage : Component
             Icons.Career,
             i18n.T("nav.career", "我的生涯"),
             i18n.T("home.careerDesc", "查看历史战绩、战利品与熟练度"),
-            () => nav.Replace(new AppRoute.CareerRoute()));
+            () => nav.Navigate(new AppRoute.CareerRoute()));
 
         var tileSearch = QuickAccessTile(
             Icons.Search,
             i18n.T("nav.search", "战绩查询"),
             i18n.T("home.searchDesc", "搜索召唤师并分析对局详情"),
-            () => nav.Replace(new AppRoute.SearchRoute()));
+            () => nav.Navigate(new AppRoute.SearchRoute()));
 
         var tileGameInfo = QuickAccessTile(
             Icons.GameInfo,
             i18n.T("nav.gameinfo", "对局信息"),
             i18n.T("home.gameInfoDesc", "选人与对局中实时看板"),
-            () => nav.Replace(new AppRoute.GameInfoRoute()));
+            () => nav.Navigate(new AppRoute.GameInfoRoute()));
 
         var tileOpgg = QuickAccessTile(
             Icons.Opgg,
@@ -483,7 +483,7 @@ public sealed class HomePage : Component
             Icons.Tools,
             i18n.T("nav.tools", "实用工具"),
             i18n.T("home.toolsDesc", "自动接受、自动选人与实用工具"),
-            () => nav.Replace(new AppRoute.ToolsRoute()));
+            () => nav.Navigate(new AppRoute.ToolsRoute()));
 
         var grid = (Grid(
             [GridSize.Star(), GridSize.Star(), GridSize.Star()],

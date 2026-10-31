@@ -440,7 +440,7 @@ public sealed class SearchPage : Component<SearchPageProps>
         void OnCopyGameId(long gameId) => SearchEffects.CopyGameId(gameId, SetNotice);
 
         void OnClickPlayerPuuid(string puuid, SummonerProfile? preloaded) =>
-            nav.Replace(new AppRoute.CareerRoute(puuid, preloaded));
+            nav.Navigate(new AppRoute.CareerRoute(puuid, preloaded));
 
         void OnClickPlayerSummonerId(long id) =>
             RunSearch(new SearchTargetInput(null, null, id, 0));
@@ -508,7 +508,7 @@ public sealed class SearchPage : Component<SearchPageProps>
 
         void OnCareer()
         {
-            if (summoner is not null) nav.Replace(new AppRoute.CareerRoute(summoner.Puuid, summoner));
+            if (summoner is not null) nav.Navigate(new AppRoute.CareerRoute(summoner.Puuid, summoner));
         }
 
         void OnSearchButton()

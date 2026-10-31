@@ -639,7 +639,17 @@ public sealed class AppShell : Component
         {
             SelectedTag = RouteCatalog.KeyFor(nav.CurrentRoute),
             IsSettingsVisible = false,
-            IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed,
+            // 原生返回键（pane 顶部 ←）：手动切换（侧边栏点选、页内跳转）走 Navigate 压栈后
+            // 出现，点击经 OnBackRequested 回退。系统自动跳转（对局开始切 GameInfo）与动作项
+            // （OP.GG/公告）不入栈，不会把返回键顶出来；NavigationStack.OnChanged 触发本组件
+            // 重渲染，此处自动跟随。
+            // 注意不能用 Auto 档：实测该档不随 IsBackEnabled 隐藏，空栈时按钮可见但点击无效，
+            // 必须显式 Visible/Collapsed 跟随 CanGoBack。
+            IsBackEnabled = nav.CanGoBack,
+            IsBackButtonVisible = nav.CanGoBack
+                ? NavigationViewBackButtonVisible.Visible
+                : NavigationViewBackButtonVisible.Collapsed,
+            OnBackRequested = () => nav.GoBack(),
             // LeftCompact：收起态保留 64px 图标栏（对齐旧版 .sidebar.collapsed），
             // 不会像 Left 模式那样整条侧边栏消失、只剩标题栏上一个开关。
             PaneDisplayMode = NavigationViewPaneDisplayMode.LeftCompact,
@@ -665,7 +675,7 @@ public sealed class AppShell : Component
                         isClientConnected,
                         paneOpen,
                         paneOpen ? PaneOpenWidth : PaneCompactWidth,
-                        () => nav.Replace(new AppRoute.CareerRoute()))))
+                        () => nav.Navigate(new AppRoute.CareerRoute()))))
                 .HorizontalAlignment(HorizontalAlignment.Stretch),
         };
 
@@ -800,7 +810,8 @@ public sealed class AppShell : Component
                 updateOverlayRef.Current = null;
             });
 
-        // 侧边栏是平级切换语义，因此用 Replace 而非 Navigate，避免堆积返回栈。
+        // 手动切换走 Navigate 压返回栈，配合 pane 顶部的原生返回键回退；此前用 Replace
+        // 平级切换、返回栈恒空，返回键永不出现。语言切换的 nav.Reset 会清栈。
         //
         // 底部动作项（OP.GG / 修复无限加载 / 公告）点击后不导航，选中态会停留在该项上；
         // SelectedTagChanged（= WinUI SelectionChanged）对「再次点击已选中项」不触发
@@ -852,7 +863,7 @@ public sealed class AppShell : Component
                 // 仅在切换到不同模块时导航；已在目标模块（如带参 CareerRoute/SearchRoute）不覆盖现有路由。
                 if (tag is not null && RouteCatalog.KeyFor(nav.CurrentRoute) != tag && RouteCatalog.Resolve(tag) is { } route)
                 {
-                    nav.Replace(route);
+                    nav.Navigate(route);
                 }
             },
         };
