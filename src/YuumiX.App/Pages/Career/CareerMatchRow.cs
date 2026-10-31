@@ -19,7 +19,8 @@ public sealed record CareerMatchRowProps(
 
 /// <summary>
 /// 生涯页的全宽单条对局卡片，对应原 <c>MatchCard.vue</c>：
-/// [头像+等级角标] | [召唤师技能+符文] | [胜利/TFT名次/模式/时长] | [KDA+阈值配色比率] | [补刀+分均刀] | [海克斯强化+7格装备] | [金币] | 右侧：[地图+时间+回放]
+/// [头像+等级角标] | [召唤师技能+符文] | [胜利/TFT名次/模式/时长] | [KDA+阈值配色比率] | [补刀+分均刀] | [海克斯强化+7格装备] | 右侧：[金币+地图+时间+回放]
+/// （金币挂在右侧组、紧贴时间列右靠，装备数量差异不影响其列位）
 ///
 /// 相比旧版的差异保留项：分均补刀（新版新增）、位置用文本（国服客户端同样不渲染位置图标）。
 ///
@@ -34,9 +35,6 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
 
     /// <summary>装备格：旧版 `.item-slot` / `.ward-slot` 28×28。</summary>
     private const double ItemSize = 28;
-
-    /// <summary>装备列最小宽度（对齐 7 格装备基准宽度 208px，避免少装备时金币列左右漂移）。</summary>
-    private const double ItemsMinWidth = 208;
 
     /// <summary>海克斯强化格：旧版 `.augment-slot` 22×22（与装备格尺寸不同，不能共用 <see cref="ItemSize"/>）。</summary>
     private const double AugmentSize = 22;
@@ -137,7 +135,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             Search.SearchVisuals.SpellIcon(catalog, summary.Spell1Id, SpellSize),
             Search.SearchVisuals.SpellIcon(catalog, summary.Spell2Id, SpellSize));
 
-        // 符文：仅非强化队列显示；RuneId=0 不渲染（SGP 大乱斗恒 0，与无符文等价）
+        // 符文：仅非强化队列显示；RuneId=0 不渲染（SGP 大乱斗恒 0，与无符文等价）。
+        // 无符文的行（大乱斗等模式）保留等宽空占位，保证不同模式混排时后续列（结果/KDA…）横向对齐。
         string? runePath = null;
         if (!IsAugmentQueue(summary.QueueId) && summary.RuneId > 0
             && catalog.Runes.TryGetValue(summary.RuneId, out string? runeIcon))
@@ -145,12 +144,12 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             runePath = runeIcon;
         }
 
-        Element spells = runePath is null
-            ? spellsCol.VAlign(VerticalAlignment.Center)
-            : HStack(3,
-                    spellsCol,
-                    Search.SearchVisuals.Icon(runePath, SpellSize, 10))
-                .VAlign(VerticalAlignment.Center);
+        // 空占位必须由 Border 承载（裸 Empty 不参与布局测量、量出 0 宽，占不住位）
+        Element runeSlot = runePath is null
+            ? Border(Empty()).Width(SpellSize).Height(SpellSize).AccessibilityHidden()
+            : Search.SearchVisuals.Icon(runePath, SpellSize, 10);
+        Element spells = HStack(3, spellsCol, runeSlot)
+            .VAlign(VerticalAlignment.Center);
 
         // 结果与模式列
         var queueName = Search.SearchFilters.TranslateQueueLabel(summary.QueueName, isEn);
@@ -226,10 +225,9 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         itemChildren.Add(Search.SearchVisuals.ItemRow(catalog, summary.ItemIds, ItemSize));
 
         Element itemSlots = HStack(4, itemChildren.ToArray())
-            .MinWidth(ItemsMinWidth)
             .VAlign(VerticalAlignment.Center);
 
-        // 金币列
+        // 金币列：挂在右侧组、紧贴时间列右靠，位置恒定（不随装备数量左右漂移）
         var goldText = i18n?.T("search.gold", "金币") ?? "金币";
         Element gold = VStack(2,
                 BodyStrong($"{summary.Gold:N0}"),
@@ -260,7 +258,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .OnTapped((_, args) => args.Handled = true)
             .VAlign(VerticalAlignment.Center);
 
-        Element rightGroup = HStack(8, info, replayBtn)
+        Element rightGroup = HStack(8, gold, info, replayBtn)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);
 
@@ -271,8 +269,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             result,
             kda,
             cs,
-            itemSlots,
-            gold)
+            itemSlots)
             .VAlign(VerticalAlignment.Center);
 
         // 自适应 Grid 两列布局：左侧拉伸，右侧自动靠右

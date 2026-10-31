@@ -170,16 +170,14 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
             });
         }
 
-        // 普通模式加最小宽度：各状态按钮宽度恒定，右对齐组（地图/时间列）不因状态切换横移闪跳
+        // 宽度内容自适应（对齐旧版 ReplayButton.vue：无 min-width，文字贴边）；
+        // 代价是状态切换时按钮宽度会变、右侧组（金币/时间列）随之横移，旧版同样如此。
         var element = Props.Compact
             ? RenderCompact(status, notice, HandleClick)
-            : RenderNormal(status, notice, HandleClick).MinWidth(NormalMinWidth);
+            : RenderNormal(status, notice, HandleClick);
 
         return element.OnTapped((_, args) => args.Handled = true);
     }
-
-    /// <summary>普通模式最小宽度，按最宽状态（进度环/图标 + 四字文案）设定，见 <see cref="Render"/>。</summary>
-    private const double NormalMinWidth = 88;
 
     private static TextBlockElement Glyph(string glyph, string? foreground = null)
     {
@@ -246,37 +244,37 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
         return status switch
         {
             "checking" =>
-                Button(HStack(6, ProgressRing().Width(14).Height(14), Caption(checkingText)), onClick)
+                Button(HStack(4, ProgressRing().Width(14).Height(14), Caption(checkingText)), onClick)
                     .Height(28)
-                    .Padding(8, 0)
+                    .Padding(6, 0)
                     .AutomationName(checkingText),
             "downloading" =>
-                Button(HStack(6, ProgressRing().Width(14).Height(14), Caption(downloadingText)), onClick)
+                Button(HStack(4, ProgressRing().Width(14).Height(14), Caption(downloadingText)), onClick)
                     .Height(28)
-                    .Padding(8, 0)
+                    .Padding(6, 0)
                     .AutomationName(downloadingText),
             "watch" =>
-                Button(HStack(6, Glyph(Icons.Play, CareerVisuals.WinText), Caption(watchText)), onClick)
+                Button(HStack(4, Glyph(Icons.Play, CareerVisuals.WinText), Caption(watchText)), onClick)
                     .Height(28)
-                    .Padding(8, 0)
+                    .Padding(6, 0)
                     .AutomationName(watchText),
             "unsupported" =>
-                Button(HStack(6, Glyph(Icons.Cancel), Caption(unavailableText)), onClick)
+                Button(HStack(4, Glyph(Icons.Cancel), Caption(unavailableText)), onClick)
                     .Height(28)
-                    .Padding(8, 0)
+                    .Padding(6, 0)
                     .IsEnabled(false)
                     .AutomationName(unavailableText)
                     .WithToolTip(TextBlock(notice ?? unavailableText)),
             "error" =>
-                Button(HStack(6, Glyph(Icons.Error, CareerVisuals.LoseText), Caption(retryText)), onClick)
+                Button(HStack(4, Glyph(Icons.Error, CareerVisuals.LoseText), Caption(retryText)), onClick)
                     .Height(28)
-                    .Padding(8, 0)
+                    .Padding(6, 0)
                     .AutomationName(retryText)
                     .WithToolTip(TextBlock(notice ?? retryText)),
             _ =>
-                Button(HStack(6, Glyph(Icons.Replay), Caption(replayText)), onClick)
+                Button(HStack(4, Glyph(Icons.Replay), Caption(replayText)), onClick)
                     .Height(28)
-                    .Padding(8, 0)
+                    .Padding(6, 0)
                     .AutomationName(replayText)
                     .WithToolTip(TextBlock(replayText)),
         };
