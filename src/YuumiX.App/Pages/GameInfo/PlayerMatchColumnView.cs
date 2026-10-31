@@ -145,7 +145,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         }
 
         var matches = d.Matches.Take(10).ToArray();
-        var rows = Enumerable.Range(0, matches.Length).Select(_ => GridSize.Star()).ToArray();
+        var rows = Enumerable.Range(0, 10).Select(_ => GridSize.Star()).ToArray();
 
         var cards = matches
             .Select((m, i) => RenderMatchCard(m, isTenCol, palette, services, encounteredGameIds, isLast: i == matches.Length - 1)
@@ -189,10 +189,10 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var levelBadge = Badge.Create(
                 Caption($"{m.ChampionLevel}")
                     .SemiBold()
-                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
+                    .Foreground(Theme.PrimaryText)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center),
-                AssetColors.BadgeDark,
+                Theme.CardBackground,
                 padH: 2,
                 padV: 0)
             .HAlign(HorizontalAlignment.Right)

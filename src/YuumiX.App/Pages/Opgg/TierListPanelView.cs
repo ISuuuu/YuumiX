@@ -64,7 +64,6 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
 
                     Caption(Composition.AppHost.Services?.I18n.T("opgg.tierList.champion", "英雄") ?? "英雄")
                         .Foreground(Theme.SecondaryText)
-                        .Margin(new Thickness(8, 0, 0, 0))
                         .Grid(0, 1),
 
                     Caption("Tier")
@@ -99,7 +98,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                 ]
             )
         )
-        .Padding(new Thickness(16, 8, 16, 8))
+        .Padding(new Thickness(24, 8, 24, 8))
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .WithBorder(Theme.CardStroke, 1);
 

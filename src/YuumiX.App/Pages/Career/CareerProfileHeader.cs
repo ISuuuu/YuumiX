@@ -206,7 +206,7 @@ internal static class CareerProfileHeader
         double sweep = GaugeSweepMax * clamped / 100.0;
 
         // 轨道色取旧版 --gauge-track-color 的深浅两套：浅 #E2E8F0 / 深 #334155
-        string trackColor = CareerVisuals.IsDarkTheme ? AssetColors.TrackDark : AssetColors.TrackLight;
+        string trackColor = palette.IsDark ? AssetColors.TrackDark : AssetColors.TrackLight;
 
         var children = new List<Element>
         {

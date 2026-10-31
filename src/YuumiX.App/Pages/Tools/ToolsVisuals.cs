@@ -41,7 +41,7 @@ internal static class ToolsVisuals
     public static Element GroupHeader(string title) =>
         Subtitle(title)
             .HeadingLevel(AutomationHeadingLevel.Level2)
-            .Margin(new Thickness(4, 16, 0, 6));
+            .Margin(top: 16);
 
     public static Element CardRow(string label, Element control) =>
         Grid(

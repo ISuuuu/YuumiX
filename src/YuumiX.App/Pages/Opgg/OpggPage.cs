@@ -24,9 +24,13 @@ public sealed class OpggPage : Component<OpggPageProps>
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
         var opggService = services.Services.GetRequiredService<IOpggService>();
         var theme = UseContext(AppHost.ThemeContext) ?? AppHost.Theme;
-        // 不能用 ThemeMode == "Dark" 反推：跟随系统模式下 ThemeMode 是 Auto，恒判为浅色。
-        // palette.IsDark 走 ActualTheme 兜底（ThemeState 挂载/事件链写回），三种模式都正确。
-        bool isDark = theme.Current.IsDark;
+        var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
+        UseEffect(() =>
+        {
+            var subscription = theme.Subscribe(setPalette);
+            return () => subscription.Dispose();
+        }, 0);
+        bool isDark = palette.IsDark;
 
         var (currentView, setCurrentView) = UseState("tier"); // "tier" | "build"
         var (region, setRegion) = UseState(OpggRegion.Kr);
@@ -319,31 +323,11 @@ public sealed class OpggPage : Component<OpggPageProps>
                         Border(Empty()).Width(8),
 
                         // 「梯队」Tab
-                        Button(
-                            currentView == "tier"
-                                ? BodyStrong(tierTabText).Foreground("#FFFFFF")
-                                : BodyStrong(tierTabText),
-                            () => onSelectView("tier"))
-                            .Background(currentView == "tier" ? OpggVisuals.ActiveTabGreen : "transparent")
-                            .Height(30)
-                            .Padding(new Thickness(16, 0, 16, 0))
-                            .AutomationName("OPGG梯队Tab"),
+                        RenderTab(tierTabText, "OPGG梯队Tab", currentView == "tier", true, () => onSelectView("tier")),
 
                         // 「出装」Tab
-                        Button(
-                            currentView == "build"
-                                ? BodyStrong(buildTabText).Foreground("#FFFFFF")
-                                : BodyStrong(buildTabText),
-                            () =>
-                            {
-                                if (selectedChampId.HasValue) onSelectView("build");
-                            })
-                            .IsEnabled(selectedChampId.HasValue)
-                            .Opacity(selectedChampId.HasValue ? 1.0 : 0.4)
-                            .Background(currentView == "build" ? OpggVisuals.ActiveTabGreen : "transparent")
-                            .Height(30)
-                            .Padding(new Thickness(16, 0, 16, 0))
-                            .AutomationName("OPGG出装Tab")
+                        RenderTab(buildTabText, "OPGG出装Tab", currentView == "build", selectedChampId.HasValue,
+                            () => { if (selectedChampId.HasValue) onSelectView("build"); })
                     )
                     .VAlign(VerticalAlignment.Center)
                     .Grid(0, 0),
@@ -362,6 +346,17 @@ public sealed class OpggPage : Component<OpggPageProps>
         .BorderThickness(new Thickness(0, 0, 0, 1))
         .WithBorder(Theme.CardStroke, 1);
     }
+
+    internal static ButtonElement RenderTab(string label, string automationName, bool isSelected, bool isEnabled, Action onSelect) =>
+        Button(label, onSelect)
+            .IsEnabled(isEnabled)
+            .Height(30)
+            .Padding(new Thickness(16, 0, 16, 0))
+            .CornerRadius(YuumiTheme.ControlRadius)
+            .Background(isSelected ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
+            .Foreground(!isEnabled ? Theme.DisabledText : isSelected ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.PrimaryText)
+            .TogglePointerOverStates(isSelected)
+            .AutomationName(automationName);
 
     private static Element RenderBody(
         string currentView,

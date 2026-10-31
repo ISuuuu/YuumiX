@@ -14,10 +14,9 @@ public sealed class SearchRegressionTests
     [Fact]
     public void ResourceState_SeparatesHistoryFailureFromSuccessfulEmptyPage()
     {
-        var summoner = new AsyncValue<SummonerProfile?>.Data(null);
         var i18n = new I18nService();
-        var failed = SearchChrome.ResourceState(summoner, new AsyncValue<SearchHistoryResult>.Error(new Exception()), false, true, false, YuumiTheme.Default, () => { }, i18n);
-        var empty = SearchChrome.ResourceState(summoner, new AsyncValue<SearchHistoryResult>.Data(new SearchHistoryResult("key", MatchHistoryPage.Empty)), true, true, false, YuumiTheme.Default, () => { }, i18n);
+        var failed = SearchChrome.ResourceState(new AsyncValue<SearchHistoryResult>.Error(new Exception()), false, false, YuumiTheme.Default, () => { }, i18n);
+        var empty = SearchChrome.ResourceState(new AsyncValue<SearchHistoryResult>.Data(new SearchHistoryResult("key", MatchHistoryPage.Empty)), true, false, YuumiTheme.Default, () => { }, i18n);
         Assert.IsNotType<BorderElement>(failed);
         var border = Assert.IsAssignableFrom<BorderElement>(empty);
         Assert.Equal("暂无战绩", Assert.IsAssignableFrom<TextBlockElement>(border.Child).Content);
@@ -26,9 +25,61 @@ public sealed class SearchRegressionTests
     [Fact]
     public void ResourceState_LoadingDoesNotDisplayEmptyResult()
     {
-        var element = SearchChrome.ResourceState(new AsyncValue<SummonerProfile?>.Data(null),
-            new AsyncValue<SearchHistoryResult>.Loading(), false, true, false, YuumiTheme.Default, () => { }, new I18nService());
+        var element = SearchChrome.ResourceState(
+            new AsyncValue<SearchHistoryResult>.Loading(), false, false, YuumiTheme.Default, () => { }, new I18nService());
         Assert.IsAssignableFrom<GridElement>(element);
+    }
+
+    [Fact]
+    public void SearchGuideEmpty_RendersSearchGuideWithHistoryChips()
+    {
+        var i18n = new I18nService();
+        var selectedItem = string.Empty;
+        var element = SearchChrome.SearchGuideEmpty(
+            ["Player1#123", "Player2#456"],
+            item => selectedItem = item,
+            i18n);
+
+        var grid = Assert.IsAssignableFrom<GridElement>(element);
+        Assert.Equal(2, grid.Children.Length);
+
+        // 左边栏：历史记录面板（直接平铺，无外框滚动条）
+        var leftStack = Assert.IsAssignableFrom<StackElement>(grid.Children[0]);
+        Assert.Equal(2, leftStack.Children.Length);
+        var vstack = Assert.IsAssignableFrom<StackElement>(leftStack.Children[1]);
+        Assert.Equal(2, vstack.Children.Length);
+
+        // 右边栏：引导与技巧面板
+        var rightBorder = Assert.IsAssignableFrom<BorderElement>(grid.Children[1]);
+        var rightStack = Assert.IsAssignableFrom<StackElement>(rightBorder.Child);
+        Assert.True(rightStack.Children.Length >= 3);
+    }
+
+    [Fact]
+    public void SearchGuideEmpty_WithRemoveAction_PassesRemoveCallbackToChips()
+    {
+        var i18n = new I18nService();
+        var selectedItem = string.Empty;
+        var removedItem = string.Empty;
+        var element = SearchChrome.SearchGuideEmpty(
+            ["Player1#123", "Player2#456"],
+            item => selectedItem = item,
+            item => removedItem = item,
+            i18n);
+
+        var grid = Assert.IsAssignableFrom<GridElement>(element);
+        Assert.Equal(2, grid.Children.Length);
+
+        // 验证左边栏历史卡片组件属性传递与回调（无 ScrollViewer 滚动条）
+        var leftStack = Assert.IsAssignableFrom<StackElement>(grid.Children[0]);
+        var vstack = Assert.IsAssignableFrom<StackElement>(leftStack.Children[1]);
+
+        var chipElement = Assert.IsAssignableFrom<ComponentElement<SearchHistoryChipProps>>(vstack.Children[0]);
+        Assert.Equal("Player1#123", chipElement.Props.Item);
+        chipElement.Props.OnSelect("Player1#123");
+        Assert.Equal("Player1#123", selectedItem);
+        chipElement.Props.OnRemove?.Invoke("Player1#123");
+        Assert.Equal("Player1#123", removedItem);
     }
 
     [Fact]
