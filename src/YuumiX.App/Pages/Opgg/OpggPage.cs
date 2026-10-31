@@ -288,11 +288,10 @@ public sealed class OpggPage : Component<OpggPageProps>
                             setIsApplyingItemSet(false);
                         }
                     }
-                ).Grid(2, 0),
-
-                // 全局 Toast 宿主（R5）：本窗口队列由 OpggWindowRoot 提供
-                Component<ToastHost>().Grid(2, 0)
+                ).Grid(2, 0)
             ]
+            // Toast 宿主不在这里挂：OpggWindowRoot 已统一挂载（同主窗口 AppShell 的模式），
+            // 页面再挂一个会对同一队列重复渲染出两条 toast。
         );
     }
 
