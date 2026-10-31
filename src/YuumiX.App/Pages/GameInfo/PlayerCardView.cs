@@ -99,11 +99,11 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
             var levelBadge = Border(
                 Caption($"{d.Info.SummonerLevel}")
                     .SemiBold()
-                    .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
+                    .Foreground(Theme.PrimaryText)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center)
             )
-            .Background(AssetColors.BadgeDark)
+            .Background(Theme.CardBackground)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Padding(4, 1)
             .HAlign(HorizontalAlignment.Center)

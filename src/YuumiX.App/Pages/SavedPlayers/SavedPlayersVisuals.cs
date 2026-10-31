@@ -101,23 +101,11 @@ internal static class SavedPlayersVisuals
         )
         .VerticalAlignment(VerticalAlignment.Center);
 
-        Element FilterButton(string label, string key)
-        {
-            var isSelected = filter == key;
-            var btn = Button(Body(label), () => setFilter(key))
-                .AutomationName(label)
-                .Padding(12, 5);
-
-            return isSelected
-                ? btn.Background(Theme.Accent)
-                : btn;
-        }
-
         var filterGroup = HStack(
             6,
-            FilterButton(filterAllText, "all"),
-            FilterButton(filterTaggedText, "tagged"),
-            FilterButton(filterMultipleText, "multiple")
+            RenderFilterButton(filterAllText, "all", filter, setFilter),
+            RenderFilterButton(filterTaggedText, "tagged", filter, setFilter),
+            RenderFilterButton(filterMultipleText, "multiple", filter, setFilter)
         );
 
         return Grid(
@@ -129,6 +117,19 @@ internal static class SavedPlayersVisuals
             ]
         )
         .Margin(0, 0, 0, 12);
+    }
+
+    internal static ButtonElement RenderFilterButton(string label, string key, string filter, Action<string> setFilter)
+    {
+        var isSelected = filter == key;
+        var button = Button(label, () => setFilter(key))
+            .AutomationName(label)
+            .Padding(12, 5)
+            .CornerRadius(YuumiTheme.ControlRadius)
+            .Background(isSelected ? Theme.Accent : Theme.Ref("ButtonBackground"))
+            .Foreground(isSelected ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.PrimaryText);
+
+        return button.TogglePointerOverStates(isSelected);
     }
 
     /// <summary>卡片列表视图与分页（空态三分支：加载中 / 搜索无结果 / 无记录）</summary>
@@ -265,7 +266,7 @@ internal static class SavedPlayersVisuals
                             Border(Empty())
                                 .Width(40)
                                 .Height(40)
-                                .CornerRadius(20)
+                                .CornerRadius(YuumiTheme.PillRadius)
                                 .Background(Theme.SubtleFill)
                                 .Margin(0, 0, 12, 0)
                                 .Grid(row: 0, column: 0),
@@ -273,13 +274,13 @@ internal static class SavedPlayersVisuals
                                 Border(Empty())
                                     .Width(140)
                                     .Height(16)
-                                    .CornerRadius(4)
+                                    .CornerRadius(YuumiTheme.ControlRadius)
                                     .Background(Theme.SubtleFill)
                                     .HAlign(HorizontalAlignment.Left),
                                 Border(Empty())
                                     .Width(64)
                                     .Height(14)
-                                    .CornerRadius(4)
+                                    .CornerRadius(YuumiTheme.ControlRadius)
                                     .Background(Theme.SubtleFill)
                                     .HAlign(HorizontalAlignment.Left))
                                 .VAlign(VerticalAlignment.Center)
@@ -287,7 +288,7 @@ internal static class SavedPlayersVisuals
                             Border(Empty())
                                 .Width(72)
                                 .Height(20)
-                                .CornerRadius(4)
+                                .CornerRadius(YuumiTheme.ControlRadius)
                                 .Background(Theme.SubtleFill)
                                 .VAlign(VerticalAlignment.Center)
                                 .Grid(row: 0, column: 2),

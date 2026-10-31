@@ -163,10 +163,10 @@ internal static class SavedPlayerCard
                 .AutomationName("编辑玩家标记")
                 .Width(260)
                 .Height(30),
-                Button(Body(i18n?.T("savedPlayersPage.tagSave", "保存") ?? "保存"), onSaveTag)
+                Button(i18n?.T("savedPlayersPage.tagSave", "保存") ?? "保存", onSaveTag)
                     .AutomationName("保存")
                     .Padding(12, 4)
-                    .Background(Theme.Accent),
+                    .AccentButton(),
                 Button(Body(i18n?.T("savedPlayersPage.tagCancel", "取消") ?? "取消"), () => setEditingPuuid(null))
                     .AutomationName("取消")
                     .Padding(12, 4)

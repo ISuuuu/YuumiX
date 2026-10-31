@@ -2,6 +2,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Composition;
 using YuumiX.App.Theming;
 using YuumiX.Core.Common;
 using YuumiX.Core.Features.Match.Models;
@@ -161,17 +162,23 @@ internal static class CareerVisuals
 
     /// <summary>
     /// 胜利文字色。取自原 <c>App.vue</c> 的 <c>--win-color</c>（浅色 #065F46 / 深色 #10B981）。
-    ///
-    /// 为什么不复用 <see cref="YuumiPalette.WinCard"/>：那是卡片**底色**（带 20% alpha），
-    /// 直接拿来写字会淡到看不清。胜负文字色在配置里没有对应项，因此按实际明暗取常量。
+    /// 优先从调用方传入的 <see cref="YuumiPalette"/> 派生；无上下文时通过 <see cref="IsDarkTheme"/> 兜底。
     /// </summary>
     public static string WinText => IsDarkTheme ? AssetColors.WinDark : AssetColors.WinLight;
 
     /// <summary>失败文字色（原 <c>--loss-color</c>：浅色 #9F1239 / 深色 #F43F5E）。</summary>
     public static string LoseText => IsDarkTheme ? AssetColors.LoseDark : AssetColors.LoseLight;
 
-    /// <summary>当前是否为深色主题。<c>Default</c> 时取系统设置，与 WinUI 的实际绘制口径一致。</summary>
+    /// <summary>
+    /// 当前是否为深色主题。从进程级 <see cref="AppHost.Theme"/> 的实际调色板读取，
+    /// 与 <see cref="ThemeState.UpdateActualTheme"/> 的实际绘制口径一致——
+    /// <see cref="Application.RequestedTheme"/> 在启动后即冻结，运行中切换主题不会更新。
+    /// 宿主未初始化时（单元测试等）回退到启动时的应用主题。
+    /// </summary>
     public static bool IsDarkTheme =>
+        AppHost.CurrentServices != null ? AppHost.Theme.Current.IsDark : FallbackIsDark;
+
+    private static bool FallbackIsDark =>
         Application.Current?.RequestedTheme == ApplicationTheme.Dark;
 
     /// <summary>蓝色精粹专属色。</summary>
@@ -499,13 +506,18 @@ internal static class CareerVisuals
             .ToArray());
 
         Element toolbar = Card(
-            HStack(12,
-                Block(180, 28),
-                Block(120, 28),
-                Block(120, 28),
-                Block(120, 28)),
-            padH: 12,
-            padV: 10);
+            Grid(
+                [GridSize.Star(), GridSize.Auto],
+                [GridSize.Auto],
+                [
+                    HStack(12, Block(170, 30), Block(130, 32), Block(110, 32))
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 0),
+                    HStack(8, Block(28, 16), Block(125, 32), Block(52, 32))
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 1),
+                ]),
+            padding: 10);
 
         Element heroGrid = VStack(CardGap,
             HStack(CardGap, Enumerable.Range(0, 4)

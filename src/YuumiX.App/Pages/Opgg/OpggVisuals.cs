@@ -37,10 +37,10 @@ public static class OpggVisuals
         {
             return t switch
             {
-                "0" or "1" => "rgba(59, 130, 246, 0.12)",
-                "2" => "rgba(20, 184, 166, 0.12)",
-                "3" => "rgba(234, 179, 8, 0.08)",
-                "4" or "5" => "rgba(148, 163, 184, 0.08)",
+                "0" or "1" => "#263851", // OP.GG Tier 1 业务色
+                "2" => "#203D3C",         // OP.GG Tier 2 业务色
+                "3" => "#423A22",         // OP.GG Tier 3 业务色
+                "4" or "5" => "#353A42", // OP.GG Tier 4/5 业务色
                 _ => "transparent"
             };
         }
@@ -65,11 +65,11 @@ public static class OpggVisuals
         {
             return t switch
             {
-                "0" or "1" => "rgba(59, 130, 246, 0.25)",
-                "2" => "rgba(20, 184, 166, 0.25)",
-                "3" => "rgba(234, 179, 8, 0.20)",
-                "4" or "5" => "rgba(148, 163, 184, 0.20)",
-                _ => "rgba(255, 255, 255, 0.08)"
+                "0" or "1" => "#456DA8", // OP.GG Tier 1 业务色
+                "2" => "#39867E",         // OP.GG Tier 2 业务色
+                "3" => "#8A793D",         // OP.GG Tier 3 业务色
+                "4" or "5" => "#687481", // OP.GG Tier 4/5 业务色
+                _ => "#686868"
             };
         }
 
