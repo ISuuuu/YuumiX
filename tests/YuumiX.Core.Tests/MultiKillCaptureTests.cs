@@ -1,6 +1,10 @@
+using System.Collections.Concurrent;
+using System.Net;
+using System.Text;
 using System.Text.Json;
 using YuumiX.Core.Automation;
 using YuumiX.Core.Common;
+using YuumiX.Core.Persistence;
 using Xunit;
 
 namespace YuumiX.Core.Tests;
@@ -203,4 +207,101 @@ public sealed class PngEncoderTests
 
     private static uint ReadU32(byte[] data, int offset) =>
         (uint)((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]);
+}
+
+/// <summary>
+/// 轮询循环存活验收：Live Client Data 请求超时抛的 TaskCanceledException（token 未取消）
+/// 不得被当成宿主取消杀死循环——2026-10-31 整局排位零截图且零日志的根因。
+/// </summary>
+public sealed class MultiKillCaptureLoopTests
+{
+    /// <summary>activeplayername 首次按 HttpClient.Timeout 的真实形态抛 TaskCanceledException（内层 TimeoutException）。</summary>
+    private sealed class StubHandler : HttpMessageHandler
+    {
+        private int _nameCalls;
+        private int _eventPolls;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            string path = request.RequestUri!.AbsolutePath;
+            if (path.Contains("activeplayername"))
+            {
+                if (Interlocked.Increment(ref _nameCalls) == 1)
+                {
+                    throw new TaskCanceledException("simulated timeout", new TimeoutException());
+                }
+
+                return OkJson("\"LoopTester\"");
+            }
+
+            if (path.Contains("eventdata"))
+            {
+                // 首拉只回 GameStart（seen 初始化后仅新事件触发截图），次轮起追加 Multikill
+                int poll = Interlocked.Increment(ref _eventPolls);
+                string events = poll == 1
+                    ? """{"Events":[{"EventID":1,"EventName":"GameStart","EventTime":0.0}]}"""
+                    : """{"Events":[{"EventID":1,"EventName":"GameStart","EventTime":0.0},{"EventID":2,"EventName":"Multikill","EventTime":10.0,"KillerName":"LoopTester","KillStreak":3}]}""";
+                return OkJson(events);
+            }
+
+            return OkJson("null");
+        }
+
+        private static Task<HttpResponseMessage> OkJson(string body) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            });
+    }
+
+    [Fact]
+    public async Task RunLoop_SurvivesRequestTimeout_AndCapturesOnNextPoll()
+    {
+        string saveDir = Path.Combine(Path.GetTempPath(), $"yuumix-mkc-{Guid.NewGuid():N}");
+        var captured = new ConcurrentQueue<string>();
+        using var injectedClient = new HttpClient(new StubHandler());
+
+        var config = new AppConfig
+        {
+            Functions = new FunctionsConfig
+            {
+                EnableScreenshotOnMultikill = true,
+                ScreenshotOnMultikillLevels = [3],
+                ScreenshotSavePath = saveDir,
+            },
+        };
+
+        await using var agent = new MultiKillCaptureAgent(
+            () => config,
+            () => null,
+            captureToFile: path =>
+            {
+                captured.Enqueue(path);
+                return true;
+            },
+            httpClientOverride: injectedClient);
+
+        agent.OnPhaseChanged(GamePhase.InProgress);
+        await agent.StartAsync();
+        try
+        {
+            // 第一轮超时 → 1s 后重试拿到玩家名 → 再一轮拉事件触发截图；10s 预算足够 3 个轮询间隔
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (captured.IsEmpty && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(100);
+            }
+
+            string path = Assert.Single(captured);
+            Assert.Contains("TripleKill_LoopTester_", Path.GetFileName(path));
+        }
+        finally
+        {
+            await agent.StopAsync();
+            if (Directory.Exists(saveDir))
+            {
+                Directory.Delete(saveDir, recursive: true);
+            }
+        }
+    }
 }

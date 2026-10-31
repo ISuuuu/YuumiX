@@ -173,6 +173,8 @@ public sealed class MultiKillCaptureAgent : IAutomationAgent
     private readonly Func<AppConfig> _configProvider;
     private readonly Func<ISummonerService?> _summonerProvider;
     private readonly ILogger<MultiKillCaptureAgent>? _logger;
+    /// <summary>测试注入的 Live Client Data 客户端（模拟超时/响应），生产为 null。</summary>
+    private readonly HttpClient? _httpClientOverride;
 
     private readonly object _stateLock = new();
     private bool _isRunning;
@@ -190,12 +192,14 @@ public sealed class MultiKillCaptureAgent : IAutomationAgent
         Func<AppConfig> configProvider,
         Func<ISummonerService?> summonerProvider,
         ILogger<MultiKillCaptureAgent>? logger = null,
-        Func<string, bool>? captureToFile = null)
+        Func<string, bool>? captureToFile = null,
+        HttpClient? httpClientOverride = null)
     {
         _configProvider = configProvider;
         _summonerProvider = summonerProvider;
         _logger = logger;
         _captureToFile = captureToFile ?? GdiScreenCapture.TryCaptureToFile;
+        _httpClientOverride = httpClientOverride;
     }
 
     /// <summary>游戏阶段变化：仅 InProgress 与 Reconnect 视为对局进行中（旧实现同款语义）。</summary>
@@ -254,14 +258,9 @@ public sealed class MultiKillCaptureAgent : IAutomationAgent
         long? lastEventId = null;
         string? playerName = null;
 
-        // 独立 HTTP 客户端：自签证书 + 绕过代理 + 短超时（对齐旧实现的专用 client）
-        using var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-        };
-        // 回环地址必须显式直连：系统代理会拦截 127.0.0.1 导致连接不上（与 LcuHttpTransport 同一坑）
-        handler.UseProxy = false;
-        using var httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(800) };
+        // 注入的客户端（测试）由调用方管理生命周期；自建客户端随 HttpClient.Dispose 级联释放 handler
+        using HttpClient? ownedClient = _httpClientOverride is null ? CreateLiveClient() : null;
+        var httpClient = ownedClient ?? _httpClientOverride!;
 
         while (!token.IsCancellationRequested)
         {
@@ -295,7 +294,10 @@ public sealed class MultiKillCaptureAgent : IAutomationAgent
 
                 await Task.Delay(InGameInterval, token).ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            // HttpClient.Timeout 超时抛的也是 TaskCanceledException（OperationCanceledException 子类），
+            // 但 token 并未取消——不加过滤器会把请求超时误判为宿主取消，整个轮询循环静默退出
+            // （2026-10-31 排位局零截图的根因：loading 期 LCD 一次 800ms 超时即杀死守护，且无任何日志）。
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 throw;
             }
@@ -305,6 +307,18 @@ public sealed class MultiKillCaptureAgent : IAutomationAgent
                 await Task.Delay(InGameInterval, token).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>Live Client Data 专用客户端：自签证书 + 绕过代理 + 短超时（对齐旧实现）。</summary>
+    private static HttpClient CreateLiveClient()
+    {
+        var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+        };
+        // 回环地址必须显式直连：系统代理会拦截 127.0.0.1 导致连接不上（与 LcuHttpTransport 同一坑）
+        handler.UseProxy = false;
+        return new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(800) };
     }
 
     /// <summary>玩家名：Live Client Data activeplayername → LCU 当前召唤师 gameName/displayName。</summary>
@@ -325,7 +339,8 @@ public sealed class MultiKillCaptureAgent : IAutomationAgent
                 }
             }
         }
-        catch (OperationCanceledException)
+        // 仅当宿主真的在取消时上抛；HttpClient 800ms 超时（token 未取消）按"尚未载入"处理，走 LCU 兜底
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             throw;
         }
