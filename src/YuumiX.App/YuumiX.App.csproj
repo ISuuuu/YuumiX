@@ -30,6 +30,17 @@
     <!-- 门禁终态（AGENTS.md §0 / R17）：BannedApiAnalyzers 的 RS0030 随警告转错误，
          引用 BannedSymbols.txt 中禁用 API 的代码直接构建失败，取代"记得去跑"的人工 grep。 -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      CsWinRT AOT 生成需要 unsafe（CsWinRT aot-trimming 文档明示生成代码含 unsafe 块）。
+      缺失时生成器会**静默跳过** ToolkitControls.cs 里 GeneratedWinRTExposedExternalType
+      声明的 ObservableCollection<object> 向量暴露：JIT 构建靠反射兜底一切正常，
+      AOT 成品在 SettingsExpander 模板应用时经 ItemsRepeater.set_ItemsSource 抛
+      "Argument 'source' is not a supported vector"（stowed exception 0xc000027b）直接崩溃。
+      实测于 windows.sdk.net.ref 10.0.22621.57 / SDK 10.0.401；本仓库无手写 unsafe 代码，
+      开启此开关仅放开 CsWinRT 生成物。
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -65,6 +76,20 @@
     <!-- BannedSymbols.txt 的条目格式与文档注释 ID 一致（T:/M:/P:），条目含义见文件内注释 -->
     <AdditionalFiles Include="BannedSymbols.txt" />
   </ItemGroup>
+
+  <!--
+    Native AOT 验证入口（docs/internal/2026-11-01-native-aot-requirements.md R1）：
+    仅当发布命令显式传 -p:PublishAot=true 时生效，常规 Debug/Release 构建与自包含发布路径完全不受影响。
+    AOT 相关属性必须在 restore 阶段可见（ILCompiler 包、裁剪分析器、CsWinRT AOT 生成都在 restore 期接入），
+    因此集中声明在此，由 `dotnet publish -c Release -r win-x64 -p:PublishAot=true` 一次性开启；
+    禁止只在 publish 的 no-build 阶段临时追加属性。
+  -->
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <!-- WinRT AOT 诊断级别 1：自定义控件跨 ABI 暴露必须过这一档（R5） -->
+    <CsWinRTAotWarningLevel>1</CsWinRTAotWarningLevel>
+  </PropertyGroup>
 
   <ItemGroup>
     <!-- 静态资源随 exe 分发到输出目录的 Assets/ 下，由 Theming/AppAssets.cs 按
