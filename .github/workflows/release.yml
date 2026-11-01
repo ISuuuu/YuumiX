@@ -78,11 +78,11 @@ jobs:
       #      CLI 会把它原样透传给 MSBuild，直接报 MSB1001「未知开关」导致步骤失败。
       #      CI 是干净 VM、没有 obj/bin 缓存，首轮 publish 本来就是全量编译，
       #      分析器告警不会被增量吞掉（App 已开 TreatWarningsAsErrors，构建期即拦截 AGENTS.md §0）；
-      #   c) 必须显式 --self-contained true：.NET 6 起 `publish -r <rid>` 不再隐式自包含，
-      #      漏掉它产出的是框架依赖包（runtimeconfig 里是 framework 而非 includedFrameworks、
-      #      顶层没有 coreclr.dll/hostfxr.dll），用户机器未装 .NET 10 运行时就会双击无反应。
-      #      注意 WindowsAppSDKSelfContained 只负责 WinAppSDK 运行时，与 .NET 运行时是两个维度。
-      - name: Publish self-contained application
+      #   c) 0.4.0-rc.1 起发布切换为 Native AOT（首个 AOT 版）：PublishAot 必须在 restore 阶段
+      #      生效（ILCompiler / 裁剪分析器 / CsWinRT AOT 生成都在 restore 期接入），由命令行传入，
+      #      配合 App.csproj 的 PublishAot 条件属性组开启 AOT/裁剪分析器与 CsWinRTAotWarningLevel=1；
+      #      PublishAot 隐含自包含，--self-contained true 保留为显式声明防退化。
+      - name: Publish Native AOT application
         shell: pwsh
         env:
           VERSION: ${{ steps.release.outputs.version }}
@@ -92,6 +92,7 @@ jobs:
             -p:Platform=x64 `
             -r win-x64 `
             --self-contained true `
+            -p:PublishAot=true `
             -p:Version=$env:VERSION `
             -o $publishDir
           if ($LASTEXITCODE -ne 0) {
@@ -110,7 +111,17 @@ jobs:
           $dir = $env:PUBLISH_DIR
           $required = @(
             'YuumiX.exe',
-            'YuumiX.dll',
+            'YuumiX.pri',
+            'Microsoft.UI.pri',
+            'Microsoft.UI.Xaml.Controls.pri',
+            'Microsoft.WindowsAppRuntime.pri',
+            'Reactor.pri',
+            'Microsoft.ui.xaml.dll',
+            'Microsoft.WindowsAppRuntime.dll',
+            'Microsoft.WindowsAppRuntime.Bootstrap.dll',
+            'e_sqlite3.dll',
+            'WebView2Loader.dll',
+            'MRM.dll',
             'Assets\AppIcon.ico',
             'Assets\Logo.png',
             'Assets\opgg-nav.png',
@@ -129,20 +140,20 @@ jobs:
           }
           Write-Host "Assets 校验通过：$assetCount 个文件"
 
-          # 部署模型断言。这一条是为「发布的是框架依赖包」那次故障加的：
-          # 漏写 --self-contained 时 publish 照样成功、Assets 与版本号全对，
-          # 只有用户机器上没装对应 .NET 运行时时才会双击无反应，事后无法从产物之外看出来。
-          # 判据用运行时实体文件而不是 runtimeconfig 文本，避免格式变化导致误判。
-          $runtimeFiles = @('coreclr.dll', 'hostpolicy.dll', 'hostfxr.dll', 'System.Private.CoreLib.dll')
-          $notSelfContained = $runtimeFiles | Where-Object { -not (Test-Path (Join-Path $dir $_)) }
-          if ($notSelfContained) {
-            throw "发布产物缺少 $($notSelfContained -join ', ')：当前是框架依赖包而非自包含包，请检查 --self-contained true。"
+          # AOT 部署模型断言（0.4.0-rc.1 起发布为 Native AOT，判据与旧自包含包**相反**）：
+          # 出现托管运行时实体（coreclr/hostfxr 等）或托管入口程序集 YuumiX.dll 即说明 AOT 没生效；
+          # 原生镜像体量断言：托管入口 exe 只有百 KB 量级，AOT 链接产物是数十 MB。
+          # 这两条合起来证明「EXE 为原生 AOT 产物且不依赖部署的 CoreCLR」，不能仅因 EXE 存在就判定成功。
+          $forbidden = @('YuumiX.dll', 'coreclr.dll', 'hostpolicy.dll', 'hostfxr.dll', 'System.Private.CoreLib.dll')
+          $present = $forbidden | Where-Object { Test-Path (Join-Path $dir $_) }
+          if ($present) {
+            throw "发布产物出现托管运行时残留：$($present -join ', ')（PublishAot 未生效或被退化）。"
           }
-          $dllCount = (Get-ChildItem -LiteralPath $dir -Filter *.dll -File).Count
-          if ($dllCount -lt 200) {
-            throw "顶层只有 $dllCount 个 dll，低于自包含包的预期量级（约 300），疑似退化为框架依赖包。"
+          $exe = Get-Item (Join-Path $dir 'YuumiX.exe')
+          if ($exe.Length -lt 10MB) {
+            throw "YuumiX.exe 仅 $([math]::Round($exe.Length / 1MB, 1)) MB，不像原生 AOT 链接产物。"
           }
-          Write-Host "自包含校验通过：顶层 $dllCount 个 dll"
+          Write-Host "AOT 部署模型校验通过：原生镜像 $([math]::Round($exe.Length / 1MB, 1)) MB，顶层 dll $((Get-ChildItem -LiteralPath $dir -Filter *.dll -File).Count) 个"
 
           # PRI 断言：非打包模式下应用自身的 PRI 不会被 publish 自动搬到输出目录
           #（构建目标只放到 TargetDir，由 csproj 的 CopyAppPriToPublish 补到 PublishDir）。
@@ -258,7 +269,7 @@ jobs:
           if ($null -eq $setup) { throw '未生成安装包。' }
           if ($setup.Name -match 'portable') { throw "安装包名不得含 portable：$($setup.Name)" }
           if ($setup.Name -notmatch 'setup') { throw "安装包名必须含 setup：$($setup.Name)" }
-          # 自包含运行时约 160 MB，压缩后仍在数十 MB 量级；过小说明只打进了壳。
+          # AOT 产物经 lzma2 固实压缩后约 25 MB 量级；过小说明只打进了壳或源目录退化。
           if ($setup.Length -lt 20MB) { throw "安装包体积异常：$([math]::Round($setup.Length / 1MB, 1)) MB" }
 
           Write-Host "安装包：$($setup.Name)（$([math]::Round($setup.Length / 1MB, 1)) MB）"

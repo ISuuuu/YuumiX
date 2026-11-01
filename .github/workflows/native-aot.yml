@@ -2,12 +2,11 @@ name: Native AOT
 
 # Native AOT 验证流水线（docs/internal/2026-11-01-native-aot-requirements.md R1/R6）。
 #
-# 与 release.yml 的关系：常规自包含发布路径**原样保留**（验收通过前不替换，见需求文档 §3.6）；
-# 本工作流提供独立、可重复的 AOT 构建与打包入口，用于：
-#   1) 在干净的 CI 环境证明 AOT publish 与原生链接可完成；
-#   2) 用适合原生输出的断言校验产物（CoreCLR 残留 = 失败，与自包含包的判据相反）；
+# 与 release.yml 的关系：release.yml 自 0.4.0-rc.1 起已直接以 Native AOT 发布；
+# 本工作流保留为**独立、可重复的 AOT 验证入口**（手动触发、可指定版本号、不发布 Release）：
+#   1) 不打 tag 也能在干净 CI 环境验证 AOT publish 与原生链接；
+#   2) 用适合原生输出的断言校验产物（CoreCLR 残留 = 失败，与旧自包含包判据相反）；
 #   3) 产出便携包 / 安装包工件，供在隔离环境做升级与运行验收。
-# 手动触发（workflow_dispatch），不会发布 Release、不会推送。
 
 on:
   workflow_dispatch:
