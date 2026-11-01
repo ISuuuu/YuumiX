@@ -43,7 +43,7 @@ public sealed record SignalrStatus(SignalrConnectionState State, string? Error =
 ///
 /// 实现差异（报告已注明）：旧实现用 tokio-tungstenite 手写 SignalR JSON 协议（协商 + 握手 + 分帧），
 /// 这里换用官方 <c>Microsoft.AspNetCore.SignalR.Client</c>（10.0.13，net10.0 兼容），
-/// 协商/握手/心跳 Ping/自动重连由库承担；连接建立失败后的 5 秒重试循环保留在服务内。
+/// 协商/握手/心跳 Ping/自动重连由库承担；连接建立失败、库级自动重连耗尽后的 5 秒重试循环保留在服务内。
 /// </summary>
 public sealed class SignalrService : IDisposable
 {
@@ -169,17 +169,24 @@ public sealed class SignalrService : IDisposable
 
         var connection = new HubConnectionBuilder()
             .WithUrl(target)
-            // 库级自动重连：断线后按默认策略重连；建连失败的 5 秒重试由 RetryLoop 兜底
+            // 库级自动重连：断线后按默认策略重连；耗尽后的最终兜底由 RetryLoop 承担（见下）
             .WithAutomaticReconnect()
             .Build();
 
-        connection.Reconnecting += _ =>
+        // 连接关闭信号：RetryLoop 驻留等待它。配置自动重连后 Closed 仅在库级重连放弃
+        // （默认 4 次耗尽）时触发，此时由 RetryLoop 5 秒兜底重启，避免客户端永久离线。
+        // 信号按连接实例创建（局部变量闭包），旧连接关闭不会误触发新连接的信号。
+        var closedSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        connection.Reconnecting += error =>
         {
+            _logger?.LogWarning(error, "[SignalR] 连接断开，自动重连中");
             Publish(new SignalrStatus(SignalrConnectionState.Connecting));
             return Task.CompletedTask;
         };
         connection.Reconnected += _ =>
         {
+            _logger?.LogInformation("[SignalR] 重连成功");
             Publish(new SignalrStatus(SignalrConnectionState.Connected));
             return Task.CompletedTask;
         };
@@ -187,13 +194,16 @@ public sealed class SignalrService : IDisposable
         {
             if (error is not null && !_cts.IsCancellationRequested)
             {
+                _logger?.LogWarning(error, "[SignalR] 连接意外关闭: {Message}", error.Message);
                 Publish(new SignalrStatus(SignalrConnectionState.Error, error.Message));
             }
             else
             {
+                _logger?.LogDebug("[SignalR] 连接已关闭");
                 Publish(new SignalrStatus(SignalrConnectionState.Disconnected));
             }
 
+            closedSignal.TrySetResult();
             return Task.CompletedTask;
         };
 
@@ -202,12 +212,20 @@ public sealed class SignalrService : IDisposable
             _ = HandleReceiveCommandAsync(connection, userId, command, queryId));
 
         _connection = connection;
-        _retryLoop = Task.Run(() => RetryLoopAsync(connection, userId, _cts.Token));
+        _retryLoop = Task.Run(() => RetryLoopAsync(connection, closedSignal, userId, _cts.Token));
     }
 
-    /// <summary>连接重试循环：建立失败 5 秒后重试（旧 start 循环同款），成功后驻留处理消息。</summary>
-    private async Task RetryLoopAsync(HubConnection connection, string userId, CancellationToken token)
+    /// <summary>连接重试循环：建立失败 5 秒后重试（旧 start 循环同款）；连接关闭后同样 5 秒兜底重启。</summary>
+    private async Task RetryLoopAsync(
+        HubConnection connection,
+        TaskCompletionSource closedSignal,
+        string userId,
+        CancellationToken token)
     {
+        // 心跳循环每条连接只启动一次：其自带 Connected 状态检查，断线期间空转、
+        // 重连（库级自动重连或本循环兜底重启）后自动恢复发送，重复启动会叠加多条心跳
+        var heartbeatStarted = false;
+
         while (!token.IsCancellationRequested)
         {
             try
@@ -226,10 +244,20 @@ public sealed class SignalrService : IDisposable
                 }, token);
 
                 // 官方客户端自带心跳 Ping；这里补业务层 Heartbeat 目标（旧实现的心跳语义）
-                _ = HeartbeatLoopAsync(connection, userId, token);
+                if (!heartbeatStarted)
+                {
+                    heartbeatStarted = true;
+                    _ = HeartbeatLoopAsync(connection, userId, token);
+                }
 
-                // StartAsync 返回后 Closed 事件负责后续状态；此处驻留直到取消
-                await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
+                // 驻留等待连接最终关闭（Closed 时由 closedSignal 唤醒），随后 5 秒兜底重启
+                await closedSignal.Task.WaitAsync(token).ConfigureAwait(false);
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                _logger?.LogInformation("[SignalR] 连接已结束，{Delay} 秒后重试", RetryDelay.TotalSeconds);
             }
             catch (OperationCanceledException)
             {
@@ -284,6 +312,7 @@ public sealed class SignalrService : IDisposable
             var transport = _transportProvider();
             if (transport is null)
             {
+                _logger?.LogDebug("[SignalR] LCU 未连接，跳过召唤师对齐信息推送");
                 return;
             }
 
@@ -292,14 +321,16 @@ public sealed class SignalrService : IDisposable
                 CancellationToken.None).ConfigureAwait(false);
             if (!resp.IsSuccess || string.IsNullOrWhiteSpace(resp.Body))
             {
+                _logger?.LogWarning("[SignalR] 查询当前召唤师失败（HTTP {StatusCode}），跳过召唤师对齐信息推送", resp.StatusCode);
                 return;
             }
 
             using var doc = JsonDocument.Parse(resp.Body);
             var root = doc.RootElement;
+            string? summonerName = GetStringOrNull(root, "displayName");
             var info = new Dictionary<string, object?>
             {
-                ["summonerName"] = GetStringOrNull(root, "displayName"),
+                ["summonerName"] = summonerName,
                 ["summonerId"] = GetInt64OrNull(root, "summonerId"),
                 ["puuid"] = GetStringOrNull(root, "puuid"),
                 ["platformId"] = GetStringOrNull(root, "platformId"),
@@ -308,6 +339,7 @@ public sealed class SignalrService : IDisposable
             };
 
             await SendEventAsync(connection, userId, "summoner_info", info).ConfigureAwait(false);
+            _logger?.LogInformation("[SignalR] 已推送召唤师对齐信息: {SummonerName}", summonerName);
         }
         catch (Exception ex)
         {
@@ -368,6 +400,7 @@ public sealed class SignalrService : IDisposable
         var transport = _transportProvider();
         if (transport is null)
         {
+            _logger?.LogWarning("[SignalR] LCU 未连接，远程查询无法执行: {Endpoint}", endpoint);
             return """{"error":"LCU 未连接"}""";
         }
 
@@ -375,16 +408,22 @@ public sealed class SignalrService : IDisposable
         {
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             var resp = await transport.SendAsync(LcuRequest.Get(endpoint), timeoutCts.Token).ConfigureAwait(false);
-            return resp.IsSuccess
-                ? resp.Body
-                : $"{{\"error\":\"HTTP {resp.StatusCode}\"}}";
+            if (resp.IsSuccess)
+            {
+                return resp.Body;
+            }
+
+            _logger?.LogWarning("[SignalR] LCU 查询返回非成功状态 HTTP {StatusCode}: {Endpoint}", resp.StatusCode, endpoint);
+            return $"{{\"error\":\"HTTP {resp.StatusCode}\"}}";
         }
         catch (OperationCanceledException)
         {
+            _logger?.LogWarning("[SignalR] LCU 查询超时 (8s): {Endpoint}", endpoint);
             return """{"error":"LCU 请求超时 (8s)"}""";
         }
         catch (Exception ex)
         {
+            _logger?.LogWarning(ex, "[SignalR] LCU 查询异常: {Endpoint}", endpoint);
             return $"{{\"error\":\"{ex.Message.Replace("\"", "'")}\"}}";
         }
     }
@@ -449,6 +488,7 @@ public sealed class SignalrService : IDisposable
                 _logger?.LogDebug(ex, "[SignalR] 关闭旧连接时出现异常（可忽略）");
             }
 
+            _logger?.LogInformation("[SignalR] 连接已停止");
             _connection = null;
         }
 

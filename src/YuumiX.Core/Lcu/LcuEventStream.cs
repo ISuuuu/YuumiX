@@ -241,6 +241,12 @@ public sealed class LcuEventStream : IAsyncDisposable
     /// </summary>
     private void Process(ReadOnlyMemory<byte> payload, Dictionary<string, string> dedup)
     {
+        // 空帧是握手期的常态（每次启动都会出现），直接丢弃，不值得留下异常堆栈
+        if (payload.Length == 0)
+        {
+            return;
+        }
+
         JsonDocument document;
         try
         {
