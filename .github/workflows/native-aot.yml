@@ -3,10 +3,12 @@ name: Native AOT
 # Native AOT 验证流水线（docs/internal/2026-11-01-native-aot-requirements.md R1/R6）。
 #
 # 与 release.yml 的关系：release.yml 自 0.4.0-rc.1 起已直接以 Native AOT 发布；
-# 本工作流保留为**独立、可重复的 AOT 验证入口**（手动触发、可指定版本号、不发布 Release）：
+# 本工作流保留为**独立、可重复的 AOT 验证入口**（手动触发 + 每周定时验证 main、可指定版本号、不发布 Release）：
 #   1) 不打 tag 也能在干净 CI 环境验证 AOT publish 与原生链接；
 #   2) 用适合原生输出的断言校验产物（CoreCLR 残留 = 失败，与旧自包含包判据相反）；
-#   3) 产出便携包 / 安装包工件，供在隔离环境做升级与运行验收。
+#   3) 产出便携包 / 安装包工件，供在隔离环境做升级与运行验收；
+#   4) 定时验证提前暴露依赖漂移 / ILC 行为变化 / CI 环境断裂（AGENTS.md §12.10），
+#      注意 GitHub 对 60 天无仓库活动的 schedule 会自动停用。
 
 on:
   workflow_dispatch:
@@ -15,6 +17,9 @@ on:
         description: "版本号（写进 exe 的版本资源，例如 0.3.0-rc.1）；留空用 0.0.0-aot.check"
         required: false
         type: string
+  schedule:
+    # 每周一 UTC 01:00（北京时间 09:00）验证 main；schedule 触发时 version 输入为空，自动落 0.0.0-aot.check。
+    - cron: "0 1 * * 1"
 
 permissions:
   contents: read
@@ -23,8 +28,12 @@ env:
   APP_PROJECT: src/YuumiX.App/YuumiX.App.csproj
 
 jobs:
+  verify:
+    uses: ./.github/workflows/aot-checks.yml
+
   build:
     name: AOT publish x64
+    needs: verify
     runs-on: windows-latest
 
     steps:

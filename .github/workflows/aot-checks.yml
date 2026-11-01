@@ -1,0 +1,40 @@
+name: AOT compatibility checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+    inputs:
+      ref:
+        description: "验收的提交或标签；留空使用触发工作流的提交"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Source gates and reflection-free JSON
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Check source gates
+        shell: pwsh
+        run: dotnet test tests/YuumiX.SourceScan.Tests/YuumiX.SourceScan.Tests.csproj -c Release -p:Platform=x64
+
+      - name: Verify production JSON and SignalR without reflection
+        shell: pwsh
+        run: dotnet run --project tests/YuumiX.AotVerification/YuumiX.AotVerification.csproj -c Release -p:Platform=x64

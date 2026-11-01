@@ -15,6 +15,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/YuumiX.Core/YuumiX.Core.csproj" />
+    <!-- 使用 global.json 所选 SDK 自带的 Roslyn，仅供测试期语义检查，不进入应用依赖。 -->
+    <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildBinPath)/Roslyn/bincore/Microsoft.CodeAnalysis.dll" />
+    <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildBinPath)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- 存量白名单：模式级违规的清单（文件 × 规则 × 行数），见该文件结构与 SourceScanTests 头注释 -->
     <None Update="GateWhitelist.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

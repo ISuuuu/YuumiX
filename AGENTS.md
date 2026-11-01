@@ -69,6 +69,7 @@ dotnet test tests/YuumiX.SourceScan.Tests/YuumiX.SourceScan.Tests.csproj -p:Plat
 >   （`REACTOR_THEME_001` 是既有 `NoWarn` 例外，新增例外须评审）。
 > - 模式级：`tests/YuumiX.SourceScan.Tests` 扫源码拦截硬编码 8 位 ARGB、字号字面量、非 4 倍数布局间距（1–7px 整数光学微调除外）、
 >   裸字形字体名、从文案反推状态；存量白名单见 `GateWhitelist.json`，目前为空。
+> - SignalR 语义门禁：同一测试项目的 `SignalRPayloadTests` 扫描 App/Core 实际调用，核对源生成载荷元数据（§12.7），不使用 UI 存量白名单。
 > - 暂无自动门禁、靠评审把关：空 catch（§10）、`.CornerRadius(数字)` 字面量（§3）。
 
 以下六条 grep 是**兜底自检**（主门禁失效或换环境时跑），应保持为 0：
@@ -332,7 +333,7 @@ YuumiX/
 
 ## 12. Native AOT 兼容（2026-11-01 起）
 
-正式发行仅提供 Native AOT 版本，日常 Debug/Release 构建继续保持 JIT 可运行。正式发布入口为 `.github/workflows/release.yml`，独立 AOT 验证与工件打包入口为 `.github/workflows/native-aot.yml`。本地 AOT 发布命令须明确指定 App 项目：`dotnet publish src/YuumiX.App/YuumiX.App.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true -p:PublishAot=true`。JSON 反射序列化已全仓下线，新增序列化/WinRT 代码时：
+正式发行仅提供 Native AOT 版本，日常 Debug/Release 构建继续保持 JIT 可运行。正式发布入口为 `.github/workflows/release.yml`，独立 AOT 验证与工件打包入口为 `.github/workflows/native-aot.yml`（手动触发，另每周一定时自动验证 main，见第 10 条）。本地 AOT 发布命令须明确指定 App 项目：`dotnet publish src/YuumiX.App/YuumiX.App.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true -p:PublishAot=true`。JSON 反射序列化已全仓下线，新增序列化/WinRT 代码时：
 
 1. **新增可序列化根类型必须登记 `src/YuumiX.Core/Serialization/AotJson.cs` 的 `CoreJsonContext`**（加一行 `[JsonSerializable(typeof(...))]`）。已在上下文中的根类型（如 `AppConfig`、`UploadPayload`）图内新增字段，其静态可确定的类型通常会被自动收集，无需单独登记；`object` 字段或需按实际派生类型处理的多态字段必须额外覆盖实际类型，并按需配置多态契约，不能仅依赖根类型登记。漏登记的特征：运行时抛 `NotSupportedException: JsonTypeInfo metadata for type '...' was not provided by TypeInfoResolver`——**JIT 下同样会炸，属故意设计**（测试期就暴露，而不是 AOT 成品才炸）。
 2. **调用点禁用反射路径**：不使用依赖默认反射的 `JsonSerializer.Serialize/Deserialize` 等重载，也不使用未绑定源生成解析器的 `JsonSerializerOptions`。默认场景复用 `AotJson.Options`（默认设置）或 `AotJson.WebOptions`（camelCase/大小写不敏感/数字容错），调用 `options.GetTypeInfo<T>()` 的 `JsonTypeInfo` 重载。需要自定义转换器、命名策略、编码器或缩进时，允许创建或沿用专用 options，但必须绑定对应源生成解析器，并保持原有文件与协议契约（如 `ConfigSchema.JsonOptions` 的 `WholeDoubleConverter` 和中文编码设置），禁止为统一入口丢弃这些设置。LCU 小载荷与 SignalR 载荷用 `JsonObject` DOM（匿名类型无法直接声明为源生成根类型）。`PostAsJsonAsync` 用带 `JsonTypeInfo` 的重载。
@@ -340,3 +341,7 @@ YuumiX/
 4. **跨 ABI 的自定义 WinRT 控件与 AutomationPeer 必须 `partial`**（否则 CsWinRT1028）；新增 `GeneratedWinRTExposedExternalType` 外部类型暴露后必须做一次 AOT 冒烟。App.csproj 的 **`AllowUnsafeBlocks=true` 不要关**：CsWinRT 生成器在无 unsafe 时**静默跳过**外部类型暴露生成，JIT 下靠反射兜底完全无感，AOT 成品运行时才崩（2026-11-01 设置页崩溃根因，见 `GameInfoSnapshotStore` 同期报告）。
 5. **验证入口与覆盖范围**：修改序列化 / SignalR 后跑 `dotnet run --project tests/YuumiX.AotVerification/YuumiX.AotVerification.csproj -p:Platform=x64`（自动构建后运行，反射关闭模式，退出码 0 = 通过），并为新增或修改的生产路径补充针对性验证；禁止用未重新构建的 `--no-build` 旧产物作验收。该进程只引用 Core，不能覆盖 WinRT/UI：修改自定义 WinRT 控件、AutomationPeer 或外部类型暴露后，必须完整 AOT publish，并在 AOT 成品中验证相关控件的模板、交互和无障碍行为。结构性改动（升级 WASDK / CsWinRT / Reactor）需再做完整 AOT publish + 8 页导航冒烟；步骤与本轮记录见本地 `docs/internal/2026-11-01-native-aot-implementation-report.md`。
 6. **崩溃取证**：应用挂载后，经 AppShell 注册的 `ReactorApplication.OnUnhandledException` 捕获到的未处理异常会尽力写入 exe 旁的 `crash.log`，用于补充 WER 中的 HRESULT 信息；启动早期、原生直接终止或磁盘不可写时不保证生成。分发包不得包含本地调试产生的 `crash.log`，也不要将其提交入库。
+7. **SignalR 载荷必须与登记原子提交**：新增 `On<T>`（含类型推断）、非泛型 `SendAsync`、`InvokeAsync<T>` 或流式调用时，参数及返回载荷的实际类型必须被 `CoreJsonContext` 覆盖，且登记与调用放同一笔提交。Json DOM / BCL 原语有内建转换器，不等于当前源生成上下文有其元数据，仍须实际检查；`object`、多态值还须覆盖运行时具体类型。现有协议优先沿用 `JsonElement` 接收、`JsonNode` 构造后 `ToJsonString()` 发送的信封形式。`SignalRPayloadTests` 使用 SDK 自带 Roslyn 识别 App/Core 的实际 SignalR 符号并验证静态载荷元数据，覆盖非泛型发送、类型推断、别名和跨行调用；无法确定实际类型的 `object`、`Type[]` / `object[]` 动态重载会阻断，需改用可检查的类型化重载。该门禁不能证明多态或自定义转换器的运行时行为，仍须按第 5 条补充生产路径验收，不可通过 UI 白名单跳过。
+8. **ILC/裁剪警告按实际配置阻断**：App 已开启 `TreatWarningsAsErrors=true`，ILC 的 `IlcTreatWarningsAsErrors`、裁剪器的 `ILLinkTreatWarningsAsErrors` 默认继承该值，不能认为 publish 只会被硬错误阻断。Core 的日常构建未将所有警告转错误，发版仍须跑完整 AOT publish。禁止通过关闭警告转错误、扩大 `NoWarn` 或忽略退出码绕过新诊断；新增例外须评审并记录依据。
+9. **双路径漂移与启动时序**：日常 Debug/Release 是 JIT，App 层 `EnableAotAnalyzer`/`EnableTrimAnalyzer` 仅在 `-p:PublishAot=true` 时在场（Core 因 `IsAotCompatible` 常开），**JIT 全绿不代表 AOT 成品安全**（§12.4 unsafe 教训）。mur devtools 为 Debug-only，AOT 特有问题应在对应成品保留崩溃日志，并结合匹配版本的原生符号和调试器定位；Debug 用于辅助复现，不能替代成品验收。AOT 与 JIT 的启动时序不同，启动期竞态（登录、窗口初始化、首帧挂载）须在两条路径分别验证。
+10. **升级 preview/结构性依赖（Reactor、CommunityToolkit、WASDK、CsWinRT、.NET SDK）**：动包版本前先手动触发 `native-aot.yml`（或本地 AOT publish）确认当前基线干净可链接，再升级并按第 5 条做完整 AOT 冒烟。`.github/workflows/aot-checks.yml` 在 PR、main 推送时运行源码门禁与反射关闭验收，正式发布和每周 AOT 验证工作流也先调用同一门禁，再发布/打包；每周验证失败须先排查，不能据此直接断言是依赖漂移。CI 的 Core 验收和产物检查不能替代 WinRT/UI 的真实 AOT 冒烟。

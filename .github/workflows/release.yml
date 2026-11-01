@@ -36,8 +36,14 @@ env:
   APP_PROJECT: src/YuumiX.App/YuumiX.App.csproj
 
 jobs:
+  verify:
+    uses: ./.github/workflows/aot-checks.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
   build:
     name: Build portable x64
+    needs: verify
     runs-on: windows-latest
     outputs:
       prerelease: ${{ steps.release.outputs.prerelease }}
