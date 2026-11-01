@@ -311,6 +311,9 @@ internal static class Program
         // 业务心跳（30 秒周期）——只等一轮
         await WaitForAsync(() => hub.HeartbeatUserIds.Count > 0, TimeSpan.FromSeconds(40), "业务心跳未在 40 秒内到达");
         Check(hub.HeartbeatUserIds.First() == "verify-user", "心跳携带解析后的 userId");
+        // 心跳队列是跨宿主共享的静态队列：重连检查必须以「重连前计数」为基线等新增，
+        // 否则断线前已收到的心跳会让 Count > 0 恒成立，重连检查形同虚设。
+        int heartbeatsBeforeReconnect = hub.HeartbeatUserIds.Count;
 
         // 断线重连：杀掉宿主 → 库级自动重连耗尽 → RetryLoop 5 秒兜底 → 宿主重启后重连成功
         await hub.StopAsync();
@@ -320,8 +323,8 @@ internal static class Program
         {
             await WaitForAsync(() => service.Current.State == SignalrConnectionState.Connected, TimeSpan.FromSeconds(45),
                 $"断线后未重连（当前状态 {service.Current.State} {service.Current.Error}）");
-            await WaitForAsync(() => hub2.HeartbeatUserIds.Count > 0, TimeSpan.FromSeconds(40), "重连后业务心跳未恢复");
-            Check(true, "断线重连后心跳恢复");
+            await WaitForAsync(() => hub2.HeartbeatUserIds.Count > heartbeatsBeforeReconnect, TimeSpan.FromSeconds(40), "重连后业务心跳未恢复");
+            Check(hub2.HeartbeatUserIds.Last() == "verify-user", "断线重连后心跳恢复（新增记录 userId 正确）");
         }
         finally
         {
