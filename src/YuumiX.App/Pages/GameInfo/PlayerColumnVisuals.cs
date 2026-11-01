@@ -1,6 +1,7 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
@@ -22,6 +23,17 @@ internal static class PlayerColumnVisuals
 {
     /// <summary>胜率竖条宽度（旧版 3px 宽、与头像同高、自底向上填充）。</summary>
     private const double WinRateBarWidth = 3;
+
+    /// <summary>
+    /// 招牌星标 path 数据：8×8 墨迹盒五角星，中心 (4,4)、外半径 4、内外比 0.5（旧版 SVG viewBox24 等比缩放）。
+    /// 必须走 <c>PathDataString</c>（reconciler 经 PathDataParser 惰性解析）——代码构造的 PathGeometry 直接赋
+    /// <c>Data</c> 会被 WinUI 拒绝（Value does not fall within the expected range，实测见 2026-11-01）。
+    /// 仅用解析器支持的绝对 M/L/Z 命令，数字字面量免运行时格式化。
+    /// </summary>
+    private const string StarPathData = "M4 0L5.18 2.38L7.8 2.76L5.9 4.62L6.35 7.24L4 6L1.65 7.24L2.1 4.62L0.2 2.76L2.82 2.38Z";
+
+    /// <summary>星标填充：底色 Amber 是固定业务色，深浅主题下均为白星（旧版 #fff on #f59e0b），故用固定白刷。</summary>
+    private static readonly SolidColorBrush StarFillBrush = new(Microsoft.UI.Colors.White);
 
     /// <summary>英雄头像（招牌金环 + 右上角招牌/练英雄角标）。</summary>
     internal static Element BuildChampionAvatar(
@@ -47,6 +59,8 @@ internal static class PlayerColumnVisuals
 
         var layers = new List<Element> { avatarCore };
 
+        // 右上角角标（旧版 12×12 圆形）：★ 走 Fluent 星形字形（墨迹点状收尖，12px 圆内有余量）；
+        // 「练」是 12px 汉字，塞 12×12 圆会贴边裁切（AGENTS §1），故方形放宽到 14×14 保 1px 余量。
         if (masteryDetail?.IsPracticing == true)
         {
             layers.Add(
@@ -54,8 +68,8 @@ internal static class PlayerColumnVisuals
                         .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center))
-                    .Width(16)
-                    .Height(16)
+                    .Width(14)
+                    .Height(14)
                     .CornerRadius(YuumiTheme.ControlRadius)
                     .Background(AssetColors.LoseDark)
                     .HAlign(HorizontalAlignment.Right)
@@ -65,14 +79,18 @@ internal static class PlayerColumnVisuals
         }
         else if (masteryDetail?.IsTopChampion == true)
         {
+            // 矢量五角星（8×8 墨迹，见 StarPathData）：12px 图标字形墨迹 ~10px 在 12×12 圆里过满，
+            // 2026-11-01 用户反馈星星偏大，缩为圆径的 2/3（旧版即 7.5/12）。
             layers.Add(
-                Border(Caption("★")
-                        .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
+                Border((Path2D() with { PathDataString = StarPathData })
+                        .Fill(StarFillBrush)
+                        .Width(8)
+                        .Height(8)
                         .HAlign(HorizontalAlignment.Center)
                         .VAlign(VerticalAlignment.Center))
-                    .Width(16)
-                    .Height(16)
-                    .CornerRadius(YuumiTheme.ControlRadius)
+                    .Width(12)
+                    .Height(12)
+                    .CornerRadius(YuumiTheme.PillRadius)
                     .Background(AssetColors.Amber)
                     .HAlign(HorizontalAlignment.Right)
                     .VAlign(VerticalAlignment.Top)

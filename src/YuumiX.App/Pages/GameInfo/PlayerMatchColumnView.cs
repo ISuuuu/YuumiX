@@ -186,6 +186,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var champImage = Component<LcuImage, LcuImageProps>(new LcuImageProps(championAsset, Size: iconSize, CornerRadius: radius))
             .Provide(AppHost.Context, services);
 
+        // 等级微标外挂头像右下角（旧版 bottom/right:-2px，间距门禁取 4 的倍数 → -4），
+        // 只压住头像一小角，避免大块底色盖住头像。字号受 12px 下限约束，药丸高度即文本自然行高。
         var levelBadge = Badge.Create(
                 Caption($"{m.ChampionLevel}")
                     .SemiBold()
@@ -197,7 +199,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
                 padV: 0)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom)
-            .Margin(0, 0, 0, 0);
+            .Margin(0, 0, -4, -4);
 
         var champIconWithLevel = Grid(
             [GridSize.Auto],
