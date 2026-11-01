@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Automation.Models;
 using YuumiX.Core.Common;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;
 
@@ -220,7 +221,7 @@ public sealed class AutomationHost : IDisposable
             {
                 Dispatch(evt.Uri, nameof(AutoBanPickAgent), () =>
                 {
-                    var session = JsonSerializer.Deserialize<ChampSelectSession>(evt.Data.GetRawText());
+                    var session = JsonSerializer.Deserialize(evt.Data.GetRawText(), AotJson.Options.GetTypeInfo<ChampSelectSession>());
                     if (session is not null)
                     {
                         _ = RunBanPickAsync(evt.Uri, session);

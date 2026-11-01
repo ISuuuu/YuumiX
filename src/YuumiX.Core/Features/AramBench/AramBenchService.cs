@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Automation.Models;
 using YuumiX.Core.Common;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Features.AramBench;
 
@@ -301,7 +302,7 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
         {
             session = data.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
                 ? null
-                : JsonSerializer.Deserialize<ChampSelectSession>(data.GetRawText());
+                : JsonSerializer.Deserialize(data.GetRawText(), AotJson.Options.GetTypeInfo<ChampSelectSession>());
         }
         catch (JsonException ex)
         {
@@ -643,7 +644,7 @@ public sealed class AramBenchService : IAramBenchService, IDisposable
                     int[]? ids = null;
                     try
                     {
-                        ids = JsonSerializer.Deserialize<int[]>(response.Body);
+                        ids = JsonSerializer.Deserialize(response.Body, AotJson.Options.GetTypeInfo<int[]>());
                     }
                     catch (JsonException ex)
                     {

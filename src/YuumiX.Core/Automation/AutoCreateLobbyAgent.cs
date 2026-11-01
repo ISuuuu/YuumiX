@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
+using System.Text.Json.Nodes;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;
 
@@ -154,7 +156,7 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
             }
 
             var queueId = _configProvider().Functions.DefaultGameMode;
-            var body = JsonSerializer.Serialize(new { queueId });
+            var body = new JsonObject { ["queueId"] = queueId }.ToJsonString();
             var createResp = await transport.SendAsync(
                 LcuRequest.Post("/lol-lobby/v2/lobby", body),
                 ct).ConfigureAwait(false);

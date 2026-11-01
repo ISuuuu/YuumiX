@@ -13,6 +13,14 @@
     <!-- 解决方案平台只有 x64，库项目需显式声明才能被方案平台映射 -->
     <Platforms>x64</Platforms>
     <IsPackable>false</IsPackable>
+
+    <!--
+      持续 AOT / 裁剪诊断（docs/internal/2026-11-01-native-aot-requirements.md R1）：
+      Core 的 JSON 序列化已全部改为源生成路径，据此声明 AOT 兼容；
+      之后任何回退到反射序列化 / 反射加载的改动都会在此项目直接产生 IL2026/IL3050 警告。
+      App 侧的 AOT 门禁见 YuumiX.App.csproj 的 PublishAot 条件属性组。
+    -->
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,6 +37,8 @@
   <ItemGroup>
     <!-- Interop 细节保持 internal，仅对测试项目开放 -->
     <InternalsVisibleTo Include="YuumiX.Core.Tests" />
+    <!-- AOT 验收进程需要复用生产 options 形态与 internal 模型（DownloadCheckpoint / CacheDocument / CoreJsonContext） -->
+    <InternalsVisibleTo Include="YuumiX.AotVerification" />
   </ItemGroup>
 
 </Project>

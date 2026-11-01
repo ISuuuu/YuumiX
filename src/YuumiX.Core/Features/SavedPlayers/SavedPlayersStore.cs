@@ -6,6 +6,7 @@ using YuumiX.Core.Common;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Runtime;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Features.SavedPlayers;
 
@@ -665,8 +666,9 @@ public sealed class SavedPlayersStore : IDisposable
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = true,
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            TypeInfoResolver = CoreJsonContext.Default,
         };
-        return JsonSerializer.Serialize(list, options);
+        return JsonSerializer.Serialize(list, options.GetTypeInfo<List<SavedPlayerRecord>>());
     }
 
     /// <summary>
@@ -686,12 +688,13 @@ public sealed class SavedPlayersStore : IDisposable
         var options = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
+            TypeInfoResolver = CoreJsonContext.Default,
         };
 
         List<SavedPlayerRecord>? records;
         try
         {
-            records = JsonSerializer.Deserialize<List<SavedPlayerRecord>>(json, options);
+            records = JsonSerializer.Deserialize(json, options.GetTypeInfo<List<SavedPlayerRecord>>());
         }
         catch (Exception ex)
         {

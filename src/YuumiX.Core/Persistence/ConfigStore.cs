@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Persistence;
 
@@ -92,7 +93,7 @@ public sealed class ConfigStore
         var tmpPath = FilePath + ".tmp";
         try
         {
-            var json = JsonSerializer.Serialize(config, ConfigSchema.JsonOptions);
+            var json = JsonSerializer.Serialize(config, ConfigSchema.JsonOptions.GetTypeInfo<AppConfig>());
             File.WriteAllText(tmpPath, json, Utf8NoBom);
             File.Move(tmpPath, FilePath, overwrite: true);
             _logger.LogDebug("配置已保存: {Path}", FilePath);
@@ -229,7 +230,7 @@ public sealed class ConfigStore
 
         ConfigSchema.NormalizeLegacyKeys(root);
 
-        var config = root.Deserialize<AppConfig>(ConfigSchema.JsonOptions) ?? new AppConfig();
+        var config = root.Deserialize(ConfigSchema.JsonOptions.GetTypeInfo<AppConfig>()) ?? new AppConfig();
         ConfigSchema.ApplySerdeFieldDefaults(root, config);
         config.Normalize();
 

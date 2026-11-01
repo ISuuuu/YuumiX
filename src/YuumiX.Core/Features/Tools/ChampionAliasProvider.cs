@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Runtime;
 using YuumiX.Core.Updates;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Features.Tools;
 
@@ -299,7 +300,7 @@ public sealed class ChampionAliasProvider : IChampionAliasProvider
             }
 
             using var stream = File.OpenRead(path);
-            var document = JsonSerializer.Deserialize<CacheDocument>(stream);
+            var document = JsonSerializer.Deserialize(stream, AotJson.Options.GetTypeInfo<CacheDocument>());
             if (document is null
                 || document.Schema != SchemaVersion
                 || document.Keywords is null
@@ -404,7 +405,7 @@ public sealed class ChampionAliasProvider : IChampionAliasProvider
 
             // 原子写：先写 .tmp 再替换，避免半个 JSON 让下次启动白读
             string temp = path + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(document));
+            File.WriteAllText(temp, JsonSerializer.Serialize(document, AotJson.Options.GetTypeInfo<CacheDocument>()));
             File.Move(temp, path, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)

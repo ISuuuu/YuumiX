@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Persistence;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Upload;
 
@@ -150,7 +151,7 @@ public sealed class UploadBatchService
             try
             {
                 using var response = await UploadService.ExternalClient.Value
-                    .PostAsJsonAsync(batchUrl, chunk, cancellationToken).ConfigureAwait(false);
+                    .PostAsJsonAsync(batchUrl, chunk, AotJson.WebOptions.GetTypeInfo<List<UploadPayload>>(), cancellationToken).ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)
                 {

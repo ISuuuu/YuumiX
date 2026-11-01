@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
+using System.Text.Json.Nodes;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;
 
@@ -161,11 +163,11 @@ public sealed class AramTeamSideAgent : IAutomationAgent
 
             // 5. 发送播报消息（type=chat 队友可见；celebration 仅本地可见）。
             string message = $"[YuumiX] 本局我方在{sideName}";
-            var messageBody = JsonSerializer.Serialize(new
+            var messageBody = new JsonObject
             {
-                body = message,
-                type = visibleToTeam ? "chat" : "celebration",
-            });
+                ["body"] = message,
+                ["type"] = visibleToTeam ? "chat" : "celebration",
+            }.ToJsonString();
 
             for (int attempt = 1; attempt <= SendMaxAttempts; attempt++)
             {

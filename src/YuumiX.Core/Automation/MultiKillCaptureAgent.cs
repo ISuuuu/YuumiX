@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Parsers;
 using YuumiX.Core.Persistence;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;
 
@@ -331,7 +332,7 @@ public sealed class MultiKillCaptureAgent : IAutomationAgent
             if (response.IsSuccessStatusCode)
             {
                 string body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
-                string name = JsonSerializer.Deserialize<string>(body) ?? string.Empty;
+                string name = JsonSerializer.Deserialize(body, AotJson.Options.GetTypeInfo<string>()) ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(name))
                 {
                     _logger?.LogInformation("已获取到当前游戏内角色名 (LCD): {Name}", name);

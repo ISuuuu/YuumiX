@@ -7,6 +7,8 @@ using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Parsers;
 using YuumiX.Core.Persistence;
+using System.Text.Json.Nodes;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;
 
@@ -357,7 +359,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
             _isSummonerSpellSetting = true;
         }
 
-        var body = JsonSerializer.Serialize(new { spell1Id = spells[0], spell2Id = spells[1] });
+        var body = new JsonObject { ["spell1Id"] = spells[0], ["spell2Id"] = spells[1] }.ToJsonString();
         bool succeeded = false;
         try
         {
@@ -623,7 +625,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
 
         try
         {
-            return JsonSerializer.Deserialize<ChampSelectSession>(resp.Body);
+            return JsonSerializer.Deserialize(resp.Body, AotJson.Options.GetTypeInfo<ChampSelectSession>());
         }
         catch (Exception ex)
         {
@@ -637,11 +639,7 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         var transport = _transportProvider();
         if (transport is null) return false;
 
-        var body = JsonSerializer.Serialize(new
-        {
-            championId,
-            completed,
-        });
+        var body = new JsonObject { ["championId"] = championId, ["completed"] = completed }.ToJsonString();
 
         var response = await transport.SendAsync(
             LcuRequest.Patch($"/lol-champ-select/v1/session/actions/{actionId}", body),

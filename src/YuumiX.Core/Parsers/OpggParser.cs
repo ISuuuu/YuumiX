@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using YuumiX.Core.Features.Opgg.Models;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Parsers;
 
@@ -14,6 +15,7 @@ public static partial class OpggParser
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        TypeInfoResolver = CoreJsonContext.Default,
     };
 
     [GeneratedRegex("<br\\s*/?>", RegexOptions.IgnoreCase)]
@@ -40,7 +42,7 @@ public static partial class OpggParser
 
         try
         {
-            var payload = JsonSerializer.Deserialize<OpggTierPayload>(json, JsonOptions);
+            var payload = JsonSerializer.Deserialize(json, JsonOptions.GetTypeInfo<OpggTierPayload>());
             var rawList = payload?.Data;
             if (rawList is null || rawList.Count == 0)
             {
@@ -124,7 +126,7 @@ public static partial class OpggParser
 
         try
         {
-            return JsonSerializer.Deserialize<OpggBuildPayload>(json, JsonOptions);
+            return JsonSerializer.Deserialize(json, JsonOptions.GetTypeInfo<OpggBuildPayload>());
         }
         catch
         {
@@ -154,14 +156,14 @@ public static partial class OpggParser
 
             if (root.ValueKind == JsonValueKind.Array)
             {
-                return root.Deserialize<List<PerkStyle>>(JsonOptions) ?? [];
+                return root.Deserialize(JsonOptions.GetTypeInfo<List<PerkStyle>>()) ?? [];
             }
 
             if (root.ValueKind == JsonValueKind.Object &&
                 root.TryGetProperty("styles", out var stylesEl) &&
                 stylesEl.ValueKind == JsonValueKind.Array)
             {
-                return stylesEl.Deserialize<List<PerkStyle>>(JsonOptions) ?? [];
+                return stylesEl.Deserialize(JsonOptions.GetTypeInfo<List<PerkStyle>>()) ?? [];
             }
 
             return [];

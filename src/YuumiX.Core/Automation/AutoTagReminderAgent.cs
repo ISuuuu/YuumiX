@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
+using System.Text.Json.Nodes;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;
 
@@ -206,11 +208,11 @@ public sealed class AutoTagReminderAgent : IAutomationAgent
             // 6. 发送提醒
             foreach (var (name, tag) in matches)
             {
-                var bodyJson = JsonSerializer.Serialize(new
+                var bodyJson = new JsonObject
                 {
-                    body = $"[Yuumi] 队友 {name} 历史标记: {tag}",
-                    type = "chat",
-                });
+                    ["body"] = $"[Yuumi] 队友 {name} 历史标记: {tag}",
+                    ["type"] = "chat",
+                }.ToJsonString();
 
                 var postReq = LcuRequest.Post($"/lol-chat/v1/conversations/{convId}/messages", bodyJson);
                 var postRes = await transport.SendAsync(postReq, ct).ConfigureAwait(false);
