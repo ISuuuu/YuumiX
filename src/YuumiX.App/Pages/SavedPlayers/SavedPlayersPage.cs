@@ -25,7 +25,7 @@ internal sealed record ExpandedTarget(string Puuid, string? SelfPuuid, int Nonce
 ///
 /// R7：玩家列表与相遇对局都是 offset 分页，走 <c>UseInfiniteResource</c>
 ///（cursor 为页号，null 表示首页/末页）；标记保存/删除/导入/导出走 <c>UseMutation</c>；
-/// 账号解析走 <c>UseResource</c>（连接状态变化重拉）。搜索防抖用 effect 定时器取代类字段 Timer（R6）。
+/// 账号解析走 <c>UseResource</c>（连接状态或登录身份变化重拉）。搜索防抖用 effect 定时器取代类字段 Timer（R6）。
 ///
 /// <b>规模</b>：本文件 309 行（R14 过渡期，超 300 理由：双 infinite resource + 四个 mutation 的
 /// hooks 编排必须整块留在 Render 内保证调用顺序；视觉已全部外移）。
@@ -154,9 +154,28 @@ public sealed class SavedPlayersPage : Component
             },
             0);
 
+        // 登录身份变化是独立于连接状态的重取信号：客户端内切换账号不断开 LCU，
+        // deps 只挂 connStatus 时列表会一直停在上一账号（同主页登录竞态，见 HomePage）。
+        // AppShell 登录探测成功后 SummonerService 发布 CurrentChanged（null 发布来自缓存失效，忽略）。
+        var (summonerTick, setSummonerTick) = UseState(0, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                if (summonerService is null) return static () => { };
+                var subscription = summonerService.CurrentChanged.Subscribe(profile =>
+                {
+                    if (profile is not null)
+                    {
+                        setSummonerTick(Environment.TickCount);
+                    }
+                });
+                return () => subscription.Dispose();
+            },
+            0);
+
         var selfPuuidResource = UseResource(
             ct => SavedPlayersLoaders.ResolveSelfPuuidAsync(lcu, summonerService, store, ct),
-            deps: new object[] { connStatus },
+            deps: new object[] { connStatus, summonerTick },
             options: new ResourceOptions(CacheKey: "savedplayers/self-puuid"));
         string? selfPuuid = selfPuuidResource switch
         {
