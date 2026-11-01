@@ -55,6 +55,9 @@ public sealed class RuntimePaths
     /// <summary>配置文件完整路径：<c>&lt;DataDirectory&gt;/config.json</c>。</summary>
     public string ConfigFilePath => Path.Combine(DataDirectory, "config.json");
 
+    /// <summary>保留对局快照文件完整路径：<c>&lt;DataDirectory&gt;/gameinfo_snapshot.json</c>。</summary>
+    public string GameInfoSnapshotFilePath => Path.Combine(DataDirectory, "gameinfo_snapshot.json");
+
     /// <summary>
     /// 探测当前运行形态。
     /// </summary>

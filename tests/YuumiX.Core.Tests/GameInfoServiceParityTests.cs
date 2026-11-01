@@ -78,7 +78,7 @@ public sealed class GameInfoServiceParityTests
 
         public GameInfoService Service { get; }
 
-        public GameInfoTestEnv(AppConfig config)
+        public GameInfoTestEnv(AppConfig config, GameInfoSnapshotStore? snapshotStore = null)
         {
             var transport = new LcuHttpTransport(
                 Server.BaseAddress,
@@ -95,7 +95,8 @@ public sealed class GameInfoServiceParityTests
                 new MasteryService(() => transport),
                 new FateService(() => transport),
                 config,
-                sgpService: Sgp);
+                sgpService: Sgp,
+                snapshotStore: snapshotStore);
 
             Server.Handler = Handle;
         }
@@ -420,6 +421,94 @@ public sealed class GameInfoServiceParityTests
         Assert.NotEmpty(env.Service.CurrentState.MyTeam);
         Assert.Equal(5, env.Service.CurrentState.MyTeam.Count);
         Assert.True(env.Service.CurrentState.ShouldShowContent);
+    }
+
+    [Fact]
+    public async Task ReservedSnapshot_PersistsAcrossRestart_AndRestoresOnNonActivePhase()
+    {
+        var config = new AppConfig();
+        config.Functions.EnableReserveGameinfo = true;
+        using var temp = new TempDirectory();
+        string path = temp.File("gameinfo_snapshot.json");
+
+        await using (var env = new GameInfoTestEnv(config, new GameInfoSnapshotStore(path)))
+        {
+            env.GameflowSession = FullSessionJson(GameId);
+            SetupFullGame(env, gamesPerPlayer: 1);
+
+            await env.Service.RefreshStateAsync();
+            await env.Service.LoadAllPlayersAsync();
+            Assert.True(env.Service.HasReservedSnapshot);
+        }
+
+        // Dispose 兜底 flush 已同步写入
+        Assert.True(File.Exists(path), "对局结束后保留快照应已落盘");
+
+        // 模拟重启：全新 service 实例从同一份磁盘快照启动，非活跃阶段恢复上一局
+        await using var restarted = new GameInfoTestEnv(config, new GameInfoSnapshotStore(path));
+        restarted.Phase = "Lobby";
+        await restarted.Service.RefreshStateAsync();
+
+        Assert.Equal(5, restarted.Service.CurrentState.MyTeam.Count);
+        Assert.Equal(5, restarted.Service.CurrentState.TheirTeam.Count);
+        Assert.True(restarted.Service.CurrentState.ShouldShowContent);
+    }
+
+    [Fact]
+    public async Task ReservedSnapshot_RestartRestoresNothing_WhenSettingDisabled()
+    {
+        var config = new AppConfig();
+        config.Functions.EnableReserveGameinfo = false;
+        using var temp = new TempDirectory();
+        string path = temp.File("gameinfo_snapshot.json");
+
+        await using (var env = new GameInfoTestEnv(config, new GameInfoSnapshotStore(path)))
+        {
+            env.GameflowSession = FullSessionJson(GameId);
+            SetupFullGame(env, gamesPerPlayer: 1);
+
+            await env.Service.RefreshStateAsync();
+            await env.Service.LoadAllPlayersAsync();
+        }
+
+        // 旧版语义：写入不受开关约束（对应 localStorage 恒写入），恢复/展示才受
+        Assert.True(File.Exists(path));
+
+        await using var restarted = new GameInfoTestEnv(config, new GameInfoSnapshotStore(path));
+        restarted.Phase = "Lobby";
+        await restarted.Service.RefreshStateAsync();
+
+        Assert.Empty(restarted.Service.CurrentState.MyTeam);
+        Assert.False(restarted.Service.CurrentState.ShouldShowContent);
+    }
+
+    [Fact]
+    public async Task ReservedSnapshot_TftSession_ClearsPersistedSnapshotFile()
+    {
+        var config = new AppConfig();
+        config.Functions.EnableReserveGameinfo = true;
+        using var temp = new TempDirectory();
+        string path = temp.File("gameinfo_snapshot.json");
+
+        await using (var env = new GameInfoTestEnv(config, new GameInfoSnapshotStore(path)))
+        {
+            env.GameflowSession = FullSessionJson(GameId);
+            SetupFullGame(env, gamesPerPlayer: 1);
+
+            await env.Service.RefreshStateAsync();
+            await env.Service.LoadAllPlayersAsync();
+            Assert.True(env.Service.HasReservedSnapshot);
+
+            // 云顶会话：清全部（内存 + 磁盘快照）
+            env.Phase = "Lobby";
+            env.GameflowSession =
+                "{\"gameData\":{\"gameId\":" + GameId + ",\"queue\":{\"id\":1100,\"gameMode\":\"TFT\"},\"teamOne\":[],\"teamTwo\":[]}}";
+            await env.Service.RefreshStateAsync();
+
+            Assert.False(env.Service.HasReservedSnapshot);
+        }
+
+        Assert.False(File.Exists(path), "TFT 清空应同步删除磁盘快照");
     }
 
     // ── 任务3：当前玩家战绩同步 + 对局结束链式轮询 ────────────────────────

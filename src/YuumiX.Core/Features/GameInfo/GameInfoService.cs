@@ -49,8 +49,17 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
     private GameInfoState _state = GameInfoState.Empty;
 
-    /// <summary>保留对局快照（内存结构，对应旧版 localStorage 保留数据语义，见 §4.9）。</summary>
+    /// <summary>保留对局快照（内存权威副本；启动时从 <see cref="_snapshotStore"/> 恢复一次，见 §4.9）。</summary>
     private ReservedSnapshot? _reservedSnapshot;
+
+    /// <summary>保留快照磁盘存取（对应旧版 localStorage 跨启动语义）；测试环境可为 null。</summary>
+    private readonly GameInfoSnapshotStore? _snapshotStore;
+
+    /// <summary>快照自上次落盘后是否有变更（防抖合并突发写入）。</summary>
+    private bool _snapshotDirty;
+
+    /// <summary>后台刷盘循环是否在跑（0/1，Interlocked 维护）。</summary>
+    private int _flushInFlight;
 
     /// <summary>当前对局 gameId（InProgress 精简 session 恢复时校验快照归属）。</summary>
     private long? _currentGameId;
@@ -122,7 +131,8 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         ISgpService? sgpService = null,
         SavedPlayersStore? savedPlayersStore = null,
         ILiveClientService? liveClientService = null,
-        Func<GameDataCatalog?>? catalogProvider = null)
+        Func<GameDataCatalog?>? catalogProvider = null,
+        GameInfoSnapshotStore? snapshotStore = null)
     {
         _transportProvider = transportProvider;
         _summonerService = summonerService;
@@ -136,6 +146,11 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         _catalogProvider = catalogProvider;
         _config = config;
         _logger = logger;
+        _snapshotStore = snapshotStore;
+
+        // 启动即从磁盘恢复上一局快照（对应旧版 localStorage 跨启动语义）：
+        // 之后的内存副本即权威，非活跃阶段的恢复路径才能把上一局内容重新展示出来
+        _reservedSnapshot = snapshotStore?.Read();
 
         int concurrency = Math.Clamp(config.Functions.ApiConcurrencyNumber, 1, 10);
         _semaphore = new SemaphoreSlim(concurrency, concurrency);
@@ -149,20 +164,6 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             _connEventSub = connection.Events.Subscribe(OnLcuEvent);
         }
     }
-
-    /// <summary>
-    /// 保留对局快照：双方队伍、玩家数据、组队色与归属信息
-    /// （对应旧版 localStorage 的 yuumi_last_gameflow_* / yuumi_last_game_* 键组）。
-    /// </summary>
-    private sealed record ReservedSnapshot(
-        IReadOnlyList<PremadePlayerLike> MyTeam,
-        IReadOnlyList<PremadePlayerLike> TheirTeam,
-        IReadOnlyDictionary<string, GameInfoPlayer> PlayerData,
-        IReadOnlyDictionary<string, int> PremadeColorsMy,
-        IReadOnlyDictionary<string, int> PremadeColorsTheir,
-        long? GameId,
-        int TeamCount,
-        int LoadedCount);
 
     public EventStream<GameInfoState> StateStream => _stateStream;
 
@@ -511,6 +512,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                     {
                         _logger?.LogDebug("检测到全新对局 gameId={GameId}（上一局 savedId={SavedId}），彻底清空上一局数据", liveGameId, savedGameId);
                         _reservedSnapshot = null;
+                        ScheduleSnapshotFlush();
                         _state = _state with
                         {
                             MyTeam = [],
@@ -1742,6 +1744,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                         lock (_gate)
                         {
                             _reservedSnapshot = null;
+                            ScheduleSnapshotFlush();
                             _currentGameId = null;
                             _state = _state with
                             {
@@ -2015,15 +2018,137 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
         lock (_gate)
         {
-            _reservedSnapshot = new ReservedSnapshot(
-                state.MyTeam,
-                state.TheirTeam,
-                persistable,
-                state.PremadeColorsMy,
-                state.PremadeColorsTheir,
-                currentGameId,
-                currentTotal,
-                loadedCount);
+            _reservedSnapshot = new ReservedSnapshot
+            {
+                MyTeam = state.MyTeam,
+                TheirTeam = state.TheirTeam,
+                PlayerData = persistable,
+                PremadeColorsMy = state.PremadeColorsMy,
+                PremadeColorsTheir = state.PremadeColorsTheir,
+                GameId = currentGameId,
+                TeamCount = currentTotal,
+                LoadedCount = loadedCount,
+            };
+            ScheduleSnapshotFlush();
+        }
+    }
+
+    /// <summary>落盘防抖间隔（毫秒），测试可注入缩短。</summary>
+    internal int SnapshotFlushDelayMs { get; set; } = 1000;
+
+    /// <summary>
+    /// 内存快照变更后调度后台落盘。1s 防抖合并突发（每名玩家数据落位都会写一次内存快照），
+    /// 语义对齐旧版 localStorage 的防抖写入；写入不受 EnableReserveGameinfo 约束
+    /// （旧版亦如此），开关只在恢复/展示时校验。
+    /// </summary>
+    private void ScheduleSnapshotFlush()
+    {
+        if (_snapshotStore is null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _snapshotDirty = true;
+        }
+
+        // 单飞 + 收尾补调：循环退出与置标志之间到达的变更由 finally 重新拉起，保证最后一态必达
+        if (Interlocked.CompareExchange(ref _flushInFlight, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _ = Task.Run(FlushReservedSnapshotAsync);
+    }
+
+    private async Task FlushReservedSnapshotAsync()
+    {
+        try
+        {
+            while (!_disposed)
+            {
+                int delay = SnapshotFlushDelayMs;
+                if (delay > 0)
+                {
+                    await Task.Delay(delay).ConfigureAwait(false);
+                }
+
+                if (_disposed)
+                {
+                    return;
+                }
+
+                bool dirty;
+                ReservedSnapshot? snapshot;
+                lock (_gate)
+                {
+                    dirty = _snapshotDirty;
+                    _snapshotDirty = false;
+                    snapshot = _reservedSnapshot;
+                }
+
+                if (!dirty)
+                {
+                    return;
+                }
+
+                try
+                {
+                    _snapshotStore!.Write(snapshot);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "保留对局快照落盘失败");
+                }
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _flushInFlight, 0);
+
+            bool pending;
+            lock (_gate)
+            {
+                pending = !_disposed && _snapshotDirty;
+            }
+
+            if (pending && Interlocked.CompareExchange(ref _flushInFlight, 1, 0) == 0)
+            {
+                _ = Task.Run(FlushReservedSnapshotAsync);
+            }
+        }
+    }
+
+    /// <summary>退出前同步兜底刷盘（对应旧版卸载前 flush，防抖中的最后一态不随进程退出丢失）。</summary>
+    private void FlushReservedSnapshotNow()
+    {
+        if (_snapshotStore is null)
+        {
+            return;
+        }
+
+        bool dirty;
+        ReservedSnapshot? snapshot;
+        lock (_gate)
+        {
+            dirty = _snapshotDirty;
+            _snapshotDirty = false;
+            snapshot = _reservedSnapshot;
+        }
+
+        if (!dirty)
+        {
+            return;
+        }
+
+        try
+        {
+            _snapshotStore.Write(snapshot);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "退出时兜底落盘保留快照失败");
         }
     }
 
@@ -3143,6 +3268,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
         StopGameEndedChain();
         CancelLiveClientPolling();
+        FlushReservedSnapshotNow();
 
         _connStateSub?.Dispose();
         _connEventSub?.Dispose();

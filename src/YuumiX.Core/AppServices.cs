@@ -390,6 +390,9 @@ public sealed class AppServices : IAsyncDisposable
         });
 
         // ── 对局信息（GameInfo 模块）────────────────────────────────
+        collection.AddSingleton<GameInfoSnapshotStore>(provider => new GameInfoSnapshotStore(
+            provider.GetRequiredService<RuntimePaths>().GameInfoSnapshotFilePath,
+            provider.GetService<ILogger<GameInfoSnapshotStore>>()));
         collection.AddSingleton<ILiveClientService>(provider => new LiveClientService(
             logger: provider.GetService<ILogger<LiveClientService>>()));
         collection.AddSingleton<IMasteryService>(provider => new MasteryService(
@@ -410,7 +413,8 @@ public sealed class AppServices : IAsyncDisposable
             sgpService: provider.GetRequiredService<ISgpService>(),
             savedPlayersStore: provider.GetRequiredService<SavedPlayersStore>(),
             liveClientService: provider.GetRequiredService<ILiveClientService>(),
-            catalogProvider: () => provider.GetService<GameDataService>()?.Current));
+            catalogProvider: () => provider.GetService<GameDataService>()?.Current,
+            snapshotStore: provider.GetRequiredService<GameInfoSnapshotStore>()));
 
         var services = collection.BuildServiceProvider();
 
