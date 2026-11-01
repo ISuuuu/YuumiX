@@ -328,3 +328,15 @@ YuumiX/
 
 - 新增顶层目录或调整既有分层前，先更新本节的目录树与 `docs/internal/docbak/architecture.md` 的对应章节。
 - 上面标注的「禁止 UI 依赖」「禁止复制粘贴视觉构件」等约束，以本文件 §5、§7 为准。
+---
+
+## 12. Native AOT 兼容（2026-11-01 起）
+
+全仓代码需同时保持 JIT（日常 Debug/Release 构建）与 Native AOT（`dotnet publish -c Release -r win-x64 --self-contained true -p:PublishAot=true`，CI 入口 `.github/workflows/native-aot.yml`）可运行。JSON 反射序列化已全仓下线，新增序列化/WinRT 代码时：
+
+1. **新增可序列化根类型必须登记 `src/YuumiX.Core/Serialization/AotJson.cs` 的 `CoreJsonContext`**（加一行 `[JsonSerializable(typeof(...))]`）。已在上下文中的根类型（如 `AppConfig`、`UploadPayload`）图内新增字段无需登记。漏登记的特征：运行时抛 `NotSupportedException: JsonTypeInfo metadata for type '...' was not provided by TypeInfoResolver`——**JIT 下同样会炸，属故意设计**（测试期就暴露，而不是 AOT 成品才炸）。
+2. **调用点禁用反射路径**：不写裸 `JsonSerializer.Serialize/Deserialize(x)`、不就地 `new JsonSerializerOptions`；序列化统一走 `AotJson.Options`（默认设置）或 `AotJson.WebOptions`（camelCase/大小写不敏感/数字容错）+ `options.GetTypeInfo<T>()` 的 `JsonTypeInfo` 重载。LCU 小载荷与 SignalR 载荷用 `JsonObject` DOM（匿名类型无法源生成）。`PostAsJsonAsync` 用带 `JsonTypeInfo` 的重载。
+3. **私有嵌套载荷**：在所属类内声明嵌套 `partial class XxxJsonContext : JsonSerializerContext` 登记它（**包含类也必须 partial**），禁止为序列化把类型扩成 public（先例：`GameInfoSnapshotStore.SnapshotJsonContext`）。
+4. **跨 ABI 的自定义 WinRT 控件与 AutomationPeer 必须 `partial`**（否则 CsWinRT1028）；新增 `GeneratedWinRTExposedExternalType` 外部类型暴露后必须做一次 AOT 冒烟。App.csproj 的 **`AllowUnsafeBlocks=true` 不要关**：CsWinRT 生成器在无 unsafe 时**静默跳过**外部类型暴露生成，JIT 下靠反射兜底完全无感，AOT 成品运行时才崩（2026-11-01 设置页崩溃根因，见 `GameInfoSnapshotStore` 同期报告）。
+5. **验证入口**：动了序列化 / SignalR / WinRT 控件后跑 `dotnet run -project tests/YuumiX.AotVerification/YuumiX.AotVerification.csproj -p:Platform=x64 --no-build`（先 build；36 项检查，反射关闭模式，退出码 0 = 通过）。结构性改动（升级 WASDK / CsWinRT / Reactor）再加做一次完整 AOT publish + 8 页导航冒烟；步骤与本轮记录见本地 `docs/internal/2026-11-01-native-aot-implementation-report.md`。
+6. **崩溃取证**：成品崩溃时 exe 旁会落 `crash.log`（AppShell 挂的 `ReactorApplication.OnUnhandledException`，WER 只给 HRESULT 时靠它拿真实栈）；CI 打包已排除该文件，不要把本地调试产生的 crash.log 提交入库。
