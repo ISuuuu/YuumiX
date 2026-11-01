@@ -122,6 +122,30 @@
     <InternalsVisibleTo Include="YuumiX.App.Tests" />
   </ItemGroup>
 
+  <!--
+    WinUI 自包含载荷会把全部 86 种语言的 XAML 框架 MUI 资源（Microsoft.ui.xaml.dll.mui、
+    Microsoft.UI.Xaml.Phone.dll.mui，每种语言一对，约 3.8 MB）复制进输出目录。保留名单与应用
+    内置的三种语言设置（I18nService：zh-CN / zh-TW / en-US）对齐，en-us 兼作 MUI 回退基准；
+    其余 83 种在复制清单里直接剔除，发布目录、便携 zip、安装包三者同步受益。
+
+    过滤点挂在 AddMicrosoftWindowsAppSDKPayloadFilesFromComponents 之后：WASDK 在该目标里
+    把载荷（含 **\*.mui）收进 None 项，build 与 publish（含 AOT）的复制都走这批 None 项，
+    此刻剔除即单点覆盖两条链路。这些是纯内容文件，不进 deps.json，剔除后无清单悬空。
+    语言目录取自 Identity 的上级目录名（源路径 <pkg>\runtimes-framework\win-x64\native\<语言>\*.mui
+    与目标相对路径同构）；不能用 Link 元数据——部分 None 项（app.manifest 等）未定义它，
+    批处理引用会报 MSB4096。若 WASDK 升级后载荷改道（不再经 None），本目标会静默失灵，
+    语言目录会重新出现在产物里——release.yml 的 Verify publish output 有对应断言兜底。
+  -->
+  <Target Name="PruneWinUiMuiLanguages" AfterTargets="AddMicrosoftWindowsAppSDKPayloadFilesFromComponents">
+    <ItemGroup>
+      <None Remove="%(None.Identity)"
+            Condition="'%(Extension)' == '.mui' and
+                       !$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('%(Identity)'))).StartsWith('en-us', StringComparison.OrdinalIgnoreCase)) and
+                       !$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('%(Identity)'))).StartsWith('zh-CN', StringComparison.OrdinalIgnoreCase)) and
+                       !$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('%(Identity)'))).StartsWith('zh-TW', StringComparison.OrdinalIgnoreCase))" />
+    </ItemGroup>
+  </Target>
+
   <!-- 非打包模式下应用自身的 PRI 必须手动带到 publish 输出。
        WinUI 的构建目标只把 YuumiX.pri 生成/复制到 TargetDir，`dotnet publish` 不会
        把它搬进 PublishDir —— 与 Assets 那次（PNG 走 None Update 只进 build 不进 publish）

@@ -175,6 +175,20 @@ jobs:
           }
           Write-Host "PRI 校验通过：$([math]::Round($appPri.Length / 1KB, 1)) KB"
 
+          # 语言目录断言：WinUI 自包含载荷默认携带 86 种语言的框架 MUI 资源目录，
+          # csproj 的 PruneWinUiMuiLanguages 目标只保留 en-us / zh-CN / zh-TW
+          # （与应用 I18nService 的三种语言设置对齐，en-us 兼作 MUI 回退基准）。
+          # 若 WASDK 升级后载荷改道（不再经 None 项复制），过滤目标会静默失灵，在此兜底拦截。
+          $allowedLangDirs = @('en-us', 'zh-CN', 'zh-TW')
+          $langDirs = Get-ChildItem -LiteralPath $dir -Directory |
+              Where-Object { $_.Name -match '^[a-zA-Z]{2,3}(-[a-zA-Z0-9]+)+$' } |
+              Select-Object -ExpandProperty Name
+          $extraLangDirs = $langDirs | Where-Object { $_ -notin $allowedLangDirs }
+          if ($extraLangDirs) {
+            throw "发布产物出现未保留的语言目录：$($extraLangDirs -join ', ')（PruneWinUiMuiLanguages 失灵？）"
+          }
+          Write-Host "语言目录校验通过：仅保留 $($langDirs -join ', ')"
+
           # 程序集版本必须与 tag 一致，否则应用内更新检查会把新版本当成「已是最新」。
           # 用 ProductVersion 而不是 FileVersion：FileVersion 只有数字段（0.2.0.0），
           # 预发布后缀只存在于 InformationalVersion（ProductVersion 的基础）里。
