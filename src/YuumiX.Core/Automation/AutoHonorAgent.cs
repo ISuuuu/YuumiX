@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
+using System.Text.Json.Nodes;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;
 
@@ -137,11 +139,11 @@ public sealed class AutoHonorAgent : IAutomationAgent
             foreach (var target in targets)
             {
                 ct.ThrowIfCancellationRequested();
-                var honorPayload = JsonSerializer.Serialize(new
+                var honorPayload = new JsonObject
                 {
-                    honorType = "HEART",
-                    recipientPuuid = target,
-                });
+                    ["honorType"] = "HEART",
+                    ["recipientPuuid"] = target,
+                }.ToJsonString();
 
                 var resp = await transport.SendAsync(
                     LcuRequest.Post("/lol-honor-v2/v1/honor-player", honorPayload),

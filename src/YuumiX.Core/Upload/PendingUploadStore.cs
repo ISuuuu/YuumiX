@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Runtime;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Upload;
 
@@ -38,8 +39,6 @@ public sealed class PendingUploadStore : IDisposable
     /// 载荷序列化选项必须与上传时一致：<see cref="System.Net.Http.Json.HttpClientJsonExtensions"/>
     /// 用的是 Web 默认值（camelCase），落盘再取出重发时字段命名不能漂移。
     /// </summary>
-    private static readonly JsonSerializerOptions PayloadJsonOptions = new(JsonSerializerDefaults.Web);
-
     private readonly string _connectionString;
     private readonly ILogger<PendingUploadStore>? _logger;
     private readonly Lock _gate = new();
@@ -119,7 +118,7 @@ public sealed class PendingUploadStore : IDisposable
         string payloadJson;
         try
         {
-            payloadJson = JsonSerializer.Serialize(payload, PayloadJsonOptions);
+            payloadJson = JsonSerializer.Serialize(payload, AotJson.WebOptions.GetTypeInfo<UploadPayload>());
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
@@ -233,7 +232,7 @@ public sealed class PendingUploadStore : IDisposable
     {
         try
         {
-            return JsonSerializer.Deserialize<UploadPayload>(json, PayloadJsonOptions);
+            return JsonSerializer.Deserialize(json, AotJson.WebOptions.GetTypeInfo<UploadPayload>());
         }
         catch (JsonException ex)
         {

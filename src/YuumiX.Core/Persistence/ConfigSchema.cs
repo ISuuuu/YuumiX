@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using YuumiX.Core.Persistence.Json;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Persistence;
 
@@ -32,6 +33,9 @@ public static class ConfigSchema
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
         options.Converters.Add(new WholeDoubleConverter());
+        // AOT/裁剪下反射序列化不可用：元数据统一走源生成上下文（R2）。
+        // options 级转换器（WholeDoubleConverter）在元数据创建时仍优先生效，补 .0 行为不变。
+        options.TypeInfoResolver = CoreJsonContext.Default;
         return options;
     }
 

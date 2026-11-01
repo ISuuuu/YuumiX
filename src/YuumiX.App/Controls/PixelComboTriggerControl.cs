@@ -6,7 +6,9 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace YuumiX.App.Controls;
 
-public sealed class PixelComboTriggerControl : Button
+// partial 是 CsWinRT 源生成的要求（CsWinRT1028）：两个类型都实现 WinRT 接口/IExpandCollapseProvider
+// 并跨 ABI 暴露，AOT/裁剪下需要生成器补出互操作元数据。
+public sealed partial class PixelComboTriggerControl : Button
 {
     internal Action? ExpandRequested { get; set; }
     internal Action? CollapseRequested { get; set; }
@@ -29,7 +31,7 @@ public sealed class PixelComboTriggerControl : Button
     protected override AutomationPeer OnCreateAutomationPeer() => new PixelComboTriggerPeer(this);
 }
 
-public sealed class PixelComboTriggerPeer(PixelComboTriggerControl owner) : ButtonAutomationPeer(owner), IExpandCollapseProvider
+public sealed partial class PixelComboTriggerPeer(PixelComboTriggerControl owner) : ButtonAutomationPeer(owner), IExpandCollapseProvider
 {
     public ExpandCollapseState ExpandCollapseState => owner.IsExpanded ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed;
     public void Expand()

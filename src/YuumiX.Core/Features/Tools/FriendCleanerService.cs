@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Features.Tools.Models;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Features.Tools;
 
@@ -54,7 +55,7 @@ public sealed class FriendCleanerService : IFriendCleanerService
         List<LcuFriend> friends;
         try
         {
-            friends = JsonSerializer.Deserialize<List<LcuFriend>>(friendsResp.Body) ?? [];
+            friends = JsonSerializer.Deserialize(friendsResp.Body, AotJson.Options.GetTypeInfo<List<LcuFriend>>()) ?? [];
         }
         catch (Exception ex)
         {

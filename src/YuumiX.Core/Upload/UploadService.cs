@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Serialization;
 using YuumiX.Core.Persistence;
 
 namespace YuumiX.Core.Upload;
@@ -155,7 +156,7 @@ public sealed class UploadService
             try
             {
                 using var response = await ExternalClient.Value.PostAsJsonAsync(
-                    uploadUrl, payload, cancellationToken).ConfigureAwait(false);
+                    uploadUrl, payload, AotJson.WebOptions.GetTypeInfo<UploadPayload>(), cancellationToken).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
                     try

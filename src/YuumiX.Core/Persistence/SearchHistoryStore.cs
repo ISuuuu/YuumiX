@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Runtime;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Persistence;
 
@@ -51,7 +52,8 @@ public sealed class SearchHistoryStore
         try
         {
             await using FileStream stream = File.OpenRead(_filePath);
-            List<string>? list = await JsonSerializer.DeserializeAsync<List<string>>(stream, cancellationToken: cancellationToken)
+            List<string>? list = await JsonSerializer.DeserializeAsync(
+                stream, AotJson.Options.GetTypeInfo<List<string>>(), cancellationToken)
                 .ConfigureAwait(false);
 
             lock (_gate)
@@ -134,7 +136,7 @@ public sealed class SearchHistoryStore
         try
         {
             string json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<List<string>>(json) ?? [];
+            return JsonSerializer.Deserialize(json, AotJson.Options.GetTypeInfo<List<string>>()) ?? [];
         }
         catch
         {
@@ -155,7 +157,8 @@ public sealed class SearchHistoryStore
             string tempFile = _filePath + ".tmp";
             await using (FileStream stream = File.Create(tempFile))
             {
-                await JsonSerializer.SerializeAsync(stream, items, cancellationToken: cancellationToken)
+                await JsonSerializer.SerializeAsync(
+                    stream, items, AotJson.Options.GetTypeInfo<List<string>>(), cancellationToken)
                     .ConfigureAwait(false);
             }
 

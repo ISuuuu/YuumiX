@@ -58,7 +58,9 @@ public sealed class LcuEventStream : IAsyncDisposable
     /// <summary>单条消息上限。超过即视为协议异常并丢弃，避免异常对端把内存吃光。</summary>
     private const int MaxMessageBytes = 8 * 1024 * 1024;
 
+    // data 为 null（DELETE 事件）时的占位元素；不装箱序列化，直接解析一次常量（AOT 无反射路径）
     private static readonly byte[] SubscribeBytes = Encoding.UTF8.GetBytes(SubscribeMessage);
+    private static readonly JsonElement NullDataElement = JsonDocument.Parse("null").RootElement;
 
     /// <summary>
     /// 关心的 URI 前缀。与原 <c>ws.rs</c> 的 <c>WATCHED_URIS</c> 逐条对齐；
@@ -294,7 +296,7 @@ public sealed class LcuEventStream : IAsyncDisposable
             // data 可能是 Null（DELETE 事件的原实现也会下发 data:null），此时保留 null 元素
             var data = body.TryGetProperty("data", out var dataElement)
                 ? dataElement.Clone()
-                : JsonSerializer.SerializeToElement<object?>(null);
+                : NullDataElement;
 
             var eventType = body.TryGetProperty("eventType", out var eventTypeElement)
                             && eventTypeElement.ValueKind == JsonValueKind.String

@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Text.Json.Nodes;
 using System.Text.Json;
 using YuumiX.Core.Common;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Upload;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Realtime;
 
@@ -169,6 +172,11 @@ public sealed class SignalrService : IDisposable
 
         var connection = new HubConnectionBuilder()
             .WithUrl(target)
+            // AOT/裁剪下 JsonHubProtocol 只对手写信封之外的载荷走 PayloadSerializerOptions
+            // （协议信封是手工 Utf8JsonWriter，无需元数据）；不挂源生成解析器时，
+            // 反射被关闭的应用里 Heartbeat/ReportResult/ReceiveCommand 的参数序列化会直接失败。
+            .AddJsonProtocol(options =>
+                options.PayloadSerializerOptions.TypeInfoResolver = CoreJsonContext.Default)
             // 库级自动重连：断线后按默认策略重连；耗尽后的最终兜底由 RetryLoop 承担（见下）
             .WithAutomaticReconnect()
             .Build();
@@ -328,7 +336,7 @@ public sealed class SignalrService : IDisposable
             using var doc = JsonDocument.Parse(resp.Body);
             var root = doc.RootElement;
             string? summonerName = GetStringOrNull(root, "displayName");
-            var info = new Dictionary<string, object?>
+            var info = new JsonObject
             {
                 ["summonerName"] = summonerName,
                 ["summonerId"] = GetInt64OrNull(root, "summonerId"),
@@ -429,7 +437,8 @@ public sealed class SignalrService : IDisposable
     }
 
     /// <summary>向 Hub 发送云端事件（旧 send_event：target=ReportResult，载荷含 eventType/data/timestamp）。</summary>
-    public async Task SendEventAsync(string eventType, object data)
+    /// <remarks>AOT 安全要求：data 必须是 <see cref="JsonNode"/>，运行时具体类型不再经反射解析。</remarks>
+    public async Task SendEventAsync(string eventType, JsonNode? data)
     {
         await _gate.WaitAsync().ConfigureAwait(false);
         try
@@ -448,17 +457,18 @@ public sealed class SignalrService : IDisposable
         }
     }
 
-    private static async Task SendEventAsync(HubConnection connection, string userId, string eventType, object data)
+    private static async Task SendEventAsync(HubConnection connection, string userId, string eventType, JsonNode? data)
     {
-        var payload = new
+        // 与旧版 new { eventType, data, timestamp } 的字段顺序与 null 语义逐项一致
+        var payload = new JsonObject
         {
-            eventType,
-            data,
-            timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            ["eventType"] = eventType,
+            ["data"] = data,
+            ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
         string queryId = Guid.NewGuid().ToString("N");
         await connection.SendAsync(
-            "ReportResult", userId, JsonSerializer.Serialize(payload), queryId,
+            "ReportResult", userId, payload.ToJsonString(), queryId,
             CancellationToken.None).ConfigureAwait(false);
     }
 

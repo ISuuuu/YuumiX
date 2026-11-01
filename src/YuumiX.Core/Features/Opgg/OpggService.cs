@@ -276,7 +276,7 @@ public sealed class OpggService : IOpggService
         var blocks = new JsonArray();
         if (starterItems.Count > 0)
         {
-            blocks.Add(new JsonObject
+            blocks.Add((JsonNode)new JsonObject
             {
                 ["type"] = "出门装备",
                 ["items"] = new JsonArray(starterItems.ToArray())
@@ -284,7 +284,7 @@ public sealed class OpggService : IOpggService
         }
         if (coreItems.Count > 0)
         {
-            blocks.Add(new JsonObject
+            blocks.Add((JsonNode)new JsonObject
             {
                 ["type"] = "核心装备",
                 ["items"] = new JsonArray(coreItems.ToArray())
@@ -292,7 +292,7 @@ public sealed class OpggService : IOpggService
         }
         if (lastItems.Count > 0)
         {
-            blocks.Add(new JsonObject
+            blocks.Add((JsonNode)new JsonObject
             {
                 ["type"] = "可选与推荐装备",
                 ["items"] = new JsonArray(lastItems.ToArray())

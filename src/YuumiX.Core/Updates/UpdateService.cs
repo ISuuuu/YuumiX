@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Persistence;
+using YuumiX.Core.Serialization;
 using YuumiX.Core.Runtime;
 
 namespace YuumiX.Core.Updates;
@@ -464,9 +465,10 @@ public sealed class UpdateService
                 return false;
             }
 
-            var entries = JsonSerializer.Deserialize<List<ReleaseEntry>>(
+            var entries = JsonSerializer.Deserialize(
                 File.ReadAllText(ReleasesCachePath),
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, TypeInfoResolver = CoreJsonContext.Default }
+                    .GetTypeInfo<List<ReleaseEntry>>());
             if (entries is null)
             {
                 return false;
@@ -501,7 +503,8 @@ public sealed class UpdateService
             Directory.CreateDirectory(_paths.DataDirectory);
             string json = JsonSerializer.Serialize(
                 releases,
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, TypeInfoResolver = CoreJsonContext.Default }
+                    .GetTypeInfo<List<ReleaseEntry>>());
             string tmp = ReleasesCachePath + ".tmp";
             File.WriteAllText(tmp, json);
             File.Move(tmp, ReleasesCachePath, overwrite: true);

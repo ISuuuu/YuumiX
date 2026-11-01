@@ -1,8 +1,10 @@
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Features.GameInfo.Models;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Features.GameInfo;
 
@@ -12,16 +14,29 @@ namespace YuumiX.Core.Features.GameInfo;
 /// 读取遇到缺失/损坏/模型演进不兼容一律降级为「无快照」，不阻断启动；
 /// 写入异常原样抛出，由调用方（GameInfoService 的后台刷盘）记录日志。
 /// </summary>
-public sealed class GameInfoSnapshotStore
+public sealed partial class GameInfoSnapshotStore
 {
     private const int SchemaVersion = 1;
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
+
+    // SnapshotPayload 是 private 嵌套类型，CoreJsonContext（Serialization/AotJson.cs）引用不到；
+    // 只能在本类内再声明一个嵌套上下文登记它（保持 private，不为序列化扩大可见性，见 AOT 需求 R2）。
+    [JsonSerializable(typeof(SnapshotPayload))]
+    private sealed partial class SnapshotJsonContext : JsonSerializerContext;
+
+    private static JsonSerializerOptions CreateJsonOptions()
     {
-        WriteIndented = true,
-        // 与 ConfigSchema.JsonOptions 同理：中文原文输出，不做 \uXXXX 转义
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            // 与 ConfigSchema.JsonOptions 同理：中文原文输出，不做 \uXXXX 转义
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+        // AOT：元数据由上面的嵌套源生成上下文提供（R2）
+        options.TypeInfoResolver = SnapshotJsonContext.Default;
+        return options;
+    }
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -48,7 +63,7 @@ public sealed class GameInfoSnapshotStore
                     return null;
                 }
 
-                var payload = JsonSerializer.Deserialize<SnapshotPayload>(File.ReadAllText(FilePath, Utf8NoBom), JsonOptions);
+                var payload = JsonSerializer.Deserialize(File.ReadAllText(FilePath, Utf8NoBom), JsonOptions.GetTypeInfo<SnapshotPayload>());
                 if (payload is not { Version: SchemaVersion, Snapshot: not null })
                 {
                     _logger?.LogWarning("保留对局快照版本不识别，忽略: {Path}", FilePath);
@@ -90,7 +105,7 @@ public sealed class GameInfoSnapshotStore
                     Directory.CreateDirectory(directory);
                 }
 
-                File.WriteAllText(tmpPath, JsonSerializer.Serialize(payload, JsonOptions), Utf8NoBom);
+                File.WriteAllText(tmpPath, JsonSerializer.Serialize(payload, JsonOptions.GetTypeInfo<SnapshotPayload>()), Utf8NoBom);
                 File.Move(tmpPath, FilePath, overwrite: true);
             }
             finally

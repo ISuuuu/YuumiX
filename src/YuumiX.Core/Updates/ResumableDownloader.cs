@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Updates;
 
@@ -83,6 +84,7 @@ public sealed class ResumableDownloader
     private static readonly JsonSerializerOptions MetaJsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        TypeInfoResolver = CoreJsonContext.Default,
     };
 
     private readonly HttpClient _client;
@@ -478,8 +480,8 @@ public sealed class ResumableDownloader
                 return null;
             }
 
-            var checkpoint = JsonSerializer.Deserialize<DownloadCheckpoint>(
-                File.ReadAllText(metaPath), MetaJsonOptions);
+            var checkpoint = JsonSerializer.Deserialize(
+                File.ReadAllText(metaPath), MetaJsonOptions.GetTypeInfo<DownloadCheckpoint>());
             return string.IsNullOrEmpty(checkpoint?.Url) ? null : checkpoint;
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
@@ -495,7 +497,7 @@ public sealed class ResumableDownloader
         try
         {
             string tmp = metaPath + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(checkpoint, MetaJsonOptions));
+            File.WriteAllText(tmp, JsonSerializer.Serialize(checkpoint, MetaJsonOptions.GetTypeInfo<DownloadCheckpoint>()));
             File.Move(tmp, metaPath, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Common;
 using YuumiX.Core.Features.Tools.Models;
+using System.Text.Json.Nodes;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Lcu.Sgp;
 
@@ -274,13 +275,13 @@ public sealed class ToolsService : IToolsService
 
         dropInGameId ??= name;
 
-        var body = JsonSerializer.Serialize(new
+        var body = new JsonObject
         {
-            allowObserveMode = "ALL",
-            dropInSpectateGameId = dropInGameId,
-            gameQueueType = "",
-            puuid,
-        });
+            ["allowObserveMode"] = "ALL",
+            ["dropInSpectateGameId"] = dropInGameId,
+            ["gameQueueType"] = "",
+            ["puuid"] = puuid,
+        }.ToJsonString();
 
         var spectateResp = await transport.SendAsync(
             LcuRequest.Post("/lol-spectator/v1/spectate/launch", body),
@@ -344,7 +345,7 @@ public sealed class ToolsService : IToolsService
     public async Task SetProfileBackgroundAsync(int skinId, CancellationToken cancellationToken = default)
     {
         var transport = GetRequiredTransport();
-        var body = JsonSerializer.Serialize(new { backgroundSkinId = skinId });
+        var body = new JsonObject { ["backgroundSkinId"] = skinId }.ToJsonString();
         var resp = await transport.SendAsync(
             LcuRequest.Post("/lol-summoner/v1/current-summoner/summoner-profile", body),
             cancellationToken).ConfigureAwait(false);
@@ -359,15 +360,15 @@ public sealed class ToolsService : IToolsService
     public async Task SetRankSpoofAsync(string queue, string tier, string division = "I", CancellationToken cancellationToken = default)
     {
         var transport = GetRequiredTransport();
-        var body = JsonSerializer.Serialize(new
+        var body = new JsonObject
         {
-            lol = new
+            ["lol"] = new JsonObject
             {
-                rankedLeagueQueue = queue,
-                rankedLeagueTier = tier,
-                rankedLeagueDivision = division,
-            }
-        });
+                ["rankedLeagueQueue"] = queue,
+                ["rankedLeagueTier"] = tier,
+                ["rankedLeagueDivision"] = division,
+            },
+        }.ToJsonString();
 
         var resp = await transport.SendAsync(
             LcuRequest.Put("/lol-chat/v1/me", body),
@@ -383,7 +384,7 @@ public sealed class ToolsService : IToolsService
     public async Task SetOnlineStatusAsync(string availability, CancellationToken cancellationToken = default)
     {
         var transport = GetRequiredTransport();
-        var body = JsonSerializer.Serialize(new { availability });
+        var body = new JsonObject { ["availability"] = availability }.ToJsonString();
         var resp = await transport.SendAsync(
             LcuRequest.Put("/lol-chat/v1/me", body),
             cancellationToken).ConfigureAwait(false);
@@ -398,7 +399,7 @@ public sealed class ToolsService : IToolsService
     public async Task SetStatusMessageAsync(string message, CancellationToken cancellationToken = default)
     {
         var transport = GetRequiredTransport();
-        var body = JsonSerializer.Serialize(new { statusMessage = message });
+        var body = new JsonObject { ["statusMessage"] = message }.ToJsonString();
         var resp = await transport.SendAsync(
             LcuRequest.Put("/lol-chat/v1/me", body),
             cancellationToken).ConfigureAwait(false);
@@ -413,7 +414,7 @@ public sealed class ToolsService : IToolsService
     public async Task ClearChallengeBadgesAsync(CancellationToken cancellationToken = default)
     {
         var transport = GetRequiredTransport();
-        var body = JsonSerializer.Serialize(new { challengeIds = Array.Empty<string>() });
+        var body = new JsonObject { ["challengeIds"] = new JsonArray() }.ToJsonString();
         var resp = await transport.SendAsync(
             LcuRequest.Post("/lol-challenges/v1/update-player-preferences", body),
             cancellationToken).ConfigureAwait(false);
@@ -428,7 +429,7 @@ public sealed class ToolsService : IToolsService
     public async Task ClearProfileTokensAsync(CancellationToken cancellationToken = default)
     {
         var transport = GetRequiredTransport();
-        var body = JsonSerializer.Serialize(new { borderToken = "" });
+        var body = new JsonObject { ["borderToken"] = "" }.ToJsonString();
         var resp = await transport.SendAsync(
             LcuRequest.Post("/lol-summoner/v1/current-summoner/profile-tokens", body),
             cancellationToken).ConfigureAwait(false);
@@ -526,10 +527,10 @@ public sealed class ToolsService : IToolsService
             }
         }
 
-        var bodyObj = new Dictionary<string, object>
+        var bodyObj = new JsonObject
         {
             ["title"] = title ?? "",
-            ["challengeIds"] = challengeIds.Select(id => id.ToString()).ToList(),
+            ["challengeIds"] = new JsonArray(challengeIds.Select(id => JsonValue.Create(id.ToString())).ToArray()),
         };
 
         if (!string.IsNullOrWhiteSpace(bannerAccent))
@@ -537,7 +538,7 @@ public sealed class ToolsService : IToolsService
             bodyObj["bannerAccent"] = bannerAccent;
         }
 
-        var json = JsonSerializer.Serialize(bodyObj);
+        var json = bodyObj.ToJsonString();
         var resp = await transport.SendAsync(
             LcuRequest.Post("/lol-challenges/v1/update-player-preferences", json),
             cancellationToken).ConfigureAwait(false);
@@ -564,12 +565,12 @@ public sealed class ToolsService : IToolsService
         }
 
         // 2. 尝试端点 1: 标准 dodge 端点
-        var dodgeBody = JsonSerializer.Serialize(new
+        var dodgeBody = new JsonObject
         {
-            dodgeIds = Array.Empty<string>(),
-            phase = "ChampSelect",
-            state = "PartyDodged",
-        });
+            ["dodgeIds"] = new JsonArray(),
+            ["phase"] = "ChampSelect",
+            ["state"] = "PartyDodged",
+        }.ToJsonString();
 
         var r1 = await transport.SendAsync(LcuRequest.Post("/lol-gameflow/v1/session/dodge", dodgeBody), cancellationToken).ConfigureAwait(false);
         if (r1.IsSuccess) return;
@@ -590,7 +591,7 @@ public sealed class ToolsService : IToolsService
     public async Task CreateLobbyAsync(int queueId, CancellationToken cancellationToken = default)
     {
         var transport = GetRequiredTransport();
-        var body = JsonSerializer.Serialize(new { queueId });
+        var body = new JsonObject { ["queueId"] = queueId }.ToJsonString();
         var resp = await transport.SendAsync(
             LcuRequest.Post("/lol-lobby/v2/lobby", body),
             cancellationToken).ConfigureAwait(false);

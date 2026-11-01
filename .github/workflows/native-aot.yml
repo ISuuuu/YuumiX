@@ -1,0 +1,205 @@
+name: Native AOT
+
+# Native AOT 验证流水线（docs/internal/2026-11-01-native-aot-requirements.md R1/R6）。
+#
+# 与 release.yml 的关系：常规自包含发布路径**原样保留**（验收通过前不替换，见需求文档 §3.6）；
+# 本工作流提供独立、可重复的 AOT 构建与打包入口，用于：
+#   1) 在干净的 CI 环境证明 AOT publish 与原生链接可完成；
+#   2) 用适合原生输出的断言校验产物（CoreCLR 残留 = 失败，与自包含包的判据相反）；
+#   3) 产出便携包 / 安装包工件，供在隔离环境做升级与运行验收。
+# 手动触发（workflow_dispatch），不会发布 Release、不会推送。
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（写进 exe 的版本资源，例如 0.3.0-rc.1）；留空用 0.0.0-aot.check"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  APP_PROJECT: src/YuumiX.App/YuumiX.App.csproj
+
+jobs:
+  build:
+    name: AOT publish x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # AOT 属性必须在 restore 阶段生效（ILCompiler / 裁剪分析器 / CsWinRT 都在 restore 期接入），
+      # PublishAot=true 由命令行传入，配合 App.csproj 的 PublishAot 条件属性组一次性开启。
+      - name: Publish Native AOT
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version || '0.0.0-aot.check' }}
+        run: |
+          $publishDir = Join-Path $env:RUNNER_TEMP "publish-aot"
+          dotnet publish $env:APP_PROJECT -c Release `
+            -p:Platform=x64 `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishAot=true `
+            -p:Version=$env:VERSION `
+            -o $publishDir
+          if ($LASTEXITCODE -ne 0) {
+            throw "AOT publish 失败（原生链接或依赖分析报错，先看完整日志）。"
+          }
+          "PUBLISH_DIR=$publishDir" >> $env:GITHUB_ENV
+
+      # AOT 产物的判据与自包含包**相反**：托管运行时实体（coreclr/hostfxr…）与托管入口程序集
+      # （YuumiX.dll）一律不得出现；YuumiX.exe 必须是体量可观的 PE32+ 原生镜像。
+      # WinUI 运行时 / SQLite 原生库 / 全部 5 个 PRI / Assets 完整性照常断言。
+      - name: Verify AOT output
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version || '0.0.0-aot.check' }}
+        run: |
+          $dir = $env:PUBLISH_DIR
+
+          $required = @(
+            'YuumiX.exe',
+            'YuumiX.pri',
+            'Microsoft.UI.pri',
+            'Microsoft.UI.Xaml.Controls.pri',
+            'Microsoft.WindowsAppRuntime.pri',
+            'Reactor.pri',
+            'Microsoft.ui.xaml.dll',
+            'Microsoft.WindowsAppRuntime.dll',
+            'Microsoft.WindowsAppRuntime.Bootstrap.dll',
+            'e_sqlite3.dll',
+            'WebView2Loader.dll',
+            'MRM.dll',
+            'Assets\AppIcon.ico',
+            'Assets\Logo.png',
+            'Assets\opgg-nav.png',
+            'Assets\RankedIcons\challenger.png',
+            'Assets\Positions\utility.png',
+            'Assets\MatchDetail\kills.svg',
+            'Assets\Tier\tier-1.svg'
+          )
+          $missing = $required | Where-Object { -not (Test-Path (Join-Path $dir $_)) }
+          if ($missing) {
+            throw "AOT 产物缺少关键文件：$($missing -join ', ')"
+          }
+          $assetCount = (Get-ChildItem (Join-Path $dir 'Assets') -Recurse -File).Count
+          if ($assetCount -lt 34) {
+            throw "Assets 应有 34 个文件，实际 $assetCount 个（资源复制规则退化）。"
+          }
+
+          # 部署模型断言：出现任何 CoreCLR 实体或托管入口 dll 都说明 AOT 没生效。
+          $forbidden = @('YuumiX.dll', 'coreclr.dll', 'hostpolicy.dll', 'hostfxr.dll', 'System.Private.CoreLib.dll')
+          $present = $forbidden | Where-Object { Test-Path (Join-Path $dir $_) }
+          if ($present) {
+            throw "AOT 产物出现托管运行时残留：$($present -join ', ')（PublishAot 未生效或被退化）。"
+          }
+
+          # 原生镜像体量：托管入口 exe 只有百 KB 量级，AOT 链接产物是数十 MB。
+          $exe = Get-Item (Join-Path $dir 'YuumiX.exe')
+          if ($exe.Length -lt 10MB) {
+            throw "YuumiX.exe 仅 $([math]::Round($exe.Length / 1MB, 1)) MB，不像原生 AOT 链接产物。"
+          }
+          Write-Host "原生镜像：$([math]::Round($exe.Length / 1MB, 1)) MB，顶层 dll $((Get-ChildItem -LiteralPath $dir -Filter *.dll -File).Count) 个"
+
+          $appPri = Get-Item (Join-Path $dir 'YuumiX.pri')
+          if ($appPri.Length -lt 100KB) {
+            throw "YuumiX.pri 仅 $([math]::Round($appPri.Length / 1KB, 1)) KB，疑似生成不完整。"
+          }
+
+          $versionInfo = $exe.VersionInfo
+          if (-not $versionInfo.ProductVersion.StartsWith($env:VERSION, [StringComparison]::Ordinal)) {
+            throw "exe ProductVersion '$($versionInfo.ProductVersion)' 与输入版本 '$env:VERSION' 不一致。"
+          }
+          Write-Host "AOT 产物校验通过：Product=$($versionInfo.ProductVersion)"
+
+      # 崩溃取证文件（AppShell 的 OnUnhandledException 钩子）不应进入分发包
+      - name: Assemble portable package
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version || '0.0.0-aot.check' }}
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'stage-aot'
+          $root = Join-Path $stage 'YuumiX-portable'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+
+          Copy-Item -Path (Join-Path $env:PUBLISH_DIR '*') -Destination $root -Recurse
+
+          foreach ($pdb in @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object Extension -eq '.pdb')) {
+            Remove-Item -LiteralPath $pdb.FullName -Force
+          }
+          if (Test-Path (Join-Path $root 'crash.log')) {
+            Remove-Item -LiteralPath (Join-Path $root 'crash.log') -Force
+          }
+
+          Copy-Item README.md, NOTICE.md -Destination $root
+          New-Item -ItemType File -Force -Path (Join-Path $root 'portable.flag') | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $root 'data') | Out-Null
+          New-Item -ItemType File -Force -Path (Join-Path $root 'data\.keep') | Out-Null
+
+          $zipName = "YuumiX_v$($env:VERSION)_nativeaot_portable.zip"
+          $zipPath = Join-Path $env:RUNNER_TEMP $zipName
+          $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
+          if ($null -ne $sevenZip) {
+            & $sevenZip.Source a -tzip -mx=7 $zipPath (Join-Path $stage '*') | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw '7z 打包失败。' }
+          } else {
+            Compress-Archive -Path (Join-Path $stage 'YuumiX-portable') -DestinationPath $zipPath -CompressionLevel Optimal
+          }
+
+          Write-Host "AOT 便携包：$zipName（$([math]::Round((Get-Item $zipPath).Length / 1MB, 1)) MB）"
+          "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
+
+      - name: Upload portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nativeaot-portable
+          path: ${{ env.ZIP_PATH }}
+          if-no-files-found: error
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          $iscc = @(
+            "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup*\ISCC.exe"
+          ) | ForEach-Object { Get-ChildItem $_ -ErrorAction SilentlyContinue } |
+              Sort-Object FullName -Descending | Select-Object -First 1
+          if ($null -eq $iscc) { throw 'Inno Setup 安装后未找到 ISCC.exe。' }
+          "ISCC_PATH=$($iscc.FullName)" >> $env:GITHUB_ENV
+
+      - name: Build installer
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version || '0.0.0-aot.check' }}
+        run: |
+          $setupDir = Join-Path $env:RUNNER_TEMP 'setup-aot'
+          New-Item -ItemType Directory -Force -Path $setupDir | Out-Null
+          $numeric = ($env:VERSION -split '-')[0] + '.0'
+          & $env:ISCC_PATH "/DVersion=$env:VERSION" "/DNumericVersion=$numeric" `
+            "/DSourceDir=$env:PUBLISH_DIR" "/DOutputDir=$setupDir" installer\YuumiX.iss
+          if ($LASTEXITCODE -ne 0) { throw 'ISCC 编译安装包失败。' }
+
+          $setup = Get-ChildItem -LiteralPath $setupDir -Filter *.exe | Select-Object -First 1
+          if ($null -eq $setup) { throw '未生成安装包。' }
+          if ($setup.Name -match 'portable') { throw "安装包名不得含 portable：$($setup.Name)" }
+          if ($setup.Name -notmatch 'setup') { throw "安装包名必须含 setup：$($setup.Name)" }
+          Write-Host "AOT 安装包：$($setup.Name)（$([math]::Round($setup.Length / 1MB, 1)) MB）"
+          "SETUP_PATH=$($setup.FullName)" >> $env:GITHUB_ENV
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: nativeaot-installer
+          path: ${{ env.SETUP_PATH }}
+          if-no-files-found: error

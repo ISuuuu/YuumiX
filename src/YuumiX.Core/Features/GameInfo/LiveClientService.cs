@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Features.GameInfo;
 
@@ -56,7 +57,7 @@ public sealed class LiveClientService : ILiveClientService, IDisposable
             }
 
             var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var list = await JsonSerializer.DeserializeAsync<List<LiveClientPlayer>>(stream, cancellationToken: cancellationToken)
+            var list = await JsonSerializer.DeserializeAsync(stream, AotJson.Options.GetTypeInfo<List<LiveClientPlayer>>(), cancellationToken)
                 .ConfigureAwait(false);
 
             return list ?? [];

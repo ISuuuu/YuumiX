@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Serialization;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.SavedPlayers.Models;
@@ -539,7 +540,7 @@ public sealed class CareerService : ICareerService
         string? lastError = null;
 
         string craftUrl = $"/lol-loot/v1/recipes/{recipeName}/craft";
-        string ingredientsJson = JsonSerializer.Serialize(ingredients);
+        string ingredientsJson = JsonSerializer.Serialize(ingredients, AotJson.Options.GetTypeInfo<IReadOnlyList<string>>());
 
         for (int i = 1; i <= repeatCount; i++)
         {
@@ -647,7 +648,7 @@ public sealed class CareerService : ICareerService
             string keyId = item.KeyLootId ?? (item.LootId.Contains("premium", StringComparison.OrdinalIgnoreCase) ? "MATERIAL_key_premium" : "MATERIAL_key");
             List<string> ingredients = item.NeedKey ? [item.LootId, keyId] : [item.LootId];
             string craftUrl = $"/lol-loot/v1/recipes/{item.RecipeName}/craft";
-            string json = JsonSerializer.Serialize(ingredients);
+            string json = JsonSerializer.Serialize(ingredients, AotJson.Options.GetTypeInfo<List<string>>());
 
             for (int k = 0; k < count; k++)
             {
@@ -723,7 +724,7 @@ public sealed class CareerService : ICareerService
                 }
 
                 string craftUrl = $"/lol-loot/v1/recipes/{recipeName}/craft?repeat={count}";
-                string json = JsonSerializer.Serialize(new[] { lootId });
+                string json = JsonSerializer.Serialize(new[] { lootId }, AotJson.Options.GetTypeInfo<string[]>());
 
                 LcuResponse resp = await transport.SendAsync(
                     LcuRequest.Post(craftUrl, json),
@@ -814,7 +815,7 @@ public sealed class CareerService : ICareerService
                 }
 
                 string craftUrl = $"/lol-loot/v1/recipes/{recipeName}/craft";
-                string json = JsonSerializer.Serialize(group);
+                string json = JsonSerializer.Serialize(group, AotJson.Options.GetTypeInfo<string[]>());
 
                 LcuResponse resp = await transport.SendAsync(
                     LcuRequest.Post(craftUrl, json),
@@ -910,7 +911,7 @@ public sealed class CareerService : ICareerService
                     var ingredients = new List<string> { lootId };
                     ingredients.AddRange(extra);
                     string craftUrl = $"/lol-loot/v1/recipes/{recipeName}/craft?repeat={count}";
-                    string json = JsonSerializer.Serialize(ingredients);
+                    string json = JsonSerializer.Serialize(ingredients, AotJson.Options.GetTypeInfo<List<string>>());
 
                     LcuResponse resp = await transport.SendAsync(
                         LcuRequest.Post(craftUrl, json),
