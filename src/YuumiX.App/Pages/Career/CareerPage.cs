@@ -115,6 +115,9 @@ public sealed class CareerPage : Component<CareerPageProps>
         var (viewTarget, setViewTarget) = UseState<CareerViewTarget?>(
             Props.Puuid is { Length: > 0 } p ? new CareerViewTarget(p, Props.Preload) : null,
             threadSafe: true);
+        bool reduceMotion = UseReducedMotion();
+        bool isHighContrast = UseHighContrast();
+        bool skipMotion = reduceMotion || isHighContrast;
 
         // 英雄熟练度筛选与排序状态
         var (masterySearch, setMasterySearch) = UseState(string.Empty, threadSafe: true);
@@ -422,6 +425,9 @@ public sealed class CareerPage : Component<CareerPageProps>
                 isViewingOther: isViewingOther,
                 onBackToSelf: BackToMyCareer);
 
+        string effectivePuuid = viewTarget?.Puuid ?? summoner?.Puuid ?? "me";
+        header = CareerMotion.Header(header, skipMotion, effectivePuuid, refreshToken, summoner is not null);
+
         // 页签栏：仅在查看自己时显示（查看他人时直接展示战绩内容，不显示「生涯战绩」等页签）。
         // 加载期用骨架页签占位——真实页签栏是「资料卡到齐之后才出现」的话，
         // 数据到位那一刻整页会下移一整条页签栏的高度。
@@ -454,38 +460,48 @@ public sealed class CareerPage : Component<CareerPageProps>
                     lootFailureHint,
                     loot is null
                         ? (loading ? CareerVisuals.SkeletonLoot() : Empty())
-                        : Component<CareerLootSection, CareerLootSectionProps>(
-                            new CareerLootSectionProps(
-                                loot,
-                                palette,
-                                BumpRefresh,
-                                // 数量弹窗带初值打开；确认弹窗存储时重包 onConfirm（先关窗再执行，对齐旧版闭包）
-                                dialog =>
-                                {
-                                    int confirmed = 0;
-                                    setQuantityDialog(dialog with { OnConfirm = quantity => { if (Interlocked.Exchange(ref confirmed, 1) == 0) dialog.OnConfirm(quantity); } });
-                                    setOpenQuantity(Math.Max(dialog.MaxQuantity, 0));
-                                },
-                                dialog =>
-                                {
-                                    int confirmed = 0;
-                                    setConfirmDialog(dialog with { OnConfirm = () => { if (Interlocked.Exchange(ref confirmed, 1) != 0) return; setConfirmDialog(null); dialog.OnConfirm(); } });
-                                }))),
+                        : CareerMotion.Loot(
+                            Component<CareerLootSection, CareerLootSectionProps>(
+                                new CareerLootSectionProps(
+                                    loot,
+                                    palette,
+                                    BumpRefresh,
+                                    // 数量弹窗带初值打开；确认弹窗存储时重包 onConfirm（先关窗再执行，对齐旧版闭包）
+                                    dialog =>
+                                    {
+                                        int confirmed = 0;
+                                        setQuantityDialog(dialog with { OnConfirm = quantity => { if (Interlocked.Exchange(ref confirmed, 1) == 0) dialog.OnConfirm(quantity); } });
+                                        setOpenQuantity(Math.Max(dialog.MaxQuantity, 0));
+                                    },
+                                    dialog =>
+                                    {
+                                        int confirmed = 0;
+                                        setConfirmDialog(dialog with { OnConfirm = () => { if (Interlocked.Exchange(ref confirmed, 1) != 0) return; setConfirmDialog(null); dialog.OnConfirm(); } });
+                                    })),
+                            skipMotion,
+                            effectivePuuid,
+                            refreshToken,
+                            loot is not null)),
                 CareerTab.Mastery => mastery is null
                     ? (loading ? CareerVisuals.SkeletonMastery() : masteryFailureHint)
-                    : ChampionMasteryView.Render(
-                        mastery,
-                        catalog,
-                        palette,
-                        onRefresh: BumpRefresh,
-                        searchQuery: masterySearch,
-                        onSearchChanged: setMasterySearch,
-                        chestFilterIndex: masteryChest,
-                        onChestFilterChanged: setMasteryChest,
-                        levelFilterIndex: masteryLevel,
-                        onLevelFilterChanged: setMasteryLevel,
-                        sortIndex: masterySort,
-                        onSortChanged: setMasterySort),
+                    : CareerMotion.Mastery(
+                        ChampionMasteryView.Render(
+                            mastery,
+                            catalog,
+                            palette,
+                            onRefresh: BumpRefresh,
+                            searchQuery: masterySearch,
+                            onSearchChanged: setMasterySearch,
+                            chestFilterIndex: masteryChest,
+                            onChestFilterChanged: setMasteryChest,
+                            levelFilterIndex: masteryLevel,
+                            onLevelFilterChanged: setMasteryLevel,
+                            sortIndex: masterySort,
+                            onSortChanged: setMasterySort),
+                        skipMotion,
+                        effectivePuuid,
+                        refreshToken,
+                        mastery is not null),
                 // 战绩页签已在上方单独取两段，这里只是编译器要求的兜底分支
                 _ => Empty(),
             };
@@ -505,9 +521,24 @@ public sealed class CareerPage : Component<CareerPageProps>
         Element? fixedLayout = null;
         if (matchesParts is { } parts)
         {
+            Element summaryHeader = CareerMotion.Summary(
+                parts.Header,
+                skipMotion,
+                effectivePuuid,
+                refreshToken,
+                ranked.SoloDuo is not null || ranked.Flex is not null || !summary.IsEmpty);
+
+            Element matchesList = CareerMotion.Matches(
+                parts.List,
+                skipMotion,
+                effectivePuuid,
+                refreshToken,
+                queueFilter,
+                visibleMatches.Length);
+
             Element fixedHead = tabBarVisible
-                ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), parts.Header.Margin(0, TabBarGap, 0, 0))
-                : VStack(0, header, parts.Header.Margin(0, HeaderGap, 0, 0));
+                ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), summaryHeader.Margin(0, TabBarGap, 0, 0))
+                : VStack(0, header, summaryHeader.Margin(0, HeaderGap, 0, 0));
 
             // 16 = 旧版「近期看板 → 战绩列表」的间距。
             //
@@ -515,7 +546,7 @@ public sealed class CareerPage : Component<CareerPageProps>
             // 挤窄 12 DIP，1000 宽的内容立刻超出 → 又冒出水平条，两条互相绊着、右侧多一条灰边。
             // 这里横向彻底禁用（内容宽度由正文列决定，本就没有横向滚动需求），
             // 纵向设为 Hidden —— 滚轮/触控照常滚动，只是不绘制滚动条。
-            Element listScroller = (ScrollViewer(parts.List) with
+            Element listScroller = (ScrollViewer(matchesList) with
             {
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 HorizontalScrollMode = ScrollMode.Disabled,
