@@ -156,7 +156,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             p.OnClearHistory,
             p.ExtraSections);
 
-        Element flyoutSearchBox = (Flyout(searchBox, dropdownContent)
+        Element flyoutSearchBox = Flyout(searchBox, dropdownContent)
             .Set(f =>
             {
                 flyoutRef.Current = f;
@@ -173,14 +173,16 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                         setIsOpen(false);
                     }
                 },
-            })
+            };
+
+        Element searchContainer = SearchChrome.SearchInput(flyoutSearchBox, p.Searching)
             .Grid(row: 0, column: 0);
 
         Element bar = (Grid(
             [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto],
             [GridSize.Auto],
             [
-                flyoutSearchBox,
+                searchContainer,
                 Button(careerBtnText, p.OnCareer).IsEnabled(p.HasSummoner).AutomationName("跳转生涯").Grid(row: 0, column: 1),
                 ComboBox(p.FilterLabels, p.FilterIndex, p.OnFilterChanged)
                     .AutomationName("队列筛选")
@@ -540,6 +542,28 @@ internal static class SearchChrome
             .HAlign(HorizontalAlignment.Stretch);
     }
 
+    /// <summary>独立列始终占位，避免加载指示遮挡原生清除按钮或使搜索框宽度跳动。</summary>
+    internal static GridElement SearchInput(Element searchBox, bool searching) =>
+        Grid(
+            [GridSize.Star(), GridSize.Px(20)],
+            [GridSize.Auto],
+            [searchBox.Grid(row: 0, column: 0), SearchIndicatorSlot(searching).Grid(row: 0, column: 1)])
+        with { ColumnSpacing = 4 };
+
+    private static Element SearchIndicatorSlot(bool searching) =>
+        Border(
+            ProgressRing()
+                .Width(16)
+                .Height(16)
+                .IsActive(searching)
+                .IsVisible(searching)
+                .AutomationName("正在解析召唤师…")
+        )
+        .Width(20)
+        .Height(32)
+        .HAlign(HorizontalAlignment.Center)
+        .VAlign(VerticalAlignment.Center);
+
     /// <summary>列表区的说明块：与卡片同宽，避免右侧面板被拉宽。</summary>
     internal static Element Hint(string text) =>
         Border(Caption(text).Foreground(Theme.SecondaryText).TextWrapping())
@@ -548,6 +572,28 @@ internal static class SearchChrome
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
+
+    /// <summary>对局详情区的原生居中加载态。</summary>
+    internal static Element DetailLoading(string text) =>
+        Border(
+            VStack(12,
+                ProgressRing()
+                    .Width(24)
+                    .Height(24)
+                    .IsActive(true)
+                    .AutomationName(text)
+                    .HAlign(HorizontalAlignment.Center),
+                Caption(text).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center)
+            )
+            .VAlign(VerticalAlignment.Center)
+            .HAlign(HorizontalAlignment.Center)
+        )
+        .Padding(16)
+        .CornerRadius(YuumiTheme.OverlayRadius)
+        .Background(Theme.CardBackground)
+        .WithBorder(Theme.CardStroke, 1)
+        .HAlign(HorizontalAlignment.Stretch)
+        .VAlign(VerticalAlignment.Stretch);
 
     private static Element BuildSkeletons(YuumiPalette palette)
     {

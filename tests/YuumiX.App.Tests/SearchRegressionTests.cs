@@ -1,5 +1,7 @@
+using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using static Microsoft.UI.Reactor.Factories;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Localization;
@@ -206,5 +208,78 @@ public sealed class SearchRegressionTests
         await refresh;
 
         Assert.Equal(2, sequence.Current);
+    }
+
+    [Fact]
+    public void DetailLoading_RendersNativeProgressRingWithAccessibleLabel()
+    {
+        const string loadingText = "正在读取对局详情…";
+        var element = SearchChrome.DetailLoading(loadingText);
+
+        var border = Assert.IsAssignableFrom<BorderElement>(element);
+        var stack = Assert.IsAssignableFrom<StackElement>(border.Child);
+        Assert.Equal(2, stack.Children.Length);
+
+        var ring = Assert.IsAssignableFrom<ProgressRingElement>(stack.Children[0]);
+        Assert.True(ring.IsActive);
+        Assert.NotNull(ring.Modifiers);
+        Assert.Equal(24.0, ring.Modifiers.Width);
+        Assert.Equal(24.0, ring.Modifiers.Height);
+        Assert.Equal(loadingText, ring.Modifiers.AutomationName);
+
+        var caption = Assert.IsAssignableFrom<TextBlockElement>(stack.Children[1]);
+        Assert.Equal(loadingText, caption.Content);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("很长的召唤师名称ABCDEFGHIJKLMNOPQRSTUVWXYZ#12345")]
+    public void SearchInput_ReservesSeparateColumnAndPreservesInputCallbacks(string query)
+    {
+        string? changed = null;
+        string? submitted = null;
+        var input = AutoSuggestBox(query, value => changed = value, value => submitted = value)
+            .AutomationName("召唤师名称搜索");
+        var idle = SearchChrome.SearchInput(input, searching: false);
+        var pending = SearchChrome.SearchInput(input, searching: true);
+
+        Assert.Equal(idle.Definition.Columns, pending.Definition.Columns);
+        Assert.Equal(GridSize.Star(), pending.Definition.Columns[0]);
+        Assert.Equal(GridSize.Px(20), pending.Definition.Columns[1]);
+        Assert.Equal(4, pending.ColumnSpacing);
+
+        foreach (var layout in new[] { idle, pending })
+        {
+            Assert.Equal(2, layout.Children.Length);
+            var searchBox = Assert.IsAssignableFrom<AutoSuggestBoxElement>(layout.Children[0]);
+            var slot = Assert.IsAssignableFrom<BorderElement>(layout.Children[1]);
+            Assert.NotNull(searchBox.Attached);
+            Assert.NotNull(slot.Attached);
+            Assert.Equal(0, Assert.IsType<GridAttached>(searchBox.Attached[typeof(GridAttached)]).Column);
+            Assert.Equal(1, Assert.IsType<GridAttached>(slot.Attached[typeof(GridAttached)]).Column);
+            Assert.Equal(query, searchBox.Text.Value);
+            Assert.NotNull(slot.Modifiers);
+            Assert.Equal(20.0, slot.Modifiers.Width);
+            Assert.Equal(32.0, slot.Modifiers.Height);
+            Assert.Equal(default, slot.Modifiers.Margin);
+            Assert.NotNull(searchBox.OnTextChanged);
+            Assert.NotNull(searchBox.OnQuerySubmitted);
+            searchBox.OnTextChanged(query);
+            searchBox.OnQuerySubmitted(query);
+            Assert.Equal(query, changed);
+            Assert.Equal(query, submitted);
+        }
+
+        var idleSlot = Assert.IsAssignableFrom<BorderElement>(idle.Children[1]);
+        var pendingSlot = Assert.IsAssignableFrom<BorderElement>(pending.Children[1]);
+        var idleRing = Assert.IsAssignableFrom<ProgressRingElement>(idleSlot.Child);
+        var pendingRing = Assert.IsAssignableFrom<ProgressRingElement>(pendingSlot.Child);
+        Assert.False(idleRing.IsActive);
+        Assert.True(pendingRing.IsActive);
+        Assert.NotNull(idleRing.Modifiers);
+        Assert.NotNull(pendingRing.Modifiers);
+        Assert.False(idleRing.Modifiers.IsVisible);
+        Assert.True(pendingRing.Modifiers.IsVisible);
+        Assert.Equal("正在解析召唤师…", pendingRing.Modifiers.AutomationName);
     }
 }
