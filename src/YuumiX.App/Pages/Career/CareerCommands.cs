@@ -1,5 +1,6 @@
 using Microsoft.UI.Reactor.Navigation;
 using Windows.ApplicationModel.DataTransfer;
+using YuumiX.App.Composition;
 using YuumiX.App.Navigation;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.SavedPlayers.Models;
@@ -59,7 +60,7 @@ internal static class CareerCommands
     }
 
     /// <summary>复制 Riot ID 到剪贴板。</summary>
-    internal static void CopyRiotId(SummonerProfile summoner, Action<bool> setCopied)
+    internal static void CopyRiotId(SummonerProfile summoner, Action<bool> setCopied, IToastService? toast = null)
     {
         try
         {
@@ -67,10 +68,12 @@ internal static class CareerCommands
             package.SetText(summoner.RiotId);
             Clipboard.SetContent(package);
             setCopied(true);
+            toast?.Success($"已复制 Riot ID: {summoner.RiotId}");
         }
         catch (Exception)
         {
             setCopied(false);
+            toast?.Error("复制到剪贴板失败");
         }
     }
 }

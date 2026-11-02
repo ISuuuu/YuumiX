@@ -70,6 +70,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
 
         var (isOpen, setIsOpen) = UseState(false);
         var flyoutRef = UseRef<Flyout?>(null);
+        var searchBoxRef = UseRef<AutoSuggestBox?>(null);
 
         // 如果输入框内容为空、或与当前已展示的召唤师姓名一致（代表未输入新内容，仅仅是点击聚焦），则展示全部历史记录（对齐旧版 Search.vue）
         bool isDefaultQuery = string.IsNullOrWhiteSpace(p.Query)
@@ -88,7 +89,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
         openDropdownRef.Current = () =>
         {
             bool hasContent = filteredHistory.Length > 0 || (p.ExtraSections is not null && p.ExtraSections.Count > 0);
-            if (hasContent && !isOpen)
+            if (hasContent && !isOpen && searchBoxRef.Current?.XamlRoot is not null)
             {
                 setIsOpen(true);
             }
@@ -137,6 +138,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             .OnMountAdd(element =>
             {
                 var box = (AutoSuggestBox)element;
+                searchBoxRef.Current = box;
                 box.GotFocus += openOnFocus.Current!;
                 box.TextChanged += openOnTyping.Current!;
                 box.AddHandler(UIElement.PointerPressedEvent, openOnPointerPressed.Current!, handledEventsToo: true);
@@ -144,9 +146,14 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             .OnUnmountAdd(element =>
             {
                 var box = (AutoSuggestBox)element;
+                searchBoxRef.Current = null;
                 box.GotFocus -= openOnFocus.Current!;
                 box.TextChanged -= openOnTyping.Current!;
                 box.RemoveHandler(UIElement.PointerPressedEvent, openOnPointerPressed.Current!);
+                if (isOpen)
+                {
+                    setIsOpen(false);
+                }
             });
 
         Element dropdownContent = SuggestionDropdown.Render(
@@ -156,14 +163,16 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             p.OnClearHistory,
             p.ExtraSections);
 
-        Element flyoutSearchBox = Flyout(searchBox, dropdownContent)
+        bool canShowFlyout = isOpen && searchBoxRef.Current?.XamlRoot is not null;
+
+        Element flyoutSearchBox = (Flyout(searchBox, dropdownContent)
             .Set(f =>
             {
                 flyoutRef.Current = f;
                 f.FlyoutPresenterStyle ??= GetOrCreateDropdownFlyoutPresenterStyle();
             }) with
             {
-                IsOpen = isOpen,
+                IsOpen = canShowFlyout,
                 ShowMode = FlyoutShowMode.Transient,
                 Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft,
                 OnClosed = () =>
@@ -173,7 +182,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                         setIsOpen(false);
                     }
                 },
-            };
+            });
 
         Element searchContainer = SearchChrome.SearchInput(flyoutSearchBox, p.Searching)
             .Grid(row: 0, column: 0);
@@ -197,10 +206,10 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                     : Empty().Grid(row: 0, column: 3),
             ]) with { ColumnSpacing = 8 });
 
-        // 提示行放在搜索框下方而不是列表上方：出错的是"搜索"，不是"列表"
-        Element body = p.Notice is null
-            ? bar
-            : VStack(6, bar, Caption(p.Notice).Foreground(Theme.SecondaryText));
+        // 提示行放在搜索框下方而不是列表上方：固定使用两行 Grid 保持视觉树稳定，
+        // 避免 Notice 出现/消失时外层容器在 Grid 与 StackPanel 间突变导致子树整体 Unmount+Mount，
+        // 进而引发输入框丢失焦点或 Flyout 在子树挂载期无 XamlRoot 时被误触发 ShowAttachedFlyout。
+        Element body = SearchChrome.BuildToolbarLayout(bar, p.Notice);
 
         return Border(body)
             .Padding(8)
@@ -563,6 +572,22 @@ internal static class SearchChrome
         .Height(32)
         .HAlign(HorizontalAlignment.Center)
         .VAlign(VerticalAlignment.Center);
+
+    /// <summary>保持工具栏主干布局结构恒定，避免 Notice 出现/消失时外层容器在 Grid 与 StackPanel 间突变引发子树卸载重挂。</summary>
+    internal static GridElement BuildToolbarLayout(Element bar, string? notice)
+    {
+        Element noticeElement = notice is not null
+            ? Caption(notice).Foreground(Theme.SecondaryText).Grid(row: 1, column: 0)
+            : Empty().Grid(row: 1, column: 0);
+
+        return Grid(
+            [GridSize.Star()],
+            [GridSize.Auto, GridSize.Auto],
+            [
+                bar.Grid(row: 0, column: 0),
+                noticeElement,
+            ]) with { RowSpacing = notice is not null ? 6 : 0 };
+    }
 
     /// <summary>列表区的说明块：与卡片同宽，避免右侧面板被拉宽。</summary>
     internal static Element Hint(string text) =>
