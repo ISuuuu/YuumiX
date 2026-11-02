@@ -361,4 +361,43 @@ public sealed class SearchRegressionTests
             entry.Message == "已复制 Riot ID: 测试召唤师#12345" ||
             entry.Message == "复制到剪贴板失败");
     }
+
+    [Fact]
+    public void AutoSuggestBox_QuerySubmission_UpdatesQueryAndInvokesSearch()
+    {
+        string currentQuery = "";
+        bool searchInvoked = false;
+        var input = AutoSuggestBox(
+            currentQuery,
+            query => currentQuery = query,
+            query =>
+            {
+                currentQuery = query;
+                searchInvoked = true;
+            })
+            .AutomationName("测试搜索框");
+
+        Assert.NotNull(input.OnQuerySubmitted);
+        input.OnQuerySubmitted("fei#64935");
+
+        Assert.Equal("fei#64935", currentQuery);
+        Assert.True(searchInvoked);
+    }
+
+    [Fact]
+    public void AutoSuggestBox_UnsetText_LetsControlOwnItsText()
+    {
+        string currentQuery = "初始召唤师#123";
+        var input = AutoSuggestBox(
+            text: default,
+            onTextChanged: query => currentQuery = query,
+            onQuerySubmitted: null)
+            .AutomationName("测试搜索框");
+
+        Assert.False(input.Text.HasValue);
+        Assert.NotNull(input.OnTextChanged);
+
+        input.OnTextChanged("新粘贴的召唤师#456");
+        Assert.Equal("新粘贴的召唤师#456", currentQuery);
+    }
 }

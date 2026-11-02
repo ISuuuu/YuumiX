@@ -71,16 +71,31 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
         var (isOpen, setIsOpen) = UseState(false);
         var flyoutRef = UseRef<Flyout?>(null);
         var searchBoxRef = UseRef<AutoSuggestBox?>(null);
+        var lastSyncedQueryRef = UseRef(p.Query);
+
+        UseEffect(() =>
+        {
+            if (searchBoxRef.Current is not null && p.Query != lastSyncedQueryRef.Current)
+            {
+                lastSyncedQueryRef.Current = p.Query;
+                if (searchBoxRef.Current.Text != (p.Query ?? string.Empty))
+                {
+                    searchBoxRef.Current.Text = p.Query ?? string.Empty;
+                }
+            }
+            return static () => { };
+        }, p.Query ?? string.Empty);
 
         // 如果输入框内容为空、或与当前已展示的召唤师姓名一致（代表未输入新内容，仅仅是点击聚焦），则展示全部历史记录（对齐旧版 Search.vue）
-        bool isDefaultQuery = string.IsNullOrWhiteSpace(p.Query)
+        string currentEffectiveQuery = (searchBoxRef.Current?.Text ?? p.Query ?? string.Empty).Trim();
+        bool isDefaultQuery = string.IsNullOrWhiteSpace(currentEffectiveQuery)
             || (p.CurrentSummoner is not null && (
-                string.Equals(p.Query.Trim(), p.CurrentSummoner.RiotId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(p.Query.Trim(), p.CurrentSummoner.GameName, StringComparison.OrdinalIgnoreCase)));
+                string.Equals(currentEffectiveQuery, p.CurrentSummoner.RiotId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(currentEffectiveQuery, p.CurrentSummoner.GameName, StringComparison.OrdinalIgnoreCase)));
 
         string[] filteredHistory = isDefaultQuery
             ? [.. p.HistoryList]
-            : [.. p.HistoryList.Where(item => item.Contains(p.Query.Trim(), StringComparison.OrdinalIgnoreCase))];
+            : [.. p.HistoryList.Where(item => item.Contains(currentEffectiveQuery, StringComparison.OrdinalIgnoreCase))];
 
         // 建议面板弹出行为：聚焦 / 键入 / 按下均展开（列表或扩展分节非空才弹）。
         // 委托必须跨渲染同一实例（AGENTS.md §5.7）：UseRef 缓存 + OnMountAdd/OnUnmountAdd 配对挂卸。
@@ -110,16 +125,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
         var openOnPointerPressed = UseRef<PointerEventHandler?>(null);
         openOnPointerPressed.Current ??= (_, _) => openDropdownRef.Current?.Invoke();
 
-        var i18n = Composition.AppHost.Services?.I18n;
-        var searchPlaceholder = i18n?.T("search.searchPlaceholder", "输入召唤师名称进行搜索…") ?? "输入召唤师名称进行搜索…";
-        var careerBtnText = i18n?.T("nav.career", "生涯") ?? "生涯";
-
-        void HandleSelectHistory(string item)
-        {
-            flyoutRef.Current?.Hide();
-            setIsOpen(false);
-            p.OnSelectHistory(item);
-        }
+        var lastSearchTickRef = UseRef(0L);
 
         void HandleSearch()
         {
@@ -128,10 +134,55 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             p.OnSearch();
         }
 
+        void TriggerSearch(string? queryText = null)
+        {
+            long now = Environment.TickCount64;
+            if (now - lastSearchTickRef.Current < 250)
+            {
+                return;
+            }
+            lastSearchTickRef.Current = now;
+
+            string text = queryText ?? searchBoxRef.Current?.Text ?? string.Empty;
+            p.OnQueryChanged(text);
+
+            HandleSearch();
+        }
+
+        var openOnKeyDown = UseRef<KeyEventHandler?>(null);
+        openOnKeyDown.Current ??= (sender, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                e.Handled = true;
+                var box = (AutoSuggestBox)sender;
+                TriggerSearch(box.Text);
+            }
+        };
+
+        var i18n = Composition.AppHost.Services?.I18n;
+        var searchPlaceholder = i18n?.T("search.searchPlaceholder", "输入召唤师名称进行搜索…") ?? "输入召唤师名称进行搜索…";
+        var careerBtnText = i18n?.T("nav.career", "生涯") ?? "生涯";
+
+        void HandleSelectHistory(string item)
+        {
+            flyoutRef.Current?.Hide();
+            setIsOpen(false);
+            if (searchBoxRef.Current is not null)
+            {
+                searchBoxRef.Current.Text = item;
+            }
+            lastSyncedQueryRef.Current = item;
+            p.OnQueryChanged(item);
+            p.OnSelectHistory(item);
+        }
+
+        // text 缺省为 Optional.Unset，交由原生 WinUI 控件自主维护 Text 与光标；
+        // 避免输入或粘贴触发下拉展开（setIsOpen）导致组件重渲染时，被过期的受控 Query 强行冲刷回旧召唤师 ID。
         Element searchBox = AutoSuggestBox(
-                p.Query,
-                p.OnQueryChanged,
-                _ => HandleSearch())
+                text: default,
+                onTextChanged: p.OnQueryChanged,
+                onQuerySubmitted: query => TriggerSearch(query))
             .QueryIcon(FontIcon(Icons.Search, Icons.FontFamily))
             .PlaceholderText(searchPlaceholder)
             .AutomationName("召唤师名称搜索")
@@ -139,9 +190,14 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             {
                 var box = (AutoSuggestBox)element;
                 searchBoxRef.Current = box;
+                if (!string.IsNullOrEmpty(p.Query) && string.IsNullOrEmpty(box.Text))
+                {
+                    box.Text = p.Query;
+                }
                 box.GotFocus += openOnFocus.Current!;
                 box.TextChanged += openOnTyping.Current!;
                 box.AddHandler(UIElement.PointerPressedEvent, openOnPointerPressed.Current!, handledEventsToo: true);
+                box.AddHandler(UIElement.KeyDownEvent, openOnKeyDown.Current!, handledEventsToo: true);
             })
             .OnUnmountAdd(element =>
             {
@@ -150,6 +206,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                 box.GotFocus -= openOnFocus.Current!;
                 box.TextChanged -= openOnTyping.Current!;
                 box.RemoveHandler(UIElement.PointerPressedEvent, openOnPointerPressed.Current!);
+                box.RemoveHandler(UIElement.KeyDownEvent, openOnKeyDown.Current!);
                 if (isOpen)
                 {
                     setIsOpen(false);
