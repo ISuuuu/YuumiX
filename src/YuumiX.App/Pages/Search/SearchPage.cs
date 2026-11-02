@@ -52,6 +52,7 @@ public sealed class SearchPage : Component<SearchPageProps>
     {
         var services = UseContext(AppHost.Context);
         var theme = UseContext(AppHost.ThemeContext);
+        var toast = UseContext(AppHost.ToastContext);
         var matchService = services.Services.GetRequiredService<IMatchService>();
         var summonerService = services.Services.GetRequiredService<ISummonerService>();
         var historyStore = services.Services.GetRequiredService<SearchHistoryStore>();
@@ -83,11 +84,6 @@ public sealed class SearchPage : Component<SearchPageProps>
         var initialPageCancellation = UseMemo(() => new CancellationTokenSource(), 0);
         var pageCancellation = UseRef(initialPageCancellation);
         var refreshCancellation = UseRef<CancellationTokenSource?>(null);
-        var noticeVersion = UseRef(0);
-        var noticeCancellation = UseRef<CancellationTokenSource?>(null);
-        var initialNoticeLock = UseMemo(() => new object(), 0);
-        var noticeLock = UseRef(initialNoticeLock);
-        var clearNoticeRef = UseRef<Action?>(null);
         var refreshOnReturnRef = UseRef<Action?>(null);
         var (clearHistoryOpen, setClearHistoryOpen) = UseState(false);
         var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
@@ -97,12 +93,6 @@ public sealed class SearchPage : Component<SearchPageProps>
             searchSeqRef.Current++;
             pageCancellation.Current.Cancel();
             refreshCancellation.Current?.Cancel();
-            lock (noticeLock.Current)
-            {
-                noticeVersion.Current++;
-                noticeCancellation.Current?.Cancel();
-            }
-            clearNoticeRef.Current?.Invoke();
         };
         var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
         navigatedToRef.Current ??= _ =>
@@ -127,47 +117,15 @@ public sealed class SearchPage : Component<SearchPageProps>
         var (detailVersion, setDetailVersion) = UseState(0, threadSafe: true);
         var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
         var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
-        var (notice, setNoticeState) = UseState<string?>(null, threadSafe: true);
-        void SetNotice(string? value, int timeout = 0)
-        {
-            int version;
-            CancellationToken token = default;
-            lock (noticeLock.Current)
-            {
-                if (pageCancellation.Current.IsCancellationRequested) return;
-                noticeCancellation.Current?.Cancel();
-                noticeCancellation.Current?.Dispose();
-                noticeCancellation.Current = timeout > 0
-                    ? CancellationTokenSource.CreateLinkedTokenSource(pageCancellation.Current.Token)
-                    : null;
-                if (noticeCancellation.Current is not null) token = noticeCancellation.Current.Token;
-                version = ++noticeVersion.Current;
-                setNoticeState(value);
-            }
-            if (timeout > 0)
-                _ = SearchEffects.ClearNoticeLaterAsync(() =>
-                {
-                    lock (noticeLock.Current)
-                        if (noticeVersion.Current == version) setNoticeState(null);
-                }, timeout, token, services.LoggerFactory.CreateLogger("YuumiX.App.Pages.Search"));
-        }
-        void SetPersistentNotice(string? value) => SetNotice(value);
-        clearNoticeRef.Current = () => setNoticeState(null);
+        var (uploadOn, setUploadOn) = UseState(services.Config.Functions.UploadEnabled, threadSafe: true);
         UseEffect(() => () =>
         {
             pageCancellation.Current.Cancel();
             refreshCancellation.Current?.Cancel();
-            lock (noticeLock.Current)
-            {
-                noticeCancellation.Current?.Cancel();
-                noticeCancellation.Current?.Dispose();
-                noticeCancellation.Current = null;
-            }
             refreshCancellation.Current?.Dispose();
             refreshCancellation.Current = null;
             pageCancellation.Current.Dispose();
         }, 0);
-        var (uploadOn, setUploadOn) = UseState(services.Config.Functions.UploadEnabled, threadSafe: true);
 
         // R6：非响应式数据走 UseRef——
         // 搜索框草稿刻意不进 UseState：受控文本框在重渲染时会重置光标位置（类字段时代的既有决定）；
@@ -189,13 +147,12 @@ public sealed class SearchPage : Component<SearchPageProps>
         var searchMutation = UseMutation<SearchTargetInput, SummonerProfile?>(
             mutator: (input, ct) => SearchLoaders.ResolveTargetAsync(summonerService, historyStore, input, ct),
             options: new MutationOptions<SearchTargetInput, SummonerProfile?>(
-                OnOptimistic: _ => SetPersistentNotice(null),
                 OnSuccess: (found, input) =>
                 {
                     if (input.Sequence != searchSeqRef.Current) return;
                     if (found is null)
                     {
-                        SetPersistentNotice(input.NotFoundMessage);
+                        toast?.Info(input.NotFoundMessage);
                         return;
                     }
 
@@ -213,7 +170,7 @@ public sealed class SearchPage : Component<SearchPageProps>
                     requestSeqRef.Current += 1;
                     setRequestVersion(requestSeqRef.Current);
                 },
-                OnError: (_, input) => { if (input.Sequence == searchSeqRef.Current) SetPersistentNotice(services.I18n.T("search.resolveFailed", "查询召唤师失败")); },
+                OnError: (_, input) => { if (input.Sequence == searchSeqRef.Current) toast?.Error(services.I18n.T("search.resolveFailed", "查询召唤师失败")); },
                 InvalidateKeys: ["search/history"]));
 
         void RunSearch(SearchTargetInput input)
@@ -386,7 +343,7 @@ public sealed class SearchPage : Component<SearchPageProps>
             {
                 if (services.Config.Functions.UploadEnabled && uploadConfigured)
                 {
-                    SearchEffects.RunAutoUpload(services, matches, uploadedGameIdsRef.Current, summoner?.Puuid, SetNotice, pageCancellation.Current.Token);
+                    SearchEffects.RunAutoUpload(services, matches, uploadedGameIdsRef.Current, summoner?.Puuid, toast, pageCancellation.Current.Token);
                 }
 
                 return static () => { };
@@ -437,7 +394,7 @@ public sealed class SearchPage : Component<SearchPageProps>
             .VAlign(VerticalAlignment.Stretch)
             .HAlign(HorizontalAlignment.Stretch);
 
-        void OnCopyGameId(long gameId) => SearchEffects.CopyGameId(gameId, SetNotice);
+        void OnCopyGameId(long gameId) => SearchEffects.CopyGameId(gameId, toast);
 
         void OnClickPlayerPuuid(string puuid, SummonerProfile? preloaded) =>
             nav.Navigate(new AppRoute.CareerRoute(puuid, preloaded));
@@ -483,7 +440,7 @@ public sealed class SearchPage : Component<SearchPageProps>
             string query = (draftRef.Current ?? string.Empty).Trim();
             if (query.Length == 0 && string.IsNullOrWhiteSpace(targetPuuid))
             {
-                SetPersistentNotice("请输入召唤师名称（形如 名字#TAG）");
+                toast?.Info("请输入召唤师名称（形如 名字#TAG）");
                 return;
             }
 
@@ -551,12 +508,12 @@ public sealed class SearchPage : Component<SearchPageProps>
                                     setFilterIndex(value);
                                 }
                             },
-                            notice,
+                            null,
                             searchMutation.IsPending,
                             summoner,
                             uploadConfigured,
                             uploadOn,
-                            enabled => SearchEffects.ApplyUploadToggle(services, uploadQueue, enabled, setUploadOn, SetPersistentNotice)))
+                            enabled => SearchEffects.ApplyUploadToggle(services, uploadQueue, enabled, setUploadOn, toast)))
                         .Grid(row: 0, column: 0),
                     content.Grid(row: 1, column: 0),
                     ConfirmationDialog.Render(

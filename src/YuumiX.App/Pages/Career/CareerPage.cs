@@ -62,6 +62,7 @@ public sealed class CareerPage : Component<CareerPageProps>
     {
         var services = UseContext(AppHost.Context);
         var theme = UseContext(AppHost.ThemeContext);
+        var toast = UseContext(AppHost.ToastContext);
         var summonerService = services.Services.GetRequiredService<ISummonerService>();
         var careerService = services.Services.GetRequiredService<ICareerService>();
         var matchService = services.Services.GetRequiredService<IMatchService>();
@@ -415,7 +416,7 @@ public sealed class CareerPage : Component<CareerPageProps>
                 summoner,
                 palette,
                 copied,
-                onCopy: () => CareerCommands.CopyRiotId(summoner, setCopied),
+                onCopy: () => CareerCommands.CopyRiotId(summoner, setCopied, toast),
                 onRefresh: BumpRefresh,
                 onHistory: GoToHistory,
                 isViewingOther: isViewingOther,

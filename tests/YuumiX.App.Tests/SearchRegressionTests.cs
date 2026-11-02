@@ -1,5 +1,7 @@
+using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using static Microsoft.UI.Reactor.Factories;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Localization;
@@ -206,5 +208,84 @@ public sealed class SearchRegressionTests
         await refresh;
 
         Assert.Equal(2, sequence.Current);
+    }
+
+    [Fact]
+    public void SearchToolbar_NoticeTransition_KeepsRootGridStructureStable()
+    {
+        var dummyBar = Border(Empty()).Width(100);
+
+        var idleLayout = SearchChrome.BuildToolbarLayout(dummyBar, notice: null);
+        var activeLayout = SearchChrome.BuildToolbarLayout(dummyBar, notice: "游戏 ID: 123456 已复制到剪贴板");
+
+        foreach (var layout in new[] { idleLayout, activeLayout })
+        {
+            Assert.NotNull(layout);
+            Assert.Single(layout.Definition.Columns);
+            Assert.Equal(GridSize.Star(), layout.Definition.Columns[0]);
+            Assert.Equal(2, layout.Definition.Rows.Length);
+            Assert.Equal(GridSize.Auto, layout.Definition.Rows[0]);
+            Assert.Equal(GridSize.Auto, layout.Definition.Rows[1]);
+        }
+
+        Assert.Single(idleLayout.Children);
+        Assert.Equal(2, activeLayout.Children.Length);
+
+        Assert.Equal(0.0, idleLayout.RowSpacing);
+        Assert.Equal(6.0, activeLayout.RowSpacing);
+
+        var idleRow0 = Assert.IsAssignableFrom<BorderElement>(idleLayout.Children[0]);
+        Assert.NotNull(idleRow0.Attached);
+        Assert.Equal(0, Assert.IsType<GridAttached>(idleRow0.Attached[typeof(GridAttached)]).Row);
+
+        var activeRow0 = Assert.IsAssignableFrom<BorderElement>(activeLayout.Children[0]);
+        Assert.NotNull(activeRow0.Attached);
+        Assert.Equal(0, Assert.IsType<GridAttached>(activeRow0.Attached[typeof(GridAttached)]).Row);
+        var noticeTextBlock = Assert.IsAssignableFrom<TextBlockElement>(activeLayout.Children[1]);
+        Assert.Equal("游戏 ID: 123456 已复制到剪贴板", noticeTextBlock.Content);
+    }
+
+    [Fact]
+    public void CopyGameId_RoutesThroughToastService()
+    {
+        var toastQueue = new Composition.ToastQueue();
+        SearchEffects.CopyGameId(401171480376, toastQueue);
+
+        var snapshot = toastQueue.Snapshot;
+        Assert.NotEmpty(snapshot);
+        var entry = snapshot[0];
+        Assert.True(
+            entry.Message == "游戏 ID: 401171480376 已复制到剪贴板" ||
+            entry.Message == "复制到剪贴板失败");
+    }
+
+    [Fact]
+    public void CopyRiotId_RoutesThroughToastService()
+    {
+        var toastQueue = new Composition.ToastQueue();
+        bool copied = false;
+        var profile = new Core.Features.Summoner.Models.SummonerProfile
+        {
+            AccountId = 1,
+            DisplayName = "测试召唤师",
+            GameName = "测试召唤师",
+            TagLine = "12345",
+            Puuid = "puuid-1",
+            SummonerId = 1001,
+            ProfileIconId = 1,
+            SummonerLevel = 50,
+            PercentCompleteForNextLevel = 0,
+            XpSinceLastLevel = 0,
+            XpUntilNextLevel = 1000,
+        };
+
+        Pages.Career.CareerCommands.CopyRiotId(profile, state => copied = state, toastQueue);
+
+        var snapshot = toastQueue.Snapshot;
+        Assert.NotEmpty(snapshot);
+        var entry = snapshot[0];
+        Assert.True(
+            entry.Message == "已复制 Riot ID: 测试召唤师#12345" ||
+            entry.Message == "复制到剪贴板失败");
     }
 }

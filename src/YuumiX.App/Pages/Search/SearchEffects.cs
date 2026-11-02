@@ -1,7 +1,8 @@
 using System.Globalization;
-using Microsoft.UI.Reactor.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using YuumiX.App.Composition;
 using YuumiX.Core;
 using YuumiX.Core.Features.Match;
 using YuumiX.Core.Features.Match.Models;
@@ -25,11 +26,11 @@ internal static class SearchEffects
         IReadOnlyList<MatchSummary> matches,
         HashSet<long> uploadedGameIds,
         string? summonerPuuid,
-        Action<string?, int> setNotice,
+        IToastService? toast,
         CancellationToken cancellationToken)
     {
         _ = RunUploadBatchAsync(matches.Select(m => m.GameId), uploadedGameIds,
-            (pending, ct) => SearchLoaders.UploadMatchesAsync(services, pending, summonerPuuid, setNotice, ct), cancellationToken,
+            (pending, ct) => SearchLoaders.UploadMatchesAsync(services, pending, summonerPuuid, toast, ct), cancellationToken,
             services.LoggerFactory.CreateLogger("YuumiX.App.Pages.Search"));
     }
 
@@ -74,7 +75,7 @@ internal static class SearchEffects
         UploadQueueService uploadQueue,
         bool enabled,
         Action<bool> applyUploadOn,
-        Action<string?> setNotice)
+        IToastService? toast)
     {
         applyUploadOn(enabled);
         services.Config.Functions.UploadEnabled = enabled;
@@ -84,23 +85,23 @@ internal static class SearchEffects
         }
         catch (Exception)
         {
-            setNotice("上传开关保存失败");
+            toast?.Error("保存自动上传设置失败");
         }
     }
 
-    /// <summary>复制游戏 ID 到剪贴板，2 秒后清除提示。</summary>
-    internal static void CopyGameId(long gameId, Action<string?, int> setNotice)
+    /// <summary>复制游戏 ID 到剪贴板并弹出 Toast 提示。</summary>
+    internal static void CopyGameId(long gameId, IToastService? toast)
     {
         try
         {
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
             package.SetText(gameId.ToString(CultureInfo.InvariantCulture));
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-            setNotice($"游戏 ID: {gameId} 已复制到剪贴板", 2000);
+            toast?.Success($"游戏 ID: {gameId} 已复制到剪贴板");
         }
         catch
         {
-            setNotice("复制到剪贴板失败", 0);
+            toast?.Error("复制到剪贴板失败");
         }
     }
 

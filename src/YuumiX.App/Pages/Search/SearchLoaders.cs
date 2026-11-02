@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
+using YuumiX.App.Composition;
 using YuumiX.Core;
 using YuumiX.Core.Assets;
 using YuumiX.Core.Features.Career;
@@ -272,7 +273,7 @@ internal static class SearchLoaders
         AppServices services,
         long[] gameIds,
         string? currentSummonerPuuid,
-        Action<string?, int> setNotice,
+        IToastService? toast,
         CancellationToken cancellationToken)
     {
         try
@@ -283,12 +284,18 @@ internal static class SearchLoaders
                 .ConfigureAwait(false);
 
             cancellationToken.ThrowIfCancellationRequested();
-            setNotice(result switch
+            if (result.Error is not null && result.SuccessCount == 0)
             {
-                { Error: not null, SuccessCount: 0 } => $"上传失败: {result.Error}",
-                { SuccessCount: > 0 } => $"已上传 {result.SuccessCount} 场对局",
-                _ => "所有对局已存在，无需上传",
-            }, 2500);
+                toast?.Error($"上传失败: {result.Error}");
+            }
+            else if (result.SuccessCount > 0)
+            {
+                toast?.Success($"已上传 {result.SuccessCount} 场对局");
+            }
+            else
+            {
+                toast?.Info("所有对局已存在，无需上传");
+            }
             return result.FailedCount == 0 && result.Error is null;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -298,7 +305,7 @@ internal static class SearchLoaders
         }
         catch (Exception ex)
         {
-            if (!cancellationToken.IsCancellationRequested) setNotice($"上传异常: {ex.Message}", 0);
+            if (!cancellationToken.IsCancellationRequested) toast?.Error($"上传异常: {ex.Message}");
             return false;
         }
     }
