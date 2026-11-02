@@ -67,6 +67,8 @@ public sealed class GameInfoPage : Component
         };
 
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
+        var reducedMotion = UseReducedMotion();
+        var highContrast = UseHighContrast();
         UseEffect(
             () =>
             {
@@ -154,7 +156,8 @@ public sealed class GameInfoPage : Component
             return LcuOfflineState.Render(extra: DemoButton(() => gameInfoService.LoadDemoState()));
         }
 
-        Element content = state.IsTftMode
+        bool isContentReady = state.ShouldShowContent && !state.IsLoadingTeams;
+        Element rawContent = state.IsTftMode
             ? RenderPlaceholder(
                 services.I18n.T("gameInfo.tftInGame", "云顶之弈对局中"),
                 services.I18n.T("gameInfo.tftDesc", "云顶之弈模式不显示召唤师峡谷数据"),
@@ -172,6 +175,15 @@ public sealed class GameInfoPage : Component
                         : (state.ViewColumns == 10
                             ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch)
                             : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch, windowWidth));
+
+        bool skipMotion = reducedMotion || highContrast;
+        string? trigger = isContentReady
+            ? $"gameinfo:{state.ViewColumns}@{state.Phase}@{state.CurrentQueueId}@{state.ActiveTab}@{state.MyTeam.FirstOrDefault()?.Puuid ?? "empty"}@{state.IsDemoData}"
+            : null;
+
+        Element content = isContentReady
+            ? GameInfoMotion.Content(rawContent, trigger, skipMotion)
+            : rawContent;
 
         return Border(content)
             .Padding(8, 16, 24, 16)

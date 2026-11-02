@@ -169,7 +169,7 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
         return VStack(0, header, body)
             .Width(360)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Background(Theme.CardBackground)
+            .Background(Theme.SolidBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Bottom)

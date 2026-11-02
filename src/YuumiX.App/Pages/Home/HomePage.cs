@@ -60,6 +60,8 @@ public sealed class HomePage : Component
         var i18n = services.I18n;
 
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
+        var reducedMotion = UseReducedMotion();
+        var highContrast = UseHighContrast();
         UseEffect(
             () =>
             {
@@ -155,7 +157,7 @@ public sealed class HomePage : Component
             },
             deps: [connState.Status, summonerTick]);
 
-        return RenderConnectedView(connState, gamePhase, homeResource, nav, i18n, palette);
+        return RenderConnectedView(connState, gamePhase, homeResource, nav, i18n, palette, reducedMotion, highContrast);
     }
 
     /// <summary>
@@ -167,7 +169,9 @@ public sealed class HomePage : Component
         AsyncValue<HomeSummary> homeResource,
         NavigationHandle<AppRoute> nav,
         I18nService i18n,
-        YuumiPalette palette)
+        YuumiPalette palette,
+        bool reducedMotion,
+        bool highContrast)
     {
         var title = i18n.T("home.title", "主页");
         var description = i18n.T("home.description", "查看当前召唤师状态、游戏阶段与常用功能快捷直达");
@@ -186,7 +190,7 @@ public sealed class HomePage : Component
         var mainContent = VStack(
             20,
             pageHeader,
-            RenderSummonerCard(homeResource, nav, i18n),
+            RenderSummonerCard(homeResource, nav, i18n, reducedMotion, highContrast),
             RenderGamePhaseCard(gamePhase, connState, i18n),
             RenderQuickAccess(nav, i18n)
         );
@@ -222,7 +226,9 @@ public sealed class HomePage : Component
     private static Element RenderSummonerCard(
         AsyncValue<HomeSummary> homeResource,
         NavigationHandle<AppRoute> nav,
-        I18nService i18n)
+        I18nService i18n,
+        bool reducedMotion,
+        bool highContrast)
     {
         if (homeResource is AsyncValue<HomeSummary>.Loading)
         {
@@ -338,7 +344,7 @@ public sealed class HomePage : Component
         .VAlign(VerticalAlignment.Center)
         .AutomationName("查看完整生涯");
 
-        return Card(
+        var card = Card(
             Grid(
                 [GridSize.Auto, GridSize.Star(), GridSize.Auto],
                 [GridSize.Auto],
@@ -347,6 +353,10 @@ public sealed class HomePage : Component
                 viewCareerBtn.Grid(column: 2)
             )
         );
+
+        string trigger = $"home:profile:{profile.Puuid}@{soloDuo?.Tier ?? "unranked"}";
+        bool skipMotion = reducedMotion || highContrast;
+        return HomeMotion.SummonerCard(card, trigger, skipMotion);
     }
 
     /// <summary>

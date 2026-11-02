@@ -50,6 +50,8 @@ public sealed class SavedPlayersPage : Component
         var lcu = services.Services.GetService<LcuConnection>();
 
         var (palette, setPalette) = UseState(theme.Current, threadSafe: true);
+        var reducedMotion = UseReducedMotion();
+        var highContrast = UseHighContrast();
         UseEffect(
             () =>
             {
@@ -91,7 +93,7 @@ public sealed class SavedPlayersPage : Component
         var (expanded, setExpanded) = UseState<ExpandedTarget?>(null, threadSafe: true);
         var expandNonceRef = UseRef(0);
 
-        // 刷新 Nonce：切入页面、手动点击刷新或对局结算自动写入时递增
+        // 刷新 Nonce：切入页面、手动点击刷新或对局结算自动写入时递增，负责驱动底层数据查询
         var (refreshNonce, setRefreshNonce) = UseState(0, threadSafe: true);
         var refreshNonceRef = UseRef(0);
         void BumpRefresh()
@@ -101,6 +103,18 @@ public sealed class SavedPlayersPage : Component
         }
         var bumpRefreshRef = UseRef<Action?>(null);
         bumpRefreshRef.Current = BumpRefresh;
+
+        // 动画身份代际（P2 修复）：与底层静默取数计数分离。
+        // 仅在用户手动点击页头刷新按钮时演进，返回页面与后台存储变更触发的静默刷新不递增，
+        // 避免已有列表在静默刷新时整块重新淡入。
+        var (motionNonce, setMotionNonce) = UseState(0, threadSafe: true);
+        var motionNonceRef = UseRef(0);
+        void HandleManualRefresh()
+        {
+            motionNonceRef.Current += 1;
+            setMotionNonce(motionNonceRef.Current);
+            BumpRefresh();
+        }
 
         // 页面缓存开启后组件实例常驻：
         // 1. 切走时清理编辑或删除弹窗等一次性 UI 状态
@@ -420,7 +434,7 @@ public sealed class SavedPlayersPage : Component
             [GridSize.Auto, GridSize.Auto, GridSize.Star()],
             [
                 // 1. 页头 Header（带刷新与导入导出）
-                SavedPlayersVisuals.RenderHeader(totalCount, BumpRefresh, isRefreshing, HandleImport, HandleExport, palette).Grid(row: 0),
+                SavedPlayersVisuals.RenderHeader(totalCount, HandleManualRefresh, isRefreshing, HandleImport, HandleExport, palette).Grid(row: 0),
 
                 // 2. 工具栏 Toolbar（防抖搜索与清空、分类筛选）
                 SavedPlayersVisuals.RenderToolbar(
@@ -433,28 +447,36 @@ public sealed class SavedPlayersPage : Component
                     palette).Grid(row: 1),
 
                 // 3. 列表区域（滚动到底自动加载玩家；相遇历史展开后仍由卡片内按钮翻页）
-                SavedPlayersVisuals.RenderList(
-                    players,
-                    totalCount,
-                    loading,
-                    loadingMore,
-                    playersScrollerRef,
-                    OnPlayersListScrolled,
-                    committedSearch,
-                    OnClearSearch,
-                    expanded?.Puuid,
-                    encounteredGames,
-                    encounteredTotal,
-                    gamesLoading,
-                    _ => gamesResource.FetchNext(),
-                    editingPuuid,
-                    editingTag,
-                    setEditingTag,
-                    setEditingPuuid,
-                    SetPendingDelete,
-                    ToggleExpand,
-                    HandleSaveTag,
-                    palette).Grid(row: 2),
+                SavedPlayersMotion.List(
+                    SavedPlayersVisuals.RenderList(
+                        players,
+                        totalCount,
+                        loading,
+                        loadingMore,
+                        playersScrollerRef,
+                        OnPlayersListScrolled,
+                        committedSearch,
+                        OnClearSearch,
+                        expanded?.Puuid,
+                        encounteredGames,
+                        encounteredTotal,
+                        gamesLoading,
+                        _ => gamesResource.FetchNext(),
+                        editingPuuid,
+                        editingTag,
+                        setEditingTag,
+                        setEditingPuuid,
+                        SetPendingDelete,
+                        ToggleExpand,
+                        HandleSaveTag,
+                        palette),
+                    SavedPlayersMotion.BuildListTrigger(
+                        selfPuuid,
+                        filter,
+                        committedSearch,
+                        motionNonce,
+                        !loading && players.Count > 0),
+                    reducedMotion || highContrast).Grid(row: 2),
                 pendingDelete is { } target
                     ? ConfirmationDialog.Render(
                         T("savedPlayersPage.deleteConfirmTitle", "删除玩家记录"),

@@ -59,6 +59,8 @@ public sealed class OpggPage : Component<OpggPageProps>
         var (loading, setLoading) = UseState(false);
         var (errorMessage, setErrorMessage) = UseState<string?>(null);
         var (isApplyingItemSet, setIsApplyingItemSet) = UseState(false);
+        var reducedMotion = UseReducedMotion();
+        var highContrast = UseHighContrast();
         // 全局 Toast 服务（R5）：由 OpggWindowRoot Provide，队列渲染在其挂载的 ToastHost。
         var toast = UseContext(AppHost.ToastContext)!;
 
@@ -231,64 +233,69 @@ public sealed class OpggPage : Component<OpggPageProps>
                 }).Grid(1, 0),
 
                 // 3. 视图主体区域
-                RenderBody(
-                    currentView,
-                    loading,
-                    errorMessage,
-                    tierItems,
-                    buildData,
-                    selectedChampId,
-                    position,
-                    catalog,
-                    isDark,
-                    isApplyingItemSet,
-                    onSelectChamp: champId =>
-                    {
-                        setSelectedChampId(champId);
-                        setCurrentView("build");
-                        _ = FetchBuild(champId);
-                    },
-                    onRetry: () =>
-                    {
-                        if (currentView == "tier") _ = FetchTierList();
-                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
-                    },
-                    onApplyRune: async rune =>
-                    {
-                        var i18n = services.I18n;
-                        try
+                OpggMotion.View(
+                    RenderBody(
+                        currentView,
+                        loading,
+                        errorMessage,
+                        tierItems,
+                        buildData,
+                        selectedChampId,
+                        position,
+                        catalog,
+                        isDark,
+                        isApplyingItemSet,
+                        onSelectChamp: champId =>
                         {
-                            var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
-                            await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
-                                [.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
-                            toast.Success(i18n.T("opgg.runes.appliedSuccess", "符文页已应用至客户端"));
-                        }
-                        catch (Exception ex)
+                            setSelectedChampId(champId);
+                            setCurrentView("build");
+                            _ = FetchBuild(champId);
+                        },
+                        onRetry: () =>
                         {
-                            toast.Error(i18n.T("opgg.runes.appliedFailed", "应用符文页失败: ") + ex.Message);
-                        }
-                    },
-                    onApplyItemSet: async () =>
-                    {
-                        if (buildData is null || !selectedChampId.HasValue) return;
-                        var i18n = services.I18n;
-                        setIsApplyingItemSet(true);
-                        try
+                            if (currentView == "tier") _ = FetchTierList();
+                            else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
+                        },
+                        onApplyRune: async rune =>
                         {
-                            var champName = catalog.Champions.TryGetValue(selectedChampId.Value, out var cn) ? cn : "Champion";
-                            var res = await opggService.ApplyItemSetAsync(selectedChampId.Value, champName, position, buildData).ConfigureAwait(false);
-                            toast.Success(res);
-                        }
-                        catch (Exception ex)
+                            var i18n = services.I18n;
+                            try
+                            {
+                                var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
+                                await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
+                                    [.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
+                                toast.Success(i18n.T("opgg.runes.appliedSuccess", "符文页已应用至客户端"));
+                            }
+                            catch (Exception ex)
+                            {
+                                toast.Error(i18n.T("opgg.runes.appliedFailed", "应用符文页失败: ") + ex.Message);
+                            }
+                        },
+                        onApplyItemSet: async () =>
                         {
-                            toast.Error(i18n.T("opgg.items.appliedFailed", "应用出装失败: ") + ex.Message);
+                            if (buildData is null || !selectedChampId.HasValue) return;
+                            var i18n = services.I18n;
+                            setIsApplyingItemSet(true);
+                            try
+                            {
+                                var champName = catalog.Champions.TryGetValue(selectedChampId.Value, out var cn) ? cn : "Champion";
+                                var res = await opggService.ApplyItemSetAsync(selectedChampId.Value, champName, position, buildData).ConfigureAwait(false);
+                                toast.Success(res);
+                            }
+                            catch (Exception ex)
+                            {
+                                toast.Error(i18n.T("opgg.items.appliedFailed", "应用出装失败: ") + ex.Message);
+                            }
+                            finally
+                            {
+                                setIsApplyingItemSet(false);
+                            }
                         }
-                        finally
-                        {
-                            setIsApplyingItemSet(false);
-                        }
-                    }
-                ).Grid(2, 0)
+                    ),
+                    !loading && errorMessage is null
+                        ? $"opgg:{currentView}@{selectedChampId}@{position}@{tier}@{mode}@{region}"
+                        : null,
+                    reducedMotion || highContrast).Grid(2, 0)
             ]
             // Toast 宿主不在这里挂：OpggWindowRoot 已统一挂载（同主窗口 AppShell 的模式），
             // 页面再挂一个会对同一队列重复渲染出两条 toast。

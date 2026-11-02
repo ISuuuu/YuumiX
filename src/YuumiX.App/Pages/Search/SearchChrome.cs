@@ -71,16 +71,31 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
         var (isOpen, setIsOpen) = UseState(false);
         var flyoutRef = UseRef<Flyout?>(null);
         var searchBoxRef = UseRef<AutoSuggestBox?>(null);
+        var lastSyncedQueryRef = UseRef(p.Query);
+
+        UseEffect(() =>
+        {
+            if (searchBoxRef.Current is not null && p.Query != lastSyncedQueryRef.Current)
+            {
+                lastSyncedQueryRef.Current = p.Query;
+                if (searchBoxRef.Current.Text != (p.Query ?? string.Empty))
+                {
+                    searchBoxRef.Current.Text = p.Query ?? string.Empty;
+                }
+            }
+            return static () => { };
+        }, p.Query ?? string.Empty);
 
         // 如果输入框内容为空、或与当前已展示的召唤师姓名一致（代表未输入新内容，仅仅是点击聚焦），则展示全部历史记录（对齐旧版 Search.vue）
-        bool isDefaultQuery = string.IsNullOrWhiteSpace(p.Query)
+        string currentEffectiveQuery = (searchBoxRef.Current?.Text ?? p.Query ?? string.Empty).Trim();
+        bool isDefaultQuery = string.IsNullOrWhiteSpace(currentEffectiveQuery)
             || (p.CurrentSummoner is not null && (
-                string.Equals(p.Query.Trim(), p.CurrentSummoner.RiotId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(p.Query.Trim(), p.CurrentSummoner.GameName, StringComparison.OrdinalIgnoreCase)));
+                string.Equals(currentEffectiveQuery, p.CurrentSummoner.RiotId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(currentEffectiveQuery, p.CurrentSummoner.GameName, StringComparison.OrdinalIgnoreCase)));
 
         string[] filteredHistory = isDefaultQuery
             ? [.. p.HistoryList]
-            : [.. p.HistoryList.Where(item => item.Contains(p.Query.Trim(), StringComparison.OrdinalIgnoreCase))];
+            : [.. p.HistoryList.Where(item => item.Contains(currentEffectiveQuery, StringComparison.OrdinalIgnoreCase))];
 
         // 建议面板弹出行为：聚焦 / 键入 / 按下均展开（列表或扩展分节非空才弹）。
         // 委托必须跨渲染同一实例（AGENTS.md §5.7）：UseRef 缓存 + OnMountAdd/OnUnmountAdd 配对挂卸。
@@ -110,16 +125,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
         var openOnPointerPressed = UseRef<PointerEventHandler?>(null);
         openOnPointerPressed.Current ??= (_, _) => openDropdownRef.Current?.Invoke();
 
-        var i18n = Composition.AppHost.Services?.I18n;
-        var searchPlaceholder = i18n?.T("search.searchPlaceholder", "输入召唤师名称进行搜索…") ?? "输入召唤师名称进行搜索…";
-        var careerBtnText = i18n?.T("nav.career", "生涯") ?? "生涯";
-
-        void HandleSelectHistory(string item)
-        {
-            flyoutRef.Current?.Hide();
-            setIsOpen(false);
-            p.OnSelectHistory(item);
-        }
+        var lastSearchTickRef = UseRef(0L);
 
         void HandleSearch()
         {
@@ -128,10 +134,55 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             p.OnSearch();
         }
 
+        void TriggerSearch(string? queryText = null)
+        {
+            long now = Environment.TickCount64;
+            if (now - lastSearchTickRef.Current < 250)
+            {
+                return;
+            }
+            lastSearchTickRef.Current = now;
+
+            string text = queryText ?? searchBoxRef.Current?.Text ?? string.Empty;
+            p.OnQueryChanged(text);
+
+            HandleSearch();
+        }
+
+        var openOnKeyDown = UseRef<KeyEventHandler?>(null);
+        openOnKeyDown.Current ??= (sender, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                e.Handled = true;
+                var box = (AutoSuggestBox)sender;
+                TriggerSearch(box.Text);
+            }
+        };
+
+        var i18n = Composition.AppHost.Services?.I18n;
+        var searchPlaceholder = i18n?.T("search.searchPlaceholder", "输入召唤师名称进行搜索…") ?? "输入召唤师名称进行搜索…";
+        var careerBtnText = i18n?.T("nav.career", "生涯") ?? "生涯";
+
+        void HandleSelectHistory(string item)
+        {
+            flyoutRef.Current?.Hide();
+            setIsOpen(false);
+            if (searchBoxRef.Current is not null)
+            {
+                searchBoxRef.Current.Text = item;
+            }
+            lastSyncedQueryRef.Current = item;
+            p.OnQueryChanged(item);
+            p.OnSelectHistory(item);
+        }
+
+        // text 缺省为 Optional.Unset，交由原生 WinUI 控件自主维护 Text 与光标；
+        // 避免输入或粘贴触发下拉展开（setIsOpen）导致组件重渲染时，被过期的受控 Query 强行冲刷回旧召唤师 ID。
         Element searchBox = AutoSuggestBox(
-                p.Query,
-                p.OnQueryChanged,
-                _ => HandleSearch())
+                text: default,
+                onTextChanged: p.OnQueryChanged,
+                onQuerySubmitted: query => TriggerSearch(query))
             .QueryIcon(FontIcon(Icons.Search, Icons.FontFamily))
             .PlaceholderText(searchPlaceholder)
             .AutomationName("召唤师名称搜索")
@@ -139,9 +190,14 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             {
                 var box = (AutoSuggestBox)element;
                 searchBoxRef.Current = box;
+                if (!string.IsNullOrEmpty(p.Query) && string.IsNullOrEmpty(box.Text))
+                {
+                    box.Text = p.Query;
+                }
                 box.GotFocus += openOnFocus.Current!;
                 box.TextChanged += openOnTyping.Current!;
                 box.AddHandler(UIElement.PointerPressedEvent, openOnPointerPressed.Current!, handledEventsToo: true);
+                box.AddHandler(UIElement.KeyDownEvent, openOnKeyDown.Current!, handledEventsToo: true);
             })
             .OnUnmountAdd(element =>
             {
@@ -150,6 +206,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                 box.GotFocus -= openOnFocus.Current!;
                 box.TextChanged -= openOnTyping.Current!;
                 box.RemoveHandler(UIElement.PointerPressedEvent, openOnPointerPressed.Current!);
+                box.RemoveHandler(UIElement.KeyDownEvent, openOnKeyDown.Current!);
                 if (isOpen)
                 {
                     setIsOpen(false);
@@ -182,14 +239,16 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                         setIsOpen(false);
                     }
                 },
-            })
+            });
+
+        Element searchContainer = SearchChrome.SearchInput(flyoutSearchBox, p.Searching)
             .Grid(row: 0, column: 0);
 
         Element bar = (Grid(
             [GridSize.Star(), GridSize.Auto, GridSize.Auto, GridSize.Auto],
             [GridSize.Auto],
             [
-                flyoutSearchBox,
+                searchContainer,
                 Button(careerBtnText, p.OnCareer).IsEnabled(p.HasSummoner).AutomationName("跳转生涯").Grid(row: 0, column: 1),
                 ComboBox(p.FilterLabels, p.FilterIndex, p.OnFilterChanged)
                     .AutomationName("队列筛选")
@@ -528,7 +587,6 @@ internal static class SearchChrome
             iconCircle,
             Title(i18n.T("search.guideTitle", "查询召唤师战绩"))
                 .HeadingLevel(AutomationHeadingLevel.Level1)
-                .Foreground(Theme.PrimaryText)
                 .HAlign(HorizontalAlignment.Center),
             Body(i18n.T("search.guideSubtitle", "输入召唤师名称，查看对局记录、KDA、出装等详细数据"))
                 .Foreground(Theme.SecondaryText)
@@ -548,6 +606,28 @@ internal static class SearchChrome
             .VAlign(VerticalAlignment.Stretch)
             .HAlign(HorizontalAlignment.Stretch);
     }
+
+    /// <summary>独立列始终占位，避免加载指示遮挡原生清除按钮或使搜索框宽度跳动。</summary>
+    internal static GridElement SearchInput(Element searchBox, bool searching) =>
+        Grid(
+            [GridSize.Star(), GridSize.Px(20)],
+            [GridSize.Auto],
+            [searchBox.Grid(row: 0, column: 0), SearchIndicatorSlot(searching).Grid(row: 0, column: 1)])
+        with { ColumnSpacing = 4 };
+
+    private static Element SearchIndicatorSlot(bool searching) =>
+        Border(
+            ProgressRing()
+                .Width(16)
+                .Height(16)
+                .IsActive(searching)
+                .IsVisible(searching)
+                .AutomationName("正在解析召唤师…")
+        )
+        .Width(20)
+        .Height(32)
+        .HAlign(HorizontalAlignment.Center)
+        .VAlign(VerticalAlignment.Center);
 
     /// <summary>保持工具栏主干布局结构恒定，避免 Notice 出现/消失时外层容器在 Grid 与 StackPanel 间突变引发子树卸载重挂。</summary>
     internal static GridElement BuildToolbarLayout(Element bar, string? notice)
@@ -573,6 +653,28 @@ internal static class SearchChrome
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
+
+    /// <summary>对局详情区的原生居中加载态。</summary>
+    internal static Element DetailLoading(string text) =>
+        Border(
+            VStack(12,
+                ProgressRing()
+                    .Width(24)
+                    .Height(24)
+                    .IsActive(true)
+                    .AutomationName(text)
+                    .HAlign(HorizontalAlignment.Center),
+                Caption(text).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center)
+            )
+            .VAlign(VerticalAlignment.Center)
+            .HAlign(HorizontalAlignment.Center)
+        )
+        .Padding(16)
+        .CornerRadius(YuumiTheme.OverlayRadius)
+        .Background(Theme.CardBackground)
+        .WithBorder(Theme.CardStroke, 1)
+        .HAlign(HorizontalAlignment.Stretch)
+        .VAlign(VerticalAlignment.Stretch);
 
     private static Element BuildSkeletons(YuumiPalette palette)
     {

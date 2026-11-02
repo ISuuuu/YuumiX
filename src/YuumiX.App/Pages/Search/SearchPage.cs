@@ -118,6 +118,9 @@ public sealed class SearchPage : Component<SearchPageProps>
         var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
         var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
         var (uploadOn, setUploadOn) = UseState(services.Config.Functions.UploadEnabled, threadSafe: true);
+        bool reduceMotion = UseReducedMotion();
+        bool isHighContrast = UseHighContrast();
+        bool skipMotion = reduceMotion || isHighContrast;
         UseEffect(() => () =>
         {
             pageCancellation.Current.Cancel();
@@ -382,6 +385,8 @@ public sealed class SearchPage : Component<SearchPageProps>
               .VAlign(VerticalAlignment.Stretch)
               .HAlign(HorizontalAlignment.Stretch);
 
+        list = SearchMotion.List(list, skipMotion, visible.Count, historyCacheKey);
+
         // 左列：列表吃剩余高度（自身由 10 局网格占满），分页条固定在底部。
         // Grid 的签名是 Grid(columns, rows, children)——第一个数组是**列**，写反会静默错乱（历史踩坑）。
         Element leftColumn = Grid(
@@ -402,9 +407,31 @@ public sealed class SearchPage : Component<SearchPageProps>
         void OnClickPlayerSummonerId(long id) =>
             RunSearch(new SearchTargetInput(null, null, id, 0));
 
-        Element content = summoner is null
-            ? SearchChrome.SearchGuideEmpty(historyList, OnSelectHistory, OnRemoveHistory, services.I18n)
-            : Grid(
+        Element content;
+        if (summoner is null)
+        {
+            content = SearchChrome.SearchGuideEmpty(historyList, OnSelectHistory, OnRemoveHistory, services.I18n);
+        }
+        else
+        {
+            Element detailPanel = Grid([GridSize.Star()], [GridSize.Auto, GridSize.Star()], [
+                (enrichmentResource is AsyncValue<SearchEnrichmentResult>.Error ||
+                    enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data { Value.HasFailures: true }
+                    ? SearchChrome.RetryHint(services.I18n.T("search.enrichmentFailed", "段位和隐私状态读取失败"), services.I18n.T("search.retry", "重试"), () => setDetailVersion(detailVersion + 1))
+                    : Empty()).Grid(row: 0, column: 0),
+                MatchDetailView.Render(
+                    detail,
+                    current,
+                    catalog,
+                    palette,
+                    currentSearchPuuid: summoner.Puuid,
+                    onCopyGameId: OnCopyGameId,
+                    onClickPlayerPuuid: OnClickPlayerPuuid,
+                    onClickPlayerSummonerId: OnClickPlayerSummonerId).Grid(row: 1, column: 0)]);
+
+            detailPanel = SearchMotion.Detail(detailPanel, skipMotion, currentGameId, detailResource);
+
+            content = Grid(
                 [GridSize.Px(ListWidth), GridSize.Star()],
                 [GridSize.Star()],
                 [
@@ -414,25 +441,13 @@ public sealed class SearchPage : Component<SearchPageProps>
                     (currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Error
                         ? SearchChrome.RetryHint(services.I18n.T("search.detailFailed", "读取对局详情失败"), services.I18n.T("search.retry", "重试"), () => setDetailVersion(detailVersion + 1))
                         : currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Loading
-                        ? SearchChrome.Hint(services.I18n.T("search.detailLoading", "正在读取对局详情…"))
-                        : Grid([GridSize.Star()], [GridSize.Auto, GridSize.Star()], [
-                            (enrichmentResource is AsyncValue<SearchEnrichmentResult>.Error ||
-                                enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data { Value.HasFailures: true }
-                                ? SearchChrome.RetryHint(services.I18n.T("search.enrichmentFailed", "段位和隐私状态读取失败"), services.I18n.T("search.retry", "重试"), () => setDetailVersion(detailVersion + 1))
-                                : Empty()).Grid(row: 0, column: 0),
-                            MatchDetailView.Render(
-                                detail,
-                                current,
-                                catalog,
-                                palette,
-                                currentSearchPuuid: summoner.Puuid,
-                                onCopyGameId: OnCopyGameId,
-                                onClickPlayerPuuid: OnClickPlayerPuuid,
-                                onClickPlayerSummonerId: OnClickPlayerSummonerId).Grid(row: 1, column: 0)]))
+                        ? SearchChrome.DetailLoading(services.I18n.T("search.detailLoading", "正在读取对局详情…"))
+                        : detailPanel)
                     .Grid(row: 0, column: 1),
                 ])
                 .VAlign(VerticalAlignment.Stretch)
                 .HAlign(HorizontalAlignment.Stretch);
+        }
 
         // 提交搜索：名字空时只更新提示，不清空当前已显示的战绩（否则一次手滑就把列表清空）。
         void SubmitSearch(string? targetPuuid = null, long targetGameId = 0)
