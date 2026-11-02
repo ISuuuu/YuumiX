@@ -215,4 +215,30 @@ public class GameInfoServiceTests
             Assert.Equal(expectedCount, player.Matches.Count);
         }
     }
+
+    [Fact]
+    public async Task RefreshStateAsync_WhenTransportNull_ResetsStateAndClearsError()
+    {
+        var config = new AppConfig();
+        var summonerService = new SummonerService(() => null);
+        var matchService = new MatchService(() => null);
+        var careerService = new CareerService(() => null);
+        var masteryService = new MasteryService(() => null);
+        var fateService = new FateService(() => null);
+
+        var service = new GameInfoService(
+            () => null,
+            summonerService,
+            matchService,
+            careerService,
+            masteryService,
+            fateService,
+            config);
+
+        await service.RefreshStateAsync();
+
+        Assert.Equal(GamePhase.None, service.CurrentState.Phase);
+        Assert.False(service.CurrentState.ShouldShowContent);
+        Assert.Null(service.CurrentState.Error);
+    }
 }

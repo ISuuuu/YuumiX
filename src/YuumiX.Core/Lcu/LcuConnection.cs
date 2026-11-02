@@ -141,7 +141,7 @@ public sealed class LcuConnection : IDisposable
         {
             lock (_gate)
             {
-                return _transport;
+                return _current.Status == LcuConnectionStatus.Connected ? _transport : null;
             }
         }
     }
@@ -153,7 +153,7 @@ public sealed class LcuConnection : IDisposable
         {
             lock (_gate)
             {
-                return _credentials;
+                return _current.Status == LcuConnectionStatus.Connected ? _credentials : null;
             }
         }
     }
@@ -281,6 +281,8 @@ public sealed class LcuConnection : IDisposable
 
             // 客户端重启后安装目录可能变化，清掉路径缓存让下一轮重新定位
             _finder.Reset();
+
+            CleanupTransport();
         }
 
         Publish(LcuConnectionState.Disconnected("连接已断开"));

@@ -156,6 +156,14 @@ public sealed class AgentSupervisor : IAsyncDisposable
         CancellationTokenSource cts;
         TaskCompletionSource<bool> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        // 确保内部 tcs 的异常无论是否被 ReplaceOld 等待观察，都已在日志记录后标记已观测，
+        // 防止 GC 终结器触发 TaskScheduler.UnobservedTaskException
+        _ = tcs.Task.ContinueWith(
+            static t => _ = t.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
         lock (_lock)
         {
             if (_disposed)
@@ -207,6 +215,7 @@ public sealed class AgentSupervisor : IAsyncDisposable
             {
                 _logger?.LogError(ex, "受监管任务 #{TaskId} ({Kind}) 执行异常", taskId, kind);
                 tcs.TrySetException(ex);
+                _ = tcs.Task.Exception;
             }
             finally
             {

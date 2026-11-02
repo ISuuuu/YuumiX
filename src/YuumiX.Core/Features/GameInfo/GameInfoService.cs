@@ -389,7 +389,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         ILcuTransport? transport = _transportProvider();
         if (transport is null)
         {
-            UpdateState(s => s with { Phase = GamePhase.None, ShouldShowContent = false });
+            UpdateState(s => s with { Phase = GamePhase.None, ShouldShowContent = false, Error = null });
             return;
         }
 
@@ -437,7 +437,14 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "RefreshStateAsync 发生异常");
-            UpdateState(s => s with { Error = ex.Message });
+            if (_transportProvider() is null)
+            {
+                UpdateState(s => s with { Phase = GamePhase.None, ShouldShowContent = false, Error = null });
+            }
+            else
+            {
+                UpdateState(s => s with { Error = ex.Message });
+            }
         }
     }
 
@@ -2861,7 +2868,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         }
         else if (state.Status == LcuConnectionStatus.Disconnected)
         {
-            UpdateState(s => s with { Phase = GamePhase.None, ShouldShowContent = false });
+            UpdateState(s => s with { Phase = GamePhase.None, ShouldShowContent = false, Error = null });
         }
     }
 

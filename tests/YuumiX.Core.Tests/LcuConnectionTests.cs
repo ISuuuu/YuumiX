@@ -174,6 +174,9 @@ public sealed class LcuConnectionTests
             () => Snapshot(states).Count(s => s.Status == LcuConnectionStatus.Disconnected) >= 1,
             cts.Token);
 
+        Assert.Null(connection.Transport);
+        Assert.Null(connection.Credentials);
+
         await WaitUntilAsync(() => server.WebSocketConnectionCount >= 2, cts.Token);
         await WaitUntilAsync(
             () => connection.CurrentState.Status == LcuConnectionStatus.Connected,

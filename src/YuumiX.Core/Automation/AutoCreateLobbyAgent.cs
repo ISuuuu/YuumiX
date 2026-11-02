@@ -104,7 +104,7 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
     }
 
     /// <summary>
-    /// LCU 连接重置（断开/客户端重启）：清空建厅标记，允许下个客户端实例重新建厅。
+    /// LCU 连接重置（断开/客户端重启）：清空建厅标记并取消在跑建厅任务，允许下个客户端实例重新建厅。
     /// </summary>
     public void OnConnectionReset()
     {
@@ -112,86 +112,95 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
         {
             _createdForCurrentClient = false;
         }
+
+        _supervisor.CancelKind(TaskKind.AutoCreateLobby);
     }
 
     private async Task CreateLobbyTaskAsync(CancellationToken ct)
     {
-        for (int attempt = 1; attempt <= MaxAttempts; attempt++)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-
-            // 阶段守卫：仅在空闲阶段允许建厅，用户已离开空闲阶段则视为本轮机会已消费。
-            var phase = _lifecycle.Snapshot().Phase;
-            if (!IdlePhases.Contains(phase))
+            for (int attempt = 1; attempt <= MaxAttempts; attempt++)
             {
-                lock (_stateLock)
+                ct.ThrowIfCancellationRequested();
+
+                // 阶段守卫：仅在空闲阶段允许建厅，用户已离开空闲阶段则视为本轮机会已消费。
+                var phase = _lifecycle.Snapshot().Phase;
+                if (!IdlePhases.Contains(phase))
                 {
-                    _createdForCurrentClient = true;
+                    lock (_stateLock)
+                    {
+                        _createdForCurrentClient = true;
+                    }
+
+                    _logger?.LogInformation("当前阶段 {Phase} 非空闲，放弃自动建厅", phase);
+                    return;
                 }
 
-                _logger?.LogInformation("当前阶段 {Phase} 非空闲，放弃自动建厅", phase);
-                return;
-            }
-
-            var transport = _transportProvider();
-            if (transport is null)
-            {
-                _logger?.LogWarning("LCU 传输层未连接，自动建厅终止");
-                return;
-            }
-
-            // 已在有效大厅：不再重复创建，避免踢出已有队伍。
-            var lobbyResp = await transport.SendAsync(
-                LcuRequest.Get("/lol-lobby/v2/lobby"),
-                ct).ConfigureAwait(false);
-            if (lobbyResp.IsSuccess)
-            {
-                lock (_stateLock)
+                var transport = _transportProvider();
+                if (transport is null)
                 {
-                    _createdForCurrentClient = true;
+                    _logger?.LogWarning("LCU 传输层未连接，自动建厅终止");
+                    return;
                 }
 
-                _logger?.LogInformation("检测到已存在有效大厅，跳过自动建厅");
-                return;
-            }
+                // 已在有效大厅：不再重复创建，避免踢出已有队伍。
+                var lobbyResp = await transport.SendAsync(
+                    LcuRequest.Get("/lol-lobby/v2/lobby"),
+                    ct).ConfigureAwait(false);
+                if (lobbyResp.IsSuccess)
+                {
+                    lock (_stateLock)
+                    {
+                        _createdForCurrentClient = true;
+                    }
 
-            var queueId = _configProvider().Functions.DefaultGameMode;
-            var body = new JsonObject { ["queueId"] = queueId }.ToJsonString();
-            var createResp = await transport.SendAsync(
-                LcuRequest.Post("/lol-lobby/v2/lobby", body),
-                ct).ConfigureAwait(false);
+                    _logger?.LogInformation("检测到已存在有效大厅，跳过自动建厅");
+                    return;
+                }
 
-            if (!createResp.IsSuccess)
-            {
-                _logger?.LogWarning("创建大厅失败 (HTTP {StatusCode}, 第 {Attempt}/{MaxAttempts} 次)",
-                    createResp.StatusCode, attempt, MaxAttempts);
+                var queueId = _configProvider().Functions.DefaultGameMode;
+                var body = new JsonObject { ["queueId"] = queueId }.ToJsonString();
+                var createResp = await transport.SendAsync(
+                    LcuRequest.Post("/lol-lobby/v2/lobby", body),
+                    ct).ConfigureAwait(false);
+
+                if (!createResp.IsSuccess)
+                {
+                    _logger?.LogWarning("创建大厅失败 (HTTP {StatusCode}, 第 {Attempt}/{MaxAttempts} 次)",
+                        createResp.StatusCode, attempt, MaxAttempts);
+                    await Task.Delay(RetryInterval, ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                // 创建后缓冲 1 秒再校验：客户端启动初期页面跳转可能把刚建的大厅冲掉。
+                await Task.Delay(PostCreateVerifyDelay, ct).ConfigureAwait(false);
+                var verifyResp = await transport.SendAsync(
+                    LcuRequest.Get("/lol-lobby/v2/lobby"),
+                    ct).ConfigureAwait(false);
+
+                if (verifyResp.IsSuccess)
+                {
+                    lock (_stateLock)
+                    {
+                        _createdForCurrentClient = true;
+                    }
+
+                    _logger?.LogInformation("自动创建大厅成功 (queueId={QueueId})", queueId);
+                    return;
+                }
+
+                _logger?.LogInformation("创建的大厅已被客户端冲掉 (queueId={QueueId}, 第 {Attempt}/{MaxAttempts} 次)，继续重试",
+                    queueId, attempt, MaxAttempts);
                 await Task.Delay(RetryInterval, ct).ConfigureAwait(false);
-                continue;
             }
 
-            // 创建后缓冲 1 秒再校验：客户端启动初期页面跳转可能把刚建的大厅冲掉。
-            await Task.Delay(PostCreateVerifyDelay, ct).ConfigureAwait(false);
-            var verifyResp = await transport.SendAsync(
-                LcuRequest.Get("/lol-lobby/v2/lobby"),
-                ct).ConfigureAwait(false);
-
-            if (verifyResp.IsSuccess)
-            {
-                lock (_stateLock)
-                {
-                    _createdForCurrentClient = true;
-                }
-
-                _logger?.LogInformation("自动创建大厅成功 (queueId={QueueId})", queueId);
-                return;
-            }
-
-            _logger?.LogInformation("创建的大厅已被客户端冲掉 (queueId={QueueId}, 第 {Attempt}/{MaxAttempts} 次)，继续重试",
-                queueId, attempt, MaxAttempts);
-            await Task.Delay(RetryInterval, ct).ConfigureAwait(false);
+            _logger?.LogWarning("自动创建大厅 {MaxAttempts} 次尝试均失败", MaxAttempts);
         }
-
-        _logger?.LogWarning("自动创建大厅 {MaxAttempts} 次尝试均失败", MaxAttempts);
+        catch (LcuTransportException ex)
+        {
+            _logger?.LogInformation("自动建厅因 LCU 传输中断终止: {Message}", ex.Message);
+        }
     }
 
     public ValueTask DisposeAsync()

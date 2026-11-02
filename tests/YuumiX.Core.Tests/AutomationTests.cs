@@ -97,6 +97,34 @@ public sealed class AutomationTests
     }
 
     [Fact]
+    public async Task Supervisor_FaultedTask_MarksExceptionObserved()
+    {
+        await using var supervisor = new AgentSupervisor();
+
+        var (spawned, id) = await supervisor.TrySpawnAsync(TaskKind.AutoAccept, "failing-task", ct =>
+        {
+            throw new InvalidOperationException("boom");
+        });
+
+        Assert.True(spawned);
+        Assert.True(id > 0);
+
+        // 等待任务在后台线程中执行并从在册列表移除
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (DateTime.UtcNow < deadline && supervisor.GetActiveTasks().Count > 0)
+        {
+            await Task.Delay(20);
+        }
+
+        Assert.Empty(supervisor.GetActiveTasks());
+
+        // 强制 GC 终结，确认内部 tcs 不会因异常未观察而引发 UnobservedTaskException
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+    }
+
+    [Fact]
     public void Lifecycle_TransitionsAndDeduplication()
     {
         var lifecycle = new AgentLifecycle();
@@ -657,6 +685,52 @@ public sealed class AutomationTests
         await Task.Delay(200);
 
         Assert.Empty(transport.RecordedRequests);
+    }
+
+    [Fact]
+    public async Task AutoCreateLobbyAgent_OnConnectionReset_CancelsActiveLobbyTask()
+    {
+        var requestStarted = new TaskCompletionSource<bool>();
+        var requestBlocked = new TaskCompletionSource<bool>();
+
+        var transport = new MockTransport
+        {
+            Handler = req =>
+            {
+                requestStarted.TrySetResult(true);
+                // 挂起模拟正在发起的网络请求
+                requestBlocked.Task.GetAwaiter().GetResult();
+                return new LcuResponse(404, "");
+            }
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        agent.OnPhaseChanged(GamePhase.None);
+        await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Single(supervisor.GetActiveTasks());
+
+        // 模拟客户端断开重置
+        agent.OnConnectionReset();
+
+        // 唤醒挂起的网络 handler
+        requestBlocked.TrySetResult(true);
+
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (DateTime.UtcNow < deadline && supervisor.GetActiveTasks().Count > 0)
+        {
+            await Task.Delay(20);
+        }
+
+        Assert.Empty(supervisor.GetActiveTasks());
     }
 
     [Fact]
