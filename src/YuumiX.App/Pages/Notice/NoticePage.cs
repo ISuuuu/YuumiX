@@ -31,6 +31,8 @@ public sealed class NoticePage : Component
     public override Element Render()
     {
         var services = UseContext(AppHost.Context);
+        var reducedMotion = UseReducedMotion();
+        var highContrast = UseHighContrast();
 
         // threadSafe: true —— 拉取在后台线程完成，回调直接封送回 UI 线程（ADR-07）。
         // 初值只被首次渲染读取，必须用 UseMemo 固定实例，否则每次渲染都会新分配一个 state 对象。
@@ -83,11 +85,13 @@ public sealed class NoticePage : Component
             setReloadTick(reloadTick + 1);
         }
 
+        bool skipMotion = reducedMotion || highContrast;
+
         return view.IsLoading
             ? RenderLoading()
             : view.Error is not null
                 ? RenderError(view.Error, Reload)
-                : RenderContent(view, Reload);
+                : RenderContent(view, Reload, skipMotion, reloadTick);
     }
 
     /// <summary>加载态：对齐旧 notice-popup-status 的 spinner + 提示。</summary>
@@ -128,7 +132,7 @@ public sealed class NoticePage : Component
     }
 
     /// <summary>内容态：页头（标题 + 刷新）+ 缓存提示（可选）+ 公告卡片。</summary>
-    private static Element RenderContent(NoticeViewState view, Action reload)
+    private static Element RenderContent(NoticeViewState view, Action reload, bool skipMotion, int reloadTick)
     {
         var header = PageHeaders.PageHeader(
             "公告",
@@ -156,12 +160,15 @@ public sealed class NoticePage : Component
                 .Background(Theme.Ref("SubtleFillColorSecondaryBrush")));
         }
 
-        blocks.Add(Border(
+        var card = Border(
                 VStack(12, NoticeMarkdown.RenderBlocks(view.Markdown ?? string.Empty)))
             .Padding(24)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Background(Theme.CardBackground)
-            .WithBorder(Theme.CardStroke, 1));
+            .Background(Theme.SolidBackground)
+            .WithBorder(Theme.CardStroke, 1);
+
+        string trigger = $"notice:{reloadTick}@{view.FromCache}@{view.Markdown?.Length ?? 0}";
+        blocks.Add(NoticeMotion.Content(card, trigger, skipMotion));
 
         return (ScrollViewer(
             VStack(16, [header, .. blocks]).Padding(28).HAlign(HorizontalAlignment.Stretch)) with

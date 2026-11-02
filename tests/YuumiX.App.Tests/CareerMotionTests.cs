@@ -91,6 +91,47 @@ public sealed class CareerMotionTests
         AssertFade(masteryResult, "careerMasteryFadeIn", "mastery:puuid-1@0");
     }
 
+    [Fact]
+    public void CareerTabMotionTracker_StableDuringSameDisplay_AndDifferentiatesReentryFromNewResult()
+    {
+        var tracker = new CareerTabMotionTracker<string>();
+        string data1 = "result-v1";
+        string data2 = "result-v2";
+
+        // 1. 处于其他页签（如 Matches）时后台获取到数据：不赋予动效身份
+        object? triggerBg = tracker.EvaluateTrigger(CareerTab.Mastery, CareerTab.Matches, data1, "puuid-1", 0);
+        Assert.Null(triggerBg);
+
+        // 2. 切入该页签（重新进入页签）：因数据引用未变，瞬间呈现，无淡入
+        object? triggerEnter = tracker.EvaluateTrigger(CareerTab.Mastery, CareerTab.Mastery, data1, "puuid-1", 0);
+        Assert.Null(triggerEnter);
+
+        // 3. 当前处于该页签时，新数据到达（如初次就绪）：赋予动效身份
+        var trackerActive = new CareerTabMotionTracker<string>();
+        object? triggerInitial = trackerActive.EvaluateTrigger(CareerTab.Mastery, CareerTab.Mastery, data1, "puuid-1", 0);
+        Assert.NotNull(triggerInitial);
+
+        // 4. 同一次展示期间因同页签内搜索、筛选或弹窗重渲染：稳定保留相同的动效身份，防止 Keyframes 撤销
+        object? triggerRerender = trackerActive.EvaluateTrigger(CareerTab.Mastery, CareerTab.Mastery, data1, "puuid-1", 0);
+        Assert.Equal(triggerInitial, triggerRerender);
+
+        // 5. 点击主动刷新：refreshToken 改变，但在新数据到达前仍是旧数据引用，不应提前消耗新代际的资格
+        object? triggerDuringRefresh = trackerActive.EvaluateTrigger(CareerTab.Mastery, CareerTab.Mastery, data1, "puuid-1", 1);
+        Assert.Equal(triggerInitial, triggerDuringRefresh);
+
+        // 6. 新数据正式到达：演进为新代际的动效身份
+        object? triggerNewData = trackerActive.EvaluateTrigger(CareerTab.Mastery, CareerTab.Mastery, data2, "puuid-1", 1);
+        Assert.NotNull(triggerNewData);
+        Assert.NotEqual(triggerInitial, triggerNewData);
+        Assert.Contains("@1", triggerNewData.ToString());
+
+        // 7. 切走页签再切回：切走时重置为 null，切回时保持 null
+        object? triggerLeave = trackerActive.EvaluateTrigger(CareerTab.Mastery, CareerTab.Matches, data2, "puuid-1", 1);
+        Assert.Null(triggerLeave);
+        object? triggerReenter = trackerActive.EvaluateTrigger(CareerTab.Mastery, CareerTab.Mastery, data2, "puuid-1", 1);
+        Assert.Null(triggerReenter);
+    }
+
     private static void AssertFade(Element element, string name, object trigger)
     {
         Assert.NotNull(element.KeyframeAnimations);

@@ -449,12 +449,23 @@ public sealed class CareerPage : Component<CareerPageProps>
             : Empty();
 
         // 战绩页签要「锁定上半、只滚列表」，因此单独取两段；其余页签仍是整页一张滚动区。
-        CareerMatchesSection.MatchesParts? matchesParts =
-            effectiveTab == CareerTab.Matches ? MatchesTab() : null;
+        var matchesParts = MatchesTab();
 
-        Element content = matchesParts is not null
-            ? Empty()
-            : effectiveTab switch
+        // 跟踪战利品与英雄熟练度页签的动效身份与展示生命周期：
+        // 区分「重新进入页签（已有数据瞬间呈现）」与「当前页签下新结果就绪（平滑淡入）」，
+        // 并在同一次展示期间稳定保留动画声明，防止在动画播放期间由于同页签重渲染撤销 Keyframes 而提前终止；
+        // 刷新时新数据就绪前，旧数据不会提前消耗新代际的播放资格。
+        var lootMotionTrackerRef = UseRef<CareerTabMotionTracker<PlayerLootOverview>?>(null);
+        var lootMotionTracker = lootMotionTrackerRef.Current ??= new();
+        object? lootMotionTrigger = lootMotionTracker.EvaluateTrigger(
+            CareerTab.Loot, effectiveTab, loot, effectivePuuid, refreshToken);
+
+        var masteryMotionTrackerRef = UseRef<CareerTabMotionTracker<MasteryOverview>?>(null);
+        var masteryMotionTracker = masteryMotionTrackerRef.Current ??= new();
+        object? masteryMotionTrigger = masteryMotionTracker.EvaluateTrigger(
+            CareerTab.Mastery, effectiveTab, mastery, effectivePuuid, refreshToken);
+
+        Element content = effectiveTab switch
             {
                 CareerTab.Loot => VStack(12,
                     lootFailureHint,
@@ -478,10 +489,8 @@ public sealed class CareerPage : Component<CareerPageProps>
                                         int confirmed = 0;
                                         setConfirmDialog(dialog with { OnConfirm = () => { if (Interlocked.Exchange(ref confirmed, 1) != 0) return; setConfirmDialog(null); dialog.OnConfirm(); } });
                                     })),
-                            skipMotion,
-                            effectivePuuid,
-                            refreshToken,
-                            loot is not null)),
+                            lootMotionTrigger,
+                            skipMotion)),
                 CareerTab.Mastery => mastery is null
                     ? (loading ? CareerVisuals.SkeletonMastery() : masteryFailureHint)
                     : CareerMotion.Mastery(
@@ -498,116 +507,30 @@ public sealed class CareerPage : Component<CareerPageProps>
                             onLevelFilterChanged: setMasteryLevel,
                             sortIndex: masterySort,
                             onSortChanged: setMasterySort),
-                        skipMotion,
-                        effectivePuuid,
-                        refreshToken,
-                        mastery is not null),
+                        masteryMotionTrigger,
+                        skipMotion),
                 // 战绩页签已在上方单独取两段，这里只是编译器要求的兜底分支
                 _ => Empty(),
             };
 
-        // 纵向节奏对齐旧版 Career.vue：`.summoner-header` 的 margin-bottom 1.5rem 与
-        // `.career-tabs` 的 margin-top 12 折叠后为 24，「资料卡 → 页签」实际 24；
-        // 页签的 margin-bottom 16 则是「页签 → 正文」的间距。
-        // Reactor 不做外边距折叠，因此这里显式写成两段不同间距，而不是一个统一值。
-        //
-        // 正文列宽取自 CareerVisuals.ContentWidth：三个页签（战绩 / 战利品 / 熟练度）
-        // 的内部区块都按这个值反算宽度，写死在这里会让两边各改一次才能对齐。
-        const double HeaderGap = 24;
-        const double TabBarGap = 16;
+        var displayedMatches = new CareerMatchesSection.MatchesParts(
+            CareerMotion.Summary(
+                matchesParts.Header, skipMotion, effectivePuuid, refreshToken,
+                ranked.SoloDuo is not null || ranked.Flex is not null || !summary.IsEmpty),
+            CareerMotion.Matches(
+                matchesParts.List, skipMotion, effectivePuuid, refreshToken, queueFilter, visibleMatches.Length));
 
-        // 战绩页签：资料卡 / 页签栏 / 排位表 / 近期对局看板固定在上，只有战绩列表滚动。
-        // 其余页签仍是「整页一张滚动区」（它们没有需要常驻的看板）。
-        Element? fixedLayout = null;
-        if (matchesParts is { } parts)
-        {
-            Element summaryHeader = CareerMotion.Summary(
-                parts.Header,
-                skipMotion,
-                effectivePuuid,
-                refreshToken,
-                ranked.SoloDuo is not null || ranked.Flex is not null || !summary.IsEmpty);
-
-            Element matchesList = CareerMotion.Matches(
-                parts.List,
-                skipMotion,
-                effectivePuuid,
-                refreshToken,
-                queueFilter,
-                visibleMatches.Length);
-
-            Element fixedHead = tabBarVisible
-                ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), summaryHeader.Margin(0, TabBarGap, 0, 0))
-                : VStack(0, header, summaryHeader.Margin(0, HeaderGap, 0, 0));
-
-            // 16 = 旧版「近期看板 → 战绩列表」的间距。
-            //
-            // 滚动条必须关掉：WinUI 的 ScrollViewer 默认按需显示竖条，竖条一出现就把视口
-            // 挤窄 12 DIP，1000 宽的内容立刻超出 → 又冒出水平条，两条互相绊着、右侧多一条灰边。
-            // 这里横向彻底禁用（内容宽度由正文列决定，本就没有横向滚动需求），
-            // 纵向设为 Hidden —— 滚轮/触控照常滚动，只是不绘制滚动条。
-            Element listScroller = (ScrollViewer(matchesList) with
-            {
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                HorizontalScrollMode = ScrollMode.Disabled,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
-            }).Margin(0, TabBarGap, 0, 0);
-
-            Element fixedBody = Grid(
-                [GridSize.Star()],
-                [GridSize.Auto, GridSize.Star()],
-                [
-                    fixedHead.Grid(row: 0),
-                    listScroller.Grid(row: 1),
-                ])
-                .MaxWidth(CareerVisuals.ContentWidth)
-                .HAlign(HorizontalAlignment.Center);
-
-            fixedLayout = Border(fixedBody)
-                // 旧版 `.career` 的 padding 是 1rem 1.5rem 1rem 0.6rem（上 16 / 右 24 / 下 16 / 左 9.6）：
-                // 左侧刻意窄，让内容贴着侧边栏；9.6 不在 4px 网格上，取 8。
-                .Padding(8, 16, 24, 16)
-                .HAlign(HorizontalAlignment.Stretch);
-        }
-
-        Element stacked = tabBarVisible
-            ? VStack(0, header, tabBar.Margin(0, HeaderGap, 0, 0), content.Margin(0, TabBarGap, 0, 0))
-            // 查看他人生涯时没有页签栏：旧版此时正文紧接资料卡的 24 间距
-            : VStack(0, header, content.Margin(0, HeaderGap, 0, 0));
-
-        Element body = stacked
-            .MaxWidth(CareerVisuals.ContentWidth)
-            .HAlign(HorizontalAlignment.Center);
-
-        // 弹窗层（实现见 CareerLootOverlay）：单件数量弹窗 / 批量确认弹窗，覆盖在正文之上
         Element? overlay = CareerLootOverlay.Render(
             quantityDialog, openQuantity, confirmDialog, palette,
             setOpenQuantity, setQuantityDialog, setConfirmDialog);
 
-        // 客户端未启动：整页替换为离线占位，与战绩查询、对局信息同一套表达。
-        // 位置必须在本方法末尾：所有 UseState/UseEffect 都得按固定顺序跑完，
-        // 提前 return 会让 hook 数量随连接态变化，Reactor 直接判状态错位。
+        // 所有 Hook 均执行完后再选择离线占位，保持调用顺序稳定。
         if (connState.Status != LcuConnectionStatus.Connected)
         {
             return LcuOfflineState.Render();
         }
 
-        if (fixedLayout is not null)
-        {
-            return fixedLayout;
-        }
-
-        Element pageBody = overlay is null
-            ? body
-            : Grid(
-                [GridSize.Star()],
-                [GridSize.Star()],
-                [body, overlay]);
-
-        return ScrollViewer(
-            Border(pageBody)
-                .Padding(8, 16, 24, 16)
-                .HAlign(HorizontalAlignment.Stretch));
+        return CareerLayout.Render(header, tabBar, tabBarVisible, displayedMatches, content, effectiveTab, overlay);
     }
 
 }

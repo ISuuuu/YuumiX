@@ -162,14 +162,19 @@ public sealed class ToastHost : Component
     /// 自定义 FontIcon 拿不到该等级的图标色，反而会渲染成普通前景色。
     /// </summary>
     private static Element RenderBar(ToastEntry item, ToastQueue queue) =>
-        (InfoBar(null, item.Message) with
-        {
-            Severity = item.Severity == InfoBarSeverity.Error
-                ? InfoBarSeverity.Error
-                : InfoBarSeverity.Informational,
-            IsOpen = true,
-            // 用户点关闭：InfoBar 内部将 IsOpen 置 false 并触发 Closed，这里回删队列。
-            OnClosed = () => queue.Dismiss(item.Id),
-        })
+        Border(
+            (InfoBar(null, item.Message) with
+            {
+                Severity = item.Severity == InfoBarSeverity.Error
+                    ? InfoBarSeverity.Error
+                    : InfoBarSeverity.Informational,
+                IsOpen = true,
+                // 用户点关闭：InfoBar 内部将 IsOpen 置 false 并触发 Closed，这里回删队列。
+                OnClosed = () => queue.Dismiss(item.Id),
+            })
+            .Background(Theme.SolidBackground))
+        .Background(Theme.SolidBackground)
+        .CornerRadius(YuumiTheme.OverlayRadius)
+        .WithBorder(Theme.CardStroke, 1)
         .MaxWidth(480);
 }
