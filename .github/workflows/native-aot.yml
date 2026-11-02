@@ -77,6 +77,7 @@ jobs:
 
           $required = @(
             'YuumiX.exe',
+            'YuumiX.pdb',
             'YuumiX.pri',
             'Microsoft.UI.pri',
             'Microsoft.UI.Xaml.Controls.pri',
@@ -130,7 +131,17 @@ jobs:
           }
           Write-Host "AOT 产物校验通过：Product=$($versionInfo.ProductVersion)"
 
-      # 崩溃取证文件（AppShell 的 OnUnhandledException 钩子）不应进入分发包
+      - name: Upload native debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: nativeaot-symbols-${{ inputs.version || '0.0.0-aot.check' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.PUBLISH_DIR }}/YuumiX.exe
+            ${{ env.PUBLISH_DIR }}/YuumiX.pdb
+          if-no-files-found: error
+          retention-days: 90
+
+      # 崩溃取证文件（入口注册的异常钩子）不应进入分发包
       - name: Assemble portable package
         shell: pwsh
         env:

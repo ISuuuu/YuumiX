@@ -71,32 +71,6 @@ public sealed class AppShell : Component
         var services = AppHost.Services;
         var shellLogger = services.LoggerFactory.CreateLogger<AppShell>();
 
-        // —— 崩溃取证 ——
-        // WinUI stowed exception（0xc000027b）会让进程直接死掉，WER 里只剩 HRESULT，
-        // AOT 成品又没有 devtools/调试器可断。ReactorApplication.OnUnhandledException 是
-        // 框架给应用层的异常出口，在这里把完整异常落盘到 exe 旁 crash.log，供事后定位。
-        // 一次性守卫：Render 可能重入（主题切换等），重复赋值会顶掉前一份委托。
-        var crashHooked = UseRef(false);
-        if (!crashHooked.Current)
-        {
-            crashHooked.Current = true;
-            var crashLogPath = Path.Combine(AppContext.BaseDirectory, "crash.log");
-            ReactorApplication.OnUnhandledException = ex =>
-            {
-                shellLogger.LogError(ex, "YuumiX 未处理异常（已写入 {Path}）", crashLogPath);
-                try
-                {
-                    File.WriteAllText(crashLogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}]\n{ex}");
-                }
-                catch
-                {
-                    // 崩溃路径上磁盘都不可用时无从补救，WER 记录仍是兜底证据
-                }
-
-                return false;
-            };
-        }
-
         // —— 托盘与「关闭到托盘」（对齐旧版 App.vue 的 handleClose 与 Tauri 主窗托盘）——
         // 托盘图标常驻：窗口被隐藏后它就是唯一的恢复入口，因此不能只在开关打开时才创建
         // （UseTrayIcon 只在渲染期生效，配置改动不会重渲染本组件，图标会来不及出现）。

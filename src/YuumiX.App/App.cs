@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
+using YuumiX.App.Diagnostics;
 using YuumiX.App.Shell;
 using YuumiX.App.Theming;
 using YuumiX.App.Windowing;
@@ -23,8 +25,16 @@ if (!SingleInstance.TryAcquire())
 }
 #endif
 
+// 先接好异常出口，再初始化配置、服务与 XAML，避免启动失败时尚未挂载 AppShell。
+var crashLogger = new CrashLogger(AppContext.BaseDirectory,
+    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YuumiX", "log"));
+AppDomain.CurrentDomain.UnhandledException += crashLogger.OnUnhandledException;
+TaskScheduler.UnobservedTaskException += crashLogger.OnUnobservedTaskException;
+ReactorApplication.OnUnhandledException = crashLogger.OnUiUnhandledException;
+
 // 服务必须在窗口创建之前就绪：配置与日志都是 UI 的前置依赖。
 AppHost.Initialize();
+crashLogger.Logger = AppHost.Services.LoggerFactory.CreateLogger("YuumiX.Crash");
 
 // 第三方 WinRT 控件的 XAML 元数据必须在窗口创建前注册，否则 SettingsCard 模板解析失败（空白）。
 ToolkitXamlMetadata.Register();

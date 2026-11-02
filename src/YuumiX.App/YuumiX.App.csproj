@@ -87,6 +87,8 @@
   <PropertyGroup Condition="'$(PublishAot)' == 'true'">
     <EnableAotAnalyzer>true</EnableAotAnalyzer>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <!-- 保留异常调用栈元数据，便于从 AOT 成品日志定位错误。 -->
+    <StackTraceSupport>true</StackTraceSupport>
     <!-- WinRT AOT 诊断级别 1：自定义控件跨 ABI 暴露必须过这一档（R5） -->
     <CsWinRTAotWarningLevel>1</CsWinRTAotWarningLevel>
   </PropertyGroup>
