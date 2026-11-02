@@ -587,7 +587,6 @@ internal static class SearchChrome
             iconCircle,
             Title(i18n.T("search.guideTitle", "查询召唤师战绩"))
                 .HeadingLevel(AutomationHeadingLevel.Level1)
-                .Foreground(Theme.PrimaryText)
                 .HAlign(HorizontalAlignment.Center),
             Body(i18n.T("search.guideSubtitle", "输入召唤师名称，查看对局记录、KDA、出装等详细数据"))
                 .Foreground(Theme.SecondaryText)

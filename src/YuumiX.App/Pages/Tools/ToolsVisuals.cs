@@ -87,7 +87,7 @@ internal static class ToolsVisuals
                 [
                     VStack(2,
                         Body(title).Foreground(Theme.PrimaryText),
-                        Body(description)
+                        Caption(description)
                             .Foreground(Theme.SecondaryText)
                             .Margin(new Thickness(0, 3, 0, 0))
                     ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
@@ -130,7 +130,7 @@ internal static class ToolsVisuals
                 // 标题与说明
                 VStack(2,
                     Body(title).Foreground(Theme.PrimaryText),
-                    Body(description)
+                    Caption(description)
                         .Foreground(Theme.SecondaryText)
                         .Margin(new Thickness(0, 3, 0, 0))
                 ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),

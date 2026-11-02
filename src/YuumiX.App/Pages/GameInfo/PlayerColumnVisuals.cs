@@ -141,7 +141,7 @@ internal static class PlayerColumnVisuals
         string displayName = PlayerNameVisuals.GetDisplayName(p, d, 0);
         string searchName = PlayerNameVisuals.GetSearchName(p, d);
 
-        var nameText = Caption(displayName)
+        var nameText = (props.ViewColumns == 10 ? Caption(displayName) : Body(displayName))
             .Foreground(Theme.PrimaryText)
             .TextTrimming(TextTrimming.CharacterEllipsis)
             .VAlign(VerticalAlignment.Center);
