@@ -210,6 +210,37 @@ public sealed class LcuHttpTransportTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new LcuHttpTransport(new Uri("http://127.0.0.1:1/"), "Basic x", maxConcurrency: 33));
     }
 
+    [Fact]
+    public async Task Send_WhenDisposedBeforeSend_ThrowsLcuTransportException()
+    {
+        var handler = new StubHandler((_, _, _) => Task.FromResult(JsonResponse(HttpStatusCode.OK, "{}")));
+        var transport = NewTransport(handler);
+        transport.Dispose();
+
+        var ex = await Assert.ThrowsAsync<LcuTransportException>(
+            () => transport.SendAsync(LcuRequest.Get("/system/v1/builds")));
+
+        Assert.Equal("GET", ex.Method);
+        Assert.Equal("/system/v1/builds", ex.Path);
+        Assert.Contains("已释放", ex.Message);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task Send_WhenDisposedDuringSend_ThrowsLcuTransportException()
+    {
+        var handler = new StubHandler((_, _, _) => throw new ObjectDisposedException("HttpClient"));
+        using var transport = NewTransport(handler);
+
+        var ex = await Assert.ThrowsAsync<LcuTransportException>(
+            () => transport.SendAsync(LcuRequest.Get("/system/v1/builds")));
+
+        Assert.Equal("GET", ex.Method);
+        Assert.Equal("/system/v1/builds", ex.Path);
+        Assert.Contains("已释放", ex.Message);
+        Assert.IsType<ObjectDisposedException>(ex.InnerException);
+    }
+
     private static LcuHttpTransport NewTransport(
         FakeLcuServer server,
         int maxConcurrency = 5,

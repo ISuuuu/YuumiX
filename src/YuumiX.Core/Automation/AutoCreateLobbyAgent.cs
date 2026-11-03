@@ -130,6 +130,7 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
                 {
                     lock (_stateLock)
                     {
+                        if (ct.IsCancellationRequested) return;
                         _createdForCurrentClient = true;
                     }
 
@@ -152,6 +153,7 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
                 {
                     lock (_stateLock)
                     {
+                        if (ct.IsCancellationRequested) return;
                         _createdForCurrentClient = true;
                     }
 
@@ -183,6 +185,7 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
                 {
                     lock (_stateLock)
                     {
+                        if (ct.IsCancellationRequested) return;
                         _createdForCurrentClient = true;
                     }
 
@@ -196,6 +199,10 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
             }
 
             _logger?.LogWarning("自动创建大厅 {MaxAttempts} 次尝试均失败", MaxAttempts);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger?.LogDebug("自动建厅任务已取消");
         }
         catch (LcuTransportException ex)
         {

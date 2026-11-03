@@ -105,7 +105,13 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
     public async Task<LcuResponse> SendAsync(LcuRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new LcuTransportException(
+                $"LCU 传输层已释放: {request.Method} {request.Path}",
+                request.Method.Method,
+                request.Path);
+        }
 
         if (!LcuApiCatalog.IsAllowed(request.Path))
         {
@@ -114,47 +120,66 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
 
         Exception? lastError = null;
 
-        for (var attempt = 1; attempt <= MaxRetries; attempt++)
+        try
         {
-            // 每轮重试单独取许可：退避时间不计入占用，否则超时请求会连锁拖垮其它调用
-            if (!await _permits.WaitAsync(_permitTimeout, cancellationToken).ConfigureAwait(false))
+            for (var attempt = 1; attempt <= MaxRetries; attempt++)
             {
-                throw new LcuTransportException(
-                    $"LCU 并发许可等待超时: {request.Method} {request.Path}",
-                    request.Method.Method,
-                    request.Path);
-            }
+                // 每轮重试单独取许可：退避时间不计入占用，否则超时请求会连锁拖垮其它调用
+                if (!await _permits.WaitAsync(_permitTimeout, cancellationToken).ConfigureAwait(false))
+                {
+                    throw new LcuTransportException(
+                        $"LCU 并发许可等待超时: {request.Method} {request.Path}",
+                        request.Method.Method,
+                        request.Path);
+                }
 
-            try
-            {
-                using var message = BuildMessage(request);
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeout.CancelAfter(_requestTimeout);
+                try
+                {
+                    using var message = BuildMessage(request);
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    timeout.CancelAfter(_requestTimeout);
 
-                using var response = await _http
-                    .SendAsync(message, HttpCompletionOption.ResponseContentRead, timeout.Token)
-                    .ConfigureAwait(false);
+                    using var response = await _http
+                        .SendAsync(message, HttpCompletionOption.ResponseContentRead, timeout.Token)
+                        .ConfigureAwait(false);
 
-                var body = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+                    var body = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
 
-                return new LcuResponse((int)response.StatusCode, body);
-            }
-            catch (Exception ex) when (IsTransient(ex) && !cancellationToken.IsCancellationRequested)
-            {
-                lastError = ex;
-                _logger?.LogDebug(
-                    "LCU 请求失败 ({Attempt}/{MaxRetries}): {Method} {Path} - {Error}",
-                    attempt, MaxRetries, request.Method.Method, request.Path, ex.Message);
-            }
-            finally
-            {
-                _permits.Release();
-            }
+                    return new LcuResponse((int)response.StatusCode, body);
+                }
+                catch (Exception ex) when (IsTransient(ex) && !cancellationToken.IsCancellationRequested)
+                {
+                    lastError = ex;
+                    _logger?.LogDebug(
+                        "LCU 请求失败 ({Attempt}/{MaxRetries}): {Method} {Path} - {Error}",
+                        attempt, MaxRetries, request.Method.Method, request.Path, ex.Message);
+                }
+                finally
+                {
+                    try
+                    {
+                        _permits.Release();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // 传输层在执行期间被 Dispose 时静默忽略信号量释放异常
+                    }
+                }
 
-            if (attempt < MaxRetries)
-            {
-                await Task.Delay(DefaultRetryDelay, cancellationToken).ConfigureAwait(false);
+                if (attempt < MaxRetries)
+                {
+                    await Task.Delay(DefaultRetryDelay, cancellationToken).ConfigureAwait(false);
+                }
             }
+        }
+        catch (ObjectDisposedException ex)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new LcuTransportException(
+                $"LCU 传输层已释放: {request.Method} {request.Path}",
+                request.Method.Method,
+                request.Path,
+                ex);
         }
 
         throw new LcuTransportException(

@@ -734,6 +734,74 @@ public sealed class AutomationTests
     }
 
     [Fact]
+    public async Task AutoCreateLobbyAgent_OnConnectionReset_PreventsStaleTaskFromOverwritingState()
+    {
+        var requestStarted = new TaskCompletionSource<bool>();
+        var requestBlocked = new TaskCompletionSource<bool>();
+
+        var transport = new MockTransport
+        {
+            Handler = req =>
+            {
+                if (req.Path == "/lol-lobby/v2/lobby" && req.Method == HttpMethod.Get)
+                {
+                    requestStarted.TrySetResult(true);
+                    // 挂起模拟正在发起的网络请求
+                    requestBlocked.Task.GetAwaiter().GetResult();
+                    // 返回已有大厅成功：在没有取消检查前，该分支会将 _createdForCurrentClient 设为 true
+                    return new LcuResponse(200, """{"gameId":123}""");
+                }
+                return new LcuResponse(200, "{}");
+            }
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+        config.Functions.DefaultGameMode = 450;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        // 首次触发
+        agent.OnPhaseChanged(GamePhase.None);
+        await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        // 客户端断开/重置
+        agent.OnConnectionReset();
+
+        // 唤醒挂起的旧请求
+        requestBlocked.TrySetResult(true);
+
+        // 等待旧任务退出
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (DateTime.UtcNow < deadline && supervisor.GetActiveTasks().Count > 0)
+        {
+            await Task.Delay(20);
+        }
+        Assert.Empty(supervisor.GetActiveTasks());
+
+        // 新客户端周期：无大厅，期望发起 POST 建厅
+        var postLobbyCalled = new TaskCompletionSource<bool>();
+        transport.Handler = req =>
+        {
+            if (req.Path == "/lol-lobby/v2/lobby" && req.Method == HttpMethod.Post)
+            {
+                postLobbyCalled.TrySetResult(true);
+            }
+            return new LcuResponse(404, "");
+        };
+
+        // 触发新一轮空闲阶段，若状态被旧任务污染为 true 则会被跳过
+        agent.OnPhaseChanged(GamePhase.None);
+
+        var completed = await Task.WhenAny(postLobbyCalled.Task, Task.Delay(500));
+        Assert.Same(postLobbyCalled.Task, completed);
+    }
+
+    [Fact]
     public async Task AramTeamSideAgent_Posts_Visible_Chat_Message()
     {
         var transport = new MockTransport
