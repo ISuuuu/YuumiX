@@ -178,7 +178,7 @@ public sealed class GameInfoPage : Component
 
         bool skipMotion = reducedMotion || highContrast;
         string? trigger = isContentReady
-            ? $"gameinfo:{state.ViewColumns}@{state.Phase}@{state.CurrentQueueId}@{state.ActiveTab}@{state.MyTeam.FirstOrDefault()?.Puuid ?? "empty"}@{state.IsDemoData}"
+            ? $"gameinfo:{state.ViewColumns}@{state.CurrentQueueId}@{state.ActiveTab}@{state.MyTeam.FirstOrDefault()?.Puuid ?? "empty"}@{state.IsDemoData}"
             : null;
 
         Element content = isContentReady

@@ -14,10 +14,11 @@ public sealed class AutoReconnectAgent : IAutomationAgent
     private const int MaxAttempts = 5;
 
     /// <summary>
-    /// 游戏进程两次采样的间隔。Alt+F4 之后 Windows 回收进程可能滞后数百毫秒，
-    /// 单次采样有机会读到残留进程，把「主动退出」误判成「仍在对局中」。
+    /// 两次采样确认游戏进程存活的间隔。
+    /// 实测对局正常结束（或 Alt+F4 退出）后，操作系统回收 <c>League of Legends.exe</c>
+    /// 进程通常耗时数百毫秒至 1 秒左右；保留 1000ms 间隔可确保对局结束瞬间不误判为掉线并误发重连。
     /// </summary>
-    private static readonly TimeSpan GameProcessProbeInterval = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan GameProcessProbeInterval = TimeSpan.FromMilliseconds(1000);
 
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly Func<AppConfig> _configProvider;
