@@ -259,22 +259,26 @@ internal static partial class GeneralSection
 
         if (info is not null)
         {
-            items.Add(SettingsCardKit.ContentCard(VStack(8,
-                SettingsVisuals.InfoRow(i18n.T("settings.newVersionLabel", "新版本"), $"v{info.Version}"),
-                SettingsVisuals.InfoRow(i18n.T("settings.currentVersionLabel", "当前版本"), $"v{info.CurrentVersion}"),
+            var contentItems = new List<Element>();
+            if (!string.IsNullOrEmpty(info.Notes))
+            {
                 // 发布说明可能很长（某些版本带整段 changelog）：限高后可滚动，
                 // 否则一两百行的说明会把整页推下去。
-                string.IsNullOrEmpty(info.Notes)
-                    ? Empty()
-                    : ScrollViewer(
+                contentItems.Add(
+                    ScrollViewer(
                         MarkdownView.Render(info.Notes))
                         .MaxHeight(160)
-                        .IsTabStop(true),
-                // 只在「想再确认一次」时才需要重新检查：主操作已经上移到标题卡，
-                // 这里放低频动作，避免两个同等重量的按钮抢注意力。
+                        .IsTabStop(true));
+            }
+
+            // 只在「想再确认一次」时才需要重新检查：主操作已经上移到标题卡，
+            // 这里放低频动作，避免两个同等重量的按钮抢注意力。
+            contentItems.Add(
                 Button(update.Check.IsPending ? i18n.T("settings.checkingUpdate", "检查中...") : i18n.T("settings.recheckBtn", "重新检查"), () => _ = update.Check.RunAsync(null))
                     .IsEnabled(!update.Check.IsPending)
-                    .AutomationName("重新检查更新按钮"))));
+                    .AutomationName("重新检查更新按钮"));
+
+            items.Add(SettingsCardKit.ContentCard(VStack(8, [.. contentItems])));
         }
 
         items.Add(SettingsCardKit.Card(
