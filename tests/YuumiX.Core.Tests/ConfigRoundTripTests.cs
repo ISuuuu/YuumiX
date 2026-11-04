@@ -99,6 +99,28 @@ public sealed class ConfigRoundTripTests
     }
 
     /// <summary>
+    /// 「关闭到托盘」缺键（老配置未表态）时必须落到默认值上。
+    ///
+    /// 该默认值只由 <see cref="GeneralConfig.DefaultEnableCloseToTray"/> 单点定义，
+    /// 设置页开关与窗口关闭拦截都读它；这里锁定「模型默认值 == 常量」，
+    /// 避免日后调整默认时两处取值漂移成「开关显示已启用、点关闭却不进托盘」。
+    /// </summary>
+    [Fact]
+    public void CloseToTray_FallsBackToDefault_WhenKeyAbsent()
+    {
+        using var temp = new TempDirectory();
+        var path = temp.File("config.json");
+
+        var root = Fixture.ReadObject();
+        root["General"]!.AsObject().Remove("EnableCloseToTray");
+        File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), NoBom);
+
+        var config = NewStore(path).Load();
+
+        Assert.Equal(GeneralConfig.DefaultEnableCloseToTray, config.General.EnableCloseToTray);
+    }
+
+    /// <summary>
     /// 未建模的字段（例如将来 Yuumi 新增、或用户手工加的键）必须原样写回。
     ///
     /// 迁移期两个版本共用同一份 config.json，若 YuumiX 写回时丢弃未知键，

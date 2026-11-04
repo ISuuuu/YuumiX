@@ -82,20 +82,23 @@ internal static partial class GeneralSection
                     ui.Commit(nameof(GeneralConfig.EnableStartLolWithApp));
                 }),
             // 两态开关，不是三态复选框：配置里的 null 只是「老配置未表态」的存储细节，
-            // 语义上等价于 false（旧版 get_close_to_tray 的 unwrap_or(false)），不能渲染成第三种状态。
+            // 语义上等价于默认值（GeneralConfig.DefaultEnableCloseToTray，现为启用），不能渲染成第三种状态。
             SettingsCardKit.Toggle(
                 i18n.T("settings.closeToTrayTitle", "关闭到托盘"),
                 i18n.T("settings.closeToTrayDesc", "点击关闭按钮时将窗口隐藏到系统托盘区域"),
-                config.General.EnableCloseToTray ?? false,
+                config.General.EnableCloseToTray ?? GeneralConfig.DefaultEnableCloseToTray,
                 v =>
                 {
                     config.General.EnableCloseToTray = v;
                     ui.Commit(nameof(GeneralConfig.EnableCloseToTray));
                 },
                 automationName: "关闭到托盘开关"),
+            // 语义是「启动时不显示主窗口」（旧版 App.vue 的静默启动分支），
+            // 配置字段名 EnableGameStartMinimize 是 Rust 版遗留的误导命名，行为与对局无关。
+            // 因此 fallback 文案必须与词条一致，不能按字段名写成「游戏开始时最小化」。
             SettingsCardKit.Toggle(
-                i18n.T("settings.startMinimizedTitle", "游戏开始时最小化"),
-                i18n.T("settings.startMinimizedDesc", "检测到对局开始后自动最小化主窗口"),
+                i18n.T("settings.startMinimizedTitle", "启动时最小化"),
+                i18n.T("settings.startMinimizedDesc", "软件启动后自动隐藏主窗口并最小化到系统托盘"),
                 config.General.EnableGameStartMinimize,
                 v =>
                 {

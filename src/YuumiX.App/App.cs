@@ -57,6 +57,8 @@ try
     // MinWidth/MinHeight：从拖拽源头挡住"窗口被缩到极小后被持久化"——布局存档对
     // 合法的小尺寸原样还原（框架 IsPlausiblePlacement 只拦荒谬值），下次开局会近乎无法操作。
     // 旧版 Yuumi（Tauri）没有最小尺寸，此约束是 YuumiX 新增的防护，值取桌面应用惯例，可调。
+    var startHidden = config.General.EnableGameStartMinimize;
+
     var spec = new WindowSpec
     {
         Title = "YuumiX",
@@ -65,8 +67,41 @@ try
         MinWidth = 800,
         MinHeight = 600,
         Icon = WindowIcon.FromPath(AppAssets.AppIconPath),
+        // 静默启动：不激活主窗，避免开机自启抢走前台焦点。
+        ActivateOnOpen = !startHidden,
+        // 静默启动的**关键**：框架在 Mount 之后无条件把窗口显示出来，任何 Hide 都追不上它
+        //（configure 里 Hide 过、挂载 effect 里也 Hide 过，窗口仍会真实呈现 83~800ms）。
+        // 让这次「显示」不可见是唯一出路，所以窗口以全透明创建。
+        // 注意：光写 WindowSpec.Opacity 不够——实测那次显示仍然不透明（窗口可见 83ms），
+        // 说明 spec 里的初始化值应用得太晚。真正的设置在 configure 回调里主动调 SetOpacity(0)。
+        Opacity = startHidden ? 0 : 1,
     }.WithPersistence("main", WindowStartPosition.Default);
-    ReactorApp.Run<AppShell>(spec);
+
+    ReactorApp.Run<AppShell>(spec, host =>
+    {
+        if (!startHidden)
+        {
+            return;
+        }
+
+        // 先主动把窗口设为全透明，再尝试 Hide：
+        // SetWindowLong/SetLayeredWindowAttributes 对尚未显示的窗口同样有效，之后框架那次
+        // Show 出来的就是透明画面；若 SetOpacity 本身也无效，Hide 至少还能兜住一部分时序。
+        var window = host.OwningWindow;
+        try
+        {
+            window?.SetOpacity(0);
+            window?.Hide();
+        }
+        catch (Exception ex)
+        {
+            AppHost.Services.LoggerFactory.CreateLogger("YuumiX.Startup")
+                .LogWarning(ex, "静默启动：configure 阶段设置透明/隐藏失败");
+        }
+
+        AppHost.Services.LoggerFactory.CreateLogger("YuumiX.Startup")
+            .LogInformation("静默启动：configure 阶段已置透明并尝试隐藏（window={HasWindow}）", window is not null);
+    });
 }
 finally
 {

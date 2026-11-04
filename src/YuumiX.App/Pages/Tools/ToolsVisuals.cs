@@ -58,7 +58,17 @@ internal static class ToolsVisuals
 
     // 离线守卫：客户端没开时开关一律禁用。旧系统是整页 opacity 0.5 + pointer-events:none，
     // 本版改为按控件禁用——半透明叠在 Mica + 半透明卡片上会把 12~14px 中文压成灰雾（见 OfflineBanner 注释）。
-    public static Element CleanToggle(ToolsUi ui, bool value, Action<bool> onChange, string? automationName = null) =>
+    //
+    // 父开关联动（isEnabled）：从属开关控制的分支在父开关关闭时根本不会执行（例如
+    // AramTeamSideAgent.OnPhaseChanged 首行 `if (!cfg.EnableAutoAramTeamSide) return;`），
+    // 让它保持可拨动只会写成脏配置、且拨完界面上毫无反应——看起来就像开关坏了。
+    // 与离线守卫相与：任一条件不满足即禁用。
+    public static Element CleanToggle(
+        ToolsUi ui,
+        bool value,
+        Action<bool> onChange,
+        string? automationName = null,
+        bool isEnabled = true) =>
         ToggleSwitch(
             value,
             v => onChange(v),
@@ -67,7 +77,7 @@ internal static class ToolsVisuals
             offContent: ui.I18n.T("tools.off", "关"))
             .MinWidth(0)
             .HAlign(HorizontalAlignment.Right)
-            .IsEnabled(ui.IsLcuConnected)
+            .IsEnabled(ui.IsLcuConnected && isEnabled)
             .AutomationName(automationName ?? string.Empty);
 
     // 离线守卫：客户端没开时右侧控件一律禁用（改了也不会生效，只会留下脏配置）。

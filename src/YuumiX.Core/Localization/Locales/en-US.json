@@ -432,8 +432,7 @@
       "statusEnabled": "Enabled",
       "statusDisabled": "Disabled",
       "enableHover": "Enable Auto Hover:",
-      "confirmTimeout": "Lock in on timeout (prevent dodge):",
-      "enableDodgeInGameInfo": "Show Dodge button in Game Info:"
+      "confirmTimeout": "Lock in on timeout (prevent dodge):"
     },
     "autoBan": {
       "title": "Auto Ban Champion",
@@ -778,7 +777,6 @@
     "enableHoverLabel": "Enable auto pre-pick (hover):",
     "confirmOnTimeoutLabel": "Confirm selection on timeout (anti-dodge):",
     "enableAutoPickLabel": "Auto pick champion in pick phase:",
-    "showDodgeBtnLabel": "Show dodge button in Game Info:",
     "pickCandidatesLabel": "Pre-pick candidate champions by lane:",
     "enableAutoBanLabel": "Auto ban configured champions in ban phase:",
     "pretendBanLabel": "Avoid banning teammates pre-picks (pretend ban):",

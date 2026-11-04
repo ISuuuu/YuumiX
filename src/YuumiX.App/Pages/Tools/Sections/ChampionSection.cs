@@ -168,13 +168,6 @@ internal static class ChampionSection
                         config.Functions.EnableAutoSelectChampion = v;
                         ui.Commit(nameof(FunctionsConfig.EnableAutoSelectChampion));
                     }, "自动选择英雄")),
-                ToolsVisuals.CardRow(i18n.T("tools.showDodgeBtnLabel", "在对局信息中显示秒退按钮:"),
-                    ToolsVisuals.CleanToggle(ui, config.Functions.EnableDodgeInGameInfo, v =>
-                    {
-                        if (v == config.Functions.EnableDodgeInGameInfo) return;
-                        config.Functions.EnableDodgeInGameInfo = v;
-                        ui.Commit(nameof(FunctionsConfig.EnableDodgeInGameInfo));
-                    }, "对局信息秒退按钮")),
                 Border(Empty()).Height(1).Background(Theme.DividerStroke).Margin(new Thickness(0, 6, 0, 6)),
                 Caption(i18n.T("tools.pickCandidatesLabel", "分路预选候选英雄库:")).Foreground(Theme.SecondaryText),
                 LaneTabs(ui, st.PickLaneIndex, idx => set(st with { PickLaneIndex = idx })),
@@ -213,7 +206,7 @@ internal static class ChampionSection
                         if (v == config.Functions.PretendBan) return;
                         config.Functions.PretendBan = v;
                         ui.Commit(nameof(FunctionsConfig.PretendBan));
-                    }, "避开队友预选")),
+                    }, "避开队友预选", isEnabled: config.Functions.EnableAutoBanChampion)),
                 ToolsVisuals.CardRow(i18n.T("tools.banDelayLabel", "自动禁用前等待延迟 (秒):"),
                     CompactStepperControl.RenderDouble(
                         config.Functions.AutoBanDelay,

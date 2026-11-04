@@ -33,6 +33,7 @@ using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Persistence;
 
 namespace YuumiX.App.Shell;
 
@@ -116,7 +117,8 @@ public sealed class AppShell : Component
                     // 托盘菜单的「退出」或外部退出（控制台 Ctrl+C / 进程关闭）必须放行，否则窗口永远关不掉。
                     if (exitRequested.Current ||
                         AppLifetime.IsExitRequested ||
-                        !services.Config.General.EnableCloseToTray.GetValueOrDefault())
+                        !services.Config.General.EnableCloseToTray.GetValueOrDefault(
+                            GeneralConfig.DefaultEnableCloseToTray))
                     {
                         return;
                     }
@@ -192,6 +194,105 @@ public sealed class AppShell : Component
 
                 window.Activated += OnFirstActivated;
                 return () => { window.Activated -= OnFirstActivated; };
+            },
+            0);
+
+        // —— 静默启动（设置页「启动时最小化」，对齐旧版 App.vue 的 window.show() 分支）——
+        // 语义：进程照常运行（LCU 监听 / 自动化宿主 / 上传队列都在 UI 之外），主窗口不进前台，
+        // 恢复入口只有常驻托盘图标，与「关闭到托盘」共用同一条恢复路径。
+        //
+        // 观感保障在 App.cs：窗口以 Opacity = 0 创建，所以框架那次「Mount 后无条件显示」
+        // 呈现出来的是透明画面，用户看不到任何东西（实测只在 configure/effect 里 Hide
+        // 根本追不上框架的显示，窗口会真实可见 100~800ms）。
+        // 本 effect 负责：把已经显示出来的窗口真正藏掉，然后把透明度还原，
+        // 让下次「点托盘显示」是正常的而不是全透明。
+        //
+        // 为什么要重试而不是判一次：框架的显示时机不稳定（实测有两次窗口在 effect 执行时
+        // 尚未呈现、之后才显示），只判一次会漏掉后一种时序，留下一个透明窗口 + 任务栏按钮，
+        // 用户点任务栏只会得到一块点不动也看不见的区域。
+        UseEffect(
+            () =>
+            {
+                if (window is null || !services.Config.General.EnableGameStartMinimize)
+                {
+                    return static () => { };
+                }
+
+                var logger = services.LoggerFactory.CreateLogger("YuumiX.Startup");
+
+                if (tray is null)
+                {
+                    // 托盘不可用：configure 阶段可能已经把窗口藏起，而托盘是静默启动后唯一的
+                    // 恢复入口。此刻「窗口可见」是唯一可用的界面，抢焦点也比彻底消失可接受。
+                    // 先还原透明度再显示，否则用户拿到的是一块看不见的窗口。
+                    logger.LogWarning("静默启动：托盘不可用，恢复主窗口显示");
+                    try
+                    {
+                        window.SetOpacity(1);
+                        window.Show();
+                        window.Activate();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "静默启动恢复主窗口失败");
+                    }
+
+                    return static () => { };
+                }
+
+                var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+                var attempts = 0;
+
+                // 最多重试 5 次（每次一个低优先级 tick，实测窗口在 100~800ms 内一定已呈现）。
+                void HideWhenShown()
+                {
+                    try
+                    {
+                        if (window.IsVisible)
+                        {
+                            window.Hide();
+                            // 隐藏态改透明度不会被看到，但能让下次显示恢复正常。
+                            window.SetOpacity(1);
+                            logger.LogInformation("静默启动：主窗口已隐藏到托盘");
+                            return;
+                        }
+
+                        if (++attempts >= 8)
+                        {
+                            // 一直没呈现：框架这次确实没显示窗口，退出重试。
+                            // 这里**不能**还原透明度——实测框架可能在 effect 之后才显示
+                            //（18:56 那次窗口在布局完成 83ms 后才被捕获），提前还原等于亲手把它变回不透明。
+                            // 保持透明是安全的：任何后续显示仍会被托盘恢复路径（ShowMainWindow）还原，
+                            // 而用户看不见的东西不会造成误操作。
+                            logger.LogInformation("静默启动：主窗口始终未呈现，保持透明等待恢复");
+                            return;
+                        }
+
+                        dispatcherQueue?.TryEnqueue(DispatcherQueuePriority.Low, HideWhenShown);
+                    }
+                    catch (Exception ex)
+                    {
+                        // 藏不掉就把透明度还原，至少窗口还能正常用。
+                        logger.LogWarning(ex, "静默启动隐藏主窗口失败，保持窗口可见");
+                        try
+                        {
+                            window.SetOpacity(1);
+                        }
+                        catch (Exception restoreEx)
+                        {
+                            logger.LogWarning(restoreEx, "静默启动还原窗口透明度失败");
+                        }
+                    }
+                }
+
+                if (dispatcherQueue is null)
+                {
+                    HideWhenShown();
+                    return static () => { };
+                }
+
+                dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, HideWhenShown);
+                return static () => { };
             },
             0);
 
@@ -1106,6 +1207,9 @@ public sealed class AppShell : Component
             }
 
             // Hide 会把窗口连同任务栏按钮一起移除；Show 之后不会自动获得焦点，必须显式 Activate。
+            // 先还原透明度：静默启动的窗口以 Opacity = 0 创建，正常路径由启动 effect 还原，
+            // 但任何一条没走到的路径（异常、时序变化）都不该让用户得到一块看得见边框却全透明的窗口。
+            window.SetOpacity(1);
             window.Show();
             window.Activate();
         }

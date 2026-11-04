@@ -21,7 +21,9 @@ namespace YuumiX.App.Windowing;
 ///         而分层窗口上的 XAML 内容在部分机器上会整体不可见；改用不透明卡片 + 主题色，
 ///         在客户端窗口之上同样清晰，且深浅主题都成立（AGENTS.md §2）。</item>
 ///   <item><b>不在打开时抢焦点</b>：旧版 <c>set_focus</c> 会打断选人界面里的键盘输入；
-///         这里用 <c>ActivateOnOpen = false</c>，窗口照样可见可点，但不夺焦点。</item>
+///         这里用 <c>NoActivate = true</c>（WS_EX_NOACTIVATE），窗口照样可见可点，但不夺焦点。
+///         不要换成 <c>ActivateOnOpen = false</c>：那个开关是「不激活」而不是「不抢焦点」，
+///         实测会让窗口根本不呈现（主窗的静默启动正是利用这一点，见 <c>App.cs</c>）。</item>
 /// </list>
 /// </summary>
 public static class AramBenchWindowHost

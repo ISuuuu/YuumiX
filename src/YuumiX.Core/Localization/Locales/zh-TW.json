@@ -432,8 +432,7 @@
       "statusEnabled": "已啟用",
       "statusDisabled": "未啟用",
       "enableHover": "啟用自動亮起:",
-      "confirmTimeout": "在結束時確認選擇 (防秒退):",
-      "enableDodgeInGameInfo": "在對局信息中顯示秒退按鈕:"
+      "confirmTimeout": "在結束時確認選擇 (防秒退):"
     },
     "autoBan": {
       "title": "自動禁用英雄",
@@ -775,7 +774,6 @@
     "enableHoverLabel": "啟用自動亮起/預選:",
     "confirmOnTimeoutLabel": "在結束時確認選擇 (防秒退):",
     "enableAutoPickLabel": "選人階段自動選擇英雄:",
-    "showDodgeBtnLabel": "在對局資訊中顯示秒退按鈕:",
     "pickCandidatesLabel": "分路預選候選英雄庫:",
     "enableAutoBanLabel": "禁用環節自動禁用設定英雄:",
     "pretendBanLabel": "避開隊友已預選的英雄 (假禁用):",

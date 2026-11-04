@@ -125,7 +125,7 @@ internal static class GameSection
                         if (v == config.Functions.AramTeamSideVisibleToTeam) return;
                         config.Functions.AramTeamSideVisibleToTeam = v;
                         ui.Commit(nameof(FunctionsConfig.AramTeamSideVisibleToTeam));
-                    }, "报边队友可见")),
+                    }, "报边队友可见", isEnabled: config.Functions.EnableAutoAramTeamSide)),
                 ToolsVisuals.CardRow(i18n.T("tools.autoTagReminderLabel", "选人阶段自动提醒标记玩家:"),
                     ToolsVisuals.CleanToggle(ui, config.Functions.EnableAutoTagReminder, v =>
                     {

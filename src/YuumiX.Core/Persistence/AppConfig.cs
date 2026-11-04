@@ -136,9 +136,31 @@ public sealed class GeneralConfig
 
     public bool EnableStartLolWithApp { get; set; }
 
-    /// <summary>三元语义：<c>null</c> 表示老配置未表态，交由 UI 侧按平台默认处理。</summary>
-    public bool? EnableCloseToTray { get; set; }
+    /// <summary>
+    /// 「关闭到托盘」的平台默认值：默认启用。
+    /// <para>
+    /// 集中定义在此，避免设置页开关与窗口关闭拦截各自写死 <c>true</c>/<c>false</c> 而出现漂移
+    /// （历史上两处都按 <c>false</c> 处理，改默认为启用时漏改任一处都会造成「开关显示开、行为不生效」）。
+    /// </para>
+    /// </summary>
+    public const bool DefaultEnableCloseToTray = true;
 
+    /// <summary>
+    /// 三元语义：<c>null</c> 表示老配置未表态，交由 UI 侧按 <see cref="DefaultEnableCloseToTray"/> 处理。
+    /// 初始化器同样取该默认值，因此全新配置（无该键）与显式 <c>null</c> 都表现为启用；
+    /// 用户主动关闭后写回的 <c>false</c> 不受影响。
+    /// </summary>
+    public bool? EnableCloseToTray { get; set; } = DefaultEnableCloseToTray;
+
+    /// <summary>
+    /// 静默启动：开启后主窗口在启动阶段即隐藏到托盘，进程与后台服务照常运行
+    /// （消费方见 <c>App.cs</c> 的 <c>ActivateOnOpen</c> 与 <c>AppShell</c> 的启动隐藏 effect）。
+    /// <para>
+    /// 字段名沿用 Rust 版 <c>EnableGameStartMinimize</c> 以保持配置互通，但它<b>与对局无关</b>：
+    /// 旧版 App.vue 是在启动时按此值决定要不要 <c>window.show()</c>，语义就是「启动时最小化」。
+    /// 按字段名理解成「对局开始时最小化」会导致实现落在错误的时机上。
+    /// </para>
+    /// </summary>
     public bool EnableGameStartMinimize { get; set; }
 
     public bool EnableCheckUpdate { get; set; } = true;
@@ -331,7 +353,10 @@ public sealed class FunctionsConfig
 
     public bool EnableFriendRadar { get; set; }
 
-    /// <summary>在对局信息中显示秒退按钮（默认关闭；当前不在对局信息页接线，见 docs/requirements-gameinfo.md §19）。</summary>
+    /// <summary>
+    /// 在对局信息中显示秒退按钮。**已废弃**：2026-10-24 确认不做该项（见 docs/requirements-gameinfo.md §19），
+    /// 工具箱的开关行已撤除；字段仅为与旧版 Yuumi 配置往返保留，读写它不会有任何界面或行为变化。
+    /// </summary>
     public bool EnableDodgeInGameInfo { get; set; }
 
     [JsonExtensionData]
