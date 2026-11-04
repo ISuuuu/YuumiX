@@ -193,13 +193,18 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
 
                     var body = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
 
+                    if (Volatile.Read(ref _disposed) != 0 || IsDisposedCancellation(cancellationToken))
+                    {
+                        throw CreateDisposedException(request);
+                    }
+
                     return new LcuResponse((int)response.StatusCode, body);
                 }
                 catch (Exception ex) when (IsTransient(ex) && !cancellationToken.IsCancellationRequested)
                 {
                     // 释放会中断在途请求，异常形态是「瞬时网络错误」。此时重试毫无意义：
                     // 直接归一为「已释放」并终止，既不多付一次退避，也不把语义降级成「重试耗尽」。
-                    if (Volatile.Read(ref _disposed) != 0)
+                    if (Volatile.Read(ref _disposed) != 0 || IsDisposedCancellation(cancellationToken))
                     {
                         throw CreateDisposedException(request, ex);
                     }
