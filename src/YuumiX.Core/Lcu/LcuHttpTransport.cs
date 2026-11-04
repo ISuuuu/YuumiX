@@ -58,8 +58,23 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
     private readonly ILogger<LcuHttpTransport>? _logger;
     private readonly TimeSpan _requestTimeout;
     private readonly TimeSpan _permitTimeout;
+    private readonly TimeSpan _retryDelay;
 
-    private bool _disposed;
+    /// <summary>
+    /// 释放信号。许可等待、请求超时与重试退避都链接它，使释放能立刻结束在途请求。
+    /// 刻意不在 <see cref="Dispose"/> 里释放它：在途请求可能正往它上面注册回调，
+    /// 释放会与注册竞争抛 <see cref="ObjectDisposedException"/>；它没有计时器，随传输层一并回收即可。
+    /// </summary>
+    private readonly CancellationTokenSource _disposeCts = new();
+
+    private readonly CancellationToken _disposeToken;
+
+    /// <summary>0 = 存活，1 = 已释放。锁外读取使用 <see cref="Volatile"/>。</summary>
+    private int _disposed;
+
+    /// <summary>在途 <see cref="SendAsync"/> 数量。释放时据此判定「是否还有操作可能触碰信号量」。</summary>
+    private int _activeOperations;
+    private readonly object _operationLock = new();
 
     /// <param name="baseAddress">形如 <c>https://127.0.0.1:50000/</c>。</param>
     /// <param name="authorizationHeader">完整的 Authorization 头值。</param>
@@ -67,13 +82,15 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
     /// <param name="requestTimeout">单次请求超时。</param>
     /// <param name="logger">可选日志。</param>
     /// <param name="handler">自定义消息处理器（测试注入用）；为 <c>null</c> 时使用生产配置。</param>
+    /// <param name="retryDelay">重试间隔，默认 <see cref="DefaultRetryDelay"/>。</param>
     public LcuHttpTransport(
         Uri baseAddress,
         string authorizationHeader,
         int maxConcurrency = 5,
         TimeSpan? requestTimeout = null,
         ILogger<LcuHttpTransport>? logger = null,
-        HttpMessageHandler? handler = null)
+        HttpMessageHandler? handler = null,
+        TimeSpan? retryDelay = null)
     {
         ArgumentNullException.ThrowIfNull(baseAddress);
         ArgumentException.ThrowIfNullOrWhiteSpace(authorizationHeader);
@@ -85,7 +102,9 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
         _logger = logger;
         _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
         _permitTimeout = DefaultPermitTimeout;
+        _retryDelay = retryDelay ?? DefaultRetryDelay;
         _permits = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+        _disposeToken = _disposeCts.Token;
         _http = new HttpClient(handler ?? LcuHttpHandlerFactory.Create(), disposeHandler: true)
         {
             Timeout = Timeout.InfiniteTimeSpan, // 超时由每次请求的 CancellationToken 控制，避免双重超时
@@ -105,14 +124,25 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
     public async Task<LcuResponse> SendAsync(LcuRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (_disposed)
+
+        // 登记与释放状态使用同一把锁。Cancel 返回时，WaitAsync 仍可能在异步退出。
+        if (!TryEnterOperation())
         {
-            throw new LcuTransportException(
-                $"LCU 传输层已释放: {request.Method} {request.Path}",
-                request.Method.Method,
-                request.Path);
+            throw CreateDisposedException(request);
         }
 
+        try
+        {
+            return await SendCoreAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ExitOperation();
+        }
+    }
+
+    private async Task<LcuResponse> SendCoreAsync(LcuRequest request, CancellationToken cancellationToken)
+    {
         if (!LcuApiCatalog.IsAllowed(request.Path))
         {
             throw new InvalidOperationException($"不允许的 LCU 路径: {request.Method} {request.Path}");
@@ -124,9 +154,27 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
         {
             for (var attempt = 1; attempt <= MaxRetries; attempt++)
             {
-                // 每轮重试单独取许可：退避时间不计入占用，否则超时请求会连锁拖垮其它调用
-                if (!await _permits.WaitAsync(_permitTimeout, cancellationToken).ConfigureAwait(false))
+                // 每轮重试单独取许可：退避时间不计入占用，否则超时请求会连锁拖垮其它调用。
+                // 许可等待同时响应调用方取消和传输层释放。
+                using var waitScope = CreateOperationScope(cancellationToken);
+                bool acquired;
+                try
                 {
+                    acquired = await _permits.WaitAsync(_permitTimeout, waitScope.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (IsDisposedCancellation(cancellationToken))
+                {
+                    throw CreateDisposedException(request);
+                }
+
+                if (!acquired)
+                {
+                    // 释放也可能让等待中的许可直接落空，此时按「已释放」表达而不是「许可超时」
+                    if (Volatile.Read(ref _disposed) != 0)
+                    {
+                        throw CreateDisposedException(request);
+                    }
+
                     throw new LcuTransportException(
                         $"LCU 并发许可等待超时: {request.Method} {request.Path}",
                         request.Method.Method,
@@ -136,7 +184,7 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
                 try
                 {
                     using var message = BuildMessage(request);
-                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    using var timeout = CreateOperationScope(cancellationToken);
                     timeout.CancelAfter(_requestTimeout);
 
                     using var response = await _http
@@ -149,6 +197,13 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
                 }
                 catch (Exception ex) when (IsTransient(ex) && !cancellationToken.IsCancellationRequested)
                 {
+                    // 释放会中断在途请求，异常形态是「瞬时网络错误」。此时重试毫无意义：
+                    // 直接归一为「已释放」并终止，既不多付一次退避，也不把语义降级成「重试耗尽」。
+                    if (Volatile.Read(ref _disposed) != 0)
+                    {
+                        throw CreateDisposedException(request, ex);
+                    }
+
                     lastError = ex;
                     _logger?.LogDebug(
                         "LCU 请求失败 ({Attempt}/{MaxRetries}): {Method} {Path} - {Error}",
@@ -156,30 +211,19 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
                 }
                 finally
                 {
-                    try
-                    {
-                        _permits.Release();
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        // 传输层在执行期间被 Dispose 时静默忽略信号量释放异常
-                    }
+                    _permits.Release();
                 }
 
                 if (attempt < MaxRetries)
                 {
-                    await Task.Delay(DefaultRetryDelay, cancellationToken).ConfigureAwait(false);
+                    await DelayBackoffAsync(request, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
         catch (ObjectDisposedException ex)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            throw new LcuTransportException(
-                $"LCU 传输层已释放: {request.Method} {request.Path}",
-                request.Method.Method,
-                request.Path,
-                ex);
+            throw CreateDisposedException(request, ex);
         }
 
         throw new LcuTransportException(
@@ -191,15 +235,93 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        lock (_operationLock)
         {
-            return;
+            if (_disposed != 0)
+            {
+                return;
+            }
+
+            Volatile.Write(ref _disposed, 1);
+            if (_activeOperations == 0)
+            {
+                _permits.Dispose();
+            }
         }
 
-        _disposed = true;
-        _http.Dispose();
-        _permits.Dispose();
+        // 若还有请求，最后退出的请求负责释放信号量。连接清理无需等待请求退出。
+        try
+        {
+            _disposeCts.Cancel();
+        }
+        finally
+        {
+            _http.Dispose();
+        }
     }
+
+    private bool TryEnterOperation()
+    {
+        lock (_operationLock)
+        {
+            if (_disposed != 0)
+            {
+                return false;
+            }
+
+            _activeOperations++;
+            return true;
+        }
+    }
+
+    private void ExitOperation()
+    {
+        lock (_operationLock)
+        {
+            _activeOperations--;
+            if (_activeOperations == 0 && _disposed != 0)
+            {
+                _permits.Dispose();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 把「调用方取消」与「传输层释放」合并成一个等待令牌。
+    /// 两者语义不同——前者继续传播 <see cref="OperationCanceledException"/>，
+    /// 后者归一为 <see cref="LcuTransportException"/>——所以取消异常靠 <see cref="IsDisposedCancellation"/> 分流。
+    /// </summary>
+    private CancellationTokenSource CreateOperationScope(CancellationToken cancellationToken) =>
+        CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeToken);
+
+    /// <summary>
+    /// 该取消是否来自传输层释放（而非调用方主动取消）。
+    /// 调用方取消优先：两者同时发生时仍按取消传播，符合「调用方主动取消继续传播取消」的契约。
+    /// </summary>
+    private bool IsDisposedCancellation(CancellationToken cancellationToken) =>
+        _disposeToken.IsCancellationRequested && !cancellationToken.IsCancellationRequested;
+
+    /// <summary>重试退避。等待期间同样响应释放，避免释放后还要空等完整个退避间隔。</summary>
+    private async Task DelayBackoffAsync(LcuRequest request, CancellationToken cancellationToken)
+    {
+        using var scope = CreateOperationScope(cancellationToken);
+        try
+        {
+            await Task.Delay(_retryDelay, scope.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (IsDisposedCancellation(cancellationToken))
+        {
+            throw CreateDisposedException(request);
+        }
+    }
+
+    /// <summary>构造「传输层已释放」异常，供入口检查与在途失败两条路径复用。</summary>
+    private static LcuTransportException CreateDisposedException(LcuRequest request, Exception? innerException = null) =>
+        new(
+            $"LCU 传输层已释放: {request.Method} {request.Path}",
+            request.Method.Method,
+            request.Path,
+            innerException);
 
     private HttpRequestMessage BuildMessage(LcuRequest request)
     {
@@ -224,10 +346,4 @@ public sealed class LcuHttpTransport : ILcuTransport, IDisposable
     /// </summary>
     private static bool IsTransient(Exception exception) =>
         exception is HttpRequestException or IOException or TaskCanceledException or OperationCanceledException;
-
-    /// <summary>
-    /// 生产处理器。证书忽略与绕代理的说明见 <see cref="LcuHttpHandlerFactory"/>——
-    /// 资源下载走的是同一套配置，收敛在那里避免两处分叉。
-    /// </summary>
-    private static HttpMessageHandler CreateProductionHandler() => LcuHttpHandlerFactory.Create();
 }

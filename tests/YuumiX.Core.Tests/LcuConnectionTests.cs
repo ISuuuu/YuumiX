@@ -167,6 +167,10 @@ public sealed class LcuConnectionTests
         var firstSocket = await server.NextWebSocketAsync(cts.Token);
         await ReceiveTextAsync(firstSocket, cts.Token);
 
+        // 断开前记下传输层实例：CleanupTransport 会清空并释放它，重连时新建
+        var transportBeforeDrop = connection.Transport;
+        Assert.NotNull(transportBeforeDrop);
+
         // 模拟客户端侧链路中断：服务端直接 Abort，客户端读循环会立刻抛异常
         firstSocket.Abort();
 
@@ -174,13 +178,17 @@ public sealed class LcuConnectionTests
             () => Snapshot(states).Count(s => s.Status == LcuConnectionStatus.Disconnected) >= 1,
             cts.Token);
 
-        Assert.Null(connection.Transport);
-        Assert.Null(connection.Credentials);
-
         await WaitUntilAsync(() => server.WebSocketConnectionCount >= 2, cts.Token);
         await WaitUntilAsync(
             () => connection.CurrentState.Status == LcuConnectionStatus.Connected,
             cts.Token);
+
+        // 断开路径必须释放并重建传输层。这里断言重连后拿到的是新实例，而不是
+        // 在断开瞬间断言 Transport 为 null——那是只在 retryDelay 内成立的中间态，
+        // 并行跑测试时会被立即完成的重连抢走，导致用例随机失败。
+        Assert.NotNull(connection.Transport);
+        Assert.NotSame(transportBeforeDrop, connection.Transport);
+        Assert.NotNull(connection.Credentials);
 
         await StopAsync(cts, run);
     }

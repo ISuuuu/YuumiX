@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Text.Json;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
@@ -35,6 +36,11 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
     private bool _isRunning;
     private bool _createdForCurrentClient;
 
+    /// <summary>
+    /// 任务代际。连接重置或停止时递增，使旧任务失去提交建厅标记的资格。
+    /// </summary>
+    private int _clientEpoch;
+
     public string Name => "AutoCreateLobbyAgent";
     public bool IsRunning => _isRunning;
 
@@ -70,12 +76,15 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
 
     public Task StopAsync(CancellationToken cancellationToken = default)
     {
+        int stoppedEpoch;
         lock (_stateLock)
         {
             _isRunning = false;
+            stoppedEpoch = _clientEpoch;
+            Volatile.Write(ref _clientEpoch, unchecked(stoppedEpoch + 1));
         }
 
-        _supervisor.CancelKind(TaskKind.AutoCreateLobby);
+        _supervisor.CancelKind(LobbyTaskKind(stoppedEpoch));
         _logger?.LogInformation("自动创建大厅代理已停止");
         return Task.CompletedTask;
     }
@@ -85,56 +94,87 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
     /// </summary>
     public void OnPhaseChanged(GamePhase currentPhase)
     {
-        if (!_isRunning) return;
         if (currentPhase != GamePhase.None) return;
 
+        int epoch = CurrentClientEpoch;
         var cfg = _configProvider().Functions;
         if (!cfg.EnableAutoCreateLobby) return;
 
         lock (_stateLock)
         {
+            if (!_isRunning || epoch != _clientEpoch) return;
             if (_createdForCurrentClient)
             {
                 _logger?.LogDebug("本轮客户端生命周期内已建过大厅，跳过自动建厅");
                 return;
             }
-        }
 
-        _ = _supervisor.TrySpawnAsync(TaskKind.AutoCreateLobby, "AutoCreateLobby", CreateLobbyTaskAsync);
+            // RejectNew 同步登记。与重置共用一把锁，避免重置漏掉尚未登记的任务。
+            _ = _supervisor.TrySpawnAsync(
+                LobbyTaskKind(epoch),
+                "AutoCreateLobby",
+                ct => CreateLobbyTaskAsync(epoch, ct));
+        }
     }
 
-    /// <summary>
-    /// LCU 连接重置（断开/客户端重启）：清空建厅标记并取消在跑建厅任务，允许下个客户端实例重新建厅。
-    /// </summary>
+    /// <summary>换代后只取消旧代际任务，新连接可立即登记自己的任务。</summary>
     public void OnConnectionReset()
     {
+        int previousEpoch;
         lock (_stateLock)
         {
             _createdForCurrentClient = false;
+            previousEpoch = _clientEpoch;
+            Volatile.Write(ref _clientEpoch, unchecked(previousEpoch + 1));
         }
 
-        _supervisor.CancelKind(TaskKind.AutoCreateLobby);
+        _supervisor.CancelKind(LobbyTaskKind(previousEpoch));
     }
 
-    private async Task CreateLobbyTaskAsync(CancellationToken ct)
+    internal static TaskKind LobbyTaskKind(int epoch) =>
+        new(TaskKindType.AutoCreateLobby, epoch.ToString(CultureInfo.InvariantCulture));
+
+    /// <summary>供测试断言「本轮客户端是否已消费建厅机会」。</summary>
+    internal bool HasCreatedForCurrentClient
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _createdForCurrentClient;
+            }
+        }
+    }
+
+    /// <summary>当前客户端代际，供测试构造过期代际。</summary>
+    internal int CurrentClientEpoch => Volatile.Read(ref _clientEpoch);
+
+    /// <summary>
+    /// 只有在代际未过期且任务未被取消时才允许把建厅标记置为已消费。
+    /// 返回 <c>false</c> 表示该任务已失去写权限，调用方应立即退出。
+    /// </summary>
+    internal bool TryMarkCreatedForClient(int epoch, CancellationToken ct)
+    {
+        lock (_stateLock)
+        {
+            if (epoch != _clientEpoch || ct.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            _createdForCurrentClient = true;
+            return true;
+        }
+    }
+
+    internal async Task CreateLobbyTaskAsync(int epoch, CancellationToken ct)
     {
         try
         {
             for (int attempt = 1; attempt <= MaxAttempts; attempt++)
             {
-                ct.ThrowIfCancellationRequested();
-
-                // 阶段守卫：仅在空闲阶段允许建厅，用户已离开空闲阶段则视为本轮机会已消费。
-                var phase = _lifecycle.Snapshot().Phase;
-                if (!IdlePhases.Contains(phase))
+                if (!CanCreateLobby(epoch, ct))
                 {
-                    lock (_stateLock)
-                    {
-                        if (ct.IsCancellationRequested) return;
-                        _createdForCurrentClient = true;
-                    }
-
-                    _logger?.LogInformation("当前阶段 {Phase} 非空闲，放弃自动建厅", phase);
                     return;
                 }
 
@@ -151,10 +191,9 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
                     ct).ConfigureAwait(false);
                 if (lobbyResp.IsSuccess)
                 {
-                    lock (_stateLock)
+                    if (!TryMarkCreatedForClient(epoch, ct))
                     {
-                        if (ct.IsCancellationRequested) return;
-                        _createdForCurrentClient = true;
+                        return;
                     }
 
                     _logger?.LogInformation("检测到已存在有效大厅，跳过自动建厅");
@@ -163,6 +202,11 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
 
                 var queueId = _configProvider().Functions.DefaultGameMode;
                 var body = new JsonObject { ["queueId"] = queueId }.ToJsonString();
+                if (!CanCreateLobby(epoch, ct))
+                {
+                    return;
+                }
+
                 var createResp = await transport.SendAsync(
                     LcuRequest.Post("/lol-lobby/v2/lobby", body),
                     ct).ConfigureAwait(false);
@@ -183,10 +227,9 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
 
                 if (verifyResp.IsSuccess)
                 {
-                    lock (_stateLock)
+                    if (!TryMarkCreatedForClient(epoch, ct))
                     {
-                        if (ct.IsCancellationRequested) return;
-                        _createdForCurrentClient = true;
+                        return;
                     }
 
                     _logger?.LogInformation("自动创建大厅成功 (queueId={QueueId})", queueId);
@@ -200,7 +243,7 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
 
             _logger?.LogWarning("自动创建大厅 {MaxAttempts} 次尝试均失败", MaxAttempts);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             _logger?.LogDebug("自动建厅任务已取消");
         }
@@ -208,6 +251,28 @@ public sealed class AutoCreateLobbyAgent : IAutomationAgent
         {
             _logger?.LogInformation("自动建厅因 LCU 传输中断终止: {Message}", ex.Message);
         }
+    }
+
+    private bool CanCreateLobby(int epoch, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (epoch != CurrentClientEpoch)
+        {
+            return false;
+        }
+
+        var phase = _lifecycle.Snapshot().Phase;
+        if (IdlePhases.Contains(phase))
+        {
+            return true;
+        }
+
+        if (TryMarkCreatedForClient(epoch, ct))
+        {
+            _logger?.LogInformation("当前阶段 {Phase} 非空闲，放弃自动建厅", phase);
+        }
+
+        return false;
     }
 
     public ValueTask DisposeAsync()

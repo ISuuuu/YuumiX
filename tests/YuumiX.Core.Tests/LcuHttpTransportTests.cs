@@ -241,6 +241,173 @@ public sealed class LcuHttpTransportTests
         Assert.IsType<ObjectDisposedException>(ex.InnerException);
     }
 
+    /// <summary>
+    /// 释放时正在等并发许可的请求必须立刻结束。<c>SemaphoreSlim.Dispose</c> 不会唤醒等待者，
+    /// 若许可等待不链接释放信号，这里要一直等到 8 秒许可超时才返回。
+    /// </summary>
+    [Fact]
+    public async Task Send_WhenDisposedWhileWaitingForPermit_ThrowsImmediately()
+    {
+        var permitHeld = new TaskCompletionSource();
+        var releaseHolder = new TaskCompletionSource();
+
+        var handler = new StubHandler(async (_, _, cancellationToken) =>
+        {
+            permitHeld.TrySetResult();
+            // 占住唯一许可，直到测试放行或传输层释放
+            await releaseHolder.Task.WaitAsync(cancellationToken);
+            return JsonResponse(HttpStatusCode.OK, "{}");
+        });
+
+        var transport = NewTransport(handler, maxConcurrency: 1);
+        try
+        {
+            var holder = transport.SendAsync(LcuRequest.Get("/lol-summoner/v1/current-summoner"));
+            await permitHeld.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            // 第二个请求抢不到许可：async 方法会同步执行到第一个挂起点，
+            // 所以拿到 Task 时它已经在 WaitAsync 里排队，不需要 sleep 去猜。
+            var waiter = transport.SendAsync(LcuRequest.Get("/lol-summoner/v1/current-summoner"));
+            Assert.False(waiter.IsCompleted);
+
+            var elapsed = Stopwatch.StartNew();
+            transport.Dispose();
+
+            var ex = await Assert.ThrowsAsync<LcuTransportException>(() => waiter)
+                .WaitAsync(TimeSpan.FromSeconds(2));
+            elapsed.Stop();
+
+            Assert.Contains("已释放", ex.Message);
+            Assert.Equal("/lol-summoner/v1/current-summoner", ex.Path);
+            // 许可超时是 8 秒；这里必须远早于它结束
+            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(2), $"释放后仍等待了 {elapsed.ElapsedMilliseconds}ms");
+
+            // 已经握住许可的请求同样要立刻收尾，不能等 handler 返回
+            releaseHolder.TrySetResult();
+            await Assert.ThrowsAsync<LcuTransportException>(() => holder)
+                .WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            releaseHolder.TrySetResult();
+        }
+    }
+
+    [Fact]
+    public async Task Dispose_WhileHandlerIgnoresCancellation_DoesNotWaitForRequest()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new StubHandler(async (_, _, _) =>
+        {
+            started.TrySetResult();
+            await finish.Task;
+            throw new HttpRequestException("连接已关闭");
+        });
+
+        using var transport = NewTransport(handler, maxConcurrency: 1);
+        var pending = transport.SendAsync(LcuRequest.Get("/system/v1/builds"));
+        try
+        {
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await Task.Run(transport.Dispose).WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.False(pending.IsCompleted);
+        }
+        finally
+        {
+            finish.TrySetResult();
+        }
+
+        var exception = await Assert.ThrowsAsync<LcuTransportException>(() => pending)
+            .WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Contains("已释放", exception.Message);
+    }
+
+    /// <summary>
+    /// 复现实测的快速释放节奏：占住唯一许可 → 第二个请求刚排队 → 立刻释放，连跑多轮。
+    /// 单轮容易碰巧通过；多轮用于覆盖 Cancel 与 WaitAsync 异步退出的竞争窗口
+    /// （曾出现 100 轮里 97 个请求挂住的情况）。
+    /// </summary>
+    [Fact]
+    public async Task Send_RepeatedFastDisposeWhileQueued_NeverStrandsWaiters()
+    {
+        const int Rounds = 100;
+
+        for (int round = 1; round <= Rounds; round++)
+        {
+            var permitHeld = new TaskCompletionSource();
+            var releaseHolder = new TaskCompletionSource();
+
+            var handler = new StubHandler(async (_, _, cancellationToken) =>
+            {
+                permitHeld.TrySetResult();
+                await releaseHolder.Task.WaitAsync(cancellationToken);
+                return JsonResponse(HttpStatusCode.OK, "{}");
+            });
+
+            var transport = NewTransport(handler, maxConcurrency: 1);
+            try
+            {
+                var holder = transport.SendAsync(LcuRequest.Get("/lol-summoner/v1/current-summoner"));
+                await permitHeld.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+                var waiter = transport.SendAsync(LcuRequest.Get("/lol-summoner/v1/current-summoner"));
+                transport.Dispose();
+                releaseHolder.TrySetResult();
+
+                try
+                {
+                    await Assert.ThrowsAsync<LcuTransportException>(() => waiter)
+                        .WaitAsync(TimeSpan.FromSeconds(2));
+                    await Assert.ThrowsAsync<LcuTransportException>(() => holder)
+                        .WaitAsync(TimeSpan.FromSeconds(2));
+                }
+                catch (Exception ex)
+                {
+                    Assert.Fail($"第 {round}/{Rounds} 轮：释放后请求未结束 —— {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+            finally
+            {
+                releaseHolder.TrySetResult();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 释放时正在重试退避的请求必须立刻结束，否则要白等完整个退避才能走到下一次尝试。
+    /// 这里把退避拉长到 5 秒制造区分度：断言只要求「2 秒内结束 + 第二次尝试从未发生」，
+    /// 不再依赖固定 sleep 或脆弱的耗时阈值去猜执行窗口。
+    /// </summary>
+    [Fact]
+    public async Task Send_WhenDisposedDuringRetryBackoff_ThrowsImmediately()
+    {
+        var firstAttemptFailed = new TaskCompletionSource();
+        var handler = new StubHandler((_, calls, _) =>
+        {
+            if (calls == 1)
+            {
+                firstAttemptFailed.TrySetResult();
+            }
+
+            throw new HttpRequestException("连接被重置");
+        });
+
+        var transport = NewTransport(handler, retryDelay: TimeSpan.FromSeconds(5));
+        var pending = transport.SendAsync(LcuRequest.Get("/system/v1/builds"));
+
+        // 明确状态信号：第一次尝试已经失败，请求此刻处在退避窗口内
+        await firstAttemptFailed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        transport.Dispose();
+
+        var ex = await Assert.ThrowsAsync<LcuTransportException>(() => pending)
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Contains("已释放", ex.Message);
+        // 修复失效时它会在 5 秒退避后发起第二次尝试：Calls 变 2，且上面的 2 秒等待先超时
+        Assert.Equal(1, handler.Calls);
+    }
+
     private static LcuHttpTransport NewTransport(
         FakeLcuServer server,
         int maxConcurrency = 5,
@@ -250,8 +417,16 @@ public sealed class LcuHttpTransportTests
     private static LcuHttpTransport NewTransport(
         HttpMessageHandler handler,
         int maxConcurrency = 5,
-        TimeSpan? requestTimeout = null)
-        => new(new Uri("http://127.0.0.1:1/"), "Basic dGVzdA==", maxConcurrency, requestTimeout, NullLogger<LcuHttpTransport>.Instance, handler);
+        TimeSpan? requestTimeout = null,
+        TimeSpan? retryDelay = null)
+        => new(
+            new Uri("http://127.0.0.1:1/"),
+            "Basic dGVzdA==",
+            maxConcurrency,
+            requestTimeout,
+            NullLogger<LcuHttpTransport>.Instance,
+            handler,
+            retryDelay);
 
     private static HttpResponseMessage JsonResponse(HttpStatusCode status, string body)
         => new(status) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };

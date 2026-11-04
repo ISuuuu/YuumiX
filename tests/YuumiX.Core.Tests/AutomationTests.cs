@@ -251,14 +251,49 @@ public sealed class AutomationTests
         Assert.Contains("生命周期失效", exStale.Message);
     }
 
+    /// <summary>
+    /// 记录请求的假传输层。后台任务线程写、测试线程读，所以记录必须加锁并且只给快照，
+    /// 否则 <c>Any</c>/<c>Contains</c> 会与 <c>Add</c> 竞争（枚举到「集合已修改」或读到中间态）。
+    /// </summary>
     private sealed class MockTransport : ILcuTransport
     {
-        public List<LcuRequest> RecordedRequests { get; } = [];
+        private readonly object _gate = new();
+        private readonly List<LcuRequest> _requests = [];
+
+        /// <summary>调用瞬间的请求快照。</summary>
+        public IReadOnlyList<LcuRequest> RecordedRequests
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return [.. _requests];
+                }
+            }
+        }
+
         public Func<LcuRequest, LcuResponse> Handler { get; set; } = _ => new LcuResponse(200, "{}");
+
+        /// <summary>该路径是否已经被请求过（加锁读取，供轮询等待使用）。</summary>
+        public bool HasRequested(string path)
+        {
+            lock (_gate)
+            {
+                return _requests.Any(r => r.Path == path);
+            }
+        }
 
         public Task<LcuResponse> SendAsync(LcuRequest request, CancellationToken cancellationToken = default)
         {
-            RecordedRequests.Add(request);
+            // 与真实传输层一致：令牌已取消就不再发请求，也不记录。
+            // 少了这一句，取消后仍会「发」出下一个请求，测试会看到不存在的重试。
+            cancellationToken.ThrowIfCancellationRequested();
+
+            lock (_gate)
+            {
+                _requests.Add(request);
+            }
+
             return Task.FromResult(Handler(request));
         }
 
@@ -436,7 +471,12 @@ public sealed class AutomationTests
         lifecycle.UpdatePhase("InProgress");
 
         await using var agent = new AutoReconnectAgent(
-            () => transport, () => config, supervisor, lifecycle, gameProcessAliveProbe: () => true);
+            () => transport,
+            () => config,
+            supervisor,
+            lifecycle,
+            gameProcessAliveProbe: () => true,
+            gameProcessProbeInterval: TimeSpan.Zero);
         await agent.StartAsync();
 
         agent.OnPhaseChanged(GamePhase.InProgress);
@@ -472,7 +512,12 @@ public sealed class AutomationTests
         lifecycle.UpdatePhase("InProgress");
 
         await using var agent = new AutoReconnectAgent(
-            () => transport, () => config, supervisor, lifecycle, gameProcessAliveProbe: () => false);
+            () => transport,
+            () => config,
+            supervisor,
+            lifecycle,
+            gameProcessAliveProbe: () => false,
+            gameProcessProbeInterval: TimeSpan.Zero);
         await agent.StartAsync();
 
         agent.OnPhaseChanged(GamePhase.InProgress);
@@ -480,10 +525,12 @@ public sealed class AutomationTests
         lifecycle.UpdatePhase("Reconnect");
         agent.OnPhaseChanged(GamePhase.Reconnect);
 
-        // 给后台任务足够的执行窗口后仍不得发出任何重连请求
-        await Task.Delay(600);
+        // 首采即判定进程已消失，任务会立即返回：先等它退册，再做负断言，
+        // 避免用固定 sleep 猜执行窗口（否则任务变慢就会假通过）。
+        Assert.True(await WaitUntilAsync(() => supervisor.GetActiveTasks().Count == 0));
 
-        Assert.DoesNotContain(transport.RecordedRequests, r => r.Path == "/lol-gameflow/v1/reconnect");
+        // 这条路径在进程消失时应连阶段校验都不做，任何请求都算越界
+        Assert.Empty(transport.RecordedRequests);
     }
 
     /// <summary>
@@ -510,7 +557,12 @@ public sealed class AutomationTests
         lifecycle.UpdatePhase("InProgress");
 
         await using var agent = new AutoReconnectAgent(
-            () => transport, () => config, supervisor, lifecycle, gameProcessAliveProbe: () => true);
+            () => transport,
+            () => config,
+            supervisor,
+            lifecycle,
+            gameProcessAliveProbe: () => true,
+            gameProcessProbeInterval: TimeSpan.Zero);
         await agent.StartAsync();
 
         agent.OnPhaseChanged(GamePhase.InProgress);
@@ -518,7 +570,11 @@ public sealed class AutomationTests
         lifecycle.UpdatePhase("Reconnect");
         agent.OnPhaseChanged(GamePhase.Reconnect);
 
-        await Task.Delay(600);
+        // 等代理真正走到 session 权威校验（证明进程探测与阶段校验都已通过），
+        // 再等任务从在册列表移除——那才是「决策已完成」的可靠信号。
+        // 只看请求记录会假通过：请求刚进入记录时响应可能还没被处理。
+        Assert.True(await WaitUntilAsync(() => transport.HasRequested("/lol-gameflow/v1/session")));
+        Assert.True(await WaitUntilAsync(() => supervisor.GetActiveTasks().Count == 0));
 
         Assert.DoesNotContain(transport.RecordedRequests, r => r.Path == "/lol-gameflow/v1/reconnect");
     }
@@ -687,8 +743,14 @@ public sealed class AutomationTests
         Assert.Empty(transport.RecordedRequests);
     }
 
+    /// <summary>
+    /// 重置会把在跑任务移出在册列表并取消它。
+    /// 注意 <c>GetActiveTasks()</c> 为空只能证明「已退册」——<c>CancelKind</c> 在锁内先
+    /// <c>_tasks.Remove</c> 再取消，列表在取消前就已清空。任务是否真的响应取消、会不会
+    /// 继续发起第二轮尝试，由 <see cref="AutoCreateLobbyAgent_CancelledMidRequest_StopsWithoutCreatingLobby"/> 覆盖。
+    /// </summary>
     [Fact]
-    public async Task AutoCreateLobbyAgent_OnConnectionReset_CancelsActiveLobbyTask()
+    public async Task AutoCreateLobbyAgent_OnConnectionReset_RemovesActiveTask()
     {
         var requestStarted = new TaskCompletionSource<bool>();
         var requestBlocked = new TaskCompletionSource<bool>();
@@ -724,13 +786,56 @@ public sealed class AutomationTests
         // 唤醒挂起的网络 handler
         requestBlocked.TrySetResult(true);
 
-        var deadline = DateTime.UtcNow.AddSeconds(2);
-        while (DateTime.UtcNow < deadline && supervisor.GetActiveTasks().Count > 0)
-        {
-            await Task.Delay(20);
-        }
+        Assert.True(await WaitUntilAsync(() => supervisor.GetActiveTasks().Count == 0));
+    }
 
-        Assert.Empty(supervisor.GetActiveTasks());
+    /// <summary>
+    /// 取消必须被任务真正观察到：直接驱动任务主体并等待它完成，再断言结果。
+    /// 只等 <c>GetActiveTasks()</c> 为空不能说明任务已经退出，更不能说明它不会继续重试。
+    /// </summary>
+    [Fact]
+    public async Task AutoCreateLobbyAgent_CancelledMidRequest_StopsWithoutCreatingLobby()
+    {
+        var requestStarted = new TaskCompletionSource();
+        var requestBlocked = new TaskCompletionSource();
+
+        var transport = new MockTransport
+        {
+            Handler = req =>
+            {
+                requestStarted.TrySetResult();
+                // 挂起模拟正在发起的网络请求
+                requestBlocked.Task.GetAwaiter().GetResult();
+                return new LcuResponse(404, "");
+            }
+        };
+
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        using var cts = new CancellationTokenSource();
+        // 必须放到线程池上跑：MockTransport 的 handler 是同步阻塞的，
+        // 直接在测试线程调用会卡在第一个 await 之前，测试线程永远走不到取消那一步。
+        var run = Task.Run(() => agent.CreateLobbyTaskAsync(agent.CurrentClientEpoch, cts.Token));
+
+        await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        // 与 CancelKind 等效：先取消，再放行挂起的 handler
+        await cts.CancelAsync();
+        requestBlocked.TrySetResult();
+
+        // 任务自身完成 = 它明确观察到了取消（内部把 OCE 记成调试日志后正常结束）
+        await run.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(agent.HasCreatedForCurrentClient);
+        // 取消后不得再发起第二轮建厅尝试
+        Assert.Single(transport.RecordedRequests);
     }
 
     [Fact]
@@ -769,19 +874,24 @@ public sealed class AutomationTests
         agent.OnPhaseChanged(GamePhase.None);
         await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
+        Assert.Single(supervisor.GetActiveTasks());
+
         // 客户端断开/重置
         agent.OnConnectionReset();
+        Assert.False(agent.HasCreatedForCurrentClient);
 
-        // 唤醒挂起的旧请求
+        // 唤醒挂起的旧请求：旧任务此刻会拿到「已有大厅」的成功响应，
+        // 但代际已随重置推进，它不再有写标记的资格
         requestBlocked.TrySetResult(true);
 
-        // 等待旧任务退出
-        var deadline = DateTime.UtcNow.AddSeconds(2);
-        while (DateTime.UtcNow < deadline && supervisor.GetActiveTasks().Count > 0)
-        {
-            await Task.Delay(20);
-        }
-        Assert.Empty(supervisor.GetActiveTasks());
+        // 旧任务此刻只剩几条同步指令即可收尾（CancelKind 已把它移出在册列表，
+        // 无法再用 GetActiveTasks 当完成信号），100ms 远超线程池调度延迟。
+        // 注意：本轮重置与放行是串行的，取消在放行前就已生效，因此本用例守住的是
+        // 「重置后旧任务不得写入标记」这条不变量（守卫被整体删掉即失败）；
+        // 真正复现「取消尚未传播时」的竞态由 StaleEpoch_CannotMarkCreated 确定性覆盖。
+        await Task.Delay(100);
+
+        Assert.False(agent.HasCreatedForCurrentClient);
 
         // 新客户端周期：无大厅，期望发起 POST 建厅
         var postLobbyCalled = new TaskCompletionSource<bool>();
@@ -797,8 +907,134 @@ public sealed class AutomationTests
         // 触发新一轮空闲阶段，若状态被旧任务污染为 true 则会被跳过
         agent.OnPhaseChanged(GamePhase.None);
 
-        var completed = await Task.WhenAny(postLobbyCalled.Task, Task.Delay(500));
-        Assert.Same(postLobbyCalled.Task, completed);
+        Assert.True(await WaitUntilAsync(() => postLobbyCalled.Task.IsCompleted));
+    }
+
+    /// <summary>
+    /// 代际守卫的确定性验证：重置之后，旧代际的任务无论如何都不再拥有写标记的资格，
+    /// 而新代际可以正常写入。与上面的行为用例互补，不依赖任何线程调度时序。
+    /// </summary>
+    [Fact]
+    public async Task AutoCreateLobbyAgent_StaleEpoch_CannotMarkCreated()
+    {
+        var transport = new MockTransport();
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+
+        var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+
+        int staleEpoch = agent.CurrentClientEpoch;
+
+        // 未重置：当前代际可写入
+        Assert.True(agent.TryMarkCreatedForClient(staleEpoch, CancellationToken.None));
+        Assert.True(agent.HasCreatedForCurrentClient);
+
+        agent.OnConnectionReset();
+        Assert.False(agent.HasCreatedForCurrentClient);
+
+        // 重置后：旧代际写不进去，即便任务未被取消
+        Assert.False(agent.TryMarkCreatedForClient(staleEpoch, CancellationToken.None));
+        Assert.False(agent.HasCreatedForCurrentClient);
+
+        // 新代际恢复写权限
+        Assert.True(agent.TryMarkCreatedForClient(agent.CurrentClientEpoch, CancellationToken.None));
+        Assert.True(agent.HasCreatedForCurrentClient);
+
+        // 已取消的任务即使代际正确也不得写入
+        agent.OnConnectionReset();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.False(agent.TryMarkCreatedForClient(agent.CurrentClientEpoch, cts.Token));
+        Assert.False(agent.HasCreatedForCurrentClient);
+    }
+
+    [Fact]
+    public async Task AutoCreateLobbyAgent_OldEpochDoesNotBlockNewTrigger()
+    {
+        var lobbyCreated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var transport = new MockTransport
+        {
+            Handler = request =>
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    lobbyCreated.TrySetResult();
+                }
+
+                return new LcuResponse(lobbyCreated.Task.IsCompleted ? 200 : 404, "{}");
+            }
+        };
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+        await using var supervisor = new AgentSupervisor();
+        var lifecycle = new AgentLifecycle();
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        int oldEpoch = agent.CurrentClientEpoch;
+        agent.OnConnectionReset();
+
+        // 模拟上一代任务晚入册且还未退册，新代际依然能处理自己的触发。
+        var releaseOld = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var old = await supervisor.TrySpawnAsync(
+            AutoCreateLobbyAgent.LobbyTaskKind(oldEpoch),
+            "StaleAutoCreateLobby",
+            async ct =>
+            {
+                try
+                {
+                    await releaseOld.Task.WaitAsync(ct);
+                    await agent.CreateLobbyTaskAsync(oldEpoch, ct);
+                }
+                finally
+                {
+                    oldDone.TrySetResult();
+                }
+            });
+        Assert.True(old.Spawned);
+
+        try
+        {
+            agent.OnPhaseChanged(GamePhase.None);
+            await lobbyCreated.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(await WaitUntilAsync(() => agent.HasCreatedForCurrentClient));
+        }
+        finally
+        {
+            releaseOld.TrySetResult();
+        }
+
+        await oldDone.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(3, transport.RecordedRequests.Count);
+    }
+
+    [Fact]
+    public async Task AutoCreateLobbyAgent_PhaseChangesDuringLobbyLookup_DoesNotPost()
+    {
+        var lifecycle = new AgentLifecycle();
+        var transport = new MockTransport
+        {
+            Handler = _ =>
+            {
+                lifecycle.UpdatePhase(GamePhase.ChampSelect);
+                return new LcuResponse(404, "");
+            }
+        };
+        var config = new Persistence.AppConfig();
+        config.Functions.EnableAutoCreateLobby = true;
+        await using var supervisor = new AgentSupervisor();
+        await using var agent = new AutoCreateLobbyAgent(() => transport, () => config, supervisor, lifecycle);
+        await agent.StartAsync();
+
+        agent.OnPhaseChanged(GamePhase.None);
+        Assert.True(await WaitUntilAsync(() => supervisor.GetActiveTasks().Count == 0));
+
+        Assert.Equal(HttpMethod.Get, Assert.Single(transport.RecordedRequests).Method);
+        Assert.True(agent.HasCreatedForCurrentClient);
     }
 
     [Fact]

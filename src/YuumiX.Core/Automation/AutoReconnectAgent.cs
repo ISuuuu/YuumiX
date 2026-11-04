@@ -14,15 +14,16 @@ public sealed class AutoReconnectAgent : IAutomationAgent
     private const int MaxAttempts = 5;
 
     /// <summary>
-    /// 两次采样确认游戏进程存活的间隔。
+    /// 两次采样确认游戏进程存活的默认间隔。
     /// 实测对局正常结束（或 Alt+F4 退出）后，操作系统回收 <c>League of Legends.exe</c>
     /// 进程通常耗时数百毫秒至 1 秒左右；保留 1000ms 间隔可确保对局结束瞬间不误判为掉线并误发重连。
     /// </summary>
-    private static readonly TimeSpan GameProcessProbeInterval = TimeSpan.FromMilliseconds(1000);
+    private static readonly TimeSpan DefaultGameProcessProbeInterval = TimeSpan.FromMilliseconds(1000);
 
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly Func<AppConfig> _configProvider;
     private readonly Func<bool> _gameProcessAliveProbe;
+    private readonly TimeSpan _gameProcessProbeInterval;
     private readonly AgentSupervisor _supervisor;
     private readonly AgentLifecycle _lifecycle;
     private readonly ILogger<AutoReconnectAgent>? _logger;
@@ -40,7 +41,8 @@ public sealed class AutoReconnectAgent : IAutomationAgent
         AgentSupervisor supervisor,
         AgentLifecycle lifecycle,
         ILogger<AutoReconnectAgent>? logger = null,
-        Func<bool>? gameProcessAliveProbe = null)
+        Func<bool>? gameProcessAliveProbe = null,
+        TimeSpan? gameProcessProbeInterval = null)
     {
         ArgumentNullException.ThrowIfNull(transportProvider);
         ArgumentNullException.ThrowIfNull(configProvider);
@@ -53,6 +55,10 @@ public sealed class AutoReconnectAgent : IAutomationAgent
         _lifecycle = lifecycle;
         _logger = logger;
         _gameProcessAliveProbe = gameProcessAliveProbe ?? GameProcessProbe.IsRunning;
+        _gameProcessProbeInterval = gameProcessProbeInterval ?? DefaultGameProcessProbeInterval;
+
+        // 允许 TimeSpan.Zero（立即复采，测试用），但不允许负数
+        ArgumentOutOfRangeException.ThrowIfLessThan(_gameProcessProbeInterval, TimeSpan.Zero);
     }
 
     public Task StartAsync(CancellationToken cancellationToken = default)
@@ -217,7 +223,7 @@ public sealed class AutoReconnectAgent : IAutomationAgent
     }
 
     /// <summary>
-    /// 两次采样确认游戏进程存活（间隔 <see cref="GameProcessProbeInterval"/>）。
+    /// 两次采样确认游戏进程存活（间隔 <see cref="_gameProcessProbeInterval"/>）。
     /// </summary>
     private async Task<bool> IsGameProcessAliveAsync(CancellationToken ct)
     {
@@ -226,7 +232,11 @@ public sealed class AutoReconnectAgent : IAutomationAgent
             return false;
         }
 
-        await Task.Delay(GameProcessProbeInterval, ct).ConfigureAwait(false);
+        if (_gameProcessProbeInterval > TimeSpan.Zero)
+        {
+            await Task.Delay(_gameProcessProbeInterval, ct).ConfigureAwait(false);
+        }
+
         return _gameProcessAliveProbe();
     }
 
