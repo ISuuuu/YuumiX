@@ -1,7 +1,7 @@
 # AGENTS.md — YuumiX 开发强制约定
 
 > 本文件对本仓库的**所有**代码改动生效，优先级高于个人偏好与"看起来能跑"。
-> 技术栈固定：**WinUI 3（Windows App SDK 2.6.x）+ Microsoft.UI.Reactor 0.1.0-preview.16 + .NET 10**。
+> 技术栈固定：**WinUI 3（Windows App SDK 2.6.x）+ Microsoft.UI.Reactor 0.1.0-preview.17 + .NET 10**。
 > 目标是**原生 Fluent Design**：字号、颜色、圆角、间距、控件一律走框架语义层，不手搓视觉。
 > 详细方案见 `docs/internal/docbak/ui-native-fluent-plan.md`；架构决策见 `docs/internal/docbak/architecture.md` 的 ADR 系列。
 > **注意**：`docs/internal/` 在 `.gitignore` 中，不随仓库分发（`docs/` 用作 GitHub Pages 站点目录），上述及下文引用的文档仅作者本地可见；
@@ -21,7 +21,7 @@
 **唯一真源**（版本与 `Directory.Packages.props` 严格一致，勿用其它版本）：
 
 ```
-~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.16/agentkit/plugins/reactor/skills/
+~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.17/agentkit/plugins/reactor/skills/
 ```
 
 | 要查什么                                       | 读哪个文件                               |
@@ -141,7 +141,7 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
     - **Devtools 能力已接入（Debug-only）**：`YuumiX.App.csproj` 有 `'$(Configuration)' == 'Debug'` 条件项组，
       含 `Microsoft.UI.Reactor.Devtools` 包引用 + `<RuntimeHostConfigurationOption Include="Reactor.DevtoolsSupport" Value="true" Trim="true" />`。
       Release 由 Reactor 包自带的 targets 兜底为 `false`（包内默认 `Value="false"`，last-write-wins），且**不携带** devtools dll。
-    - **启动方式**：命令行 `dotnet run --project src/YuumiX.App/YuumiX.App.csproj --no-build -p:Platform=x64 -- --devtools run`（或直接给 `YuumiX.exe` 传 `--devtools`），VS 中直接选择 `YuumiX (Devtools)` profile（定义于 `Properties/launchSettings.json`）。
+    - **启动方式**：命令行 `dotnet run --project src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64 -- --devtools run`（已编译跳过构建可加 `--no-build`，或直接给 `YuumiX.exe` 传 `--devtools`），VS 中直接选择 `YuumiX (Devtools)` profile（定义于 `Properties/launchSettings.json`）。
     - **CLI 门禁与调试**（直接使用官方 `mur` 工具，已在用户级 `PATH`：`~/.workbuddy/skills/reactor/bin/x64/mur.exe`，禁止编写临时 `.py` 脚本替代）：
         - 编译及分析器门禁（日常必跑）：`mur check src/YuumiX.App/YuumiX.App.csproj -- -p:Platform=x64`
         - 交互/截图工作流（应用启动后）：
@@ -229,9 +229,9 @@ Vue/网页里字体回退、字重合成、亚像素渲染都由浏览器兜底�
 14. **字形图标与字体族**：图标字体统一使用 `Icons.FontFamily`（即 `"Segoe Fluent Icons, Segoe MDL2 Assets"`，Win10 未内置 Fluent 图标字体，只写前者会渲染成方框）；等宽字体统一使用 `Icons.MonoFontFamily`（`"Cascadia Mono, Consolas"`，禁止 `monospace` 等 CSS 关键字，在 WinUI 中不是合法字体名会被静默丢弃）。字形码与字体族字符串集中在 `Icons` 静态类，业务页面与通用控件禁止散落 `\uE...` 字面量或手写 `.FontFamily("...")` 字符串字面量。
 15. **Hook 依赖不许传新分配的对象**（分析器 `REACTOR_HOOKS_004`）：`UseEffect(fn, (a, b))` 这类元组、数组、lambda 都是每次渲染新分配 → 依赖判定永远不相等 → 效果每帧重跑。要么传标量 key，要么 `UseMemo` 缓存，要么把变量提到字段。存量写法一律用标量（`0` 表示挂载一次）。
 16. **引用类型状态禁止原地修改**（分析器 `REACTOR_HOOKS_010`）：setter 走 `EqualityComparer<T>.Default` 比较，**同一实例比较相等** → 不排重渲染。`setItems(items)` 后再 `items.Add(x)` 等于什么都没做；必须传新值（`setItems([.. items, x])`）。setter 是 `Action<T>` 而非函数式更新，**禁止** `setItems(prev => ...)`。
-17. **主题覆盖：常规元素用 `.RequestedTheme(...)` 修饰符，`ContentDialog` 用 `.DialogTheme(...)`（`YuumiTheme.DialogTheme`）**：
+17. **主题覆盖：常规元素用 `.RequestedTheme(...)` 修饰符，`ContentDialog` 沿用 `.DialogTheme(...)`（`YuumiTheme.DialogTheme`）或 `.RequestedTheme(...)`**：
     - 常规元素走 `.RequestedTheme(...)`（分析器 `REACTOR_THEME_003`），不用 `.Set(...)`（违反 §5.12）。
-    - **`ContentDialogElement` 是唯一例外**：`MountContentDialog` 在主视觉树里只挂一个 `Visibility.Collapsed` 的占位 `StackPanel`，`Element.Modifiers`（含 `.RequestedTheme`）只会施加在该不可见占位容器上；真实 `ContentDialog` 宿主在 `XamlRoot` 的 Popup 中，`OverlayLifecycle.ShowContentDialogCore` / `UpdateContentDialog` 只向真实弹窗转发 `Setters`（`.Set(...)`），因此弹窗必须统一调 `.DialogTheme(palette.ElementTheme)`。
+    - **`ContentDialogElement` 说明**：`0.1.0-preview.17` 起 `ContentDialog` 默认自动跟随声明处的 `ActualTheme`，且 `.RequestedTheme(...)` 已直接转发至真实弹窗；同时 `.Set(...)`（即 `.DialogTheme(palette.ElementTheme)`）仍在最后执行并生效，既有弹窗调 `.DialogTheme(palette.ElementTheme)` 保持兼容。
 18. **页面缓存必须在 `AppShell` 统一开启，页面负责清理"一次性 UI 状态"**：
     - `NavigationCacheMode` 默认 `Disabled`，语义是「切走即卸载、切回即重建」，组件树连同全部 `UseState` 一起销毁。数据页因此每次切回都要从空态重走一遍取数链路（生涯页表现为每次闪一下「正在读取生涯数据…」）。
     - 唯一正确做法是 `NavigationHost(...) with { CacheMode = NavigationCacheMode.Enabled, CacheSize = RouteCatalog.All.Count }`（见 `AppShell`），**不要**在页面里另开或关闭；新页面默认自动获得缓存，不需要写任何代码。

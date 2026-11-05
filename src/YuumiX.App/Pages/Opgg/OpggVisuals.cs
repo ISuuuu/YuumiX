@@ -73,7 +73,7 @@ public static class OpggVisuals
             };
         }
 
-        return "rgba(0, 0, 0, 0.095)";
+        return "#E5E8EC";
     }
 
     /// <summary>

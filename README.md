@@ -75,7 +75,7 @@
 
 | 层级     | 技术选型                                 | 说明                                |
 | -------- | ---------------------------------------- | ----------------------------------- |
-| UI 框架  | Microsoft.UI.Reactor `0.1.0-preview.16`  | 基于 WinUI 3 的声明式组件化 C# 框架 |
+| UI 框架  | Microsoft.UI.Reactor `0.1.0-preview.17`  | 基于 WinUI 3 的声明式组件化 C# 框架 |
 | 平台层   | Windows App SDK `2.6.4`、WinUI 3         | Windows 现代桌面应用基础设施        |
 | 运行时   | .NET 10（`net10.0-windows10.0.22621.0`） | 由 `global.json` 锁定 SDK 版本      |
 | 领域层   | `YuumiX.Core`（`net10.0`）               | 纯 C# 类库，零 UI 依赖，便于单测    |
@@ -100,10 +100,11 @@
 ## 从源代码构建
 
 ```powershell
-dotnet restore YuumiX.slnx            # 还原依赖
-dotnet build YuumiX.slnx              # 构建
-dotnet run --project src/YuumiX.App   # 运行主应用
-dotnet test YuumiX.slnx               # 执行测试
+dotnet restore YuumiX.slnx                                                               # 还原依赖
+dotnet build YuumiX.slnx                                                                 # 构建
+dotnet run --project src/YuumiX.App                                                      # 运行主应用
+dotnet run --project src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64 -- --devtools run  # 带 Devtools 启动（支持热重载与元素树检视）
+dotnet test YuumiX.slnx                                                                  # 执行测试
 ```
 
 无需手动指定平台：解决方案只定义 x64，应用项目也把 `RuntimeIdentifier` 固定为 `win-x64`。解决方案构建的产物位于 `src/YuumiX.App/bin/x64/Debug/net10.0-windows10.0.22621.0/win-x64/YuumiX.exe`；直接构建单个项目时输出在 `bin/Debug/...`，内容一致。

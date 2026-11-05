@@ -8,18 +8,18 @@
   <ItemGroup>
     <!--
       Windows App SDK 必须是 2.x 版本线：
-      Microsoft.UI.Reactor 0.1.0-preview.16 依赖 Microsoft.WindowsAppSDK.WinUI >= 2.2.1，
+      Microsoft.UI.Reactor 0.1.0-preview.17 依赖 Microsoft.WindowsAppSDK.WinUI >= 2.2.1，
       而 Windows App SDK 1.8 携带的是 WinUI 1.8，会触发 NU1107 版本冲突。
     -->
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.4" />
-    <PackageVersion Include="Microsoft.UI.Reactor" Version="0.1.0-preview.16" />
+    <PackageVersion Include="Microsoft.UI.Reactor" Version="0.1.0-preview.17" />
     <!--
       Reactor Devtools 宿主：提供 Element 树检视、截图、点击/输入、hook 状态读取。
       只在 Debug 配置下引用（见 YuumiX.App.csproj），Release 不得携带。
       版本必须与 Microsoft.UI.Reactor 严格一致：devtools 依赖 Reactor.Advanced 的
       内部类型，跨版本会出现类型不匹配。
     -->
-    <PackageVersion Include="Microsoft.UI.Reactor.Devtools" Version="0.1.0-preview.16" />
+    <PackageVersion Include="Microsoft.UI.Reactor.Devtools" Version="0.1.0-preview.17" />
     <!--
       显式钉住 WinUI 子包版本：WASDK 2.6.4 将所有组件子包统一对齐为 2.6.4。
       CommunityToolkit 的 SettingsControls 依赖 WinUI >= 1.8.260204000，2.6.4 满足该下限，

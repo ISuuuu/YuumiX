@@ -127,7 +127,5 @@ public partial record SettingsExpanderElement
         control.Items.Clear();
         if (control.Content is UIElement content)
             context.Reconciler.UnmountChild(content);
-        if (control.HeaderIcon is UIElement icon)
-            context.Reconciler.UnmountChild(icon);
     }
 }

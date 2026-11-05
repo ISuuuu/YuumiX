@@ -8,6 +8,10 @@
     <Platforms>x64</Platforms>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- 测试工程通过 InternalsVisibleTo 访问 YuumiX.App 内部成员；关闭测试工程自身的
+         ReactorSourceMap 源生成，避免 preview.17 生成的 internal ReactorSourceMapStaticInfo
+         与主工程同名内部类型产生 CS0436 冲突。 -->
+    <ReactorSourceMap>false</ReactorSourceMap>
   </PropertyGroup>
 
   <ItemGroup>

@@ -234,7 +234,7 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                         .WithKey($"preset-{idx}");
 
                         return isSelected
-                            ? itemBorder.Background("rgba(99, 111, 249, 0.10)").WithBorder(OpggVisuals.OpggBrandColor, 1)
+                            ? itemBorder.Background(Theme.SubtleFill).WithBorder(OpggVisuals.OpggBrandColor, 1)
                             : itemBorder.Background("transparent").WithBorder(Theme.CardStroke, 1);
                     }).ToArray()
                 ),
