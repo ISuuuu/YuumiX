@@ -221,7 +221,7 @@ internal static class MatchDetailView
                     [GridSize.Auto],
                     [
                         HStack(12,
-                            Block(4, 40, YuumiTheme.PillRadius),
+                            Block(48, 48, YuumiTheme.ControlRadius),
                             VStack(4, Block(140, 14), Block(300, 12)))
                             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
                             .Grid(row: 0, column: 0),
@@ -360,6 +360,9 @@ internal static class MatchDetailView
 
         string map = detail?.MapName ?? summary.MapName;
         string queue = detail?.QueueName ?? summary.QueueName;
+        int mapId = detail?.MapId ?? 0;
+        int queueId = (detail is not null && detail.QueueId != 0) ? detail.QueueId : summary.QueueId;
+        string? mapIconUri = AppAssets.GetMapIconUri(mapId, queueId, summary.Win);
 
         string meta = string.Join(
             " · ",
@@ -369,12 +372,35 @@ internal static class MatchDetailView
             summary.DetailDateText,
             $"游戏 ID: {summary.GameId.ToString(CultureInfo.InvariantCulture)}");
 
-        Element info = HStack(12,
-            Border(Empty()).Width(4).Height(40).CornerRadius(YuumiTheme.PillRadius).Background(accent),
-            VStack(3,
-                Subtitle(SearchVisuals.ResultText(summary))
-                    .Foreground(accent),
-                Caption(meta).Foreground(Theme.SecondaryText)))
+        Element? mapIcon = !string.IsNullOrEmpty(mapIconUri)
+            ? Border(
+                Image(mapIconUri)
+                    .AutomationName("地图胜负图标")
+                    .Width(48)
+                    .Height(48))
+                .Width(48)
+                .Height(48)
+                .CornerRadius(YuumiTheme.ControlRadius)
+                .WithBorder(Theme.CardStroke, 1)
+                .VAlign(VerticalAlignment.Center)
+            : null;
+
+        var infoItems = new List<Element>(3);
+        if (mapIcon is not null)
+        {
+            infoItems.Add(mapIcon);
+        }
+        else
+        {
+            infoItems.Add(Border(Empty()).Width(4).Height(40).CornerRadius(YuumiTheme.PillRadius).Background(accent));
+        }
+
+        infoItems.Add(VStack(3,
+            Subtitle(SearchVisuals.ResultText(summary))
+                .Foreground(accent),
+            Caption(meta).Foreground(Theme.SecondaryText)));
+
+        Element info = HStack(12, infoItems.ToArray())
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         Element replayBtn = Component<ReplayButton, ReplayButtonProps>(
@@ -440,8 +466,11 @@ internal static class MatchDetailView
                     columns,
                     [GridSize.Auto],
                     [
-                        TeamSummary(team, accent, palette, isEn).Grid(row: 0, column: 0),
-                        ColumnLabel(itemsHeader, 1, palette, HorizontalAlignment.Left),
+                        HStack(16,
+                            TeamSummary(team, accent, palette, isEn),
+                            ColumnLabel(itemsHeader, 0, palette, HorizontalAlignment.Left)
+                        )
+                        .Grid(row: 0, column: 0, columnSpan: 2),
                         ColumnLabel("KDA", 2, palette, HorizontalAlignment.Center),
                         ColumnLabel(csHeader, 3, palette, HorizontalAlignment.Center),
                         ColumnLabel(goldHeader, 4, palette, HorizontalAlignment.Right),

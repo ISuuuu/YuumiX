@@ -27,7 +27,7 @@ internal static class ClientSection
                 }
                 catch (Exception ex)
                 {
-                    ui.Toast.Error($"窗口修复失败: {ex.Message}");
+                    ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"窗口修复失败: {ex.Message}");
                 }
             }).AutomationName("修复客户端窗口"));
 

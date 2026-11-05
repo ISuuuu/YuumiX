@@ -195,12 +195,12 @@ internal static class GameSection
                                 }
                                 else
                                 {
-                                    ui.Toast.Error(res.Message);
+                                    ui.Toast.Error(res.Message.Contains("未连接") ? "请先连接客户端" : res.Message);
                                 }
                             }
                             catch (Exception ex)
                             {
-                                ui.Toast.Error($"观战异常: {ex.Message}");
+                                ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"观战异常: {ex.Message}");
                             }
                         }).AutomationName("启动观战按钮").Grid(row: 0, column: 1),
                     ])
@@ -324,7 +324,7 @@ internal static class GameSection
                         }
                         catch (Exception ex)
                         {
-                            ui.Toast.Error($"创建大厅失败: {ex.Message}");
+                            ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"创建大厅失败: {ex.Message}");
                         }
                     }).AutomationName("立即创建大厅按钮")
                 ).Margin(new Thickness(0, 4, 0, 4))

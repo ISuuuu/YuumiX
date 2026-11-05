@@ -65,14 +65,12 @@ public sealed class ItemsSectionView : Component<ItemsSectionProps>
             ? (i18n?.T("opgg.items.applying", "正在应用出装...") ?? "正在应用出装...")
             : (i18n?.T("opgg.items.applyBtn", "一键应用出装到游戏推荐页") ?? "一键应用出装到游戏推荐页");
 
-        // 与符文区的「设为当前符文页」按钮同款观感：实心绿底白字；
-        // 原先的 12% 半透明绿底叠在卡片上会发灰，描边包裹层也显得多余。
+        // 与符文区的「设为当前符文页」按钮同款观感：实心绿底白字，并正确配置悬停资源。
         return Button(
-            BodyStrong(btnText)
-                .Foreground("#FFFFFF"),
+            BodyStrong(btnText),
             Props.OnApplyItemSet)
             .IsEnabled(!Props.IsApplying)
-            .Background(OpggVisuals.ActiveTabGreen)
+            .OpggGreenButton()
             .Height(36)
             .HAlign(HorizontalAlignment.Stretch)
             .AutomationName("一键应用出装按钮");

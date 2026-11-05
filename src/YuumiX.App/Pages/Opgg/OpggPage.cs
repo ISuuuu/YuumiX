@@ -268,7 +268,9 @@ public sealed class OpggPage : Component<OpggPageProps>
                             }
                             catch (Exception ex)
                             {
-                                toast.Error(i18n.T("opgg.runes.appliedFailed", "应用符文页失败: ") + ex.Message);
+                                toast.Error(ex.Message.Contains("未连接")
+                                    ? "请先连接客户端"
+                                    : i18n.T("opgg.runes.appliedFailed", "应用符文页失败: ") + ex.Message);
                             }
                         },
                         onApplyItemSet: async () =>
@@ -284,7 +286,9 @@ public sealed class OpggPage : Component<OpggPageProps>
                             }
                             catch (Exception ex)
                             {
-                                toast.Error(i18n.T("opgg.items.appliedFailed", "应用出装失败: ") + ex.Message);
+                                toast.Error(ex.Message.Contains("未连接")
+                                    ? "请先连接客户端"
+                                    : i18n.T("opgg.items.appliedFailed", "应用出装失败: ") + ex.Message);
                             }
                             finally
                             {

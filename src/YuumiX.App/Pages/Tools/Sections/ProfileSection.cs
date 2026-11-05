@@ -126,7 +126,7 @@ internal static class ProfileSection
                             }
                             catch (Exception ex)
                             {
-                                ui.Toast.Error($"更新个性签名失败: {ex.Message}");
+                                ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"更新个性签名失败: {ex.Message}");
                             }
                         }).AutomationName("更新签名按钮").Grid(row: 0, column: 1),
                     ])
@@ -158,7 +158,7 @@ internal static class ProfileSection
                         }
                         catch (Exception ex)
                         {
-                            ui.Toast.Error($"设置背景失败: {ex.Message}");
+                            ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"设置背景失败: {ex.Message}");
                         }
                     },
                     async () =>
@@ -191,7 +191,7 @@ internal static class ProfileSection
                         }
                         catch (Exception ex)
                         {
-                            ui.Toast.Error($"获取皮肤列表失败: {ex.Message}");
+                            ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"获取皮肤列表失败: {ex.Message}");
                             setBg(bg with { Loading = false });
                         }
                     },
@@ -220,7 +220,7 @@ internal static class ProfileSection
                             }
                             catch (Exception ex)
                             {
-                                ui.Toast.Error($"设置背景失败: {ex.Message}");
+                                ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"设置背景失败: {ex.Message}");
                             }
                         }).AutomationName("直接应用皮肤ID").Grid(row: 0, column: 1),
                     ])
@@ -277,7 +277,7 @@ internal static class ProfileSection
                             }
                             catch (Exception ex)
                             {
-                                ui.Toast.Error($"应用段位伪装失败: {ex.Message}");
+                                ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"应用段位伪装失败: {ex.Message}");
                             }
                         }).AutomationName("应用段位伪装").Grid(row: 0, column: 1),
                     ])
@@ -352,7 +352,7 @@ internal static class ProfileSection
                         }
                         catch (Exception ex)
                         {
-                            ui.Toast.Error($"保存挑战配置失败: {ex.Message}");
+                            ui.Toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : $"保存挑战配置失败: {ex.Message}");
                         }
                     },
                     onReloadChallenges,

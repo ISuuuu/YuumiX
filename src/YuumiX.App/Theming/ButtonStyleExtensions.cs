@@ -33,4 +33,25 @@ public static class ButtonStyleExtensions
             .Set("ButtonBackgroundPressed", Theme.Ref(isSelected ? "AccentButtonBackgroundPressed" : "ButtonBackgroundPressed"))
             .Set("ButtonForegroundPointerOver", Theme.Ref(isSelected ? "AccentButtonForegroundPointerOver" : "ButtonForegroundPointerOver"))
             .Set("ButtonForegroundPressed", Theme.Ref(isSelected ? "AccentButtonForegroundPressed" : "ButtonForegroundPressed")));
+
+    /// <summary>
+    /// OP.GG 绿色主操作按钮（设为当前符文页、一键应用出装）：
+    /// 正常态与悬停/按下态均覆写资源，避免指针进入时模板回退为系统亮白底色造成白底白字不可读。
+    /// </summary>
+    public static ButtonElement OpggGreenButton(this ButtonElement button) =>
+        button
+            .CornerRadius(YuumiTheme.ControlRadius)
+            .Resources(static resources => resources
+                .Set("ButtonBackground", "#2fbc5d")
+                .Set("ButtonBackgroundPointerOver", "#25a44e")
+                .Set("ButtonBackgroundPressed", "#1e853f")
+                .Set("ButtonBackgroundDisabled", Theme.Ref("ButtonBackgroundDisabled"))
+                .Set("ButtonForeground", "#FFFFFF")
+                .Set("ButtonForegroundPointerOver", "#FFFFFF")
+                .Set("ButtonForegroundPressed", "#FFFFFF")
+                .Set("ButtonForegroundDisabled", Theme.Ref("ButtonForegroundDisabled"))
+                .Set("ButtonBorderBrush", "Transparent")
+                .Set("ButtonBorderBrushPointerOver", "Transparent")
+                .Set("ButtonBorderBrushPressed", "Transparent")
+                .Set("ButtonBorderBrushDisabled", "Transparent"));
 }

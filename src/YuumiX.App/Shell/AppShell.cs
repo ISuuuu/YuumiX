@@ -983,7 +983,7 @@ public sealed class AppShell : Component
             {
                 if (!isClientConnected)
                 {
-                    toastQueue.Error("请先连接英雄联盟客户端");
+                    toastQueue.Error("请先连接客户端");
                 }
                 else
                 {
@@ -994,6 +994,12 @@ public sealed class AppShell : Component
 
             if (tag == SidebarTags.Reconnect)
             {
+                if (!isClientConnected)
+                {
+                    toastQueue.Error("请先连接客户端");
+                    return;
+                }
+
                 // 旧版的「修复无限加载」是手动重连动作；新项目目前只有自动重连代理，
                 // 入口先预留在这里，点击给出明确反馈而不是静默无响应。
                 toastQueue.Info("「修复无限加载」待迁移：当前仅支持自动重连");

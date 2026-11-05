@@ -222,7 +222,7 @@ public sealed class ToolsPage : Component
                     setFriend(friendRef.Current with { AllFriends = list });
                     toast.Success(services.I18n.T("tools.friendScanSuccess", "好友扫描完成，共找到 {count} 位好友").Replace("{count}", list.Count.ToString()));
                 },
-                OnError: (ex, _) => toast.Error(services.I18n.T("tools.friendScanFailed", "好友扫描失败: {error}").Replace("{error}", ex.Message))));
+                OnError: (ex, _) => toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : services.I18n.T("tools.friendScanFailed", "好友扫描失败: {error}").Replace("{error}", ex.Message))));
 
         var deleteFriends = UseMutation<List<string>, int>(
             (ids, ct) => friendCleanerService.BatchDeleteFriendsAsync(ids, ct),
@@ -233,29 +233,29 @@ public sealed class ToolsPage : Component
                     setFriend(friendRef.Current with { SelectedIds = [], ConfirmingDelete = false, PendingDeleteIds = [] });
                     _ = scanFriends.RunAsync(null);
                 },
-                OnError: (ex, _) => toast.Error(services.I18n.T("tools.friendDeleteFailed", "删除好友失败: {error}").Replace("{error}", ex.Message))));
+                OnError: (ex, _) => toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : services.I18n.T("tools.friendDeleteFailed", "删除好友失败: {error}").Replace("{error}", ex.Message))));
 
         var restartClient = UseMutation<object?, bool>(
             async (_, ct) =>
             {
-                var transport = lcuConnection.Transport ?? throw new InvalidOperationException(services.I18n.T("tools.clientDisconnected", "LCU 客户端未连接，请先启动英雄联盟客户端"));
+                var transport = lcuConnection.Transport ?? throw new InvalidOperationException("请先连接客户端");
                 var response = await transport.SendAsync(LcuRequest.Post("/riotclient/kill-and-restart-ux", "{}"), ct);
                 EnsureRestartSucceeded(response, services.I18n.T("tools.httpStatusError", "HTTP 状态码 {status}").Replace("{status}", response.StatusCode.ToString()));
                 return true;
             },
             new MutationOptions<object?, bool>(
                 OnSuccess: (_, _) => toast.Success(services.I18n.T("tools.restartSuccess", "已向 Riot Client 发送重启指令，客户端正在重新引导...")),
-                OnError: (ex, _) => toast.Error(services.I18n.T("tools.operationFailed", "操作失败: {error}").Replace("{error}", ex.Message))));
+                OnError: (ex, _) => toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : services.I18n.T("tools.operationFailed", "操作失败: {error}").Replace("{error}", ex.Message))));
         var clearBadges = UseMutation<object?, bool>(
             async (_, ct) => { await toolsService.ClearChallengeBadgesAsync(ct); return true; },
             new MutationOptions<object?, bool>(
                 OnSuccess: (_, _) => toast.Success(services.I18n.T("tools.clearBadgesSuccess", "已卸下展示的全部挑战勋章")),
-                OnError: (ex, _) => toast.Error(services.I18n.T("tools.clearBadgesFailed", "卸下勋章失败: {error}").Replace("{error}", ex.Message))));
+                OnError: (ex, _) => toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : services.I18n.T("tools.clearBadgesFailed", "卸下勋章失败: {error}").Replace("{error}", ex.Message))));
         var clearBorder = UseMutation<object?, bool>(
             async (_, ct) => { await toolsService.ClearProfileTokensAsync(ct); return true; },
             new MutationOptions<object?, bool>(
                 OnSuccess: (_, _) => toast.Success(services.I18n.T("tools.clearBorderSuccess", "已卸下生涯头像框")),
-                OnError: (ex, _) => toast.Error(services.I18n.T("tools.clearBorderFailed", "卸下头像框失败: {error}").Replace("{error}", ex.Message))));
+                OnError: (ex, _) => toast.Error(ex.Message.Contains("未连接") ? "请先连接客户端" : services.I18n.T("tools.clearBorderFailed", "卸下头像框失败: {error}").Replace("{error}", ex.Message))));
 
         UseEffect(
             () =>

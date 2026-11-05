@@ -118,6 +118,7 @@ public sealed class SearchPage : Component<SearchPageProps>
         var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
         var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
         var (uploadOn, setUploadOn) = UseState(services.Config.Functions.UploadEnabled, threadSafe: true);
+        var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
         bool reduceMotion = UseReducedMotion();
         bool isHighContrast = UseHighContrast();
         bool skipMotion = reduceMotion || isHighContrast;
@@ -178,6 +179,12 @@ public sealed class SearchPage : Component<SearchPageProps>
 
         void RunSearch(SearchTargetInput input)
         {
+            if (connState.Status != LcuConnectionStatus.Connected)
+            {
+                toast?.Error("请先连接客户端");
+                return;
+            }
+
             searchSeqRef.Current++;
             refreshCancellation.Current?.Cancel();
             _ = searchMutation.RunAsync(input with { Sequence = searchSeqRef.Current });
@@ -212,7 +219,6 @@ public sealed class SearchPage : Component<SearchPageProps>
             _ => [],
         };
 
-        var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
         UseEffect(
             () =>
             {

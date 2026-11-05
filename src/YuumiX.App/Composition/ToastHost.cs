@@ -157,9 +157,10 @@ public sealed class ToastHost : Component
     }
 
     /// <summary>
-    /// 渲染一条提示。只有「正常 / 异常」两档（见类型注释），不做逐等级换图标：
-    /// 图标与材质都由 <see cref="InfoBarSeverity"/> 原生提供，不覆盖 <c>IconSource</c>——
-    /// 自定义 FontIcon 拿不到该等级的图标色，反而会渲染成普通前景色。
+    /// 渲染一条提示。只有「正常 / 异常」两档：
+    /// 正常与错误提示的背景色统一使用正常底色（<see cref="Theme.SolidBackground"/>），
+    /// 仅通过 <see cref="InfoBarSeverity"/> 原生图标区分成败（正常为系统蓝 ⓘ 图标，错误为红色 ! 图标），
+    /// 不使用红色背景底色，保持统一与视觉干净。
     /// </summary>
     private static Element RenderBar(ToastEntry item, ToastQueue queue) =>
         Border(

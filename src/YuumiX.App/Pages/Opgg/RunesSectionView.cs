@@ -242,10 +242,9 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                 Border(Empty()).Height(6),
 
                 Button(
-                    Caption(applyBtnText)
-                        .Foreground("#FFFFFF"),
+                    Caption(applyBtnText),
                     () => Props.OnApplyRune(activeRune))
-                    .Background(OpggVisuals.ActiveTabGreen)
+                    .OpggGreenButton()
                     .Height(32)
                     .HAlign(HorizontalAlignment.Stretch)
                     .AutomationName("一键应用符文页按钮")

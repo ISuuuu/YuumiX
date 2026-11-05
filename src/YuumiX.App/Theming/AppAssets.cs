@@ -176,4 +176,33 @@ public static class AppAssets
         }
         return result;
     }
+
+    /// <summary>
+    /// 对局详情地图胜负图标（<c>Assets/Maps/{sr|ha|arena|other}-{victory|defeat}.png</c>）。
+    /// </summary>
+    public static string? GetMapIconUri(int mapId, int queueId, bool isWin)
+    {
+        string mapKey;
+        if (mapId == 11 || queueId is 400 or 420 or 430 or 440 or 480 or 490 or 800 or 810 or 830 or 840 or 850 or 900 or 1020 or 4300 or 4310)
+        {
+            mapKey = "sr";
+        }
+        else if (mapId == 12 || queueId is 450 or 2400 or 2450 or 820 or 1010)
+        {
+            mapKey = "ha";
+        }
+        else if (mapId == 30 || queueId is 1700 or 1710)
+        {
+            mapKey = "arena";
+        }
+        else
+        {
+            mapKey = "other";
+        }
+
+        string result = isWin ? "victory" : "defeat";
+        string fileName = $"{mapKey}-{result}.png";
+        string path = Path.Combine(AppContext.BaseDirectory, "Assets", "Maps", fileName);
+        return File.Exists(path) ? new Uri(path).AbsoluteUri : null;
+    }
 }
