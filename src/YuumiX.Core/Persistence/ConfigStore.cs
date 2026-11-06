@@ -222,7 +222,8 @@ public sealed class ConfigStore
         }
     }
 
-    private AppConfig ParseAndMigrate(string text)    {
+    private AppConfig ParseAndMigrate(string text)
+    {
         if (JsonNode.Parse(text) is not JsonObject root)
         {
             throw new JsonException("配置文件的根节点不是 JSON 对象");

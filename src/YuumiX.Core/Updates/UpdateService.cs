@@ -7,8 +7,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Persistence;
-using YuumiX.Core.Serialization;
 using YuumiX.Core.Runtime;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Updates;
 

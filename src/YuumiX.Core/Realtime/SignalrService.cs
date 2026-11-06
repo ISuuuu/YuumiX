@@ -1,13 +1,13 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Text.Json.Nodes;
-using System.Text.Json;
 using YuumiX.Core.Common;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
-using YuumiX.Core.Upload;
 using YuumiX.Core.Serialization;
+using YuumiX.Core.Upload;
 
 namespace YuumiX.Core.Realtime;
 

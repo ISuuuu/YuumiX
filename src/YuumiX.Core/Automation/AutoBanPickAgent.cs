@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Automation.Models;
 using YuumiX.Core.Features.Opgg;
@@ -7,7 +8,6 @@ using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Parsers;
 using YuumiX.Core.Persistence;
-using System.Text.Json.Nodes;
 using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;

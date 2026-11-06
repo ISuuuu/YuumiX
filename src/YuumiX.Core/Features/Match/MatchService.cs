@@ -301,8 +301,12 @@ public sealed class MatchService : IMatchService
                     {
                         return new MatchHistoryPage
                         {
-                            Games = [], BeginIndex = beginIndex, EndIndex = endIndex,
-                            TotalCount = state.TotalCount, HasMore = false, Succeeded = false,
+                            Games = [],
+                            BeginIndex = beginIndex,
+                            EndIndex = endIndex,
+                            TotalCount = state.TotalCount,
+                            HasMore = false,
+                            Succeeded = false,
                         };
                     }
                     if (totalCount.HasValue)

@@ -112,7 +112,8 @@ public static class ColorHex
         return "#" + normalized[3..];
     }
 
-    private static bool IsHex(ReadOnlySpan<char> text)    {
+    private static bool IsHex(ReadOnlySpan<char> text)
+    {
         if (text.IsEmpty)
         {
             return false;

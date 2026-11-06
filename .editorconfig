@@ -6,7 +6,8 @@ root = true
 
 [*]
 charset = utf-8
-end_of_line = lf
+# 现有本地检出在 Windows 上通常为 CRLF，换行符由 .gitattributes (eol=lf) 负责，避免触发全仓无意义的换行符重写
+# end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 indent_style = space
@@ -22,6 +23,10 @@ trim_trailing_whitespace = false
 # using 排序：System 优先，其余按字母序
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false
+
+# 允许合理的单行大括号与单行语句
+csharp_preserve_single_line_blocks = true
+csharp_preserve_single_line_statements = true
 
 # 花括号风格：全下花括号（与现有代码一致）
 csharp_new_line_before_open_brace = all

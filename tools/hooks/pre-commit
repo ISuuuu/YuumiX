@@ -1,0 +1,46 @@
+#!/bin/sh
+# YuumiX 提交前代码自动格式化与排版把关
+# 获取暂存区中本次即将提交的 C# 源码文件
+staged_files=$(git diff --cached --name-only --diff-filter=ACM | grep '\.cs$')
+
+if [ -z "$staged_files" ]; then
+    exit 0
+fi
+
+# 检测可用的 PowerShell 运行时
+if command -v pwsh >/dev/null 2>&1; then
+    PS_CMD="pwsh"
+elif command -v powershell >/dev/null 2>&1; then
+    PS_CMD="powershell"
+else
+    echo "未检测到 pwsh 或 powershell，跳过预提交格式化。"
+    exit 0
+fi
+
+echo "[pre-commit] 正在检查并自动排版暂存的 C# 文件..."
+
+# 格式化所有暂存的 C# 文件
+echo "$staged_files" | $PS_CMD -NoProfile -ExecutionPolicy Bypass -Command '
+    $files = @($input | Where-Object { $_ -and (Test-Path $_) })
+    if ($files.Count -gt 0) {
+        & ./tools/Format-Code.ps1 -Include $files
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    }
+'
+
+if [ $? -ne 0 ]; then
+    echo "[pre-commit] 格式化过程出错，提交已中止。"
+    exit 1
+fi
+
+# 将自动格式化后的最新内容重新加入暂存区
+echo "$staged_files" | while IFS= read -r file; do
+    if [ -n "$file" ] && [ -f "$file" ]; then
+        git add "$file"
+    fi
+done
+
+echo "[pre-commit] 预提交格式化完成。"
+exit 0

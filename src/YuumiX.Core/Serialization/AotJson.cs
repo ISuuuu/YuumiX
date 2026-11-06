@@ -7,8 +7,8 @@ using YuumiX.Core.Features.Opgg.Models;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Features.Tools.Models;
 using YuumiX.Core.Persistence;
-using YuumiX.Core.Upload;
 using YuumiX.Core.Updates;
+using YuumiX.Core.Upload;
 
 namespace YuumiX.Core.Serialization;
 

@@ -2,8 +2,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Lcu;
-using YuumiX.Core.Serialization;
 using YuumiX.Core.Persistence;
+using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Upload;
 

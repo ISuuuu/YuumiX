@@ -2,8 +2,8 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YuumiX.Core.Runtime;
-using YuumiX.Core.Updates;
 using YuumiX.Core.Serialization;
+using YuumiX.Core.Updates;
 
 namespace YuumiX.Core.Features.Tools;
 

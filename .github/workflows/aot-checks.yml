@@ -31,10 +31,14 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Check source gates
+      - name: Run automated source gates and AOT reflection checks
         shell: pwsh
-        run: dotnet test tests/YuumiX.SourceScan.Tests/YuumiX.SourceScan.Tests.csproj -c Release -p:Platform=x64
+        run: ./tools/Invoke-Tests.ps1 -Suite Gate,Aot -Configuration Release
 
-      - name: Verify production JSON and SignalR without reflection
-        shell: pwsh
-        run: dotnet run --project tests/YuumiX.AotVerification/YuumiX.AotVerification.csproj -c Release -p:Platform=x64
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always() && hashFiles('artifacts/test-results/**') != ''
+        with:
+          name: aot-test-results
+          path: artifacts/test-results/
+          if-no-files-found: ignore
