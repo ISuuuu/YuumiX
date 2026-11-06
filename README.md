@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/ISuuuu/YuumiX/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ISuuuu/YuumiX?display_name=tag&sort=semver"></a>
-  <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet">
+  <img alt=".NET 11" src="https://img.shields.io/badge/.NET-11.0-512BD4?logo=dotnet">
   <img alt="Windows App SDK" src="https://img.shields.io/badge/Windows_App_SDK-2.6-0078D4?logo=windows11">
   <img alt="Reactor" src="https://img.shields.io/badge/Microsoft.UI.Reactor-0.1.0--preview-FF8C00">
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10_%7C_11-0078D4?logo=windows11">
@@ -77,8 +77,8 @@
 | -------- | ---------------------------------------- | ----------------------------------- |
 | UI 框架  | Microsoft.UI.Reactor `0.1.0-preview.17`  | 基于 WinUI 3 的声明式组件化 C# 框架 |
 | 平台层   | Windows App SDK `2.6.4`、WinUI 3         | Windows 现代桌面应用基础设施        |
-| 运行时   | .NET 10（`net10.0-windows10.0.22621.0`） | 由 `global.json` 锁定 SDK 版本      |
-| 领域层   | `YuumiX.Core`（`net10.0`）               | 纯 C# 类库，零 UI 依赖，便于单测    |
+| 运行时   | .NET 11（`net11.0-windows10.0.22621.0`） | 由 `global.json` 锁定 SDK 版本      |
+| 领域层   | `YuumiX.Core`（`net11.0`）               | 纯 C# 类库，零 UI 依赖，便于单测    |
 | 打包部署 | 自包含发布 + Inno Setup 6                 | 不发 MSIX 包（`WindowsPackageType=None`），同时出安装版与便携版，两者均免装运行时 |
 | 目标平台 | x64                                      |                                     |
 
@@ -107,7 +107,7 @@ dotnet run --project src/YuumiX.App/YuumiX.App.csproj -p:Platform=x64 -- --devto
 dotnet test YuumiX.slnx                                                                  # 执行测试
 ```
 
-无需手动指定平台：解决方案只定义 x64，应用项目也把 `RuntimeIdentifier` 固定为 `win-x64`。解决方案构建的产物位于 `src/YuumiX.App/bin/x64/Debug/net10.0-windows10.0.22621.0/win-x64/YuumiX.exe`；直接构建单个项目时输出在 `bin/Debug/...`，内容一致。
+无需手动指定平台：解决方案只定义 x64，应用项目也把 `RuntimeIdentifier` 固定为 `win-x64`。解决方案构建的产物位于 `src/YuumiX.App/bin/x64/Debug/net11.0-windows10.0.22621.0/win-x64/YuumiX.exe`；直接构建单个项目时输出在 `bin/Debug/...`，内容一致。
 
 发布自包含便携包：
 
@@ -115,7 +115,7 @@ dotnet test YuumiX.slnx                                                         
 dotnet publish src/YuumiX.App/YuumiX.App.csproj -c Release -r win-x64 --self-contained true -p:Version=0.1.0 -o artifacts/publish
 ```
 
-`--self-contained true` 不能省略：.NET 6 起 `publish -r <rid>` 不再隐式自包含，漏掉它产出的是框架依赖包，在未安装 .NET 10 运行时的机器上无法启动。
+`--self-contained true` 不能省略：.NET 6 起 `publish -r <rid>` 不再隐式自包含，漏掉它产出的是框架依赖包，在未安装 .NET 11 运行时的机器上无法启动。
 
 ## 质量门禁
 
