@@ -4,7 +4,7 @@ namespace YuumiX.Core.Common;
 /// 纯托管 PNG 编码器（BGRA 像素 → PNG 字节）。
 ///
 /// 多杀截图在 Core 落地（GDI BitBlt P/Invoke，见 <c>Automation/GdiScreenCapture</c>），
-/// 但 Core 的 TFM 是 <c>net10.0</c>（ADR-09）：System.Drawing 的 PNG 编码会引入 Windows 专属
+/// 但 Core 的 TFM 是 <c>net11.0</c>（ADR-09）：System.Drawing 的 PNG 编码会引入 Windows 专属
 /// 包与 CA1416 告警外溢，而 PNG 格式本身只有 IHDR/IDAT/IEND 三个块——手写约百行纯代码
 /// 换来零依赖与可单测（CRC32 与结构断言），是这里的最优解。
 ///

@@ -45,7 +45,7 @@ public sealed record SignalrStatus(SignalrConnectionState State, string? Error =
 /// </list>
 ///
 /// 实现差异（报告已注明）：旧实现用 tokio-tungstenite 手写 SignalR JSON 协议（协商 + 握手 + 分帧），
-/// 这里换用官方 <c>Microsoft.AspNetCore.SignalR.Client</c>（10.0.13，net10.0 兼容），
+/// 这里换用官方 <c>Microsoft.AspNetCore.SignalR.Client</c>（11.0.0，net11.0 兼容），
 /// 协商/握手/心跳 Ping/自动重连由库承担；连接建立失败、库级自动重连耗尽后的 5 秒重试循环保留在服务内。
 /// </summary>
 public sealed class SignalrService : IDisposable

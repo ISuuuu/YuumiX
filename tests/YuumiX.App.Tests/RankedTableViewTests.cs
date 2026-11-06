@@ -27,7 +27,7 @@ public sealed class RankedTableViewTests
     {
         var stats = new RankedStats
         {
-            Queues =
+            Queues = (RankedQueueEntry[])
             [
                 CreateQueue(RankedQueueTypes.SoloDuo, "NONE", 0, 0),
                 CreateQueue(RankedQueueTypes.Flex, "NONE", 0, 0),
@@ -63,7 +63,7 @@ public sealed class RankedTableViewTests
     {
         var stats = new RankedStats
         {
-            Queues =
+            Queues = (RankedQueueEntry[])
             [
                 CreateQueue(RankedQueueTypes.SoloDuo, "GOLD", 10, 5),
                 CreateQueue(RankedQueueTypes.Flex, "NONE", 0, 0),
@@ -82,7 +82,7 @@ public sealed class RankedTableViewTests
     {
         var stats = new RankedStats
         {
-            Queues =
+            Queues = (RankedQueueEntry[])
             [
                 CreateQueue(RankedQueueTypes.SoloDuo, "NONE", 0, 0),
                 CreateQueue(RankedQueueTypes.Flex, "PLATINUM", 3, 2),
@@ -100,7 +100,7 @@ public sealed class RankedTableViewTests
     {
         var stats = new RankedStats
         {
-            Queues =
+            Queues = (RankedQueueEntry[])
             [
                 CreateQueue(RankedQueueTypes.SoloDuo, "DIAMOND", 20, 10),
                 CreateQueue(RankedQueueTypes.Flex, "GOLD", 15, 8),
@@ -118,7 +118,7 @@ public sealed class RankedTableViewTests
     {
         var stats = new RankedStats
         {
-            Queues =
+            Queues = (RankedQueueEntry[])
             [
                 CreateQueue(RankedQueueTypes.SoloDuo, "GOLD", 6, 4), // 60%
                 CreateQueue(RankedQueueTypes.Flex, "SILVER", 4, 6), // 40%
@@ -144,7 +144,7 @@ public sealed class RankedTableViewTests
     {
         var stats = new RankedStats
         {
-            Queues =
+            Queues = (RankedQueueEntry[])
             [
                 CreateQueue(RankedQueueTypes.SoloDuo, "GOLD", 10, 5),
                 CreateQueue(RankedQueueTypes.Flex, "NONE", 0, 0),

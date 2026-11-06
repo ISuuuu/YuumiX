@@ -234,7 +234,7 @@ public sealed class SearchMotionTests
 
     private static MatchHistoryPage Page(long gameId) => MatchHistoryPage.Empty with
     {
-        Games = [new MatchSummary
+        Games = (MatchSummary[])[new MatchSummary
         {
             GameId = gameId, QueueId = 420, QueueName = "排位", MapName = "峡谷", GameCreation = 0,
             DurationSeconds = 1200, Win = true, Remake = false, ChampionId = 1, Spell1Id = 4, Spell2Id = 14,

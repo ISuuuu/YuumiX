@@ -2,13 +2,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Features.Opgg;
 using YuumiX.Core.Features.Opgg.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Opgg;
 
@@ -263,7 +263,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                             {
                                 var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
                                 await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
-                                    [.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
+                                    (int[])[.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
                                 toast.Success(i18n.T("opgg.runes.appliedSuccess", "符文页已应用至客户端"));
                             }
                             catch (Exception ex)

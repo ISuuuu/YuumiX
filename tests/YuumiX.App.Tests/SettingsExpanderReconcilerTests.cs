@@ -87,7 +87,7 @@ public sealed class SettingsExpanderReconcilerTests
     [Fact]
     public void Plan_FreshMount_AllSlotsNew_NoUnmounts()
     {
-        var plan = SettingsExpanderReconciler.Plan([], [Item("a"), Item("b")]);
+        var plan = SettingsExpanderReconciler.Plan([], (object[])[Item("a"), Item("b")]);
 
         Assert.Equal(2, plan.Slots.Count);
         Assert.All(plan.Slots, slot => Assert.Null(slot.Reuse));
@@ -104,7 +104,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(Item("b"), new object()),
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [Item("a"), Item("b")]);
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[Item("a"), Item("b")]);
 
         Assert.Same(previous[0], plan.Slots[0].Reuse);
         Assert.Same(previous[1], plan.Slots[1].Reuse);
@@ -120,7 +120,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(Item("b", "kb"), new object()),
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [Item("b", "kb"), Item("a", "ka")]);
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[Item("b", "kb"), Item("a", "ka")]);
 
         Assert.Same(previous[1], plan.Slots[0].Reuse);
         Assert.Same(previous[0], plan.Slots[1].Reuse);
@@ -137,7 +137,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(Item("c"), new object()),
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [Item("a")]);
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[Item("a")]);
 
         var slot = Assert.Single(plan.Slots);
         Assert.Same(previous[0], slot.Reuse);
@@ -155,7 +155,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(Item("a", "old"), new object()),
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [Item("a", "new")]);
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[Item("a", "new")]);
 
         Assert.Null(plan.Slots[0].Reuse);
         Assert.Same(previous[0], Assert.Single(plan.Unmounts));
@@ -169,7 +169,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(Item("a"), new object()), // 旧槽无 Key
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [Item("a", "k")]); // 新项带 Key
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[Item("a", "k")]); // 新项带 Key
 
         Assert.Null(plan.Slots[0].Reuse);
         Assert.Same(previous[0], Assert.Single(plan.Unmounts));
@@ -183,7 +183,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(Item("a", "k"), new object()),
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [Item("a")]);
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[Item("a")]);
 
         Assert.Null(plan.Slots[0].Reuse);
         Assert.Same(previous[0], Assert.Single(plan.Unmounts));
@@ -198,7 +198,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(Item("a2", "k"), new object()),
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [Item("a", "k")]);
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[Item("a", "k")]);
 
         Assert.Same(previous[0], plan.Slots[0].Reuse);
         Assert.Same(previous[1], Assert.Single(plan.Unmounts));
@@ -212,7 +212,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(Item("a"), new object()),
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [Item("a"), null!]);
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[Item("a"), null!]);
 
         var slot = Assert.Single(plan.Slots); // null 槽位被跳过，不产生任何决策
         Assert.Same(previous[0], slot.Reuse);
@@ -229,7 +229,7 @@ public sealed class SettingsExpanderReconcilerTests
             new(null, new object()),
         };
 
-        var plan = SettingsExpanderReconciler.Plan(previous, [raw, new object()]);
+        var plan = SettingsExpanderReconciler.Plan(previous, (object[])[raw, new object()]);
 
         Assert.Null(plan.Slots[0].Element);
         Assert.Same(raw, plan.Slots[0].RawValue);
@@ -252,8 +252,8 @@ public sealed class SettingsExpanderReconcilerTests
         sim.Live.Add(c);
         var eventsBefore = sim.TotalEvents;
 
-        SettingsExpanderReconciler.RemoveStale(sim.Live, [a, b, c]);
-        SettingsExpanderReconciler.SyncPositions(sim.Live, [a, b, c]);
+        SettingsExpanderReconciler.RemoveStale(sim.Live, (object[])[a, b, c]);
+        SettingsExpanderReconciler.SyncPositions(sim.Live, (object[])[a, b, c]);
 
         Assert.Equal(0, sim.TotalEvents - eventsBefore); // 「仅属性变更时不触碰 Items」的直接体现
         Assert.Empty(sim.Removed);
@@ -268,7 +268,7 @@ public sealed class SettingsExpanderReconcilerTests
         var c = new object();
         var live = new List<object> { a, b, c };
 
-        SettingsExpanderReconciler.SyncPositions(live, [c, a, b]);
+        SettingsExpanderReconciler.SyncPositions(live, (object[])[c, a, b]);
 
         Assert.Equal(new object[] { c, a, b }, live);
         Assert.Same(c, live[0]); // 实例保持，只是位置调整
@@ -282,7 +282,7 @@ public sealed class SettingsExpanderReconcilerTests
         var c = new object();
         var live = new List<object> { a, c };
 
-        SettingsExpanderReconciler.SyncPositions(live, [a, b, c]);
+        SettingsExpanderReconciler.SyncPositions(live, (object[])[a, b, c]);
 
         Assert.Equal(new object[] { a, b, c }, live);
     }
@@ -295,7 +295,7 @@ public sealed class SettingsExpanderReconcilerTests
         var c = new object();
         var live = new List<object> { a, b, c };
 
-        SettingsExpanderReconciler.RemoveStale(live, [a, c]);
+        SettingsExpanderReconciler.RemoveStale(live, (object[])[a, c]);
 
         Assert.Equal(new object[] { a, c }, live);
     }
@@ -311,13 +311,13 @@ public sealed class SettingsExpanderReconcilerTests
         var keyed = Item("dyn", "k1");
 
         // 挂载：两项全新。
-        var unmounts = sim.Tick([slot1, slot2]);
+        var unmounts = sim.Tick((object[])[slot1, slot2]);
         Assert.Empty(unmounts);
         var firstPass = sim.Live.ToArray();
 
         // 展开：追加带 Key 的动态项。既有两项必须零触碰（焦点/开关状态保持）。
         var eventsBefore = sim.TotalEvents;
-        unmounts = sim.Tick([slot1, slot2, keyed]);
+        unmounts = sim.Tick((object[])[slot1, slot2, keyed]);
         Assert.Empty(unmounts);
         Assert.Equal(1, sim.TotalEvents - eventsBefore); // 仅追加新项的一个 Add
         Assert.Equal(3, sim.Live.Count);
@@ -329,7 +329,7 @@ public sealed class SettingsExpanderReconcilerTests
 
         // 收起：动态项移除，静态两项仍在位零触碰。
         eventsBefore = sim.TotalEvents;
-        unmounts = sim.Tick([slot1, slot2]);
+        unmounts = sim.Tick((object[])[slot1, slot2]);
         var unmounted = Assert.Single(unmounts);
         Assert.Same(keyed, unmounted.Element);
         Assert.Same(keyedMounted, unmounted.Value);
@@ -342,7 +342,7 @@ public sealed class SettingsExpanderReconcilerTests
 
         // 回收（UnmountExpander 清 LiveItems）→ 再展开：从空状态重新挂载，
         // 不复用任何旧组件状态（与 Plan_NeverLendsStateAcrossDifferentKeys 同一安全底线）。
-        sim.Tick([slot1], resetState: true);
+        sim.Tick((object[])[slot1], resetState: true);
         Assert.Single(sim.Live);
         Assert.NotSame(firstPass[0], sim.Live[0]);
     }
@@ -351,14 +351,14 @@ public sealed class SettingsExpanderReconcilerTests
     public void Cycle_KeyedItemKeepsMountedInstanceAcrossReorder()
     {
         var sim = new Simulator();
-        sim.Tick([Item("a", "ka"), Item("b", "kb")]);
+        sim.Tick((object[])[Item("a", "ka"), Item("b", "kb")]);
         var mountedA = sim.Live[0];
         var mountedB = sim.Live[1];
 
         // 动态列表重排（如按状态排序）：Key 命中即复用，已挂载实例跨位置保持；
         // 最小变更 = 一个 remove+insert 对（ObservableCollection 无 Move 通知时的移动实现）。
         var eventsBefore = sim.TotalEvents;
-        sim.Tick([Item("b", "kb"), Item("a", "ka")]);
+        sim.Tick((object[])[Item("b", "kb"), Item("a", "ka")]);
 
         Assert.Same(mountedB, sim.Live[0]);
         Assert.Same(mountedA, sim.Live[1]);

@@ -58,7 +58,7 @@ public class ToolsConfirmationTests
         };
         var selected = new HashSet<string> { "safe", "hidden" };
         var snapshot = GameSection.SnapshotDeletableIds(
-            [Entry("safe", FriendActivityStatus.Ok), Entry("hidden", FriendActivityStatus.Hidden), Entry("later", FriendActivityStatus.Ok)], selected);
+            (FriendEntry[])[Entry("safe", FriendActivityStatus.Ok), Entry("hidden", FriendActivityStatus.Hidden), Entry("later", FriendActivityStatus.Ok)], selected);
         selected.Clear();
         selected.Add("later");
         Assert.Equal(new[] { "safe" }, snapshot);

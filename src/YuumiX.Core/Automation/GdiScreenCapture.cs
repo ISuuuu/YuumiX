@@ -7,7 +7,7 @@ namespace YuumiX.Core.Automation;
 /// GDI BitBlt 屏幕截图（多杀截图的落盘实现，对应旧版 xcap 的 <c>Monitor.capture_image</c>）。
 ///
 /// 落点说明（ADR-09）：全部是纯 Win32 P/Invoke（user32/gdi32），没有 WinRT 类型，
-/// 因此可以留在 <c>net10.0</c> 的 Core 层并被单测覆盖到纯函数部分。
+/// 因此可以留在 <c>net11.0</c> 的 Core 层并被单测覆盖到纯函数部分。
 /// 简化决策：固定截取主显示器。旧版会先定位 LOL 游戏窗口所在显示器再回退主屏，
 /// 需要额外枚举窗口与显示器几何计算；单屏为绝大多数玩家形态，多屏玩家可在报告的
 /// 待办中跟进（游戏通常全屏在主屏）。
