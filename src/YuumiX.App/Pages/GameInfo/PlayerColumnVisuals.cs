@@ -2,7 +2,6 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Pages.Career;
@@ -12,6 +11,7 @@ using YuumiX.Core;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.Match.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.GameInfo;
 
@@ -23,6 +23,16 @@ internal static class PlayerColumnVisuals
 {
     /// <summary>胜率竖条宽度（旧版 3px 宽、与头像同高、自底向上填充）。</summary>
     private const double WinRateBarWidth = 3;
+
+    /// <summary>
+    /// 段位行内元素的统一垂直内缩：上下各 1px 内边距 + 上下各 1px 边框。
+    /// 英雄等级徽章带底框，天然比纯文本段位高 4px；段位槽沿用同一组数值即可严格等高，
+    /// 不写死 20px 高度，字号或行高变化时两者仍自动同步。
+    /// </summary>
+    private const double RankRowVerticalInset = 1;
+
+    /// <summary>段位等高槽的透明边框画刷：只借边框厚度占位，不产生任何可见描边。</summary>
+    private static readonly SolidColorBrush RankSlotBorderBrush = new(Microsoft.UI.Colors.Transparent);
 
     /// <summary>
     /// 招牌星标 path 数据：8×8 墨迹盒五角星，中心 (4,4)、外半径 4、内外比 0.5（旧版 SVG viewBox24 等比缩放）。
@@ -205,7 +215,11 @@ internal static class PlayerColumnVisuals
         return HStack(0, items.ToArray());
     }
 
-    /// <summary>段位行：可选前置熟练度徽章，随后是段位图标 + 短名；均无段位显示「无段位」。</summary>
+    /// <summary>
+    /// 段位行：可选前置英雄等级徽章，随后是段位图标 + 短名；无段位显示「无段位」。
+    /// 段位统一套 <see cref="BuildRankSlot"/> 等高槽位，缺英雄等级时整行不会塌 4px，
+    /// 十列列头因此始终等高。
+    /// </summary>
     internal static Element BuildRankRow(
         GameInfoPlayer? d,
         ChampionMasteryDetail? masteryDetail,
@@ -219,25 +233,39 @@ internal static class PlayerColumnVisuals
         }
 
         var activeRank = d?.PrimaryRank;
+        Element rankContent;
         if (activeRank?.HasRank == true)
         {
-            items.Add(
-                HStack(2,
+            rankContent = HStack(2,
                     CareerVisuals.RankedMedal(activeRank.Tier, 13).VAlign(VerticalAlignment.Center),
                     Caption(ShortRank(activeRank.Tier, activeRank.Division))
                         .Foreground(Theme.PrimaryText)
                         .TextTrimming(TextTrimming.CharacterEllipsis)
                         .VAlign(VerticalAlignment.Center))
-                .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail))));
+                .WithToolTip(TextBlock(BuildRankDetailedTooltip(d, masteryDetail)));
         }
         else
         {
             var isEn = Composition.AppHost.Services?.I18n.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
-            items.Add(Caption(isEn ? "Unranked" : "无段位").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center));
+            rankContent = Caption(isEn ? "Unranked" : "无段位")
+                .Foreground(Theme.SecondaryText)
+                .VAlign(VerticalAlignment.Center);
         }
 
+        items.Add(BuildRankSlot(rankContent));
         return HStack(0, items.ToArray());
     }
+
+    /// <summary>
+    /// 段位等高槽：垂直方向复制英雄等级徽章的 Padding + 边框厚度，水平方向不占宽度
+    /// （10 列布局很紧凑，段位文字不能被挤出列宽）。边框画刷透明，视觉零变化。
+    /// </summary>
+    private static Element BuildRankSlot(Element inner) =>
+        Border(inner)
+            .BorderBrush(RankSlotBorderBrush)
+            .BorderThickness(0, RankRowVerticalInset, 0, RankRowVerticalInset)
+            .Padding(0, RankRowVerticalInset, 0, RankRowVerticalInset)
+            .VAlign(VerticalAlignment.Center);
 
     internal static Element BuildMasteryChip(ChampionMasteryDetail masteryDetail)
     {
@@ -246,9 +274,9 @@ internal static class PlayerColumnVisuals
                 .SemiBold()
                 .Foreground(Theme.SecondaryText))
             .Background(Theme.SubtleFill)
-            .WithBorder(Theme.CardStroke, 1)
+            .WithBorder(Theme.CardStroke, RankRowVerticalInset)
             .CornerRadius(YuumiTheme.ControlRadius)
-            .Padding(4, 1)
+            .Padding(4, RankRowVerticalInset)
             .VAlign(VerticalAlignment.Center)
             .WithToolTip(TextBlock($"英雄熟练度: Lv.{masteryDetail.Level} ({masteryDetail.Points:N0} 点数)"));
     }

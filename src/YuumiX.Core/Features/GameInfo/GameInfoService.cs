@@ -1892,6 +1892,16 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 TryRestoreReservedSnapshot();
             }
 
+            if (!_config.Functions.EnableReserveGameinfo)
+            {
+                lock (_gate)
+                {
+                    _currentGameId = null;
+                }
+
+                ClearInGameMemory();
+            }
+
             if (phase is GamePhase.WaitingForStats or GamePhase.PreEndOfGame or GamePhase.EndOfGame or GamePhase.Lobby or GamePhase.None)
             {
                 // 对局结束：链式梯度轮询拉取刚结束对局的最新战绩
@@ -1900,13 +1910,16 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         }
         else if (phase == GamePhase.None)
         {
-            // None：清内存态但保留保留快照
-            lock (_gate)
+            // None 阶段：仅未开启保留时清空内存态（开启保留时保留上一局直到下一次对局开始）
+            if (!_config.Functions.EnableReserveGameinfo)
             {
-                _currentGameId = null;
-            }
+                lock (_gate)
+                {
+                    _currentGameId = null;
+                }
 
-            ClearInGameMemory();
+                ClearInGameMemory();
+            }
         }
     }
 

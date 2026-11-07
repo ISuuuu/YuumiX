@@ -104,6 +104,13 @@ public sealed class ToolsPage : Component
         // 连接态必须订阅：原来直接读 lcu.CurrentState，客户端启动或退出都不会触发重渲染，
         // 「离线禁用」就会一直停在进页那一刻的判断上。
         var (connState, setConnState) = UseState(lcuConnection.CurrentState, threadSafe: true);
+        UseEffect(
+            () =>
+            {
+                var subscription = lcuConnection.States.Subscribe(setConnState);
+                return () => subscription.Dispose();
+            },
+            0);
         bool isLcuConnected = connState.Status == LcuConnectionStatus.Connected;
 
         var loggerRef = UseRef<ILogger<ToolsPage>>(null!);
@@ -120,9 +127,16 @@ public sealed class ToolsPage : Component
             setConfirm(InitialConfirm);
             setFriend(friendRef.Current with { ConfirmingDelete = false, PendingDeleteIds = [] });
         };
+        var updateConnStateRef = UseRef<Action?>(null);
+        updateConnStateRef.Current = () => setConnState(lcuConnection.CurrentState);
+
         var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
         navigatedFromRef.Current ??= _ => closeDialogsRef.Current?.Invoke();
-        UseNavigationLifecycle(onNavigatedFrom: navigatedFromRef.Current);
+        var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
+        navigatedToRef.Current ??= _ => updateConnStateRef.Current?.Invoke();
+        UseNavigationLifecycle(
+            onNavigatedTo: navigatedToRef.Current,
+            onNavigatedFrom: navigatedFromRef.Current);
 
 
         // ── 异步资源（R7）：英雄/技能目录**进页即预热**，挑战勋章仍在勋章卡展开时才拉。

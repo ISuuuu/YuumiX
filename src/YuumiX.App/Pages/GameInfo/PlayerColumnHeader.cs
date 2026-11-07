@@ -2,13 +2,13 @@ using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Pages.Career;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.Match.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.GameInfo;
 
@@ -94,8 +94,9 @@ internal static class PlayerColumnHeader
                     .VAlign(VerticalAlignment.Top),
             ]);
 
-        // 不设固定高度：各列内容段数一致，且段位/胜负/位置缺失时都有占位文本，
-        // 自适应高度既能让十列自然等高（战绩列表首行横向对齐），也不会在底部留出空行。
+        // 不设固定高度：各列内容段数一致，段位行由等级徽章/段位共用的等高槽位撑起，
+        // 胜负/位置缺失时也有占位文本；自适应高度既能让十列自然等高（战绩列表首行横向对齐），
+        // 也不会在底部留出空行。
         var header = Border(body)
             .BorderThickness(new Thickness(0, 0, 0, 1))
             .BorderBrush(Theme.CardStroke)

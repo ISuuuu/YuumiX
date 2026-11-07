@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
@@ -12,6 +11,7 @@ using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.GameInfo;
 
@@ -105,6 +105,36 @@ public sealed class GameInfoPage : Component
                 return () => subscription.Dispose();
             },
             0);
+
+        // 页面缓存开启（NavigationHost.CacheMode = Enabled）后组件实例常驻：
+        // 切走再切回来时不重挂载、UseEffect 也不重跑。
+        // 若切走期间服务状态已有演进（如选人进入游戏后敌方数据就绪、或队友锁定英雄），切回时立即同步最新状态；
+        // 若数据已一致则不触发多余刷新，保证切页无任何视觉跳动。
+        var onNavigatedToRef = UseRef<Action?>(null);
+        onNavigatedToRef.Current = () =>
+        {
+            var latest = gameInfoService.CurrentState;
+            setConnState(lcu.CurrentState);
+
+            if (!ReferenceEquals(state, latest) && state != latest)
+            {
+                setState(latest);
+            }
+
+            // 活跃对局中队伍尚未齐备时发起静默对账：
+            // 选人阶段排位敌方脱敏，只要求我方齐备；进入游戏后双方均应就绪。
+            bool isMissingTeam = latest.Phase == GamePhase.ChampSelect
+                ? latest.MyTeam.Count == 0
+                : (latest.MyTeam.Count == 0 || latest.TheirTeam.Count == 0);
+
+            if (latest.Phase.IsGameActive() && isMissingTeam)
+            {
+                _ = gameInfoService.RefreshStateAsync();
+            }
+        };
+        var navigatedToCallback = UseRef<Action<Microsoft.UI.Reactor.Navigation.NavigatedToContext>?>(null);
+        navigatedToCallback.Current ??= _ => onNavigatedToRef.Current?.Invoke();
+        UseNavigationLifecycle(onNavigatedTo: navigatedToCallback.Current);
 
         // 初次加载拉取一次状态
         UseEffect(

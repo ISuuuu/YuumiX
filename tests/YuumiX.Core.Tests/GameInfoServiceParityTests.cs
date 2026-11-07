@@ -483,6 +483,57 @@ public sealed class GameInfoServiceParityTests
     }
 
     [Fact]
+    public async Task ReservedSnapshot_GameEnded_TransitionsToNone_KeepsContentWithoutFlicker()
+    {
+        var config = new AppConfig();
+        config.Functions.EnableReserveGameinfo = true;
+        await using var env = new GameInfoTestEnv(config);
+        env.GameflowSession = FullSessionJson(GameId);
+        SetupFullGame(env, gamesPerPlayer: 1);
+
+        await env.Service.RefreshStateAsync();
+        await env.Service.LoadAllPlayersAsync();
+        Assert.True(env.Service.CurrentState.ShouldShowContent);
+        Assert.Equal(5, env.Service.CurrentState.MyTeam.Count);
+
+        var publishedShowStates = new List<bool>();
+        using var sub = env.Service.StateStream.Subscribe(s => publishedShowStates.Add(s.ShouldShowContent));
+
+        // 对局打完：从 InProgress -> WaitingForStats
+        env.Phase = "WaitingForStats";
+        await env.Service.RefreshStateAsync();
+
+        // 随后流转到 None 阶段（离开结算/回到主界面）：保留模式下不得清空内存或短暂发布 false
+        env.Phase = "None";
+        await env.Service.RefreshStateAsync();
+
+        Assert.True(env.Service.CurrentState.ShouldShowContent);
+        Assert.Equal(5, env.Service.CurrentState.MyTeam.Count);
+        Assert.DoesNotContain(false, publishedShowStates);
+    }
+
+    [Fact]
+    public async Task ReservedSnapshot_GameEnded_SettingDisabled_ClearsContent()
+    {
+        var config = new AppConfig();
+        config.Functions.EnableReserveGameinfo = false;
+        await using var env = new GameInfoTestEnv(config);
+        env.GameflowSession = FullSessionJson(GameId);
+        SetupFullGame(env, gamesPerPlayer: 1);
+
+        await env.Service.RefreshStateAsync();
+        await env.Service.LoadAllPlayersAsync();
+        Assert.True(env.Service.CurrentState.ShouldShowContent);
+
+        // 对局打完离开活跃阶段：未开启保留时清空内容
+        env.Phase = "WaitingForStats";
+        await env.Service.RefreshStateAsync();
+
+        Assert.False(env.Service.CurrentState.ShouldShowContent);
+        Assert.Empty(env.Service.CurrentState.MyTeam);
+    }
+
+    [Fact]
     public async Task ReservedSnapshot_TftSession_ClearsPersistedSnapshotFile()
     {
         var config = new AppConfig();
