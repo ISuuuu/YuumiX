@@ -6,7 +6,6 @@ using Microsoft.UI.Reactor.Hooks;
 using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Pages.Tools.Sections;
@@ -15,6 +14,7 @@ using YuumiX.Core.Assets;
 using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Features.Tools.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Tools;
 
