@@ -2,11 +2,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml.Media.Imaging;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
-using YuumiX.Core.Assets;
-
 using YuumiX.App.Theming;
+using YuumiX.Core.Assets;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Controls;
 
@@ -41,29 +40,49 @@ public sealed class LcuImage : Component<LcuImageProps>
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
         var assets = services.Services.GetRequiredService<AssetService>();
 
-        var cachedPath = assets.TryGetCachedPath(Props.AssetPath);
-        var initialUri = cachedPath is not null ? new Uri(cachedPath).AbsoluteUri : null;
+        // 优先在渲染期同步检查磁盘缓存：若已命中，首帧直接拿到绝对 URI 渲染，
+        // 消除组件在同一表格槽位复用时的旧图残留与延迟多帧重绘（ADR-01/ADR-11）。
+        var cachedPath = !string.IsNullOrEmpty(Props.AssetPath) ? assets.TryGetCachedPath(Props.AssetPath) : null;
+        var (asyncState, setAsyncState) = UseState<(string Path, string? Uri, bool Failed)>(
+            (Props.AssetPath, cachedPath is not null ? new Uri(cachedPath).AbsoluteUri : null, false),
+            threadSafe: true);
 
-        // threadSafe: true —— 完成回调来自线程池，滚动一屏会有几十个回调同时到达（ADR-07）
-        var (uri, setUri) = UseState<string?>(initialUri, threadSafe: true);
-        var (failed, setFailed) = UseState(false, threadSafe: true);
+        string? uri;
+        bool failed;
+
+        if (cachedPath is not null)
+        {
+            uri = new Uri(cachedPath).AbsoluteUri;
+            failed = false;
+        }
+        else if (string.Equals(asyncState.Path, Props.AssetPath, StringComparison.Ordinal))
+        {
+            uri = asyncState.Uri;
+            failed = asyncState.Failed;
+        }
+        else
+        {
+            // 路径切换且尚未缓存：当前帧立即给出干净占位，禁止串用上一路径的旧图
+            uri = null;
+            failed = false;
+        }
 
         UseEffect(
             () =>
             {
-                var cached = assets.TryGetCachedPath(Props.AssetPath);
-                if (cached is not null)
+                if (string.IsNullOrEmpty(Props.AssetPath))
                 {
-                    setUri(new Uri(cached).AbsoluteUri);
-                    setFailed(false);
                     return static () => { };
                 }
 
-                setUri(null);
-                setFailed(false);
+                var cached = assets.TryGetCachedPath(Props.AssetPath);
+                if (cached is not null)
+                {
+                    return static () => { };
+                }
 
                 var cancellation = new CancellationTokenSource();
-                _ = ResolveAsync(assets, setUri, setFailed, cancellation.Token);
+                _ = ResolveAsync(assets, Props.AssetPath, setAsyncState, cancellation.Token);
 
                 return () =>
                 {
@@ -134,15 +153,15 @@ public sealed class LcuImage : Component<LcuImageProps>
         return img;
     }
 
-    private async Task ResolveAsync(
+    private static async Task ResolveAsync(
         AssetService assets,
-        Action<string?> setUri,
-        Action<bool> setFailed,
+        string assetPath,
+        Action<(string Path, string? Uri, bool Failed)> setAsyncState,
         CancellationToken cancellationToken)
     {
         try
         {
-            var localPath = await assets.GetCachedPathAsync(Props.AssetPath, cancellationToken).ConfigureAwait(false);
+            var localPath = await assets.GetCachedPathAsync(assetPath, cancellationToken).ConfigureAwait(false);
 
             if (cancellationToken.IsCancellationRequested)
             {
@@ -151,13 +170,13 @@ public sealed class LcuImage : Component<LcuImageProps>
 
             if (localPath is null)
             {
-                setFailed(true);
+                setAsyncState((assetPath, null, true));
                 return;
             }
 
             // Windows 路径 → file:///C:/...；直接拼 "file://" + 路径在含空格或中文时是非法 URI
             // （本机数据目录就在中文用户名下）。
-            setUri(new Uri(localPath).AbsoluteUri);
+            setAsyncState((assetPath, new Uri(localPath).AbsoluteUri, false));
         }
         catch (OperationCanceledException)
         {
@@ -166,7 +185,7 @@ public sealed class LcuImage : Component<LcuImageProps>
         catch (Exception)
         {
             // 一张图失败不应让整页渲染抛异常
-            setFailed(true);
+            setAsyncState((assetPath, null, true));
         }
     }
 }

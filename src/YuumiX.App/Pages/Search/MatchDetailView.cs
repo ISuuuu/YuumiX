@@ -672,9 +672,8 @@ internal static class MatchDetailView
             ? SearchVisuals.RuneIcon(catalog, player.RuneId, 20).VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
             : null;
 
-        Element spellsAndRune = rune is not null
-            ? HStack(3, spells, rune).VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center)
-            : spells;
+        Element spellsAndRune = HStack(3, rune is not null ? [spells, rune] : [spells])
+            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         string displayName = player.Name.Contains('#', StringComparison.Ordinal)
             ? player.Name.Split('#')[0]
@@ -811,19 +810,17 @@ internal static class MatchDetailView
                        .WithBorder(team.Win ? palette.WinBorder : palette.LoseBorder, 1)
             : rowBorder.Background(Theme.CardBackground);
 
-        if (isLast || isQueriedPlayer)
-        {
-            return rowBorder;
-        }
-
+        // Keep the row host stable when the queried player moves to a different slot.
         return Grid(
             [GridSize.Star()],
             [GridSize.Star()],
             [
                 rowBorder.Grid(row: 0, column: 0),
-                SearchVisuals.Divider(Theme.DividerStroke)
-                    .VAlign(VerticalAlignment.Bottom)
-                    .Grid(row: 0, column: 0),
+                isLast || isQueriedPlayer
+                    ? Empty()
+                    : SearchVisuals.Divider(Theme.DividerStroke)
+                        .VAlign(VerticalAlignment.Bottom)
+                        .Grid(row: 0, column: 0),
             ])
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Stretch);

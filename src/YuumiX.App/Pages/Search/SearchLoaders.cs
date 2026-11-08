@@ -107,12 +107,118 @@ internal static class SearchLoaders
         return page;
     }
 
-    internal static async Task<MatchDetail?> GetDetailAsync(IMatchService matchService, long gameId, string? puuid, CancellationToken cancellationToken)
+    internal static IEnumerable<string> ExtractDetailAssetPaths(GameDataCatalog? catalog, MatchDetail detail)
+    {
+        var allPlayers = detail.Blue.Players.Concat(detail.Red.Players);
+        foreach (var p in allPlayers)
+        {
+            if (p.ChampionId > 0)
+            {
+                yield return SearchVisuals.ChampionIcon(p.ChampionId);
+            }
+
+            if (catalog is null)
+            {
+                continue;
+            }
+
+            if (p.Spell1Id > 0 && catalog.Spells.TryGetValue(p.Spell1Id, out var s1) && !string.IsNullOrEmpty(s1))
+            {
+                yield return s1;
+            }
+
+            if (p.Spell2Id > 0 && catalog.Spells.TryGetValue(p.Spell2Id, out var s2) && !string.IsNullOrEmpty(s2))
+            {
+                yield return s2;
+            }
+
+            if (p.RuneId > 0 && catalog.Runes.TryGetValue(p.RuneId, out var r) && !string.IsNullOrEmpty(r))
+            {
+                yield return r;
+            }
+
+            foreach (var itemId in p.ItemIds)
+            {
+                if (itemId > 0 && catalog.Items.TryGetValue(itemId, out var it) && !string.IsNullOrEmpty(it))
+                {
+                    yield return it;
+                }
+            }
+
+            foreach (var augId in p.AugmentIds)
+            {
+                if (catalog.Augments.TryGetValue(augId, out var aug) && !string.IsNullOrEmpty(aug?.IconPath))
+                {
+                    yield return aug.IconPath;
+                }
+            }
+        }
+    }
+
+    internal static async Task PrewarmDetailAssetsAsync(
+        AssetService assetService,
+        IEnumerable<string> paths,
+        CancellationToken cancellationToken,
+        int timeoutMs = 350)
+    {
+        var uncached = paths
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Distinct(StringComparer.Ordinal)
+            .Where(p => assetService.TryGetCachedPath(p) is null)
+            .ToList();
+
+        if (uncached.Count == 0)
+        {
+            return;
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (timeoutMs > 0)
+        {
+            timeoutCts.CancelAfter(timeoutMs);
+        }
+
+        try
+        {
+            await Task.WhenAll(uncached.Select(p => assetService.GetCachedPathAsync(p, timeoutCts.Token))).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // 有界等待超时，降级走已有资源/占位呈现，不阻断详情展示
+        }
+        catch (Exception)
+        {
+            // 单个或部分图片下载异常不阻断详情展示
+        }
+    }
+
+    internal static Task<MatchDetail?> GetDetailAsync(
+        IMatchService matchService,
+        long gameId,
+        string? puuid,
+        CancellationToken cancellationToken) =>
+        GetDetailAsync(matchService, assetService: null, catalog: null, gameId, puuid, cancellationToken);
+
+    internal static async Task<MatchDetail?> GetDetailAsync(
+        IMatchService matchService,
+        AssetService? assetService,
+        GameDataCatalog? catalog,
+        long gameId,
+        string? puuid,
+        CancellationToken cancellationToken)
     {
         if (gameId == 0) return null;
         var detail = await matchService.GetMatchDetailAsync(gameId, puuid, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return detail ?? throw new InvalidOperationException("读取对局详情失败");
+        if (detail is null) throw new InvalidOperationException("读取对局详情失败");
+
+        if (assetService is not null)
+        {
+            var paths = ExtractDetailAssetPaths(catalog, detail);
+            await PrewarmDetailAssetsAsync(assetService, paths, cancellationToken).ConfigureAwait(false);
+        }
+
+        return detail;
     }
 
     /// <summary>后台渐进加载对局 10 人名单的段位与战绩隐私状态。</summary>

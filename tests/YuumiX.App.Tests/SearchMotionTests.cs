@@ -13,6 +13,44 @@ namespace YuumiX.App.Tests;
 public sealed class SearchMotionTests
 {
     [Fact]
+    public void Detail_KeepsCompletePreviousMatchUntilLatestSelectionIsReady()
+    {
+        const string key = "player/page";
+        var first = Page(10001L).Games[0];
+        var second = Page(10002L).Games[0];
+        var third = Page(10003L).Games[0];
+        var firstDetail = Detail(first.GameId);
+        var shown = SearchEffects.CurrentDetail(null, key, first, firstDetail, false, false);
+        Assert.NotNull(shown);
+
+        Assert.Same(shown, SearchEffects.CurrentDetail(shown, key, second, null, false, false));
+        Assert.Same(shown, SearchEffects.CurrentDetail(shown, key, third, Detail(second.GameId), false, false));
+        Assert.Same(first, shown.Summary);
+        Assert.Same(firstDetail, shown.Detail);
+
+        var thirdDetail = Detail(third.GameId);
+        var updated = SearchEffects.CurrentDetail(shown, key, third, thirdDetail, false, false);
+        Assert.NotNull(updated);
+        Assert.Same(third, updated.Summary);
+        Assert.Same(thirdDetail, updated.Detail);
+    }
+
+    [Fact]
+    public void Detail_DropsPreviousMatchWhenScopeChangesOrSelectionFails()
+    {
+        const string key = "player/page";
+        var first = Page(10001L).Games[0];
+        var second = Page(10002L).Games[0];
+        var shown = SearchEffects.CurrentDetail(null, key, first, Detail(first.GameId), false, false);
+        Assert.NotNull(shown);
+
+        Assert.Null(SearchEffects.CurrentDetail(null, key, second, null, false, false));
+        Assert.Null(SearchEffects.CurrentDetail(shown, "another-player/page", second, null, false, false));
+        Assert.Null(SearchEffects.CurrentDetail(shown, key, null, null, false, false));
+        Assert.Null(SearchEffects.CurrentDetail(shown, key, second, null, true, false));
+    }
+
+    [Fact]
     public async Task Detail_RemovesHighFrequencyFade_PreservesContentWithoutAnimation()
     {
         using var scope = new ResourceScope();

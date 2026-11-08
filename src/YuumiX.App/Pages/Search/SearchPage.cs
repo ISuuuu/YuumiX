@@ -10,6 +10,7 @@ using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
 using YuumiX.Core;
+using YuumiX.Core.Assets;
 using YuumiX.Core.Features.GameLifecycle;
 using YuumiX.Core.Features.Match;
 using YuumiX.Core.Features.Match.Models;
@@ -336,8 +337,9 @@ public sealed class SearchPage : Component<SearchPageProps>
         MatchSummary? current = (index >= 0 && index < visible.Count) ? visible[index] : null;
         long currentGameId = current?.GameId ?? 0;
 
+        var assetService = services.Services.GetRequiredService<AssetService>();
         var detailResource = UseResource(
-            ct => SearchLoaders.GetDetailAsync(matchService, currentGameId, summoner?.Puuid, ct),
+            ct => SearchLoaders.GetDetailAsync(matchService, assetService, catalog, currentGameId, summoner?.Puuid, ct),
             deps: new object[] { currentGameId, summoner?.Puuid ?? "", detailVersion });
         var rawDetail = (detailResource is AsyncValue<MatchDetail?>.Data detailData && detailData.Value?.GameId == currentGameId)
             ? detailData.Value
@@ -345,9 +347,21 @@ public sealed class SearchPage : Component<SearchPageProps>
         var enrichmentResource = UseResource(
             ct => SearchLoaders.LoadParticipantRanksAndPrivacyAsync(services, rawDetail, ct),
             deps: new object[] { currentGameId, summoner?.Puuid ?? "", detailVersion, rawDetail is not null });
-        var detail = (enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data enriched && enriched.Value.Detail?.GameId == currentGameId)
+        var detail = (rawDetail is not null &&
+            enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data enriched &&
+            enriched.Value.Detail?.GameId == currentGameId)
             ? enriched.Value.Detail
             : rawDetail;
+        bool isDetailError = currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Error;
+        bool hasEnrichmentFailure = rawDetail is not null &&
+            (enrichmentResource is AsyncValue<SearchEnrichmentResult>.Error ||
+             enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data { Value.HasFailures: true });
+
+        // Keep the displayed summary and tables together while the newly selected match loads.
+        var previousDetail = UseRef<SearchDetailSnapshot?>(null);
+        var displayedDetail = SearchEffects.CurrentDetail(
+            previousDetail.Current, historyCacheKey, current, detail, isDetailError, hasEnrichmentFailure);
+        previousDetail.Current = displayedDetail;
 
         // 载入一页后补传本页对局（对齐旧 Search.vue：翻页即补传，服务端已有会返回 exists）。
         // 依赖键只取 matches 引用：换页或刷新会拿到新引用，纯筛选不会。勾选开关本身不应触发当前已有对局的上传。
@@ -424,16 +438,15 @@ public sealed class SearchPage : Component<SearchPageProps>
         }
         else
         {
-            bool hasEnrichmentFailure = enrichmentResource is AsyncValue<SearchEnrichmentResult>.Error ||
-                enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data { Value.HasFailures: true };
-            Action? onRetryEnrichment = hasEnrichmentFailure ? (() => setDetailVersion(detailVersion + 1)) : null;
-
-            bool isDetailError = currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Error;
+            Action? onRetryEnrichment = displayedDetail is { EnrichmentFailed: true } &&
+                displayedDetail.Summary.GameId == currentGameId
+                ? () => setDetailVersion(detailVersion + 1)
+                : null;
             Action? onRetryDetail = isDetailError ? (() => setDetailVersion(detailVersion + 1)) : null;
 
             Element detailPanel = MatchDetailView.Render(
-                detail,
-                current,
+                displayedDetail?.Detail,
+                displayedDetail?.Summary ?? current,
                 catalog,
                 palette,
                 currentSearchPuuid: summoner.Puuid,

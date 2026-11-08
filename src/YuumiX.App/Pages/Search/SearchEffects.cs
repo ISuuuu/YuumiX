@@ -163,6 +163,23 @@ internal static class SearchEffects
         return result?.Key == key ? result.Page : null;
     }
 
+    internal static SearchDetailSnapshot? CurrentDetail(
+        SearchDetailSnapshot? previous,
+        string historyKey,
+        MatchSummary? selected,
+        MatchDetail? detail,
+        bool failed,
+        bool enrichmentFailed)
+    {
+        if (selected is null || failed)
+            return null;
+
+        if (detail is not null && detail.GameId == selected.GameId)
+            return new(historyKey, selected, detail, enrichmentFailed);
+
+        return previous?.HistoryKey == historyKey ? previous : null;
+    }
+
     internal static async Task ClearNoticeLaterAsync(Action clear, int delayMilliseconds, CancellationToken cancellationToken, ILogger? logger = null)
     {
         try
@@ -178,3 +195,9 @@ internal static class SearchEffects
         catch (Exception ex) { logger?.LogWarning(ex, "清除搜索提示失败"); }
     }
 }
+
+internal sealed record SearchDetailSnapshot(
+    string HistoryKey,
+    MatchSummary Summary,
+    MatchDetail Detail,
+    bool EnrichmentFailed);
