@@ -149,7 +149,10 @@ internal static class CareerLoaders
         Action<IReadOnlyList<MatchSummary>> applyMatches,
         Action<PlayerLootOverview?> applyLoot,
         Action<MasteryOverview?> applyMastery,
-        Action<bool> applyLoading,
+        Action<bool> applyRankedLoading,
+        Action<bool> applyMatchesLoading,
+        Action<bool> applyLootLoading,
+        Action<bool> applyMasteryLoading,
         ILogger? logger)
     {
         int seq = ++requestSeq.Current;
@@ -176,7 +179,8 @@ internal static class CareerLoaders
                 applySummoner,
                 applyRanked,
                 applyMatches,
-                applyLoading,
+                applyRankedLoading,
+                applyMatchesLoading,
                 cancellation.Token,
                 logger)
             : LoadSelfAsync(
@@ -191,7 +195,10 @@ internal static class CareerLoaders
                 applyMatches,
                 applyLoot,
                 applyMastery,
-                applyLoading,
+                applyRankedLoading,
+                applyMatchesLoading,
+                applyLootLoading,
+                applyMasteryLoading,
                 cancellation.Token,
                 logger);
 
@@ -204,7 +211,7 @@ internal static class CareerLoaders
 
     /// <summary>
     /// 自己的生涯：当前召唤师 → 排位总览 + 最近对局（数量由「默认对局数量」设置决定）+ 战利品 + 英雄熟练度。
-    /// 四路并行，失败只显示空态或提示，不弹框打扰。
+    /// 四路独立并发请求与独立回写，慢战绩或慢战利品不阻塞排位呈现。
     /// </summary>
     internal static async Task LoadSelfAsync(
         ISummonerService summonerService,
@@ -218,35 +225,71 @@ internal static class CareerLoaders
         Action<IReadOnlyList<MatchSummary>> applyMatches,
         Action<PlayerLootOverview?> applyLoot,
         Action<MasteryOverview?> applyMastery,
-        Action<bool> applyLoading,
+        Action<bool> applyRankedLoading,
+        Action<bool> applyMatchesLoading,
+        Action<bool> applyLootLoading,
+        Action<bool> applyMasteryLoading,
         CancellationToken cancellationToken,
         ILogger? logger)
     {
         try
         {
-            applyLoading(true);
+            applyRankedLoading(true);
+            applyMatchesLoading(true);
+            applyLootLoading(true);
+            applyMasteryLoading(true);
 
-            SummonerProfile? profile = await summonerService
-                .GetCurrentSummonerAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            if (cancellationToken.IsCancellationRequested || isStale())
+            SummonerProfile? profile = summonerService.CachedCurrent;
+            if (profile is not null)
             {
-                return;
+                applySummoner(profile);
+            }
+            else
+            {
+                profile = await summonerService
+                    .GetCurrentSummonerAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (cancellationToken.IsCancellationRequested || isStale())
+                {
+                    return;
+                }
+
+                applySummoner(profile);
+                if (profile is null)
+                {
+                    logger?.LogInformation("生涯取数中止：当前召唤师不可用（客户端可能尚未登录），已按空态收尾");
+                    applyRanked(RankedStats.Empty);
+                    applyMatches(EmptyMatches);
+                    applyLoot(null);
+                    applyMastery(null);
+                    applyRankedLoading(false);
+                    applyMatchesLoading(false);
+                    applyLootLoading(false);
+                    applyMasteryLoading(false);
+                    return;
+                }
             }
 
-            applySummoner(profile);
-            if (profile is null)
+            Task updateProfileTask = Task.CompletedTask;
+            if (summonerService.CachedCurrent is not null)
             {
-                // 未登录：全部给空态/失败提示，绝不回退样例数据（D1）
-                // 这条是「页面一片空白但没有任何错误」的唯一可诊断线索，必须留痕：
-                // 客户端端口已通、登录还没完成时 current-summoner 返回 404，属正常时序。
-                logger?.LogInformation("生涯取数中止：当前召唤师不可用（客户端可能尚未登录），已按空态收尾");
-                applyRanked(RankedStats.Empty);
-                applyMatches(EmptyMatches);
-                applyLoot(null);
-                applyMastery(null);
-                return;
+                updateProfileTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var fresh = await summonerService.GetCurrentSummonerAsync(cancellationToken).ConfigureAwait(false);
+                        if (fresh is not null && !isStale() && !cancellationToken.IsCancellationRequested)
+                        {
+                            applySummoner(fresh);
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception ex)
+                    {
+                        logger?.LogWarning(ex, "后台更新当前召唤师资料失败");
+                    }
+                }, cancellationToken);
             }
 
             if (forceRefresh)
@@ -254,67 +297,142 @@ internal static class CareerLoaders
                 matchService.InvalidateCache();
             }
 
-            Task<RankedStats> rankedTask = careerService.GetRankedStatsAsync(
-                profile.Puuid, forceRefresh, cancellationToken);
+            string puuid = profile.Puuid;
 
-            Task<MatchHistoryPage> historyTask = matchService.GetMatchHistoryAsync(
-                profile.Puuid, 0, gamesNumber - 1, cancellationToken);
-
-            Task<PlayerLootOverview?> lootTask = careerService.GetLootOverviewAsync(
-                forceRefresh, cancellationToken);
-
-            Task<MasteryOverview?> masteryTask = careerService.GetMasteryOverviewAsync(
-                forceRefresh, cancellationToken);
-
-            await Task.WhenAll(rankedTask, historyTask, lootTask, masteryTask).ConfigureAwait(false);
-
-            if (cancellationToken.IsCancellationRequested || isStale())
+            async Task FetchRankedAsync()
             {
-                return;
+                try
+                {
+                    RankedStats res = await careerService.GetRankedStatsAsync(
+                        puuid, forceRefresh, cancellationToken).ConfigureAwait(false);
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyRanked(res);
+                        logger?.LogInformation("排位数据加载完成: 队列 {RankedQueues} 个", res.Queues.Count);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "排位数据加载失败，已降级为空态");
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyRanked(RankedStats.Empty);
+                    }
+                }
+                finally
+                {
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyRankedLoading(false);
+                    }
+                }
             }
 
-            RankedStats rankedResult = await rankedTask.ConfigureAwait(false);
-            MatchHistoryPage historyResult = await historyTask.ConfigureAwait(false);
-            PlayerLootOverview? lootResult = await lootTask.ConfigureAwait(false);
-            MasteryOverview? masteryResult = await masteryTask.ConfigureAwait(false);
+            async Task FetchMatchesAsync()
+            {
+                try
+                {
+                    MatchHistoryPage res = await matchService.GetMatchHistoryAsync(
+                        puuid, 0, gamesNumber - 1, cancellationToken).ConfigureAwait(false);
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMatches(res.Games);
+                        logger?.LogInformation("战绩数据加载完成: 对局 {MatchCount} 场", res.Games.Count);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "战绩数据加载失败，已降级为空态");
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMatches(EmptyMatches);
+                    }
+                }
+                finally
+                {
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMatchesLoading(false);
+                    }
+                }
+            }
 
-            applyRanked(rankedResult);
-            applyMatches(historyResult.Games);
-            applyLoot(lootResult);
-            applyMastery(masteryResult);
+            async Task FetchLootAsync()
+            {
+                try
+                {
+                    PlayerLootOverview? res = await careerService.GetLootOverviewAsync(
+                        forceRefresh, cancellationToken).ConfigureAwait(false);
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyLoot(res);
+                        logger?.LogInformation("战利品加载完成: 状态={Loot}", res is null ? "失败" : "正常");
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "战利品数据加载失败");
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyLoot(null);
+                    }
+                }
+                finally
+                {
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyLootLoading(false);
+                    }
+                }
+            }
 
-            // 战利品/熟练度为 null 表示「读取失败」（界面会出提示条），与「成功但为空」不同，
-            // 这里分开记录，避免下次又只能靠猜。
-            logger?.LogInformation(
-                "生涯数据加载完成: 战绩 {MatchCount} 场，排位队列 {RankedQueues} 个，战利品={Loot}，熟练度={Mastery}",
-                historyResult.Games.Count,
-                rankedResult.Queues.Count,
-                lootResult is null ? "失败" : "正常",
-                masteryResult is null ? "失败" : "正常");
+            async Task FetchMasteryAsync()
+            {
+                try
+                {
+                    MasteryOverview? res = await careerService.GetMasteryOverviewAsync(
+                        forceRefresh, cancellationToken).ConfigureAwait(false);
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMastery(res);
+                        logger?.LogInformation("熟练度加载完成: 状态={Mastery}", res is null ? "失败" : "正常");
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "熟练度数据加载失败");
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMastery(null);
+                    }
+                }
+                finally
+                {
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMasteryLoading(false);
+                    }
+                }
+            }
+
+            await Task.WhenAll(FetchRankedAsync(), FetchMatchesAsync(), FetchLootAsync(), FetchMasteryAsync(), updateProfileTask).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "生涯数据加载失败，已降级为空态");
-            applyRanked(RankedStats.Empty);
-            applyMatches(EmptyMatches);
-            applyLoot(null);
-            applyMastery(null);
-        }
-        finally
-        {
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                applyLoading(false);
-            }
+            logger?.LogWarning(ex, "生涯数据加载异常");
         }
     }
 
     /// <summary>
-    /// 他人的生涯（§2.8）：优先用预载资料 → 按 puuid 拉权威资料 → 都失败用占位对象；
-    /// 不阻断排位与战绩加载。战利品/熟练度属于当前登录账号，此模式不加载（页签已隐藏）。
+    /// 他人的生涯（§2.8）：优先用预载资料 → 按 puuid 并发拉权威资料、排位与战绩；
+    /// 三路并发独立回写，互不阻塞。
     /// </summary>
     internal static async Task LoadOtherCareerAsync(
         ISummonerService summonerService,
@@ -327,73 +445,113 @@ internal static class CareerLoaders
         Action<SummonerProfile?> applySummoner,
         Action<RankedStats> applyRanked,
         Action<IReadOnlyList<MatchSummary>> applyMatches,
-        Action<bool> applyLoading,
+        Action<bool> applyRankedLoading,
+        Action<bool> applyMatchesLoading,
         CancellationToken cancellationToken,
         ILogger? logger)
     {
         try
         {
-            applyLoading(true);
+            applyRankedLoading(true);
+            applyMatchesLoading(true);
 
-            // 1. 优先用预载/占位对象先让界面展示基础信息（对齐旧版 loadCareerSummoner）
+            // 1. 优先用预载/占位对象先让界面展示基础信息
             SummonerProfile profile = target.Preloaded ?? PlaceholderSummoner(target.Puuid);
             applySummoner(profile);
-
-            // 2. 预载资料只是占位（如队友卡片只有名字）或等级为 0 时，拉一次权威资料；
-            //    失败（404/未连接）保留占位对象，不阻断排位与战绩加载。
-            if (target.Preloaded is null || target.Preloaded.SummonerLevel == 0)
-            {
-                SummonerProfile? remote = await summonerService
-                    .FindByPuuidAsync(target.Puuid, cancellationToken)
-                    .ConfigureAwait(false);
-                if (remote is not null)
-                {
-                    profile = remote;
-                    applySummoner(profile);
-                }
-            }
-
-            if (cancellationToken.IsCancellationRequested || isStale())
-            {
-                return;
-            }
 
             if (forceRefresh)
             {
                 matchService.InvalidateCache();
             }
 
-            Task<RankedStats> rankedTask = careerService.GetRankedStatsAsync(
-                target.Puuid, forceRefresh, cancellationToken);
-
-            Task<MatchHistoryPage> historyTask = matchService.GetMatchHistoryAsync(
-                target.Puuid, 0, gamesNumber - 1, cancellationToken);
-
-            await Task.WhenAll(rankedTask, historyTask).ConfigureAwait(false);
-
-            if (cancellationToken.IsCancellationRequested || isStale())
+            async Task FetchProfileAsync()
             {
-                return;
+                if (target.Preloaded is null || target.Preloaded.SummonerLevel == 0)
+                {
+                    try
+                    {
+                        SummonerProfile? remote = await summonerService
+                            .FindByPuuidAsync(target.Puuid, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (remote is not null && !isStale() && !cancellationToken.IsCancellationRequested)
+                        {
+                            applySummoner(remote);
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception ex)
+                    {
+                        logger?.LogWarning(ex, "他人生涯资料补全失败（目标={Target}）", target.Puuid);
+                    }
+                }
             }
 
-            applyRanked(await rankedTask.ConfigureAwait(false));
-            applyMatches((await historyTask.ConfigureAwait(false)).Games);
+            async Task FetchRankedAsync()
+            {
+                try
+                {
+                    RankedStats res = await careerService.GetRankedStatsAsync(
+                        target.Puuid, forceRefresh, cancellationToken).ConfigureAwait(false);
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyRanked(res);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "他人排位数据加载失败（目标={Target}）", target.Puuid);
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyRanked(RankedStats.Empty);
+                    }
+                }
+                finally
+                {
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyRankedLoading(false);
+                    }
+                }
+            }
+
+            async Task FetchMatchesAsync()
+            {
+                try
+                {
+                    MatchHistoryPage res = await matchService.GetMatchHistoryAsync(
+                        target.Puuid, 0, gamesNumber - 1, cancellationToken).ConfigureAwait(false);
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMatches(res.Games);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "他人战绩数据加载失败（目标={Target}）", target.Puuid);
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMatches(EmptyMatches);
+                    }
+                }
+                finally
+                {
+                    if (!isStale() && !cancellationToken.IsCancellationRequested)
+                    {
+                        applyMatchesLoading(false);
+                    }
+                }
+            }
+
+            await Task.WhenAll(FetchProfileAsync(), FetchRankedAsync(), FetchMatchesAsync()).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "他人生涯数据加载失败，已降级为空态（目标={Target}）", target.Puuid);
-            applyRanked(RankedStats.Empty);
-            applyMatches(EmptyMatches);
-        }
-        finally
-        {
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                applyLoading(false);
-            }
+            logger?.LogWarning(ex, "他人生涯加载异常（目标={Target}）", target.Puuid);
         }
     }
 }

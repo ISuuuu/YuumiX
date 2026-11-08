@@ -1,11 +1,11 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -29,8 +29,14 @@ internal static class RecentSummaryView
         Action? onRecentTeammates = null,
         RecentTeammatesResult? teammates = null,
         bool loadingTeammates = false,
-        Action<RecentTeammate>? onClickTeammate = null)
+        Action<RecentTeammate>? onClickTeammate = null,
+        bool isLoaded = true)
     {
+        if (!isLoaded)
+        {
+            return RenderUnloaded(queueLabels, currentQueueIndex, onSelectQueue);
+        }
+
         var i18n = Composition.AppHost.Services?.I18n;
         if (summary.IsEmpty)
         {
@@ -355,5 +361,55 @@ internal static class RecentSummaryView
                         .Foreground(Theme.SecondaryText)),
                 Caption($"KDA: {champion.KdaText} ({champion.Kills}/{champion.Deaths}/{champion.Assists})")
                     .Foreground(Theme.Accent)));
+    }
+
+    private static Element RenderUnloaded(
+        string[] queueLabels,
+        int currentQueueIndex,
+        Action<int> onSelectQueue)
+    {
+        var i18n = Composition.AppHost.Services?.I18n;
+        var recentTitle = i18n?.T("career.recentGames", "近期对局") ?? "近期对局";
+        var winPrefix = (i18n?.T("career.win", "胜") ?? "胜") + ":";
+        var losePrefix = (i18n?.T("career.lose", "负") ?? "负") + ":";
+
+        Element statsCol = HStack(8,
+            BodyStrong(recentTitle)
+                .Foreground(Theme.PrimaryText)
+                .VAlign(VerticalAlignment.Center),
+            CareerVisuals.Stat(winPrefix, "—", Theme.SecondaryText.ResourceKey, colorLabel: false),
+            CareerVisuals.Stat(losePrefix, "—", Theme.SecondaryText.ResourceKey, colorLabel: false),
+            HStack(4,
+                Caption("KDA:").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
+                Caption("—").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center)));
+
+        Element leftSection = HStack(12, statsCol)
+            .VAlign(VerticalAlignment.Center);
+
+        var teammatesBtnText = i18n?.T("career.recentTeammates", "最近队友") ?? "最近队友";
+        Element teammatesButton = Button(Body(teammatesBtnText))
+            .Height(32)
+            .Padding(12, 0)
+            .IsEnabled(false)
+            .AutomationName(teammatesBtnText);
+
+        Element rightSection = HStack(8,
+            teammatesButton,
+            ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
+                .Width(140)
+                .IsEnabled(false)
+                .AutomationName("队列筛选"))
+            .VAlign(VerticalAlignment.Center)
+            .HAlign(HorizontalAlignment.Right);
+
+        Element barGrid = Grid(
+            [GridSize.Star(), GridSize.Auto],
+            [GridSize.Auto],
+            [
+                leftSection.Grid(row: 0, column: 0),
+                rightSection.Grid(row: 0, column: 1),
+            ]);
+
+        return CareerVisuals.Card(barGrid, 16, 8);
     }
 }

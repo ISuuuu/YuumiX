@@ -1,10 +1,10 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -39,7 +39,7 @@ internal static class ChampionMasteryView
     ];
 
     public static Element Render(
-        MasteryOverview overview,
+        MasteryOverview? overview,
         GameDataCatalog catalog,
         YuumiPalette palette,
         Action onRefresh,
@@ -50,8 +50,56 @@ internal static class ChampionMasteryView
         int levelFilterIndex = 0,
         Action<int>? onLevelFilterChanged = null,
         int sortIndex = 0,
-        Action<int>? onSortChanged = null)
+        Action<int>? onSortChanged = null,
+        bool isLoaded = true)
     {
+        if (!isLoaded || overview is null)
+        {
+            if (!isLoaded)
+            {
+                Element card1 = StatCard("熟练英雄总数", Title("—").Foreground(Theme.SecondaryText), "累计拥有熟练度记录");
+                Element card2 = StatCard("熟练度总分", Title("—").Foreground(Theme.SecondaryText), "全英雄点数总和");
+                Element card3 = StatCard("最高等级英雄", Title("—").Foreground(Theme.SecondaryText), "— 分");
+                Element card4 = StatCard("里程碑宝箱", Title("—").Foreground(Theme.SecondaryText), "本赛段里程碑宝箱追踪");
+
+                Element summaryCards = HStack(CareerVisuals.CardGap,
+                    card1.Width(CardWidth),
+                    card2.Width(CardWidth),
+                    card3.Width(CardWidth),
+                    card4.Width(CardWidth));
+
+                Element loadingCard = CareerVisuals.Card(
+                    HStack(8,
+                        ProgressRing().Width(16).Height(16).IsActive(true).VAlign(VerticalAlignment.Center),
+                        Body("正在读取英雄熟练度数据…").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center))
+                    .HAlign(HorizontalAlignment.Center),
+                    padding: 32);
+
+                return VStack(16,
+                    summaryCards,
+                    RenderToolbar(
+                        onRefresh,
+                        searchQuery,
+                        onSearchChanged,
+                        chestFilterIndex,
+                        onChestFilterChanged,
+                        levelFilterIndex,
+                        onLevelFilterChanged,
+                        sortIndex,
+                        onSortChanged,
+                        isEnabled: false),
+                    loadingCard);
+            }
+
+            // D1：读取失败
+            return CareerVisuals.Card(
+                VStack(12,
+                    Body("获取英雄熟练度失败，请确认客户端已连接")
+                        .Foreground(Theme.SecondaryText),
+                    Button(Body("重试"), onRefresh).Height(32).Padding(12, 0).AutomationName("重试加载熟练度")),
+                padding: 24);
+        }
+
         // D1：概览为空给普通空态；"读取失败"的提示（获取英雄熟练度失败）由页面在概览为 null 时给出。
         if (overview.Champions.Count == 0)
         {
@@ -167,18 +215,22 @@ internal static class ChampionMasteryView
         int levelFilterIndex,
         Action<int>? onLevelFilterChanged,
         int sortIndex,
-        Action<int>? onSortChanged)
+        Action<int>? onSortChanged,
+        bool isEnabled = true)
     {
         Element leftToolbar = HStack(12,
             TextBox(searchQuery, text => onSearchChanged?.Invoke(text), "搜索英雄名称...")
                 .Width(170)
                 .Height(30)
+                .IsEnabled(isEnabled)
                 .AutomationName("搜索英雄名称"),
             ComboBox(ChestOptions, chestFilterIndex, idx => onChestFilterChanged?.Invoke(idx))
                 .Width(130)
+                .IsEnabled(isEnabled)
                 .AutomationName("宝箱状态"),
             ComboBox(LevelOptions, levelFilterIndex, idx => onLevelFilterChanged?.Invoke(idx))
                 .Width(110)
+                .IsEnabled(isEnabled)
                 .AutomationName("英雄等级"))
             .VAlign(VerticalAlignment.Center);
 
@@ -186,6 +238,7 @@ internal static class ChampionMasteryView
             Caption("排序:").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
             ComboBox(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx))
                 .Width(125)
+                .IsEnabled(isEnabled)
                 .AutomationName("排序方式"),
             Button(Body("刷新"), onRefresh).Height(32).Padding(12, 0).AutomationName("刷新熟练度"))
             .HAlign(HorizontalAlignment.Right)

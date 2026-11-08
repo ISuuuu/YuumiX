@@ -45,6 +45,18 @@ public sealed class SummonerService : ISummonerService
     /// <summary>当前登录召唤师变更流。</summary>
     public EventStream<SummonerProfile?> CurrentChanged => _currentChanged;
 
+    /// <summary>获取当前已缓存的登录召唤师资料（未连接、未登录或缓存过期时返回 <c>null</c>）。</summary>
+    public SummonerProfile? CachedCurrent
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _cached is not null && !IsExpired() ? _cached : null;
+            }
+        }
+    }
+
     /// <param name="transportProvider">当前传输层（来自 <c>LcuConnection.Transport</c>）；未连接时返回 <c>null</c>。</param>
     /// <param name="cacheTtl">缓存时长；传 <see cref="TimeSpan.Zero"/> 关闭缓存。</param>
     /// <param name="logger">可选日志。</param>

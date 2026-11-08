@@ -4,10 +4,10 @@ using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Media;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Summoner.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -24,7 +24,7 @@ namespace YuumiX.App.Pages.Career;
 internal static class CareerProfileHeader
 {
     public static Element Render(
-        SummonerProfile summoner,
+        SummonerProfile? summoner,
         YuumiPalette palette,
         bool copied,
         Action onCopy,
@@ -33,22 +33,26 @@ internal static class CareerProfileHeader
         bool isViewingOther = false,
         Action? onBackToSelf = null)
     {
-        Element ring = Viewbox(GaugeRing(summoner.PercentCompleteForNextLevel, palette))
+        int level = summoner?.SummonerLevel ?? 0;
+        int percent = summoner?.PercentCompleteForNextLevel ?? 0;
+        int iconId = summoner?.ProfileIconId ?? 29;
+
+        Element ring = Viewbox(GaugeRing(percent, palette))
             .Width(RingSize)
             .Height(RingSize)
             .Stretch(Stretch.Uniform)
-            .AutomationName($"等级 {summoner.SummonerLevel}，经验 {summoner.PercentCompleteForNextLevel}%");
+            .AutomationName(summoner is not null ? $"等级 {level}，经验 {percent}%" : "等级 —");
 
         // 正圆头像
         Element avatar = Component<LcuImage, LcuImageProps>(
             new LcuImageProps(
-                CareerVisuals.ProfileIcon(summoner.ProfileIconId),
+                CareerVisuals.ProfileIcon(iconId),
                 AvatarSize,
                 AvatarSize / 2));
 
         // 环底部中心悬浮等级徽章
         Element levelBadge = Badge.Create(
-            Caption(summoner.SummonerLevel.ToString(CultureInfo.InvariantCulture))
+            Caption(summoner is not null ? level.ToString(CultureInfo.InvariantCulture) : "—")
                 .SemiBold()
                 .Foreground(Theme.PrimaryText)
                 .HAlign(HorizontalAlignment.Center),
@@ -68,13 +72,27 @@ internal static class CareerProfileHeader
             .Width(RingSize)
             .Height(RingSize);
 
-        string mainName = !string.IsNullOrWhiteSpace(summoner.GameName)
-            ? summoner.GameName
-            : (!string.IsNullOrWhiteSpace(summoner.DisplayName)
-                ? summoner.DisplayName
-                : (summoner.RiotId.Contains('#', StringComparison.Ordinal)
-                    ? summoner.RiotId.Split('#')[0]
-                    : summoner.RiotId));
+        string mainName;
+        if (summoner is null)
+        {
+            mainName = "—";
+        }
+        else if (!string.IsNullOrWhiteSpace(summoner.GameName))
+        {
+            mainName = summoner.GameName;
+        }
+        else if (!string.IsNullOrWhiteSpace(summoner.DisplayName))
+        {
+            mainName = summoner.DisplayName;
+        }
+        else if (summoner.RiotId.Contains('#', StringComparison.Ordinal))
+        {
+            mainName = summoner.RiotId.Split('#')[0];
+        }
+        else
+        {
+            mainName = summoner.RiotId;
+        }
 
         var i18n = Composition.AppHost.Services?.I18n;
         var copiedText = i18n?.T("career.copied", "✓ 已复制") ?? "✓ 已复制";
@@ -93,6 +111,7 @@ internal static class CareerProfileHeader
                 .Height(28)
                 .Padding(0)
                 .CornerRadius(YuumiTheme.OverlayRadius)
+                .IsEnabled(summoner is not null)
                 .AutomationName("复制 Riot ID"),
             copied
                 ? Caption(copiedText)
@@ -108,7 +127,7 @@ internal static class CareerProfileHeader
         };
 
         // 私密档案：名字旁只留锁图标，说明文案沉到悬停提示（与对局信息页同一形态）
-        if (string.Equals(summoner.Privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase))
+        if (summoner is not null && string.Equals(summoner.Privacy, "PRIVATE", StringComparison.OrdinalIgnoreCase))
         {
             nameRowItems.Add(
                 BodyLarge(Icons.View)
@@ -123,7 +142,7 @@ internal static class CareerProfileHeader
         Element nameRow = HStack(8, nameRowItems.ToArray());
 
         var nameColumn = new List<Element> { nameRow };
-        if (!string.IsNullOrEmpty(summoner.TagLine))
+        if (summoner is not null && !string.IsNullOrEmpty(summoner.TagLine))
         {
             nameColumn.Add(Body($"# {summoner.TagLine}")
                 .Foreground(Theme.SecondaryText));
@@ -158,7 +177,8 @@ internal static class CareerProfileHeader
             .AutomationName(historyBtnText)
             .Height(32)
             .Padding(16, 4)
-            .CornerRadius(YuumiTheme.OverlayRadius));
+            .CornerRadius(YuumiTheme.OverlayRadius)
+            .IsEnabled(summoner is not null));
 
         Element actions = VStack(8, actionButtons.ToArray())
             .HAlign(HorizontalAlignment.Right)

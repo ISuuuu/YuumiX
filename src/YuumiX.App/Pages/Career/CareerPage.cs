@@ -6,7 +6,6 @@ using Microsoft.UI.Reactor.Hooks;
 using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
@@ -21,6 +20,7 @@ using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -100,7 +100,10 @@ public sealed class CareerPage : Component<CareerPageProps>
             },
             0);
 
-        var (summoner, setSummoner) = UseState<SummonerProfile?>(null, threadSafe: true);
+        SummonerProfile? initialSummoner = Props.Puuid is { Length: > 0 }
+            ? Props.Preload
+            : summonerService.CachedCurrent;
+        var (summoner, setSummoner) = UseState<SummonerProfile?>(initialSummoner, threadSafe: true);
         var (ranked, setRanked) = UseState(RankedStats.Empty, threadSafe: true);
         var (matches, setMatches) = UseState(CareerLoaders.EmptyMatches, threadSafe: true);
         var matchesRef = UseRef(matches);
@@ -109,7 +112,10 @@ public sealed class CareerPage : Component<CareerPageProps>
         var (mastery, setMastery) = UseState<MasteryOverview?>(null, threadSafe: true);
         var (tab, setTab) = UseState(CareerTab.Matches, threadSafe: true);
         var (queueFilter, setQueueFilter) = UseState(0, threadSafe: true);
-        var (loading, setLoading) = UseState(true, threadSafe: true);
+        var (loadingRanked, setLoadingRanked) = UseState(true, threadSafe: true);
+        var (loadingMatches, setLoadingMatches) = UseState(true, threadSafe: true);
+        var (loadingLoot, setLoadingLoot) = UseState(true, threadSafe: true);
+        var (loadingMastery, setLoadingMastery) = UseState(true, threadSafe: true);
         var (copied, setCopied) = UseState(false, threadSafe: true);
         var (refreshToken, setRefreshToken) = UseState(0, threadSafe: true);
         var (viewTarget, setViewTarget) = UseState<CareerViewTarget?>(
@@ -266,7 +272,10 @@ public sealed class CareerPage : Component<CareerPageProps>
                 setMatches,
                 setLoot,
                 setMastery,
-                setLoading,
+                setLoadingRanked,
+                setLoadingMatches,
+                setLoadingLoot,
+                setLoadingMastery,
                 careerLogger),
             loadKey);
 
@@ -310,8 +319,8 @@ public sealed class CareerPage : Component<CareerPageProps>
         // loading 中不重试，避免首次导航把正在跑的那次顶掉。
         var summonerRef = UseRef(summoner);
         summonerRef.Current = summoner;
-        var loadingRef = UseRef(loading);
-        loadingRef.Current = loading;
+        var loadingRankedRef = UseRef(loadingRanked);
+        loadingRankedRef.Current = loadingRanked;
         var retryRef = UseRef<Action?>(null);
         retryRef.Current = BumpRefresh;
 
@@ -324,7 +333,7 @@ public sealed class CareerPage : Component<CareerPageProps>
                 setLang(curLang);
             }
 
-            if (summonerRef.Current is null && !loadingRef.Current)
+            if (summonerRef.Current is null && !loadingRankedRef.Current)
             {
                 retryRef.Current?.Invoke();
             }
@@ -395,7 +404,8 @@ public sealed class CareerPage : Component<CareerPageProps>
             filterLabels,
             filter,
             queueFilter,
-            loading,
+            loadingRanked,
+            loadingMatches,
             visibleMatches,
             teammates,
             loadingTeammates,
@@ -411,40 +421,36 @@ public sealed class CareerPage : Component<CareerPageProps>
             OpenMatchInSearch,
             lang: lang);
 
-        Element header = summoner is null
-            ? (loading
-                ? CareerVisuals.SkeletonHeader()
-                : CareerVisuals.EmptyHeader())
-            : CareerProfileHeader.Render(
-                summoner,
-                palette,
-                copied,
-                onCopy: () => CareerCommands.CopyRiotId(summoner, setCopied, toast),
-                onRefresh: BumpRefresh,
-                onHistory: GoToHistory,
-                isViewingOther: isViewingOther,
-                onBackToSelf: BackToMyCareer);
+        Element header = CareerProfileHeader.Render(
+            summoner,
+            palette,
+            copied,
+            onCopy: () =>
+            {
+                if (summoner is not null)
+                {
+                    CareerCommands.CopyRiotId(summoner, setCopied, toast);
+                }
+            },
+            onRefresh: BumpRefresh,
+            onHistory: GoToHistory,
+            isViewingOther: isViewingOther,
+            onBackToSelf: BackToMyCareer);
 
         string effectivePuuid = viewTarget?.Puuid ?? summoner?.Puuid ?? "me";
         header = CareerMotion.Header(header, skipMotion, effectivePuuid, refreshToken, summoner is not null);
 
         // 页签栏：仅在查看自己时显示（查看他人时直接展示战绩内容，不显示「生涯战绩」等页签）。
-        // 加载期用骨架页签占位——真实页签栏是「资料卡到齐之后才出现」的话，
-        // 数据到位那一刻整页会下移一整条页签栏的高度。
-        bool hasTabBar = summoner is not null && !isViewingOther;
-        bool showSkeletonTabBar = summoner is null && loading && !isViewingOther;
-        bool tabBarVisible = hasTabBar || showSkeletonTabBar;
-        Element tabBar = hasTabBar
+        bool tabBarVisible = !isViewingOther;
+        Element tabBar = tabBarVisible
             ? CareerVisuals.TabBar(effectiveTab, setTab)
-            : showSkeletonTabBar
-                ? CareerVisuals.SkeletonTabBar()
-                : Empty();
+            : Empty();
 
         // D1：战利品/熟练度读取失败（null）给提示条；成功但为空由子视图给普通空态。
-        Element lootFailureHint = loot is null && !loading
+        Element lootFailureHint = loot is null && !loadingLoot
             ? CareerVisuals.FailureHint("获取战利品失败，请确认客户端已连接", BumpRefresh)
             : Empty();
-        Element masteryFailureHint = mastery is null && !loading
+        Element masteryFailureHint = mastery is null && !loadingMastery
             ? CareerVisuals.FailureHint("获取英雄熟练度失败，请确认客户端已连接", BumpRefresh)
             : Empty();
 
@@ -452,9 +458,6 @@ public sealed class CareerPage : Component<CareerPageProps>
         var matchesParts = MatchesTab();
 
         // 跟踪战利品与英雄熟练度页签的动效身份与展示生命周期：
-        // 区分「重新进入页签（已有数据瞬间呈现）」与「当前页签下新结果就绪（平滑淡入）」，
-        // 并在同一次展示期间稳定保留动画声明，防止在动画播放期间由于同页签重渲染撤销 Keyframes 而提前终止；
-        // 刷新时新数据就绪前，旧数据不会提前消耗新代际的播放资格。
         var lootMotionTrackerRef = UseRef<CareerTabMotionTracker<PlayerLootOverview>?>(null);
         var lootMotionTracker = lootMotionTrackerRef.Current ??= new();
         object? lootMotionTrigger = lootMotionTracker.EvaluateTrigger(
@@ -466,52 +469,52 @@ public sealed class CareerPage : Component<CareerPageProps>
             CareerTab.Mastery, effectiveTab, mastery, effectivePuuid, refreshToken);
 
         Element content = effectiveTab switch
-            {
-                CareerTab.Loot => VStack(12,
-                    lootFailureHint,
-                    loot is null
-                        ? (loading ? CareerVisuals.SkeletonLoot() : Empty())
-                        : CareerMotion.Loot(
-                            Component<CareerLootSection, CareerLootSectionProps>(
-                                new CareerLootSectionProps(
-                                    loot,
-                                    palette,
-                                    BumpRefresh,
-                                    // 数量弹窗带初值打开；确认弹窗存储时重包 onConfirm（先关窗再执行，对齐旧版闭包）
-                                    dialog =>
-                                    {
-                                        int confirmed = 0;
-                                        setQuantityDialog(dialog with { OnConfirm = quantity => { if (Interlocked.Exchange(ref confirmed, 1) == 0) dialog.OnConfirm(quantity); } });
-                                        setOpenQuantity(Math.Max(dialog.MaxQuantity, 0));
-                                    },
-                                    dialog =>
-                                    {
-                                        int confirmed = 0;
-                                        setConfirmDialog(dialog with { OnConfirm = () => { if (Interlocked.Exchange(ref confirmed, 1) != 0) return; setConfirmDialog(null); dialog.OnConfirm(); } });
-                                    })),
-                            lootMotionTrigger,
-                            skipMotion)),
-                CareerTab.Mastery => mastery is null
-                    ? (loading ? CareerVisuals.SkeletonMastery() : masteryFailureHint)
-                    : CareerMotion.Mastery(
-                        ChampionMasteryView.Render(
-                            mastery,
-                            catalog,
+        {
+            CareerTab.Loot => VStack(12,
+                lootFailureHint,
+                CareerMotion.Loot(
+                    Component<CareerLootSection, CareerLootSectionProps>(
+                        new CareerLootSectionProps(
+                            loot,
                             palette,
-                            onRefresh: BumpRefresh,
-                            searchQuery: masterySearch,
-                            onSearchChanged: setMasterySearch,
-                            chestFilterIndex: masteryChest,
-                            onChestFilterChanged: setMasteryChest,
-                            levelFilterIndex: masteryLevel,
-                            onLevelFilterChanged: setMasteryLevel,
-                            sortIndex: masterySort,
-                            onSortChanged: setMasterySort),
-                        masteryMotionTrigger,
-                        skipMotion),
-                // 战绩页签已在上方单独取两段，这里只是编译器要求的兜底分支
-                _ => Empty(),
-            };
+                            BumpRefresh,
+                            // 数量弹窗带初值打开；确认弹窗存储时重包 onConfirm（先关窗再执行，对齐旧版闭包）
+                            dialog =>
+                            {
+                                int confirmed = 0;
+                                setQuantityDialog(dialog with { OnConfirm = quantity => { if (Interlocked.Exchange(ref confirmed, 1) == 0) dialog.OnConfirm(quantity); } });
+                                setOpenQuantity(Math.Max(dialog.MaxQuantity, 0));
+                            },
+                            dialog =>
+                            {
+                                int confirmed = 0;
+                                setConfirmDialog(dialog with { OnConfirm = () => { if (Interlocked.Exchange(ref confirmed, 1) != 0) return; setConfirmDialog(null); dialog.OnConfirm(); } });
+                            },
+                            IsLoaded: !loadingLoot)),
+                    lootMotionTrigger,
+                    skipMotion)),
+            CareerTab.Mastery => VStack(12,
+                masteryFailureHint,
+                CareerMotion.Mastery(
+                    ChampionMasteryView.Render(
+                        mastery,
+                        catalog,
+                        palette,
+                        onRefresh: BumpRefresh,
+                        searchQuery: masterySearch,
+                        onSearchChanged: setMasterySearch,
+                        chestFilterIndex: masteryChest,
+                        onChestFilterChanged: setMasteryChest,
+                        levelFilterIndex: masteryLevel,
+                        onLevelFilterChanged: setMasteryLevel,
+                        sortIndex: masterySort,
+                        onSortChanged: setMasterySort,
+                        isLoaded: !loadingMastery),
+                    masteryMotionTrigger,
+                    skipMotion)),
+            // 战绩页签已在上方单独取两段，这里只是编译器要求的兜底分支
+            _ => Empty(),
+        };
 
         var displayedMatches = new CareerMatchesSection.MatchesParts(
             CareerMotion.Summary(

@@ -1,12 +1,12 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
-using YuumiX.Core.Lcu;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.SavedPlayers.Models;
+using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -34,7 +34,8 @@ internal static class CareerMatchesSection
         string[] filterLabels,
         int filter,
         int queueFilter,
-        bool loading,
+        bool loadingRanked,
+        bool loadingMatches,
         IReadOnlyList<MatchSummary> visibleMatches,
         RecentTeammatesResult? teammates,
         bool loadingTeammates,
@@ -50,26 +51,20 @@ internal static class CareerMatchesSection
         const double MatchRowGap = 10;
         const double StackGap = 8;
 
-        bool isInitialLoad = (ranked.SoloDuo is null && ranked.Flex is null) || summary.IsEmpty;
-        bool needSkeleton = loading && isInitialLoad;
-
         Element header = VStack(16,
-            needSkeleton && ranked.SoloDuo is null && ranked.Flex is null
-                ? CareerVisuals.SkeletonRankedTable()
-                : RankedTableView.Render(ranked, palette),
-            needSkeleton && summary.IsEmpty
-                ? CareerVisuals.SkeletonRecentSummary()
-                : RecentSummaryView.Render(
-                    summary,
-                    catalog,
-                    palette,
-                    filterLabels,
-                    filter,
-                    onFilterChanged,
-                    onRecentTeammates: onRecentTeammates,
-                    teammates: teammates,
-                    loadingTeammates: loadingTeammates,
-                    onClickTeammate: onClickTeammate));
+            RankedTableView.Render(ranked, palette, isLoaded: !loadingRanked),
+            RecentSummaryView.Render(
+                summary,
+                catalog,
+                palette,
+                filterLabels,
+                filter,
+                onFilterChanged,
+                onRecentTeammates: onRecentTeammates,
+                teammates: teammates,
+                loadingTeammates: loadingTeammates,
+                onClickTeammate: onClickTeammate,
+                isLoaded: !loadingMatches));
 
         var i18n = Composition.AppHost.Services?.I18n;
         var emptyText = filter == 0
@@ -83,7 +78,7 @@ internal static class CareerMatchesSection
                         .Margin(0, 0, 0, MatchRowGap - StackGap)
                         .WithKey(match.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                     .ToArray())
-            : (needSkeleton || loading)
+            : loadingMatches
                 // 骨架态：与真实卡片同高（82）同圆角同描边，数据到达时整列不跳。
                 ? CareerVisuals.SkeletonMatchList()
                 : CareerVisuals.Card(
