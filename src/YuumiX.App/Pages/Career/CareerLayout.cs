@@ -41,6 +41,7 @@ internal static class CareerLayout
         Element body = Grid(
             [GridSize.Star()], [GridSize.Auto, GridSize.Star()],
             [sharedHeader.Grid(row: 0), contentHost.Grid(row: 1)])
+            .Width(CareerVisuals.ContentWidth)
             .MaxWidth(CareerVisuals.ContentWidth)
             .HAlign(HorizontalAlignment.Center);
         Element pageBody = Grid(
