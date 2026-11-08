@@ -23,9 +23,9 @@ internal static class SavedPlayersMotion
 
     /// <summary>
     /// 构建路人集列表的动画 Trigger 身份。
-    /// 分离底层取数刷新计数（refreshNonce）与动效身份（motionNonce）。
-    /// 仅在账号、检索条件或显式手动刷新变更时演进动画身份，后台静默刷新（页面切回、存储后台更新）不重置 trigger，
-    /// 避免已有列表在静默刷新时整块重新淡入。
+    /// 分离底层取数刷新计数（refreshNonce）与动效身份（motionNonce），
+    /// 并剥离本地分类筛选（filter）与搜索条件，仅在账号身份变更或显式手动刷新（motionNonce）时演进动画身份。
+    /// 本地分类切换直接就地更新视图，避免已有列表整块重新淡入闪烁。
     /// </summary>
     internal static string? BuildListTrigger(
         string? selfPuuid,
@@ -34,7 +34,7 @@ internal static class SavedPlayersMotion
         int motionNonce,
         bool hasData) =>
         hasData
-            ? $"savedplayers:{selfPuuid}@{filter}@{committedSearch}@{motionNonce}"
+            ? $"savedplayers:{selfPuuid}@{motionNonce}"
             : null;
 
     /// <summary>

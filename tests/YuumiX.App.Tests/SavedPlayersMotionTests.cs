@@ -21,9 +21,9 @@ public sealed class SavedPlayersMotionTests
     public void List_WhenReady_AppliesFadeInWithCorrectTrigger()
     {
         var content = Body("路人集卡片列表");
-        var result = SavedPlayersMotion.List(content, "savedplayers:puuid-1@all@@0", skipMotion: false);
+        var result = SavedPlayersMotion.List(content, "savedplayers:puuid-1@0", skipMotion: false);
 
-        AssertFade(result, "SavedPlayersListFadeIn", "savedplayers:puuid-1@all@@0");
+        AssertFade(result, "SavedPlayersListFadeIn", "savedplayers:puuid-1@0");
     }
 
     [Fact]
@@ -34,17 +34,21 @@ public sealed class SavedPlayersMotionTests
 
         // 2. 首次有数据
         string? trigger1 = SavedPlayersMotion.BuildListTrigger("puuid-1", "all", "", 0, hasData: true);
-        Assert.Equal("savedplayers:puuid-1@all@@0", trigger1);
+        Assert.Equal("savedplayers:puuid-1@0", trigger1);
 
-        // 3. 切回页面或后台数据存储更新：refreshNonce 发生变化，但 motionNonce 保持 0（静默刷新）
+        // 3. 切换本地分类或搜索关键字不改变 trigger，防止本地筛选重复淡入闪烁
+        string? triggerFilterChange = SavedPlayersMotion.BuildListTrigger("puuid-1", "black", "player", 0, hasData: true);
+        Assert.Equal(trigger1, triggerFilterChange);
+
+        // 4. 切回页面或后台数据存储更新：refreshNonce 发生变化，但 motionNonce 保持 0（静默刷新）
         // Trigger 恒定不变，绝对不触发已有列表整块重新淡入
         string? triggerSilentRefresh = SavedPlayersMotion.BuildListTrigger("puuid-1", "all", "", 0, hasData: true);
         Assert.Equal(trigger1, triggerSilentRefresh);
 
-        // 4. 用户在页头主动点击刷新按钮：motionNonce 递增
+        // 5. 用户在页头主动点击刷新按钮：motionNonce 递增
         // Trigger 发生改变，允许播放一次淡入动效
         string? triggerManualRefresh = SavedPlayersMotion.BuildListTrigger("puuid-1", "all", "", 1, hasData: true);
-        Assert.Equal("savedplayers:puuid-1@all@@1", triggerManualRefresh);
+        Assert.Equal("savedplayers:puuid-1@1", triggerManualRefresh);
         Assert.NotEqual(trigger1, triggerManualRefresh);
     }
 
@@ -66,7 +70,7 @@ public sealed class SavedPlayersMotionTests
     {
         bool skipMotion = reducedMotion || highContrast;
         var content = Body("路人集卡片列表");
-        var result = SavedPlayersMotion.List(content, "savedplayers:puuid-1@all@@0", skipMotion);
+        var result = SavedPlayersMotion.List(content, "savedplayers:puuid-1@0", skipMotion);
 
         Assert.Same(content, result);
         Assert.Null(result.KeyframeAnimations);

@@ -2,13 +2,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Features.Opgg;
 using YuumiX.Core.Features.Opgg.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Opgg;
 
@@ -296,9 +296,11 @@ public sealed class OpggPage : Component<OpggPageProps>
                             }
                         }
                     ),
-                    !loading && errorMessage is null
-                        ? $"opgg:{currentView}@{selectedChampId}@{position}@{tier}@{mode}@{region}"
-                        : null,
+                    OpggMotion.BuildTrigger(
+                        currentView,
+                        selectedChampId,
+                        isReady: (currentView == "build" && buildData is not null && selectedChampId.HasValue) ||
+                                 (currentView == "tier" && tierItems.Count > 0 && errorMessage is null)),
                     reducedMotion || highContrast).Grid(2, 0)
             ]
             // Toast 宿主不在这里挂：OpggWindowRoot 已统一挂载（同主窗口 AppShell 的模式），
@@ -385,6 +387,39 @@ public sealed class OpggPage : Component<OpggPageProps>
         Action onApplyItemSet)
     {
         var i18n = Composition.AppHost.Services?.I18n;
+
+        // 若当前出装或梯队已有内容，优先保留视图呈现，避免切换分路或取数时整个卡片坍塌为居中菊花
+        if (currentView == "build" && buildData is not null && selectedChampId.HasValue)
+        {
+            return Component<BuildDetailPanelView, BuildDetailPanelProps>(new BuildDetailPanelProps
+            {
+                Build = buildData,
+                ChampionId = selectedChampId.Value,
+                Position = position,
+                ChampionsMap = catalog.Champions,
+                ItemsMap = catalog.Items,
+                SpellsMap = catalog.Spells,
+                RunesMap = catalog.Runes,
+                PerkStyles = catalog.PerkStyles,
+                PerkDetails = catalog.PerkDetails,
+                IsDark = isDark,
+                OnApplyRune = onApplyRune,
+                OnApplyItemSet = onApplyItemSet,
+                IsApplyingItemSet = isApplyingItemSet
+            });
+        }
+
+        if (currentView == "tier" && tierItems.Count > 0)
+        {
+            return Component<TierListPanelView, TierListPanelProps>(new TierListPanelProps
+            {
+                Items = tierItems,
+                ChampionsMap = catalog.Champions,
+                IsDark = isDark,
+                OnSelectChampion = onSelectChamp
+            });
+        }
+
         if (loading)
         {
             return VStack(12,
@@ -415,33 +450,7 @@ public sealed class OpggPage : Component<OpggPageProps>
             .VAlign(VerticalAlignment.Center);
         }
 
-        if (currentView == "build" && buildData is not null && selectedChampId.HasValue)
-        {
-            return Component<BuildDetailPanelView, BuildDetailPanelProps>(new BuildDetailPanelProps
-            {
-                Build = buildData,
-                ChampionId = selectedChampId.Value,
-                Position = position,
-                ChampionsMap = catalog.Champions,
-                ItemsMap = catalog.Items,
-                SpellsMap = catalog.Spells,
-                RunesMap = catalog.Runes,
-                PerkStyles = catalog.PerkStyles,
-                PerkDetails = catalog.PerkDetails,
-                IsDark = isDark,
-                OnApplyRune = onApplyRune,
-                OnApplyItemSet = onApplyItemSet,
-                IsApplyingItemSet = isApplyingItemSet
-            });
-        }
-
-        return Component<TierListPanelView, TierListPanelProps>(new TierListPanelProps
-        {
-            Items = tierItems,
-            ChampionsMap = catalog.Champions,
-            IsDark = isDark,
-            OnSelectChampion = onSelectChamp
-        });
+        return Empty();
     }
 
     /// <summary>

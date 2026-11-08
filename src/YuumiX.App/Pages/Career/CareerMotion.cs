@@ -15,10 +15,11 @@ internal static class CareerMotion
             ? content
             : FadeIn(content, "careerSummaryFadeIn", $"summary:{puuid ?? "me"}@{refreshToken}");
 
+    // 战绩列表筛选：移除 queueFilter 动效身份，纯本地过滤不触发整表淡入，消除切换筛选时的闪烁。
     internal static Element Matches(Element content, bool skipMotion, string? puuid, int refreshToken, int queueFilter, int visibleCount) =>
         skipMotion || visibleCount == 0
             ? content
-            : FadeIn(content, "careerMatchesFadeIn", $"matches:{puuid ?? "me"}@{refreshToken}@{queueFilter}");
+            : FadeIn(content, "careerMatchesFadeIn", $"matches:{puuid ?? "me"}@{refreshToken}");
 
     internal static Element Loot(Element content, object? trigger, bool skipMotion) =>
         skipMotion || trigger is null

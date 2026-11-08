@@ -22,6 +22,14 @@ internal static class OpggMotion
         hasContent && !reducedMotion && !highContrast;
 
     /// <summary>
+    /// 构建 OP.GG 视图主体的动效身份。
+    /// 仅在主视图切换（梯队 ↔ 出装）或选中英雄变更时演进动效身份，
+    /// 避免在同视图内切换分路位置、段位或大区时整块正文重复淡入闪烁。
+    /// </summary>
+    internal static string? BuildTrigger(string currentView, int? selectedChampId, bool isReady) =>
+        isReady ? $"opgg:{currentView}@{selectedChampId}" : null;
+
+    /// <summary>
     /// 为 OP.GG 主视图（梯队列表 / 英雄出装）施加 150ms 纯透明度淡入动效。
     /// </summary>
     internal static Element View(

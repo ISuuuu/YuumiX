@@ -76,7 +76,18 @@ public sealed class CareerMotionTests
         var content = Body("战绩列表");
         var result = CareerMotion.Matches(content, skipMotion: false, puuid: "puuid-1", refreshToken: 1, queueFilter: 420, visibleCount: 10);
 
-        AssertFade(result, "careerMatchesFadeIn", "matches:puuid-1@1@420");
+        AssertFade(result, "careerMatchesFadeIn", "matches:puuid-1@1");
+    }
+
+    [Fact]
+    public void Matches_QueueFilterChange_PreservesStableTriggerWithoutFlicker()
+    {
+        var content = Body("战绩列表");
+        var allQueues = CareerMotion.Matches(content, skipMotion: false, puuid: "puuid-1", refreshToken: 1, queueFilter: 0, visibleCount: 10);
+        var soloQueue = CareerMotion.Matches(content, skipMotion: false, puuid: "puuid-1", refreshToken: 1, queueFilter: 420, visibleCount: 5);
+
+        // 队列筛选不改变动效身份，防止列表重复淡入闪烁
+        Assert.Equal(Animation(allQueues).Trigger, Animation(soloQueue).Trigger);
     }
 
     [Fact]
@@ -132,10 +143,15 @@ public sealed class CareerMotionTests
         Assert.Null(triggerReenter);
     }
 
-    private static void AssertFade(Element element, string name, object trigger)
+    private static KeyframeEntry Animation(Element element)
     {
         Assert.NotNull(element.KeyframeAnimations);
-        var animation = Assert.Single(element.KeyframeAnimations);
+        return Assert.Single(element.KeyframeAnimations);
+    }
+
+    private static void AssertFade(Element element, string name, object trigger)
+    {
+        var animation = Animation(element);
         Assert.Equal(name, animation.Name);
         Assert.Equal(trigger, animation.Trigger);
         Assert.Equal(TimeSpan.FromMilliseconds(150), animation.Definition.Duration);
