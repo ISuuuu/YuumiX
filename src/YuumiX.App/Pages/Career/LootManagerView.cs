@@ -2,10 +2,10 @@ using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -65,7 +65,7 @@ internal static class LootManagerView
     ];
 
     public static Element Render(
-        PlayerLootOverview loot,
+        PlayerLootOverview? loot,
         YuumiPalette palette,
         Action onRefresh,
         Action onOpenAll,
@@ -88,10 +88,11 @@ internal static class LootManagerView
         Action? onReroll = null,
         Action? onUpgrade = null,
         LootOperationProgress? progress = null,
-        string? operationNotice = null)
+        string? operationNotice = null,
+        bool isLoaded = true)
     {
         return VStack(16,
-            RenderMaterialsSection(loot, palette, onRefresh, onOpenAll, onOpenItem),
+            RenderMaterialsSection(loot, palette, onRefresh, onOpenAll, onOpenItem, isLoaded),
             RenderInventorySection(
                 loot,
                 palette,
@@ -114,16 +115,18 @@ internal static class LootManagerView
                 onReroll,
                 onUpgrade,
                 progress,
-                operationNotice));
+                operationNotice,
+                isLoaded));
     }
 
     /// <summary>区块一：材料（可开启战利品）卡片面板。</summary>
     private static Element RenderMaterialsSection(
-        PlayerLootOverview loot,
+        PlayerLootOverview? loot,
         YuumiPalette palette,
         Action onRefresh,
         Action onOpenAll,
-        Action<OpenableLootItem>? onOpenItem)
+        Action<OpenableLootItem>? onOpenItem,
+        bool isLoaded = true)
     {
         // 头部左右分栏的基准宽 = 卡片内容宽（1000 − 16×2），与外侧 Card 同宽，
         // 这样「刷新列表」与「全部开启」分列首尾，正好贴住卡片左右内边距。
@@ -131,13 +134,14 @@ internal static class LootManagerView
         const double RightBtnWidth = 110;
         double leftHeaderWidth = totalWidth - RightBtnWidth;
 
+        string keysText = isLoaded && loot is not null ? $"x{loot.TotalKeys}" : "x—";
         Element leftHeader = HStack(12,
             BodyStrong("📦 材料")
                 .VAlign(VerticalAlignment.Center),
             Button(Caption("刷新列表"), onRefresh).Height(30).Padding(12, 0).AutomationName("刷新材料列表"),
             Border(HStack(4,
                     Caption("🔑"),
-                    Caption($"x{loot.TotalKeys}").SemiBold().Foreground(CareerVisuals.GoldColor))
+                    Caption(keysText).SemiBold().Foreground(CareerVisuals.GoldColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 3)
                 .CornerRadius(YuumiTheme.ControlRadius)
@@ -150,6 +154,7 @@ internal static class LootManagerView
             .Width(RightBtnWidth)
             .Height(30)
             .Padding(16, 0)
+            .IsEnabled(isLoaded && loot is not null)
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center)
             .AutomationName("全部开启战利品");
@@ -157,6 +162,19 @@ internal static class LootManagerView
         Element header = HStack(0,
             leftHeader.Width(leftHeaderWidth),
             rightHeader);
+
+        if (!isLoaded || loot is null)
+        {
+            Element loadingPlaceholder = HStack(8,
+                ProgressRing().Width(16).Height(16).IsActive(true).VAlign(VerticalAlignment.Center),
+                Body(isLoaded ? "未能读取战利品材料数据" : "正在读取战利品材料…").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center))
+                .HAlign(HorizontalAlignment.Center)
+                .Padding(24);
+
+            return CareerVisuals.Card(
+                VStack(16, header, loadingPlaceholder),
+                padding: SectionPadding);
+        }
 
         // D1：不再回退样例数据，空态直接说明"没有可开启的材料"。
         IReadOnlyList<OpenableLootItem> items = loot.OpenableItems;
@@ -265,7 +283,7 @@ internal static class LootManagerView
 
     /// <summary>区块二：碎片库存管理面板。</summary>
     private static Element RenderInventorySection(
-        PlayerLootOverview loot,
+        PlayerLootOverview? loot,
         YuumiPalette palette,
         Action onRefresh,
         int typeFilterIndex,
@@ -286,7 +304,8 @@ internal static class LootManagerView
         Action? onReroll,
         Action? onUpgrade,
         LootOperationProgress? progress,
-        string? operationNotice)
+        string? operationNotice,
+        bool isLoaded = true)
     {
         double totalWidth = CareerVisuals.CardInnerWidth(SectionPadding);
         const double CurrencyWidth = 320;
@@ -299,10 +318,13 @@ internal static class LootManagerView
             Button(Caption("刷新库存"), onRefresh).Height(30).Padding(12, 0).AutomationName("刷新碎片库存"))
             .VAlign(VerticalAlignment.Center);
 
+        string blueText = isLoaded && loot is not null ? loot.BlueEssence.ToString(CultureInfo.InvariantCulture) : "—";
+        string orangeText = isLoaded && loot is not null ? loot.OrangeEssence.ToString(CultureInfo.InvariantCulture) : "—";
+
         Element rightCurrency = HStack(12,
             Border(HStack(6,
                     Caption("🔵"),
-                    Caption(loot.BlueEssence.ToString(CultureInfo.InvariantCulture)).SemiBold().Foreground(CareerVisuals.BlueEssenceColor))
+                    Caption(blueText).SemiBold().Foreground(CareerVisuals.BlueEssenceColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 6)
                 .CornerRadius(YuumiTheme.OverlayRadius)
@@ -310,7 +332,7 @@ internal static class LootManagerView
                 .WithBorder(CareerVisuals.WithAlpha(CareerVisuals.BlueEssenceColor, 0x33), 1),
             Border(HStack(6,
                     Caption("🔶"),
-                    Caption(loot.OrangeEssence.ToString(CultureInfo.InvariantCulture)).SemiBold().Foreground(CareerVisuals.OrangeEssenceColor))
+                    Caption(orangeText).SemiBold().Foreground(CareerVisuals.OrangeEssenceColor))
                 .VAlign(VerticalAlignment.Center))
                 .Padding(8, 6)
                 .CornerRadius(YuumiTheme.OverlayRadius)
@@ -323,22 +345,72 @@ internal static class LootManagerView
             leftHeader.Width(leftHeaderWidth),
             rightCurrency.Width(CurrencyWidth));
 
+        bool controlsEnabled = isLoaded && loot is not null;
+
         // 水平紧凑筛选工具栏
         Element filterBar = HStack(16,
             HStack(6,
                 Caption("碎片类型").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                ComboBox(TypeFilters, typeFilterIndex, idx => onTypeFilterChanged?.Invoke(idx)).Width(110).AutomationName("碎片类型")),
+                ComboBox(TypeFilters, typeFilterIndex, idx => onTypeFilterChanged?.Invoke(idx)).Width(110).IsEnabled(controlsEnabled).AutomationName("碎片类型")),
             HStack(6,
                 Caption("拥有状态").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                ComboBox(OwnedFilters, ownedFilterIndex, idx => onOwnedFilterChanged?.Invoke(idx)).Width(100).AutomationName("拥有状态")),
+                ComboBox(OwnedFilters, ownedFilterIndex, idx => onOwnedFilterChanged?.Invoke(idx)).Width(100).IsEnabled(controlsEnabled).AutomationName("拥有状态")),
             HStack(6,
                 Caption("价值基准").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                ComboBox(ValueTypeFilters, valueTypeIndex, idx => onValueTypeChanged?.Invoke(idx)).Width(110).AutomationName("价值基准")),
+                ComboBox(ValueTypeFilters, valueTypeIndex, idx => onValueTypeChanged?.Invoke(idx)).Width(110).IsEnabled(controlsEnabled).AutomationName("价值基准")),
             HStack(6,
                 Caption("价值").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-                ComboBox(OperatorFilters, operatorIndex, idx => onOperatorChanged?.Invoke(idx)).Width(125).AutomationName("价值运算符"),
-                TextBox(valueThreshold, text => onValueThresholdChanged?.Invoke(text), "不限").Width(80).Height(30).AutomationName("价值阈值")))
+                ComboBox(OperatorFilters, operatorIndex, idx => onOperatorChanged?.Invoke(idx)).Width(125).IsEnabled(controlsEnabled).AutomationName("价值运算符"),
+                TextBox(valueThreshold, text => onValueThresholdChanged?.Invoke(text), "不限").Width(80).Height(30).IsEnabled(controlsEnabled).AutomationName("价值阈值")))
             .VAlign(VerticalAlignment.Center);
+
+        if (!isLoaded || loot is null)
+        {
+            Element loadingPlaceholder = HStack(8,
+                ProgressRing().Width(16).Height(16).IsActive(true).VAlign(VerticalAlignment.Center),
+                Body(isLoaded ? "未能读取碎片库存数据" : "正在读取碎片库存…").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center))
+                .HAlign(HorizontalAlignment.Center)
+                .Padding(24);
+
+            Element disabledFooter = HStack(0,
+                HStack(12,
+                    Button(Caption("选择当前所有过滤项")).Height(30).Padding(12, 0).IsEnabled(false).AutomationName("选择当前所有过滤项"),
+                    Button(Caption("清空已选")).Height(30).Padding(12, 0).IsEnabled(false).AutomationName("清空已选"),
+                    Caption("未选择任何碎片").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center))
+                    .Width(500)
+                    .VAlign(VerticalAlignment.Center),
+                HStack(8,
+                    Button(Caption("分解"))
+                        .Width(70)
+                        .Height(30)
+                        .IsEnabled(false)
+                        .AutomationName("批量分解"),
+                    Button(Caption("重铸 (3合1)"))
+                        .Width(90)
+                        .Height(30)
+                        .IsEnabled(false)
+                        .AutomationName("批量重随"),
+                    Button(Caption("升级 / 解锁"))
+                        .Height(30)
+                        .Padding(12, 0)
+                        .IsEnabled(false)
+                        .AutomationName("批量升级解锁"))
+                    .Width(416)
+                    .HAlign(HorizontalAlignment.Right)
+                    .VAlign(VerticalAlignment.Center));
+
+            return CareerVisuals.Card(
+                VStack(16,
+                    header,
+                    Border(filterBar)
+                        .Padding(12, 8)
+                        .CornerRadius(YuumiTheme.OverlayRadius)
+                        .Background(Theme.SubtleFill)
+                        .WithBorder(Theme.CardStroke, 1),
+                    loadingPlaceholder,
+                    disabledFooter),
+                padding: SectionPadding);
+        }
 
         // D1：不再回退样例数据。
         IReadOnlyList<LootInventoryItem> rawInventory = loot.InventoryItems;

@@ -6,14 +6,10 @@ namespace YuumiX.App.Pages.Career;
 internal static class CareerMotion
 {
     internal static Element Header(Element content, bool skipMotion, string? puuid, int refreshToken, bool isReady) =>
-        skipMotion || !isReady
-            ? content
-            : FadeIn(content, "careerHeaderFadeIn", $"header:{puuid ?? "me"}@{refreshToken}");
+        content;
 
     internal static Element Summary(Element content, bool skipMotion, string? puuid, int refreshToken, bool isReady) =>
-        skipMotion || !isReady
-            ? content
-            : FadeIn(content, "careerSummaryFadeIn", $"summary:{puuid ?? "me"}@{refreshToken}");
+        content;
 
     internal static Element Matches(Element content, bool skipMotion, string? puuid, int refreshToken, int queueFilter, int visibleCount) =>
         skipMotion || visibleCount == 0
@@ -21,20 +17,16 @@ internal static class CareerMotion
             : FadeIn(content, "careerMatchesFadeIn", $"matches:{puuid ?? "me"}@{refreshToken}@{queueFilter}");
 
     internal static Element Loot(Element content, object? trigger, bool skipMotion) =>
-        skipMotion || trigger is null
-            ? content
-            : FadeIn(content, "careerLootFadeIn", trigger);
+        content;
 
     internal static Element Loot(Element content, bool skipMotion, string? puuid, int refreshToken, bool isReady) =>
-        Loot(content, isReady ? $"loot:{puuid ?? "me"}@{refreshToken}" : null, skipMotion);
+        content;
 
     internal static Element Mastery(Element content, object? trigger, bool skipMotion) =>
-        skipMotion || trigger is null
-            ? content
-            : FadeIn(content, "careerMasteryFadeIn", trigger);
+        content;
 
     internal static Element Mastery(Element content, bool skipMotion, string? puuid, int refreshToken, bool isReady) =>
-        Mastery(content, isReady ? $"mastery:{puuid ?? "me"}@{refreshToken}" : null, skipMotion);
+        content;
 
     private static Element FadeIn(Element content, string name, object trigger) =>
         content.Keyframes(name, trigger, kb => kb

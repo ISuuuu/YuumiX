@@ -18,6 +18,11 @@ public interface ISummonerService
     EventStream<SummonerProfile?> CurrentChanged { get; }
 
     /// <summary>
+    /// 获取当前已缓存的登录召唤师资料（未连接、未登录或缓存过期时返回 <c>null</c>）。
+    /// </summary>
+    SummonerProfile? CachedCurrent { get; }
+
+    /// <summary>
     /// 获取当前登录召唤师。
     /// </summary>
     /// <returns>召唤师；客户端未连接、接口失败或载荷不完整时返回 <c>null</c>。</returns>

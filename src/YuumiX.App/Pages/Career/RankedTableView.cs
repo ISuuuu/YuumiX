@@ -1,9 +1,9 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -90,7 +90,7 @@ internal static class RankedTableView
     private static Element Divider() =>
         Border(Empty()).Height(1).Background(Theme.DividerStroke).HAlign(HorizontalAlignment.Stretch);
 
-    public static Element Render(RankedStats stats, YuumiPalette palette)
+    public static Element Render(RankedStats stats, YuumiPalette palette, bool isLoaded = true)
     {
         var i18n = Composition.AppHost.CurrentI18n;
 
@@ -108,6 +108,18 @@ internal static class RankedTableView
             ])
             .MinHeight(RowMinHeight)
             .Background(Theme.SubtleFill);
+
+        if (!isLoaded)
+        {
+            return CareerVisuals.Card(
+                VStack(0,
+                    header,
+                    Divider(),
+                    Row(i18n?.T("gameInfo.soloRank", "单双排位") ?? "单双排位", null, palette, isLoaded: false),
+                    Divider(),
+                    Row(i18n?.T("gameInfo.flexRank", "灵活排位") ?? "灵活排位", null, palette, isLoaded: false)),
+                padding: 0);
+        }
 
         bool hasSolo = stats.SoloDuo is not null && (stats.SoloDuo.HasRank || stats.SoloDuo.TotalGames > 0);
         bool hasFlex = stats.Flex is not null && (stats.Flex.HasRank || stats.Flex.TotalGames > 0);
@@ -141,19 +153,20 @@ internal static class RankedTableView
             padding: 0);
     }
 
-    private static Element Row(string label, RankedQueueEntry? queue, YuumiPalette palette)
+    private static Element Row(string label, RankedQueueEntry? queue, YuumiPalette palette, bool isLoaded = true)
     {
-        string games = (queue?.TotalGames ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        string winRate = queue?.WinRateText ?? "--";
-        string wins = (queue?.Wins ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        string losses = (queue?.Losses ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        string tier = queue?.TierText ?? "--";
-        string leaguePoints = (queue?.LeaguePoints ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        string highest = queue?.HighestTierText ?? "--";
-        string previous = queue?.PreviousSeasonTierText ?? "--";
+        const string placeholder = "—";
+        string games = isLoaded ? (queue?.TotalGames ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture) : placeholder;
+        string winRate = isLoaded ? (queue?.WinRateText ?? "--") : placeholder;
+        string wins = isLoaded ? (queue?.Wins ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture) : placeholder;
+        string losses = isLoaded ? (queue?.Losses ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture) : placeholder;
+        string tier = isLoaded ? (queue?.TierText ?? "--") : placeholder;
+        string leaguePoints = isLoaded ? (queue?.LeaguePoints ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture) : placeholder;
+        string highest = isLoaded ? (queue?.HighestTierText ?? "--") : placeholder;
+        string previous = isLoaded ? (queue?.PreviousSeasonTierText ?? "--") : placeholder;
 
         Element winRateCell;
-        if (queue is not null && queue.TotalGames > 0)
+        if (isLoaded && queue is not null && queue.TotalGames > 0)
         {
             var winRateTheme = (queue.Wins * 2 >= queue.TotalGames)
                 ? Theme.SystemSuccess
@@ -172,7 +185,7 @@ internal static class RankedTableView
                 At(winRateCell, 2),
                 At(DataCell(wins), 3),
                 At(DataCell(losses), 4),
-                At(TierCell(queue, tier), 5),
+                At(isLoaded ? TierCell(queue, tier) : StrongDataCell(tier).Foreground(Theme.SecondaryText), 5),
                 At(NumericDataCell(leaguePoints), 6),
                 At(DataCell(highest, Theme.SecondaryText), 7),
                 At(DataCell(previous, Theme.SecondaryText), 8),

@@ -2,12 +2,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Features.Career;
 using YuumiX.Core.Features.Career.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -61,7 +61,8 @@ internal sealed record CareerLootSectionProps(
     YuumiPalette Palette,
     Action OnRefresh,
     Action<LootQuantityDialog> OnRequestQuantityDialog,
-    Action<LootConfirmDialog> OnRequestConfirmDialog);
+    Action<LootConfirmDialog> OnRequestConfirmDialog,
+    bool IsLoaded = true);
 
 /// <summary>
 /// 战利品页签（自 <c>CareerPage</c> 拆出，R14）：过滤/选中交互状态、五个批量操作
@@ -276,7 +277,7 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
         }
 
         return LootManagerView.Render(
-            Props.Loot ?? PlayerLootOverview.Empty,
+            Props.Loot,
             Props.Palette,
             onRefresh: Props.OnRefresh,
             onOpenAll: HandleSmartOpenAll,
@@ -299,7 +300,8 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
             onReroll: HandleReroll,
             onUpgrade: HandleUpgrade,
             progress: lootProgress,
-            operationNotice: lootNotice);
+            operationNotice: lootNotice,
+            isLoaded: Props.IsLoaded);
     }
 }
 
