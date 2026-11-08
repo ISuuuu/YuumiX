@@ -2,7 +2,6 @@ using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Pages.Career;
 using YuumiX.App.Theming;
@@ -10,6 +9,7 @@ using YuumiX.Core.Assets;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Search;
 
@@ -149,22 +149,33 @@ internal static class MatchDetailView
         string? currentSearchPuuid = null,
         Action<long>? onCopyGameId = null,
         Action<string, SummonerProfile?>? onClickPlayerPuuid = null,
-        Action<long>? onClickPlayerSummonerId = null)
+        Action<long>? onClickPlayerSummonerId = null,
+        bool isDetailError = false,
+        Action? onRetryDetail = null,
+        Action? onRetryEnrichment = null)
     {
         if (summary is null)
         {
             return EmptyPanel(palette);
         }
 
-        var blocks = new List<Element> { Banner(summary, detail, palette, onCopyGameId) };
+        var blocks = new List<Element> { Banner(summary, detail, palette, onCopyGameId, onRetryEnrichment) };
 
         if (detail is null)
         {
-            // 详情加载中：直接铺两张表格骨架（对齐双方队伍），尺寸与终态 1:1 完全对齐，
-            // 消除「小提示卡片 → 两张表」的高度跳变与闪现，数据到达时原地填充。
-            bool isAugment = SearchVisuals.IsAugmentQueue(summary.QueueId);
-            blocks.Add(SkeletonTable(isAugment));
-            blocks.Add(SkeletonTable(isAugment));
+            if (isDetailError)
+            {
+                blocks.Add(DetailErrorPanel(onRetryDetail));
+                blocks.Add(Empty());
+            }
+            else
+            {
+                // 详情加载中：直接铺两张表格骨架（对齐双方队伍），尺寸与终态 1:1 完全对齐，
+                // 消除「小提示卡片 → 两张表」的高度跳变与闪现，数据到达时原地填充。
+                bool isAugment = SearchVisuals.IsAugmentQueue(summary.QueueId);
+                blocks.Add(SkeletonTable(isAugment));
+                blocks.Add(SkeletonTable(isAugment));
+            }
         }
         else
         {
@@ -195,7 +206,8 @@ internal static class MatchDetailView
                 blocks[0].Grid(row: 0, column: 0),
                 blocks[1].Grid(row: 1, column: 0),
                 blocks[2].Grid(row: 2, column: 0),
-            ]) with { RowSpacing = 8 })
+            ]) with
+        { RowSpacing = 8 })
             .Padding(12)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
@@ -242,7 +254,8 @@ internal static class MatchDetailView
                 bannerSkeleton.Grid(row: 0, column: 0),
                 SkeletonTable(isAugment: false).Grid(row: 1, column: 0),
                 SkeletonTable(isAugment: false).Grid(row: 2, column: 0),
-            ]) with { RowSpacing = 8 })
+            ]) with
+        { RowSpacing = 8 })
             .Padding(12)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
@@ -337,6 +350,28 @@ internal static class MatchDetailView
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
     }
 
+    private static Element DetailErrorPanel(Action? onRetry)
+    {
+        var i18n = Composition.AppHost.Services?.I18n;
+        string msg = i18n?.T("search.detailFailed", "读取对局详情失败") ?? "读取对局详情失败";
+        string retry = i18n?.T("search.retry", "重试") ?? "重试";
+
+        return Border(
+            VStack(8,
+                Caption(msg).Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center),
+                onRetry is not null
+                    ? Button(Caption(retry), onRetry)
+                        .Height(28)
+                        .CornerRadius(YuumiTheme.ControlRadius)
+                        .AutomationName(retry)
+                        .HAlign(HorizontalAlignment.Center)
+                    : Empty()
+            ).VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Center)
+        )
+        .HAlign(HorizontalAlignment.Stretch)
+        .VAlign(VerticalAlignment.Stretch);
+    }
+
     /// <summary>
     /// 结果横幅。日期用 <c>yyyy/MM/dd HH:mm</c>（与客户端战绩详情一致），
     /// 而不是列表里的 <c>MM-dd</c>——详情里需要能区分跨年的对局。
@@ -346,7 +381,8 @@ internal static class MatchDetailView
         MatchSummary summary,
         MatchDetail? detail,
         YuumiPalette palette,
-        Action<long>? onCopyGameId)
+        Action<long>? onCopyGameId,
+        Action? onRetryEnrichment = null)
     {
         string accent = summary.Remake
             ? palette.RemakeText
@@ -419,7 +455,23 @@ internal static class MatchDetailView
             .AutomationName("复制游戏 ID")
             .WithToolTip(TextBlock($"复制游戏 ID: {summary.GameId}"));
 
-        Element rightGroup = HStack(8, copyBtn, replayBtn)
+        var rightButtons = new List<Element>(3);
+        if (onRetryEnrichment is not null)
+        {
+            var i18n = Composition.AppHost.Services?.I18n;
+            string retryText = i18n?.T("search.retryRank", "重试段位") ?? "重试段位";
+            rightButtons.Add(
+                Button(Caption(retryText).Foreground(Theme.SystemCaution), onRetryEnrichment)
+                    .Height(28)
+                    .Padding(8, 0, 8, 0)
+                    .CornerRadius(YuumiTheme.ControlRadius)
+                    .AutomationName(retryText)
+                    .WithToolTip(TextBlock(i18n?.T("search.enrichmentFailed", "段位和隐私状态读取失败，点击重试") ?? "段位和隐私状态读取失败，点击重试")));
+        }
+        rightButtons.Add(copyBtn);
+        rightButtons.Add(replayBtn);
+
+        Element rightGroup = HStack(8, rightButtons.ToArray())
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         Element bannerContent = Grid(

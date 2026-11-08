@@ -13,25 +13,28 @@ namespace YuumiX.App.Tests;
 public sealed class SearchMotionTests
 {
     [Fact]
-    public async Task Detail_FirstResultAndEnrichment_UseProductionFadeWithStableIdentity()
+    public async Task Detail_RemovesHighFrequencyFade_PreservesContentWithoutAnimation()
     {
         using var scope = new ResourceScope();
         var pending = new TaskCompletionSource<MatchDetail?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var content = Body("对局详情");
         var loading = scope.UseRequest(_ => pending.Task, 10001L);
         Assert.Same(content, SearchMotion.Detail(content, false, 10001L, loading));
+        Assert.Null(content.KeyframeAnimations);
 
         pending.SetResult(Detail(10001L));
         await scope.Dispatcher.RunNextAsync();
         var resource = scope.UseRequest(_ => pending.Task, 10001L);
         var first = SearchMotion.Detail(content, false, 10001L, resource);
-        AssertFade(first, "detailFadeIn", 10001L);
+        Assert.Same(content, first);
+        Assert.Null(first.KeyframeAnimations);
         Assert.Equal(content.Content, Assert.IsType<TextBlockElement>(first).Content);
 
-        // 补充字段导致内容变化，但仍向 Reactor 提交相同的动画名称和 trigger。
-        var enriched = SearchMotion.Detail(Body("已补充段位和隐私"), false, 10001L, resource);
-        Assert.Equal(Animation(first).Name, Animation(enriched).Name);
-        Assert.Equal(Animation(first).Trigger, Animation(enriched).Trigger);
+        // 战绩详情移除高频切局淡入：补充字段后依然直接呈现，不附加淡入动画
+        var enrichedContent = Body("已补充段位和隐私");
+        var enriched = SearchMotion.Detail(enrichedContent, false, 10001L, resource);
+        Assert.Same(enrichedContent, enriched);
+        Assert.Null(enriched.KeyframeAnimations);
     }
 
     [Fact]
@@ -120,7 +123,10 @@ public sealed class SearchMotionTests
         newRequest.SetResult(Detail(10002L));
         await scope.Dispatcher.RunNextAsync();
         var newest = scope.UseRequest(_ => newRequest.Task, 10002L);
-        AssertFade(SearchMotion.Detail(Body("新对局"), false, 10002L, newest), "detailFadeIn", 10002L);
+        var detailContent = Body("新对局");
+        var element = SearchMotion.Detail(detailContent, false, 10002L, newest);
+        Assert.Same(detailContent, element);
+        Assert.Null(element.KeyframeAnimations);
 
         // 故意让服务忽略取消并晚返回，验证真实 UseResource 的旧响应隔离。
         int renderRequests = scope.RenderRequests;
@@ -129,7 +135,10 @@ public sealed class SearchMotionTests
         Assert.Equal(renderRequests, scope.RenderRequests);
         var afterLateResponse = scope.UseRequest(_ => newRequest.Task, 10002L);
         Assert.Same(newest, afterLateResponse);
-        AssertFade(SearchMotion.Detail(Body("新对局"), false, 10002L, afterLateResponse), "detailFadeIn", 10002L);
+        var afterLateContent = Body("新对局");
+        var afterLateElement = SearchMotion.Detail(afterLateContent, false, 10002L, afterLateResponse);
+        Assert.Same(afterLateContent, afterLateElement);
+        Assert.Null(afterLateElement.KeyframeAnimations);
     }
 
     [Fact]
@@ -170,7 +179,10 @@ public sealed class SearchMotionTests
         using var scope = new ResourceScope();
         var resource = scope.UseRequest(_ => Task.FromResult<MatchDetail?>(Detail(10001L)), 10001L);
         Assert.IsType<AsyncValue<MatchDetail?>.Data>(resource);
-        AssertFade(SearchMotion.Detail(Body("详情"), false, 10001L, resource), "detailFadeIn", 10001L);
+        var content = Body("详情");
+        var element = SearchMotion.Detail(content, false, 10001L, resource);
+        Assert.Same(content, element);
+        Assert.Null(element.KeyframeAnimations);
     }
 
     [Theory]

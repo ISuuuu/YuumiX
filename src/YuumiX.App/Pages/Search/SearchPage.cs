@@ -5,7 +5,6 @@ using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
 using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
@@ -19,6 +18,7 @@ using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Upload;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Search;
 
@@ -339,11 +339,15 @@ public sealed class SearchPage : Component<SearchPageProps>
         var detailResource = UseResource(
             ct => SearchLoaders.GetDetailAsync(matchService, currentGameId, summoner?.Puuid, ct),
             deps: new object[] { currentGameId, summoner?.Puuid ?? "", detailVersion });
-        var rawDetail = detailResource is AsyncValue<MatchDetail?>.Data detailData ? detailData.Value : null;
+        var rawDetail = (detailResource is AsyncValue<MatchDetail?>.Data detailData && detailData.Value?.GameId == currentGameId)
+            ? detailData.Value
+            : null;
         var enrichmentResource = UseResource(
             ct => SearchLoaders.LoadParticipantRanksAndPrivacyAsync(services, rawDetail, ct),
             deps: new object[] { currentGameId, summoner?.Puuid ?? "", detailVersion, rawDetail is not null });
-        var detail = enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data enriched ? enriched.Value.Detail : rawDetail;
+        var detail = (enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data enriched && enriched.Value.Detail?.GameId == currentGameId)
+            ? enriched.Value.Detail
+            : rawDetail;
 
         // 载入一页后补传本页对局（对齐旧 Search.vue：翻页即补传，服务端已有会返回 exists）。
         // 依赖键只取 matches 引用：换页或刷新会拿到新引用，纯筛选不会。勾选开关本身不应触发当前已有对局的上传。
@@ -420,20 +424,25 @@ public sealed class SearchPage : Component<SearchPageProps>
         }
         else
         {
-            Element detailPanel = Grid([GridSize.Star()], [GridSize.Auto, GridSize.Star()], [
-                (enrichmentResource is AsyncValue<SearchEnrichmentResult>.Error ||
-                    enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data { Value.HasFailures: true }
-                    ? SearchChrome.RetryHint(services.I18n.T("search.enrichmentFailed", "段位和隐私状态读取失败"), services.I18n.T("search.retry", "重试"), () => setDetailVersion(detailVersion + 1))
-                    : Empty()).Grid(row: 0, column: 0),
-                MatchDetailView.Render(
-                    detail,
-                    current,
-                    catalog,
-                    palette,
-                    currentSearchPuuid: summoner.Puuid,
-                    onCopyGameId: OnCopyGameId,
-                    onClickPlayerPuuid: OnClickPlayerPuuid,
-                    onClickPlayerSummonerId: OnClickPlayerSummonerId).Grid(row: 1, column: 0)]);
+            bool hasEnrichmentFailure = enrichmentResource is AsyncValue<SearchEnrichmentResult>.Error ||
+                enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data { Value.HasFailures: true };
+            Action? onRetryEnrichment = hasEnrichmentFailure ? (() => setDetailVersion(detailVersion + 1)) : null;
+
+            bool isDetailError = currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Error;
+            Action? onRetryDetail = isDetailError ? (() => setDetailVersion(detailVersion + 1)) : null;
+
+            Element detailPanel = MatchDetailView.Render(
+                detail,
+                current,
+                catalog,
+                palette,
+                currentSearchPuuid: summoner.Puuid,
+                onCopyGameId: OnCopyGameId,
+                onClickPlayerPuuid: OnClickPlayerPuuid,
+                onClickPlayerSummonerId: OnClickPlayerSummonerId,
+                isDetailError: isDetailError,
+                onRetryDetail: onRetryDetail,
+                onRetryEnrichment: onRetryEnrichment);
 
             detailPanel = SearchMotion.Detail(detailPanel, skipMotion, currentGameId, detailResource);
 
@@ -444,12 +453,8 @@ public sealed class SearchPage : Component<SearchPageProps>
                     leftColumn
                         .Margin(0, 0, 8, 0)
                         .Grid(row: 0, column: 0),
-                    (currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Error
-                        ? SearchChrome.RetryHint(services.I18n.T("search.detailFailed", "读取对局详情失败"), services.I18n.T("search.retry", "重试"), () => setDetailVersion(detailVersion + 1))
-                        : currentGameId > 0 && detailResource is AsyncValue<MatchDetail?>.Loading
-                        ? SearchChrome.DetailLoading(services.I18n.T("search.detailLoading", "正在读取对局详情…"))
-                        : detailPanel)
-                    .Grid(row: 0, column: 1),
+                    detailPanel
+                        .Grid(row: 0, column: 1),
                 ])
                 .VAlign(VerticalAlignment.Stretch)
                 .HAlign(HorizontalAlignment.Stretch);
@@ -544,7 +549,8 @@ public sealed class SearchPage : Component<SearchPageProps>
                         services.I18n.T("search.cancel", "取消"), clearHistoryOpen,
                         () => { setClearHistoryOpen(false); _ = clearHistoryMutation.RunAsync(true); },
                         () => setClearHistoryOpen(false), palette),
-                ]) with { RowSpacing = 8 })
+                ]) with
+        { RowSpacing = 8 })
             .Padding(12)
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Stretch);

@@ -207,8 +207,10 @@ public sealed class GameInfoPage : Component
                             : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch, windowWidth));
 
         bool skipMotion = reducedMotion || highContrast;
+        // 模式切换（5列/10列）与队伍页签切换（友方/敌方）直接更新视图，不改变动画 trigger，
+        // 避免整区及顶栏操作按钮重复淡入闪烁与焦点跳动；仅在对局本身身份变化时触发首载动效。
         string? trigger = isContentReady
-            ? $"gameinfo:{state.ViewColumns}@{state.CurrentQueueId}@{state.ActiveTab}@{state.MyTeam.FirstOrDefault()?.Puuid ?? "empty"}@{state.IsDemoData}"
+            ? $"gameinfo:{state.CurrentQueueId}@{state.MyTeam.FirstOrDefault()?.Puuid ?? "empty"}@{state.IsDemoData}"
             : null;
 
         Element content = isContentReady
@@ -342,7 +344,16 @@ public sealed class GameInfoPage : Component
         Element cardsPanel;
         if (cards.Length == 0)
         {
-            cardsPanel = Border(Empty());
+            var i18n = AppHost.Services?.I18n;
+            var tip = !isMyTab
+                ? (i18n?.T("gameInfo.enemyNotRevealed", "选人阶段敌方信息暂未公开") ?? "选人阶段敌方信息暂未公开")
+                : (i18n?.T("gameInfo.noTeamData", "暂无队伍数据") ?? "暂无队伍数据");
+            cardsPanel = Border(
+                Body(tip)
+                    .Foreground(Theme.SecondaryText)
+                    .HAlign(HorizontalAlignment.Center)
+                    .VAlign(VerticalAlignment.Center))
+                .Padding(16);
         }
         else if (stacked)
         {
@@ -468,7 +479,15 @@ public sealed class GameInfoPage : Component
             .Select(_ => GridSize.Star())
             .ToArray();
 
-        var columnsPanel = Grid(colDefs, [GridSize.Star()], matchColumns);
+        Element columnsPanel = matchColumns.Length > 0
+            ? Grid(colDefs, [GridSize.Star()], matchColumns)
+            : Border(
+                Body(!isMyTab
+                    ? (services.I18n.T("gameInfo.enemyNotRevealed", "选人阶段敌方信息暂未公开"))
+                    : (services.I18n.T("gameInfo.noTeamData", "暂无队伍数据")))
+                .Foreground(Theme.SecondaryText)
+                .HAlign(HorizontalAlignment.Center)
+                .VAlign(VerticalAlignment.Center));
 
         var rightPanel = Border(
             Grid(
