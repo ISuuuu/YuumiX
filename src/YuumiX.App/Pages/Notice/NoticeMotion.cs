@@ -22,6 +22,14 @@ internal static class NoticeMotion
         hasContent && !reducedMotion && !highContrast;
 
     /// <summary>
+    /// 构建公告卡片的动效身份。
+    /// 仅在显式重试（reloadTick）或公告内容长度发生实质变化时演进动效身份，
+    /// 缓存转在线（FromCache 变更但正文未变）不触发卡片重新淡入闪烁。
+    /// </summary>
+    internal static string? BuildTrigger(int reloadTick, string? markdown) =>
+        string.IsNullOrEmpty(markdown) ? null : $"notice:{reloadTick}@{markdown.Length}";
+
+    /// <summary>
     /// 为公告卡片区域施加 150ms 纯透明度淡入动效。
     /// </summary>
     internal static Element Content(

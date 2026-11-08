@@ -7,7 +7,6 @@ using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
@@ -23,6 +22,7 @@ using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Localization;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Home;
 
@@ -354,7 +354,7 @@ public sealed class HomePage : Component
             )
         );
 
-        string trigger = $"home:profile:{profile.Puuid}@{soloDuo?.Tier ?? "unranked"}";
+        string? trigger = HomeMotion.BuildSummonerTrigger(profile.Puuid);
         bool skipMotion = reducedMotion || highContrast;
         return HomeMotion.SummonerCard(card, trigger, skipMotion);
     }

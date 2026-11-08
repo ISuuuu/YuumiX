@@ -21,9 +21,23 @@ public sealed class HomeMotionTests
     public void SummonerCard_WhenReady_AppliesFadeInWithCorrectTrigger()
     {
         var content = Card(Body("召唤师资料"));
-        var result = HomeMotion.SummonerCard(content, "home:profile:puuid-1@DIAMOND", skipMotion: false);
+        var result = HomeMotion.SummonerCard(content, "home:profile:puuid-1", skipMotion: false);
 
-        AssertFade(result, "HomeSummonerCardFadeIn", "home:profile:puuid-1@DIAMOND");
+        AssertFade(result, "HomeSummonerCardFadeIn", "home:profile:puuid-1");
+    }
+
+    [Fact]
+    public void BuildSummonerTrigger_PreservesIdentityDuringTierEnrichment()
+    {
+        Assert.Null(HomeMotion.BuildSummonerTrigger(null));
+        Assert.Null(HomeMotion.BuildSummonerTrigger(""));
+
+        string? initialTrigger = HomeMotion.BuildSummonerTrigger("puuid-1");
+        Assert.Equal("home:profile:puuid-1", initialTrigger);
+
+        // 异步补齐段位不应影响动效身份，防止召唤师卡片重新淡入闪烁
+        string? enrichedTrigger = HomeMotion.BuildSummonerTrigger("puuid-1");
+        Assert.Equal(initialTrigger, enrichedTrigger);
     }
 
     [Theory]

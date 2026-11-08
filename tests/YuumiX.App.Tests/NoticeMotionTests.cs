@@ -21,9 +21,31 @@ public sealed class NoticeMotionTests
     public void Content_WhenReady_AppliesFadeInWithCorrectTrigger()
     {
         var content = Card(Body("公告 Markdown 卡片"));
-        var result = NoticeMotion.Content(content, "notice:0@False@120", skipMotion: false);
+        var result = NoticeMotion.Content(content, "notice:0@120", skipMotion: false);
 
-        AssertFade(result, "NoticeContentFadeIn", "notice:0@False@120");
+        AssertFade(result, "NoticeContentFadeIn", "notice:0@120");
+    }
+
+    [Fact]
+    public void BuildTrigger_PreservesIdentityWhenCacheTransitionsToOnline()
+    {
+        Assert.Null(NoticeMotion.BuildTrigger(0, null));
+        Assert.Null(NoticeMotion.BuildTrigger(0, ""));
+
+        // 缓存公告内容
+        string cacheMarkdown = new string('A', 120);
+        string? cacheTrigger = NoticeMotion.BuildTrigger(0, cacheMarkdown);
+        Assert.Equal("notice:0@120", cacheTrigger);
+
+        // 缓存转在线，内容未变，触发器保持不变，防止二次淡入闪烁
+        string onlineMarkdown = new string('A', 120);
+        string? onlineTrigger = NoticeMotion.BuildTrigger(0, onlineMarkdown);
+        Assert.Equal(cacheTrigger, onlineTrigger);
+
+        // 用户主动点击重试（reloadTick 增加）时演进触发器
+        string? retryTrigger = NoticeMotion.BuildTrigger(1, onlineMarkdown);
+        Assert.Equal("notice:1@120", retryTrigger);
+        Assert.NotEqual(onlineTrigger, retryTrigger);
     }
 
     [Fact]
@@ -44,7 +66,7 @@ public sealed class NoticeMotionTests
     {
         bool skipMotion = reducedMotion || highContrast;
         var content = Card(Body("公告内容"));
-        var result = NoticeMotion.Content(content, "notice:0@False@120", skipMotion);
+        var result = NoticeMotion.Content(content, "notice:0@120", skipMotion);
 
         Assert.Same(content, result);
         Assert.Null(result.KeyframeAnimations);

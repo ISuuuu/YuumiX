@@ -4,12 +4,11 @@ using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
-using YuumiX.Core.Features.Notice;
-
 using YuumiX.App.Theming;
+using YuumiX.Core.Features.Notice;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Notice;
 
@@ -167,14 +166,14 @@ public sealed class NoticePage : Component
             .Background(Theme.SolidBackground)
             .WithBorder(Theme.CardStroke, 1);
 
-        string trigger = $"notice:{reloadTick}@{view.FromCache}@{view.Markdown?.Length ?? 0}";
+        string? trigger = NoticeMotion.BuildTrigger(reloadTick, view.Markdown);
         blocks.Add(NoticeMotion.Content(card, trigger, skipMotion));
 
         return (ScrollViewer(
             VStack(16, [header, .. blocks]).Padding(28).HAlign(HorizontalAlignment.Stretch)) with
-            {
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            })
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        })
             .HorizontalScrollMode(ScrollMode.Disabled)
             .IsTabStop(true);
     }
