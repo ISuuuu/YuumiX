@@ -38,7 +38,7 @@ public sealed class SearchRegressionTests
         var i18n = new I18nService();
         var selectedItem = string.Empty;
         var element = SearchChrome.SearchGuideEmpty(
-            ["Player1#123", "Player2#456"],
+            (string[])["Player1#123", "Player2#456"],
             item => selectedItem = item,
             i18n);
 
@@ -64,7 +64,7 @@ public sealed class SearchRegressionTests
         var selectedItem = string.Empty;
         var removedItem = string.Empty;
         var element = SearchChrome.SearchGuideEmpty(
-            ["Player1#123", "Player2#456"],
+            (string[])["Player1#123", "Player2#456"],
             item => selectedItem = item,
             item => removedItem = item,
             i18n);
@@ -153,9 +153,9 @@ public sealed class SearchRegressionTests
     public async Task UploadBatch_FailureReleasesIdsAndSuccessKeepsThem()
     {
         var uploaded = new HashSet<long>();
-        await SearchEffects.RunUploadBatchAsync([1, 2], uploaded, (_, _) => Task.FromResult(false), CancellationToken.None);
+        await SearchEffects.RunUploadBatchAsync((long[])[1, 2], uploaded, (_, _) => Task.FromResult(false), CancellationToken.None);
         Assert.Empty(uploaded);
-        await SearchEffects.RunUploadBatchAsync([1, 2], uploaded, (_, _) => Task.FromResult(true), CancellationToken.None);
+        await SearchEffects.RunUploadBatchAsync((long[])[1, 2], uploaded, (_, _) => Task.FromResult(true), CancellationToken.None);
         Assert.Equal(2, uploaded.Count);
     }
 
@@ -165,10 +165,10 @@ public sealed class SearchRegressionTests
         var uploaded = new HashSet<long>();
         using var cancellation = new CancellationTokenSource();
         var finishOld = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var old = SearchEffects.RunUploadBatchAsync([1], uploaded, (_, _) => finishOld.Task, cancellation.Token);
+        var old = SearchEffects.RunUploadBatchAsync((long[])[1], uploaded, (_, _) => finishOld.Task, cancellation.Token);
         cancellation.Cancel();
         Assert.Empty(uploaded);
-        await SearchEffects.RunUploadBatchAsync([1], uploaded, (_, _) => Task.FromResult(true), CancellationToken.None);
+        await SearchEffects.RunUploadBatchAsync((long[])[1], uploaded, (_, _) => Task.FromResult(true), CancellationToken.None);
         finishOld.SetResult(false);
         await old;
         Assert.Contains(1, uploaded);

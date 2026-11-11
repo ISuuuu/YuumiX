@@ -65,7 +65,7 @@ public sealed class CareerLootConfirmationTests
     public void BatchDismiss_DoesNotExecute_ConfirmUsesCapturedPlan()
     {
         var selected = new HashSet<string> { "first" };
-        var loot = new PlayerLootOverview([], [
+        var loot = new PlayerLootOverview([], (LootInventoryItem[])[
             new LootInventoryItem("first", "一", "CHAMPION", 2, 0, 10, "", null),
             new LootInventoryItem("second", "二", "CHAMPION", 1, 0, 10, "", null)], 0, 0, 0);
         var (items, kinds, blue, orange) = CareerLootDialogs.PlanDisenchant(loot, selected);

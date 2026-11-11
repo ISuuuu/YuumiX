@@ -58,7 +58,9 @@ public sealed class ToastQueue : IToastService
         {
             lock (_gate)
             {
-                return [.. _items];
+                // 显式 cast 到数组：CsWinRT1032 要求集合表达式有确定的具体类型
+                // （目标类型 IReadOnlyList<T> 属非可变接口，裁剪/AOT 下不支持推断）。
+                return (ToastEntry[])[.. _items];
             }
         }
     }

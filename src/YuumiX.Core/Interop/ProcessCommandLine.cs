@@ -11,7 +11,7 @@ namespace YuumiX.Core.Interop;
 /// 调用方自己的缓冲区（不是目标进程地址空间），无需 <c>ReadProcessMemory</c>，
 /// 也不需要 WMI（<c>wmic</c> 在 Windows 11 24H2 起默认禁用，原项目的方式三已不可靠，故不移植）。
 ///
-/// 为什么这是 Core 而不是 App：P/Invoke 不属于 WinRT，<c>net10.0</c> 目标完全允许，
+/// 为什么这是 Core 而不是 App：P/Invoke 不属于 WinRT，<c>net11.0</c> 目标完全允许，
 /// 且这段逻辑必须能被单测（见 <c>ProcessCommandLineTests</c> 对自身进程的验证）。
 /// ADR-09 限制的是 UI/WinRT 类型，不是 P/Invoke。
 ///

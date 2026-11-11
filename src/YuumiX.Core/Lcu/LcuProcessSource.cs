@@ -22,7 +22,7 @@ public interface ILcuProcessSource
 /// <summary>
 /// 真实实现：枚举 LeagueClientUx 进程，读可执行路径与命令行。
 ///
-/// 刻意不标 <c>[SupportedOSPlatform("windows")]</c>：Core 的 TFM 是 <c>net10.0</c>，
+/// 刻意不标 <c>[SupportedOSPlatform("windows")]</c>：Core 的 TFM 是 <c>net11.0</c>，
 /// 一旦在组合根（`AppServices.Create`）里注册它，CA1416 警告会外溢到每个调用点与测试项目；
 /// 而平台判断本身只需要一处运行期守卫。与 <see cref="Interop.ProcessCommandLine"/> 的处理方式一致。
 /// </summary>

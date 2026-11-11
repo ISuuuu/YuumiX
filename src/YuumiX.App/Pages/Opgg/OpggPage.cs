@@ -263,7 +263,7 @@ public sealed class OpggPage : Component<OpggPageProps>
                             {
                                 var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
                                 await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
-                                    [.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
+                                    (int[])[.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
                                 toast.Success(i18n.T("opgg.runes.appliedSuccess", "符文页已应用至客户端"));
                             }
                             catch (Exception ex)

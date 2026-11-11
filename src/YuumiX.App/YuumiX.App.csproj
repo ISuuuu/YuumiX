@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <TargetFramework>net11.0-windows10.0.22621.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
 
     <!-- 产品名与根命名空间分离：exe 叫 YuumiX，代码命名空间保留 .App 分层，
@@ -37,7 +37,7 @@
       声明的 ObservableCollection<object> 向量暴露：JIT 构建靠反射兜底一切正常，
       AOT 成品在 SettingsExpander 模板应用时经 ItemsRepeater.set_ItemsSource 抛
       "Argument 'source' is not a supported vector"（stowed exception 0xc000027b）直接崩溃。
-      实测于 windows.sdk.net.ref 10.0.22621.57 / SDK 10.0.401；本仓库无手写 unsafe 代码，
+      实测于 windows.sdk.net.ref 10.0.22621.87 / SDK 11.0.100；本仓库无手写 unsafe 代码，
       开启此开关仅放开 CsWinRT 生成物。
     -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

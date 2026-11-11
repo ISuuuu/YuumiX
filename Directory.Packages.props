@@ -43,13 +43,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      .NET 11 线：四个包必须同批升到同一版本号，禁止混版（残留 10.x 会与 .NET 11 新增的
+      packagesToPrune 冲突——net11 把 Microsoft.Extensions.*.Abstractions 系列标记为由
+      框架自带并提供到 11.0.0，10.x 包要求的 10.x Abstractions 会被裁掉后产生降级告警
+      NU1605/NU1603）。版本号与 global.json 的 SDK 版本保持一致。
+    -->
     <!-- 领域层：DI 与日志（架构文档「五、依赖选型」） -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0" />
     <!-- 云端服务：SignalR 客户端（requirements-settings.md S5，对应旧 signalr.rs 的手写协议栈；
          官方客户端自带协商/握手/自动重连，替代旧实现的 tokio-tungstenite 手工封装） -->
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup>

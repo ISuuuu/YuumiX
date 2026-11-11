@@ -99,7 +99,10 @@ public static class RouteCatalog
     /// <summary>
     /// 主功能区菜单项。顺序与旧版一致：云顶之弈在路人集之前。
     /// </summary>
-    public static readonly IReadOnlyList<RouteDescriptor> Primary =
+    // 注意：集合表达式的目标类型是 IReadOnlyList<T>（非可变接口），CsWinRT 在 .NET 11 起
+    // 以 CsWinRT1032 阻断这种「无具体类型」的写法（裁剪/AOT 下无法确定实例类型）。
+    // 显式 cast 到数组既给出确定的实现类型，也不改变对外只读视图的语义。
+    public static readonly IReadOnlyList<RouteDescriptor> Primary = (RouteDescriptor[])
     [
         new("Home",         "主页",     Icons.Home),
         new("Career",       "生涯",     Icons.Career),
@@ -113,7 +116,7 @@ public static class RouteCatalog
     /// <summary>
     /// 底部附加操作区里的**路由**项：设置。
     /// </summary>
-    public static readonly IReadOnlyList<RouteDescriptor> Footer =
+    public static readonly IReadOnlyList<RouteDescriptor> Footer = (RouteDescriptor[])
     [
         new("Settings", "设置", Icons.Settings),
     ];
@@ -122,7 +125,7 @@ public static class RouteCatalog
     /// 底部附加操作区里的**动作**项：不改变主导航路由，点击后执行一次性行为。
     /// 公告对应旧版行为：显示右下角 NoticePopup 弹窗，页面本身不切换。
     /// </summary>
-    public static readonly IReadOnlyList<SidebarAction> FooterActions =
+    public static readonly IReadOnlyList<SidebarAction> FooterActions = (SidebarAction[])
     [
         new(SidebarTags.Opgg,      "OP.GG",       Icons.Opgg),
         new(SidebarTags.Reconnect, "修复无限加载", Icons.Refresh),
@@ -130,7 +133,7 @@ public static class RouteCatalog
     ];
 
     /// <summary>全部路由项（主功能区 + 底部附加操作区）。</summary>
-    public static readonly IReadOnlyList<RouteDescriptor> All = [.. Primary, .. Footer];
+    public static readonly IReadOnlyList<RouteDescriptor> All = (RouteDescriptor[])[.. Primary, .. Footer];
 
     /// <summary>菜单 tag → 无参路由实例；不是路由 tag 时返回 null（动作项走各自分支）。</summary>
     public static AppRoute? Resolve(string key) => key switch
