@@ -55,7 +55,7 @@ jobs:
           # workflow_dispatch 允许针对已存在的 tag 重跑
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      # global.json 锁 11.0.100-rc.3；用 global-json-file 而非硬编码版本，避免两处漂移
+      # global.json 锁 11.0.100；用 global-json-file 而非硬编码版本，避免两处漂移
       - name: Set up .NET
         uses: actions/setup-dotnet@v5
         with:
