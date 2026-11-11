@@ -19,12 +19,13 @@ public sealed class CareerMotionTests
     }
 
     [Fact]
-    public void Header_WhenReady_AppliesFadeInWithCorrectTrigger()
+    public void Header_WhenReady_PreservesContentWithoutAnimation()
     {
         var content = Body("个人资料");
         var result = CareerMotion.Header(content, skipMotion: false, puuid: "puuid-1", refreshToken: 2, isReady: true);
 
-        AssertFade(result, "careerHeaderFadeIn", "header:puuid-1@2");
+        Assert.Same(content, result);
+        Assert.Null(result.KeyframeAnimations);
     }
 
     [Theory]
@@ -42,12 +43,13 @@ public sealed class CareerMotionTests
     }
 
     [Fact]
-    public void Summary_WhenReady_AppliesFadeIn()
+    public void Summary_WhenReady_PreservesContentWithoutAnimation()
     {
         var content = Body("排位与近期看板");
         var result = CareerMotion.Summary(content, skipMotion: false, puuid: "puuid-1", refreshToken: 1, isReady: true);
 
-        AssertFade(result, "careerSummaryFadeIn", "summary:puuid-1@1");
+        Assert.Same(content, result);
+        Assert.Null(result.KeyframeAnimations);
     }
 
     [Fact]
@@ -91,15 +93,17 @@ public sealed class CareerMotionTests
     }
 
     [Fact]
-    public void LootAndMastery_WhenReady_AppliesFadeIn()
+    public void LootAndMastery_WhenReady_PreservesContentWithoutAnimation()
     {
         var lootContent = Body("战利品内容");
         var lootResult = CareerMotion.Loot(lootContent, skipMotion: false, puuid: "puuid-1", refreshToken: 0, isReady: true);
-        AssertFade(lootResult, "careerLootFadeIn", "loot:puuid-1@0");
+        Assert.Same(lootContent, lootResult);
+        Assert.Null(lootResult.KeyframeAnimations);
 
         var masteryContent = Body("熟练度内容");
         var masteryResult = CareerMotion.Mastery(masteryContent, skipMotion: false, puuid: "puuid-1", refreshToken: 0, isReady: true);
-        AssertFade(masteryResult, "careerMasteryFadeIn", "mastery:puuid-1@0");
+        Assert.Same(masteryContent, masteryResult);
+        Assert.Null(masteryResult.KeyframeAnimations);
     }
 
     [Fact]
