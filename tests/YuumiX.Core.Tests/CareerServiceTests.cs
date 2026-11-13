@@ -256,38 +256,88 @@ public sealed class CareerServiceTests
     }
 
     /// <summary>
-    /// KeyLootId 配对（A2）：需要钥匙的箱子必须带出对应的钥匙 ID 与拥有数——
-    /// 杰作宝箱（premium）配 MATERIAL_key_premium，普通宝箱配 MATERIAL_key；
-    /// 缺了这条，单件开箱永远走 MATERIAL_key 兜底，杰作宝箱会消耗错钥匙。
+    /// 配方与钥匙配对一律取客户端定义（A2）：配方名来自 <c>recipes/initial-item</c>，
+    /// 是否需要钥匙看配方槽位数量，而不是猜 lootId。
+    /// 实机反例：CHEST_128 这类里程碑宝箱免钥匙，CHEST_champion_mastery 反而要海克斯钥匙——
+    /// 按 lootId 猜会多塞或少塞 MATERIAL_key，craft 直接返回 500。
     /// </summary>
     [Fact]
-    public async Task GetLootOverviewAsync_AssignsKeyLootIdByChestKind()
+    public async Task GetLootOverviewAsync_ResolvesRecipeAndKeyFromClientSlots()
     {
-        await using FakeLcuServer server = FakeLcuServer.Start();
-        server.Handler = _ => FakeResponse.Ok("""
+        const string Loot = """
         [
-          { "lootId": "CHEST_hextech", "itemDesc": "海克斯科技宝箱", "count": 3, "displayCategories": "CHEST" },
+          { "lootId": "CHEST_128", "itemDesc": "英雄魔法引擎", "count": 3, "displayCategories": "CHEST" },
+          { "lootId": "CHEST_champion_mastery", "itemDesc": "成就传送门", "count": 2, "displayCategories": "CHEST" },
           { "lootId": "CHEST_masterwork_premium", "itemDesc": "杰作宝箱", "count": 2, "displayCategories": "CHEST" },
           { "lootId": "MATERIAL_key", "itemDesc": "海克斯科技钥匙", "count": 4, "displayCategories": "MATERIAL" },
           { "lootId": "MATERIAL_key_premium", "itemDesc": "杰作钥匙", "count": 1, "displayCategories": "MATERIAL" }
         ]
-        """);
+        """;
+
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request => request.Path switch
+        {
+            "/lol-loot/v1/recipes/initial-item/CHEST_128" => FakeResponse.Ok("""
+            [ { "recipeName": "CHEST_128_OPEN", "type": "OPEN",
+                "slots": [ { "lootIds": [ "CHEST_128" ], "quantity": 1, "slotNumber": 0 } ] } ]
+            """),
+            "/lol-loot/v1/recipes/initial-item/CHEST_champion_mastery" => FakeResponse.Ok("""
+            [ { "recipeName": "CHEST_champion_mastery_OPEN", "type": "OPEN",
+                "slots": [
+                  { "lootIds": [ "CHEST_champion_mastery" ], "quantity": 1, "slotNumber": 0 },
+                  { "lootIds": [ "MATERIAL_key" ], "quantity": 1, "slotNumber": 1 } ] } ]
+            """),
+            "/lol-loot/v1/recipes/initial-item/CHEST_masterwork_premium" => FakeResponse.Ok("""
+            [ { "recipeName": "CHEST_masterwork_premium_OPEN", "type": "OPEN",
+                "slots": [
+                  { "lootIds": [ "CHEST_masterwork_premium" ], "quantity": 1, "slotNumber": 0 },
+                  { "lootIds": [ "MATERIAL_key_premium" ], "quantity": 1, "slotNumber": 1 } ] } ]
+            """),
+            "/lol-loot/v1/player-loot" => FakeResponse.Ok(Loot),
+            _ => FakeResponse.NotFound()
+        };
         using LcuHttpTransport transport = NewTransport(server);
         var service = new CareerService(() => transport);
 
         PlayerLootOverview? loot = await service.GetLootOverviewAsync();
         Assert.NotNull(loot);
 
-        OpenableLootItem hextech = Assert.Single(loot!.OpenableItems, item => item.LootId == "CHEST_hextech");
-        Assert.True(hextech.NeedKey);
-        Assert.Equal("MATERIAL_key", hextech.KeyLootId);
-        Assert.Equal(4, hextech.KeyCount);
+        OpenableLootItem milestone = Assert.Single(loot!.OpenableItems, item => item.LootId == "CHEST_128");
+        Assert.Equal("CHEST_128_OPEN", milestone.RecipeName);
+        Assert.False(milestone.NeedKey);
+        Assert.Null(milestone.KeyLootId);
+        Assert.Equal(0, milestone.KeyCount);
+
+        OpenableLootItem mastery = Assert.Single(loot.OpenableItems, item => item.LootId == "CHEST_champion_mastery");
+        Assert.Equal("CHEST_champion_mastery_OPEN", mastery.RecipeName);
+        Assert.True(mastery.NeedKey);
+        Assert.Equal("MATERIAL_key", mastery.KeyLootId);
+        Assert.Equal(4, mastery.KeyCount);
 
         OpenableLootItem masterwork = Assert.Single(loot.OpenableItems, item => item.LootId == "CHEST_masterwork_premium");
         Assert.Equal("MATERIAL_key_premium", masterwork.KeyLootId);
         Assert.Equal(1, masterwork.KeyCount);
 
         Assert.Equal(5, loot.TotalKeys);
+    }
+
+    /// <summary>拿不到配方的可开启项不进列表：猜配方只会换来一次必然失败的 craft。</summary>
+    [Fact]
+    public async Task GetLootOverviewAsync_SkipsOpenableWithoutRecipe()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request => request.Path == "/lol-loot/v1/player-loot"
+            ? FakeResponse.Ok("""
+            [ { "lootId": "CHEST_unknown", "itemDesc": "未知宝箱", "count": 1, "displayCategories": "CHEST" } ]
+            """)
+            : FakeResponse.NotFound();
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        PlayerLootOverview? loot = await service.GetLootOverviewAsync();
+
+        Assert.NotNull(loot);
+        Assert.Empty(loot!.OpenableItems);
     }
 
     /// <summary>D3 数据基础：库存解析必须带出 lootType / upgradeEssenceValue / parentItemStatus，
@@ -565,22 +615,23 @@ public sealed class CareerServiceTests
     }
 
     /// <summary>
-    /// 重铸余数语义（A3）：按 lootId 分组后每组只取 3 的倍数、余数保留——
-    /// 5 个同类碎片只发 1 次请求消耗 3 个；一个整组都凑不齐时整体拒绝。
+    /// 重铸（3合1）：入参已由调用方按同类切成 3 的倍数，每 3 个一组原样送出——
+    /// 同类的不同碎片可以混组（客户端重随配方的槽位是同类道具池），
+    /// 按 lootId 才成组会要求同一件碎片有 3 个，皮肤碎片几乎永远凑不齐。
     /// </summary>
     [Fact]
-    public async Task RerollLootsAsync_SendsWholeGroupsOnlyAndKeepsRemainder()
+    public async Task RerollLootsAsync_SendsOneCraftPerGroupOfThree()
     {
         await using FakeLcuServer server = FakeLcuServer.Start();
         server.Handler = request =>
         {
-            if (request.Path == "/lol-loot/v1/recipes/initial-item/CHAMPION_RENTAL_1")
+            if (request.Path.StartsWith("/lol-loot/v1/recipes/initial-item/", StringComparison.Ordinal))
             {
-                return FakeResponse.Ok("""[ { "recipeName": "CHAMPION_RENTAL_reroll" } ]""");
+                return FakeResponse.Ok("""[ { "recipeName": "SKIN_reroll", "type": "REROLL" } ]""");
             }
-            if (request.Path.StartsWith("/lol-loot/v1/recipes/CHAMPION_RENTAL_reroll/craft", StringComparison.Ordinal))
+            if (request.Path.StartsWith("/lol-loot/v1/recipes/SKIN_reroll/craft", StringComparison.Ordinal))
             {
-                return FakeResponse.Ok("""{ "added": [ { "playerLoot": { "itemDesc": "永久英雄" } } ] }""");
+                return FakeResponse.Ok("""{ "added": [ { "playerLoot": { "itemDesc": "永久皮肤" } } ] }""");
             }
             return FakeResponse.NotFound();
         };
@@ -588,32 +639,41 @@ public sealed class CareerServiceTests
         using LcuHttpTransport transport = NewTransport(server);
         var service = new CareerService(() => transport);
 
-        // 5 个碎片 → 只发 1 组（3 个），余 2 个保留
-        var result = await service.RerollLootsAsync([("CHAMPION_RENTAL_1", 5)]);
+        var result = await service.RerollLootsAsync(
+        [
+            "SKIN_RENTAL_1", "SKIN_RENTAL_2", "SKIN_RENTAL_3",
+            "SKIN_RENTAL_4", "SKIN_RENTAL_5", "SKIN_RENTAL_6",
+        ]);
 
         Assert.True(result.Success);
-        Assert.Equal(1, result.SucceededCount);
+        Assert.Equal(2, result.SucceededCount);
 
-        var craft = Assert.Single(server.Requests, r => r.Path.Contains("/craft"));
-        Assert.Equal("""["CHAMPION_RENTAL_1","CHAMPION_RENTAL_1","CHAMPION_RENTAL_1"]""", craft.Body);
+        var crafts = server.Requests.Where(r => r.Path.Contains("/craft")).ToList();
+        Assert.Equal(2, crafts.Count);
+        Assert.Equal("""["SKIN_RENTAL_1","SKIN_RENTAL_2","SKIN_RENTAL_3"]""", crafts[0].Body);
+        Assert.Equal("""["SKIN_RENTAL_4","SKIN_RENTAL_5","SKIN_RENTAL_6"]""", crafts[1].Body);
     }
 
-    /// <summary>不同 lootId 各自成组，互不混组（旧版按分类可混组，本轮口径按 lootId）。</summary>
+    /// <summary>
+    /// 重铸配方按客户端 type 匹配：表情的真实配方叫 EMOTE_reroll（type=REROLL），
+    /// 旧实现按「EMOTE 前缀 → forge 关键字」猜，永远找不到配方。
+    /// </summary>
     [Fact]
-    public async Task RerollLootsAsync_GroupsPerLootId()
+    public async Task RerollLootsAsync_FindsRecipeByTypeForEmotes()
     {
         await using FakeLcuServer server = FakeLcuServer.Start();
         server.Handler = request =>
         {
-            if (request.Path.EndsWith("CHAMPION_RENTAL_1", StringComparison.Ordinal))
+            if (request.Path.StartsWith("/lol-loot/v1/recipes/initial-item/", StringComparison.Ordinal))
             {
-                return FakeResponse.Ok("""[ { "recipeName": "CHAMPION_RENTAL_1_reroll" } ]""");
+                return FakeResponse.Ok("""
+                [
+                  { "recipeName": "EMOTE_disenchant", "type": "DISENCHANT" },
+                  { "recipeName": "EMOTE_reroll", "type": "REROLL" }
+                ]
+                """);
             }
-            if (request.Path.EndsWith("SKIN_RENTAL_1", StringComparison.Ordinal))
-            {
-                return FakeResponse.Ok("""[ { "recipeName": "SKIN_RENTAL_1_reroll" } ]""");
-            }
-            if (request.Path.Contains("/craft"))
+            if (request.Path.StartsWith("/lol-loot/v1/recipes/EMOTE_reroll/craft", StringComparison.Ordinal))
             {
                 return FakeResponse.Ok("{}");
             }
@@ -623,20 +683,58 @@ public sealed class CareerServiceTests
         using LcuHttpTransport transport = NewTransport(server);
         var service = new CareerService(() => transport);
 
-        // 英雄 4 个（1 组）+ 皮肤 2 个（不足一组，整类跳过）→ 只有英雄发 1 次请求
-        var result = await service.RerollLootsAsync(
-        [
-            ("CHAMPION_RENTAL_1", 4),
-            ("SKIN_RENTAL_1", 2),
-        ]);
+        var result = await service.RerollLootsAsync(["EMOTE_1", "EMOTE_1", "EMOTE_1"]);
 
         Assert.True(result.Success);
         Assert.Equal(1, result.SucceededCount);
-        Assert.All(server.Requests.Where(r => r.Path.Contains("/craft")), r =>
-            Assert.Equal("""["CHAMPION_RENTAL_1","CHAMPION_RENTAL_1","CHAMPION_RENTAL_1"]""", r.Body));
     }
 
-    /// <summary>一组都凑不齐时给失败结果（界面据此提示"无法重随"），不打任何 craft 请求。</summary>
+    /// <summary>
+    /// 智能一键开启：钥匙按类型分别记账——账号只有普通钥匙时，
+    /// 杰作宝箱不应被排进批次（否则会发出一次必然失败的 craft）。
+    /// </summary>
+    [Fact]
+    public async Task SmartOpenAllLootsAsync_RespectsPerKeyBudget()
+    {
+        await using FakeLcuServer server = FakeLcuServer.Start();
+        server.Handler = request =>
+        {
+            if (request.Path == "/lol-loot/v1/player-loot")
+            {
+                return FakeResponse.Ok("""
+                [
+                  { "lootId": "CHEST_masterwork_premium", "itemDesc": "杰作宝箱", "count": 1, "displayCategories": "CHEST" },
+                  { "lootId": "MATERIAL_key", "itemDesc": "海克斯科技钥匙", "count": 5, "displayCategories": "MATERIAL" }
+                ]
+                """);
+            }
+            if (request.Path.StartsWith("/lol-loot/v1/recipes/initial-item/CHEST_masterwork_premium", StringComparison.Ordinal))
+            {
+                return FakeResponse.Ok("""
+                [ { "recipeName": "CHEST_masterwork_premium_OPEN", "type": "OPEN",
+                    "slots": [
+                      { "lootIds": [ "CHEST_masterwork_premium" ], "quantity": 1, "slotNumber": 0 },
+                      { "lootIds": [ "MATERIAL_key_premium" ], "quantity": 1, "slotNumber": 1 } ] } ]
+                """);
+            }
+            if (request.Path.Contains("/craft", StringComparison.Ordinal))
+            {
+                return FakeResponse.Ok("{}");
+            }
+            return FakeResponse.NotFound();
+        };
+
+        using LcuHttpTransport transport = NewTransport(server);
+        var service = new CareerService(() => transport);
+
+        var result = await service.SmartOpenAllLootsAsync();
+
+        Assert.True(result.Success);
+        Assert.Equal(0, result.SucceededCount);
+        Assert.DoesNotContain(server.Requests, r => r.Path.Contains("/craft", StringComparison.Ordinal));
+    }
+
+    /// <summary>长度不是 3 的倍数时给失败结果（界面据此提示"无法重随"），不打任何请求。</summary>
     [Fact]
     public async Task RerollLootsAsync_FailsWhenNoGroupAvailable()
     {
@@ -644,7 +742,7 @@ public sealed class CareerServiceTests
         using LcuHttpTransport transport = NewTransport(server);
         var service = new CareerService(() => transport);
 
-        var result = await service.RerollLootsAsync([("CHAMPION_RENTAL_1", 2)]);
+        var result = await service.RerollLootsAsync(["CHAMPION_RENTAL_1", "CHAMPION_RENTAL_2"]);
 
         Assert.False(result.Success);
         Assert.Empty(server.Requests);

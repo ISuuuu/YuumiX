@@ -86,6 +86,20 @@ internal static class CareerLoaders
         };
     }
 
+    /// <summary>
+    /// 包装「加载态写回」：已有数据时刷新不再置加载态，界面保留旧数据直到新结果到达。
+    /// 否则每次开箱/分解/刷新按钮引发的重取都会把战利品或熟练度整块退回
+    /// 「正在读取…」占位再铺回来，肉眼就是闪一下。首屏（还没有数据）照旧走加载态。
+    /// </summary>
+    internal static Action<bool> KeepDataWhileLoading(Action<bool> applyLoading, bool hasData) =>
+        loading =>
+        {
+            if (!loading || !hasData)
+            {
+                applyLoading(loading);
+            }
+        };
+
     /// <summary>"已复制"提示 1.5 秒后自动消失。</summary>
     internal static async Task ResetCopiedAsync(Action<bool> setCopied, CancellationToken cancellationToken)
     {

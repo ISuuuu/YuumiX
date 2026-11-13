@@ -84,6 +84,52 @@ public sealed class CareerLootConfirmationTests
         Assert.Equal(new[] { ("first", 2) }, consumed);
     }
 
+    /// <summary>
+    /// 重铸分组按碎片类别（displayCategories）而不是 lootId：客户端的重随配方槽位是同类道具池，
+    /// 3 件不同的皮肤碎片就能凑一组；按 lootId 分组会要求同一件碎片有 3 个。
+    /// </summary>
+    [Fact]
+    public void PlanReroll_GroupsByCategoryAndKeepsRemainder()
+    {
+        var inventory = (LootInventoryItem[])[
+            new LootInventoryItem("SKIN_RENTAL_1", "皮肤一", "SKIN", 1, 0, 100, "", null),
+            new LootInventoryItem("SKIN_RENTAL_2", "皮肤二", "SKIN", 1, 0, 100, "", null),
+            new LootInventoryItem("SKIN_RENTAL_3", "皮肤三", "SKIN", 1, 0, 100, "", null),
+            new LootInventoryItem("SKIN_RENTAL_4", "皮肤四", "SKIN", 1, 0, 100, "", null),
+            new LootInventoryItem("EMOTE_1", "表情", "EMOTE", 2, 0, 10, "", null),
+            new LootInventoryItem("CURRENCY_mythic", "神话精粹", "CURRENCY", 5, 0, 0, "", null),
+        ];
+        var selected = new HashSet<string>(inventory.Select(i => i.LootId));
+
+        var (lootIds, groups, consumed, remaining) = LootManagerView.PlanReroll(inventory, selected);
+
+        // 皮肤 4 个 → 1 组（余 1）；表情 2 个 → 不组（余 2）；货币被排除
+        Assert.Equal(3, consumed);
+        Assert.Equal(1, groups);
+        Assert.Equal(3, remaining);
+        Assert.Equal(new[] { "SKIN_RENTAL_1", "SKIN_RENTAL_2", "SKIN_RENTAL_3" }, lootIds);
+    }
+
+    /// <summary>
+    /// 碎片库存默认按价值降序，排序基准跟「价值基准」联动：
+    /// 0=分解收益按 DisenchantValue，1=商城售价按 Value；同值保持原顺序。
+    /// </summary>
+    [Fact]
+    public void FilterInventory_SortsBySelectedValueBasis()
+    {
+        var items = (LootInventoryItem[])[
+            new LootInventoryItem("cheapButRich", "价低分解高", "SKIN", 1, 100, 900, "", null),
+            new LootInventoryItem("priceyButPoor", "价高分解低", "SKIN", 1, 900, 100, "", null),
+            new LootInventoryItem("worst", "都低", "SKIN", 1, 50, 10, "", null),
+        ];
+
+        var byDisenchant = LootManagerView.FilterInventory(items, 0, 0, 0, 0, string.Empty);
+        Assert.Equal(new[] { "cheapButRich", "priceyButPoor", "worst" }, byDisenchant.Select(i => i.LootId));
+
+        var byPrice = LootManagerView.FilterInventory(items, 0, 0, 1, 0, string.Empty);
+        Assert.Equal(new[] { "priceyButPoor", "cheapButRich", "worst" }, byPrice.Select(i => i.LootId));
+    }
+
     [Fact]
     public void PendingOperation_RejectsOverlapAndAllowsRetryAfterCompletion()
     {

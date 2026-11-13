@@ -652,9 +652,9 @@ internal static class LootManagerView
             .Padding(4)
             .CornerRadius(YuumiTheme.OverlayRadius);
 
-        return isSelected
-            ? cardBorder.WithBorder(Theme.Accent, 2)
-            : cardBorder.WithBorder(Theme.CardStroke, 1);
+        // 选中态只换描边颜色、不改粗细：1px → 2px 会让卡片高度多出 2px，
+        // 点一下整列卡片都跟着挪一下，看起来也在闪；选中与否另有右上角 ✓ 角标。
+        return cardBorder.WithBorder(isSelected ? Theme.Accent : Theme.CardStroke, 1);
     }
 
     public static IReadOnlyList<LootInventoryItem> FilterInventory(
@@ -707,7 +707,11 @@ internal static class LootManagerView
             });
         }
 
-        return result.ToList();
+        // 默认按价值降序：排序基准跟上方「价值基准」联动（0=分解收益，1=商城售价），
+        // 卡片上展示的正是分解收益，最值钱的碎片排在最前；同值保持客户端原顺序（OrderBy 稳定）。
+        return result
+            .OrderByDescending(i => valueTypeIndex == 1 ? i.Value : i.DisenchantValue)
+            .ToList();
     }
 
     /// <summary>批量操作是否排除该物品（材料/宝箱/法球/货币，与旧版 canUpgrade / canReroll 的排除口径一致）。</summary>
@@ -738,27 +742,36 @@ internal static class LootManagerView
     }
 
     /// <summary>
-    /// 重铸计划：按 lootId 分组后每组凑 3 的倍数（与 <c>CareerService.RerollLootsAsync</c> 同一语义），
-    /// 返回送审的 (lootId, count) 列表与「组数 / 消耗总数 / 保留未配对数」。
+    /// 重铸计划：按碎片类别（<c>displayCategories</c>）分组，每类凑 3 的倍数后摊平成 lootId 列表。
+    /// 客户端的重随配方槽位放的是「同类道具池」，同类不同碎片可以混成一组；
+    /// 按 lootId 分组会要求同一件碎片有 3 个，皮肤碎片几乎永远凑不齐。
+    /// 返回送审的 lootId 列表与「组数 / 消耗总数 / 保留未配对数」。
     /// </summary>
-    public static (IReadOnlyList<(string LootId, int Count)> Items, int Groups, int Consumed, int Remaining) PlanReroll(
+    public static (IReadOnlyList<string> LootIds, int Groups, int Consumed, int Remaining) PlanReroll(
         IReadOnlyList<LootInventoryItem> inventory,
         IReadOnlySet<string> selectedLootIds)
     {
-        var items = new List<(string LootId, int Count)>();
-        int groups = 0;
+        var lootIds = new List<string>();
         int remaining = 0;
         foreach (var group in inventory
             .Where(i => selectedLootIds.Contains(i.LootId) && !i.IsStatstone && !IsBulkExcluded(i))
-            .GroupBy(i => i.LootId, StringComparer.Ordinal))
+            .GroupBy(i => i.DisplayCategories, StringComparer.OrdinalIgnoreCase))
         {
-            int count = group.Sum(i => i.Count);
-            items.Add((group.Key, count));
-            groups += count / 3;
-            remaining += count % 3;
+            var flat = new List<string>();
+            foreach (var item in group)
+            {
+                for (int i = 0; i < item.Count; i++)
+                {
+                    flat.Add(item.LootId);
+                }
+            }
+
+            int usable = flat.Count / 3 * 3;
+            lootIds.AddRange(flat.Take(usable));
+            remaining += flat.Count % 3;
         }
 
-        return (items, groups, groups * 3, remaining);
+        return (lootIds, lootIds.Count / 3, lootIds.Count, remaining);
     }
 
     /// <summary>

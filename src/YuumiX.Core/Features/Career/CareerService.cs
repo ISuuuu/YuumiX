@@ -182,10 +182,11 @@ public sealed class CareerService : ICareerService
                 return null;
             }
 
-            // 两趟扫描：先数出普通钥匙与杰作钥匙各自的库存，
-            // 再装配可开启列表——否则钥匙排在箱子后面时，箱子拿不到正确的钥匙数。
-            var openableCandidates = new List<(string LootId, string Name, int Count, bool NeedKey, string? TilePath)>();
+            // 两趟扫描：先收集可开启候选与各道具库存，
+            // 再按客户端配方装配可开启列表——否则钥匙排在箱子后面时，箱子拿不到正确的钥匙数。
+            var openableCandidates = new List<(string LootId, string Name, int Count, string? TilePath)>();
             var inventory = new List<LootInventoryItem>();
+            var lootCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             int regularKeys = 0;
             int premiumKeys = 0;
             int blueEssence = 0;
@@ -212,6 +213,11 @@ public sealed class CareerService : ICareerService
                 string upgradeRecipeName = JsonRead.String(item, "upgradeRecipeName") ?? string.Empty;
                 int upgradeEssenceCost = JsonRead.Int(item, "upgradeEssenceValue", 0);
                 string? tilePath = JsonRead.String(item, "tilePath") ?? JsonRead.String(item, "imagePath");
+
+                if (!string.IsNullOrEmpty(lootId))
+                {
+                    lootCounts[lootId] = count;
+                }
 
                 if (lootId.Contains("CURRENCY_champion", StringComparison.OrdinalIgnoreCase))
                 {
@@ -241,9 +247,7 @@ public sealed class CareerService : ICareerService
 
                 if (isOpenable)
                 {
-                    bool needKey = lootId.Contains("CHEST", StringComparison.OrdinalIgnoreCase) &&
-                                   !lootId.Contains("champion", StringComparison.OrdinalIgnoreCase);
-                    openableCandidates.Add((lootId, itemDesc, count, needKey, tilePath));
+                    openableCandidates.Add((lootId, itemDesc, count, tilePath));
                 }
                 else if (!string.IsNullOrEmpty(itemDesc))
                 {
@@ -269,23 +273,34 @@ public sealed class CareerService : ICareerService
                 return PlayerLootOverview.Empty;
             }
 
-            // 钥匙配对规则与 SmartOpenAllLootsAsync 一致：杰作宝箱（premium）配杰作钥匙，
-            // 其余需要钥匙的箱子配普通海克斯钥匙；KeyCount 是对应钥匙的拥有数（单件开箱弹窗用）。
+            // 配方与槽位一律以客户端定义为准：同为 CHEST 前缀，CHEST_128 这类里程碑宝箱
+            // 只需自身一个槽位，CHEST_champion_mastery 反而要海克斯钥匙，
+            // 靠 lootId 字符串猜"要不要钥匙"会把材料列表拼错，craft 直接返回 500。
+            (string RecipeName, bool NeedKey, string? KeyLootId)?[] resolvedRecipes = await Task
+                .WhenAll(openableCandidates.Select(c => ResolveOpenRecipeAsync(transport, c.LootId, cancellationToken)))
+                .ConfigureAwait(false);
+
             var openables = new List<OpenableLootItem>(openableCandidates.Count);
-            foreach (var (lootId, name, count, needKey, tilePath) in openableCandidates)
+            for (int i = 0; i < openableCandidates.Count; i++)
             {
-                bool premium = lootId.Contains("premium", StringComparison.OrdinalIgnoreCase);
-                string keyLootId = premium ? "MATERIAL_key_premium" : "MATERIAL_key";
-                int keyCount = premium ? premiumKeys : regularKeys;
+                // 拿不到配方的项不猜配方，宁可不显示也不发一个必然失败的 craft。
+                if (resolvedRecipes[i] is not { } recipe)
+                {
+                    continue;
+                }
+
+                (string lootId, string name, int count, string? tilePath) = openableCandidates[i];
+                string? keyLootId = recipe.NeedKey ? recipe.KeyLootId : null;
+                int keyCount = keyLootId is not null && lootCounts.TryGetValue(keyLootId, out int ownedKeys) ? ownedKeys : 0;
                 openables.Add(new OpenableLootItem(
                     lootId,
                     name,
                     count,
-                    lootId + "_OPEN",
-                    needKey,
-                    needKey ? keyCount : 0,
+                    recipe.RecipeName,
+                    recipe.NeedKey,
+                    keyCount,
                     tilePath,
-                    needKey ? keyLootId : null));
+                    keyLootId));
             }
 
             return new PlayerLootOverview(
@@ -299,6 +314,112 @@ public sealed class CareerService : ICareerService
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// 查一件战利品在客户端里的开启/合成配方。
+    ///
+    /// <c>initial-item</c> 会把这个道具所有相关配方都列出来（包括它作为材料参与的其他配方），
+    /// 所以优先取 type 为 <c>OPEN</c>/<c>FORGE</c> 的那条。槽位数量决定是否需要额外材料：
+    /// 只有一个槽位就是免钥匙开启，多出来的槽位里的 <c>*key*</c> 即所需钥匙。
+    ///
+    /// 返回 <c>null</c> 表示拿不到可用配方，调用方应跳过该项——猜一个配方只会换来 500。
+    /// </summary>
+    private static async Task<(string RecipeName, bool NeedKey, string? KeyLootId)?> ResolveOpenRecipeAsync(
+        ILcuTransport transport,
+        string lootId,
+        CancellationToken cancellationToken)
+    {
+        LcuResponse response;
+        try
+        {
+            response = await transport
+                .SendAsync(LcuRequest.Get($"/lol-loot/v1/recipes/initial-item/{lootId}"), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
+
+        if (!response.IsSuccess || string.IsNullOrWhiteSpace(response.Body))
+        {
+            return null;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(response.Body);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        string? recipeName = null;
+        JsonElement slots = default;
+        bool hasSlots = false;
+
+        foreach (JsonElement recipe in document.RootElement.EnumerateArray())
+        {
+            string? name = JsonRead.String(recipe, "recipeName");
+            if (string.IsNullOrEmpty(name) ||
+                !recipe.TryGetProperty("slots", out JsonElement candidateSlots) ||
+                candidateSlots.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            string type = JsonRead.String(recipe, "type") ?? string.Empty;
+            bool isOpenOrForge = type.Contains("OPEN", StringComparison.OrdinalIgnoreCase) ||
+                                 type.Contains("FORGE", StringComparison.OrdinalIgnoreCase);
+
+            if (recipeName is null || isOpenOrForge)
+            {
+                recipeName = name;
+                slots = candidateSlots;
+                hasSlots = true;
+            }
+
+            if (isOpenOrForge)
+            {
+                break;
+            }
+        }
+
+        if (recipeName is null || !hasSlots)
+        {
+            return null;
+        }
+
+        bool needKey = slots.GetArrayLength() > 1;
+        string? keyLootId = null;
+        if (needKey)
+        {
+            foreach (JsonElement slot in slots.EnumerateArray())
+            {
+                if (!slot.TryGetProperty("lootIds", out JsonElement ids) || ids.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (JsonElement id in ids.EnumerateArray())
+                {
+                    string? candidate = id.GetString();
+                    if (!string.IsNullOrEmpty(candidate) &&
+                        !string.Equals(candidate, lootId, StringComparison.OrdinalIgnoreCase) &&
+                        candidate.Contains("key", StringComparison.OrdinalIgnoreCase))
+                    {
+                        keyLootId = candidate;
+                        break;
+                    }
+                }
+
+                if (keyLootId is not null)
+                {
+                    break;
+                }
+            }
+        }
+
+        return (recipeName, needKey, keyLootId);
     }
 
     /// <summary>
@@ -570,6 +691,12 @@ public sealed class CareerService : ICareerService
                 {
                     failed++;
                     lastError = $"HTTP {resp.StatusCode}";
+                    _logger?.LogWarning(
+                        "开启战利品失败: 配方={RecipeName} 材料={Ingredients} 状态码={StatusCode} 响应={Body}",
+                        recipeName,
+                        ingredientsJson,
+                        resp.StatusCode,
+                        resp.Body);
                     progress?.Report(new LootOperationProgress(i, repeatCount, false, recipeName, string.Empty, lastError));
                 }
             }
@@ -601,7 +728,16 @@ public sealed class CareerService : ICareerService
             return new LootOperationResult(false, 0, 0, [], "读取战利品失败，无法智能开启");
         }
 
-        int availableKeys = overview.TotalKeys;
+        // 钥匙按 lootId 分别记账：普通宝箱与杰作宝箱用的是不同钥匙，
+        // 用 TotalKeys 统一预算会让杰作宝箱花掉普通钥匙的额度，最后发出一次必然失败的 craft。
+        var keyBudget = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in overview.OpenableItems)
+        {
+            if (item.NeedKey && item.KeyLootId is { } keyId)
+            {
+                keyBudget.TryAdd(keyId, item.KeyCount);
+            }
+        }
 
         var sorted = overview.OpenableItems
             .Where(item => item.Count > 0 && !item.IsKeyFragment)
@@ -620,10 +756,11 @@ public sealed class CareerService : ICareerService
         foreach (var item in sorted)
         {
             int toOpen = item.Count;
-            if (item.NeedKey)
+            if (item.NeedKey && item.KeyLootId is { } keyId)
             {
-                toOpen = Math.Min(toOpen, availableKeys);
-                availableKeys -= toOpen;
+                int available = keyBudget.TryGetValue(keyId, out int left) ? left : 0;
+                toOpen = Math.Min(toOpen, available);
+                keyBudget[keyId] = available - toOpen;
             }
             if (toOpen > 0)
             {
@@ -714,7 +851,7 @@ public sealed class CareerService : ICareerService
 
             try
             {
-                string? recipeName = await FindRecipeNameAsync(transport, lootId, "disenchant", cancellationToken).ConfigureAwait(false);
+                string? recipeName = await FindRecipeNameAsync(transport, lootId, "DISENCHANT", "disenchant", cancellationToken).ConfigureAwait(false);
                 if (recipeName is null)
                 {
                     failed++;
@@ -756,29 +893,18 @@ public sealed class CareerService : ICareerService
     }
 
     /// <summary>
-    /// 三合一重铸选中的碎片。
+    /// 三合一重铸。入参是调用方按同类切好的 3 的倍数个 lootId，每 3 个一组。
     ///
-    /// 对齐旧版 <c>useLoot.ts</c> 的余数语义：按 lootId（同类碎片）分组，
-    /// 每组取 ⌊count/3⌋×3 个凑整组、余数保留不动；一个整组都凑不齐时返回失败结果，
-    /// 由界面提示"无法重随"，而不是像旧签名那样把总数不是 3 的倍数的选择整体拒绝。
+    /// 客户端的重随配方（<c>SKIN_reroll</c> / <c>EMOTE_reroll</c> / …）每个槽位里的
+    /// <c>lootIds</c> 是「同类道具池」，所以同类的不同碎片可以混成一组；
+    /// 按 lootId 相同才成组会要求同一件碎片有 3 个，皮肤碎片几乎永远凑不齐。
     /// </summary>
     public async Task<LootOperationResult> RerollLootsAsync(
-        IReadOnlyList<(string LootId, int Count)> items,
+        IReadOnlyList<string> lootIds,
         IProgress<LootOperationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        // 按 lootId 分组，每组凑出 3 的倍数；余数留在本地不发送
-        var groups = new List<string[]>();
-        foreach (var groupOf in items.GroupBy(item => item.LootId, StringComparer.Ordinal))
-        {
-            int usable = groupOf.Sum(item => item.Count) / 3 * 3;
-            for (int i = 0; i < usable; i += 3)
-            {
-                groups.Add([groupOf.Key, groupOf.Key, groupOf.Key]);
-            }
-        }
-
-        if (groups.Count == 0)
+        if (lootIds.Count == 0 || lootIds.Count % 3 != 0)
         {
             return new LootOperationResult(false, 0, 0, [], "所选战利品凑不齐一组重随（每类至少 3 个）");
         }
@@ -789,7 +915,7 @@ public sealed class CareerService : ICareerService
             return new LootOperationResult(false, 0, 0, [], "LCU未连接");
         }
 
-        int totalGroups = groups.Count;
+        int totalGroups = lootIds.Count / 3;
         int succeeded = 0;
         int failed = 0;
         var rewards = new List<string>();
@@ -800,12 +926,12 @@ public sealed class CareerService : ICareerService
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(200, cancellationToken).ConfigureAwait(false);
 
-            string[] group = groups[g];
-            string keyword = group[0].Contains("EMOTE", StringComparison.OrdinalIgnoreCase) ? "forge" : "reroll";
+            string[] group = [lootIds[g * 3], lootIds[(g * 3) + 1], lootIds[(g * 3) + 2]];
 
             try
             {
-                string? recipeName = await FindRecipeNameAsync(transport, group[0], keyword, cancellationToken).ConfigureAwait(false);
+                // 按配方 type 取（表情实际是 EMOTE_reroll，靠 EMOTE 前缀猜 "forge" 会找不到配方）
+                string? recipeName = await FindRecipeNameAsync(transport, group[0], "REROLL", "reroll", cancellationToken).ConfigureAwait(false);
                 if (recipeName is null)
                 {
                     failed++;
@@ -943,9 +1069,15 @@ public sealed class CareerService : ICareerService
         return new LootOperationResult(succeeded > 0, succeeded, failed, rewards, lastError);
     }
 
+    /// <summary>
+    /// 在 <c>initial-item</c> 返回的配方里找指定动作的那条：先按 <paramref name="recipeType"/>
+    /// （客户端定义的 DISENCHANT / REROLL / UPGRADE / FORGE / OPEN）精确匹配，
+    /// 匹配不到再退回 recipeName 关键字，兼容旧客户端的配方命名。
+    /// </summary>
     private static async Task<string?> FindRecipeNameAsync(
         ILcuTransport transport,
         string lootId,
+        string recipeType,
         string keyword,
         CancellationToken cancellationToken)
     {
@@ -962,16 +1094,25 @@ public sealed class CareerService : ICareerService
             return null;
         }
 
+        string? keywordMatch = null;
         foreach (JsonElement r in doc.RootElement.EnumerateArray())
         {
             string? name = JsonRead.String(r, "recipeName");
-            if (name is not null && name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(name))
+            {
+                continue;
+            }
+
+            string type = JsonRead.String(r, "type") ?? string.Empty;
+            if (type.Equals(recipeType, StringComparison.OrdinalIgnoreCase))
             {
                 return name;
             }
+
+            keywordMatch ??= name.Contains(keyword, StringComparison.OrdinalIgnoreCase) ? name : null;
         }
 
-        return null;
+        return keywordMatch;
     }
 
     private static async Task<(string? RecipeName, IReadOnlyList<string> ExtraIngredients)> FindUpgradeInfoAsync(

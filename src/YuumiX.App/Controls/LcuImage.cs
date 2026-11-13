@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
@@ -34,6 +35,19 @@ public sealed class LcuImage : Component<LcuImageProps>
     /// 让小尺寸圆形/圆角边缘拿到更多灰度层次。更大的图自身像素充足，不值得多占 4 倍内存。
     /// </summary>
     private const double SupersampleMaxSize = 48;
+
+    /// <summary>已解码图标源缓存上限；超过后整体清空（都是本机磁盘小图标，重建只多几毫秒）。</summary>
+    private const int ImageSourceCacheLimit = 512;
+
+    /// <summary>
+    /// 已解码的图标源缓存，key = 绝对 URI + 解码宽度。
+    ///
+    /// <c>Image(uri)</c> 每次渲染都会新建 <c>BitmapImage</c>：点一下卡片选中这种纯本地状态变更
+    /// 也会让整格缩略图重新解码，中间有一两帧是空的，表现就是页面闪一下。
+    /// 复用同一个已解码源后，重复渲染只是把同一个 Source 再赋一次，不再产生空白帧。
+    /// 已解码源必须在 UI 线程创建，所以本类只在 Render 里填充它。
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, BitmapImage> ImageSourceCache = new(StringComparer.Ordinal);
 
     public override Element Render()
     {
@@ -113,34 +127,15 @@ public sealed class LcuImage : Component<LcuImageProps>
             return placeholder.AutomationName($"图标占位：{Props.AssetPath}");
         }
 
+        // Image 工厂只接受 URI，无法直接传 ImageSource，所以取现成解码源再覆盖 Source
+        // （与 LcuOfflineState.LogoSource 同一做法）。
+        BitmapImage source = GetImageSource(uri, Props.Size);
+
         Element img = Image(uri)
             .Width(Props.Size)
             .Height(Props.Size)
             .AutomationName($"图标：{Props.AssetPath}")
-            .Set(image =>
-            {
-                // LCU 图标源图（英雄头像原生 120px+）远大于显示边长，不限制解码尺寸时
-                // 由 GPU 按非整数倍双线性缩小，轮廓边缘发虚发糊。按目标逻辑边长预解码，
-                // 渲染端 1:1 贴图，边缘保持干净。
-                //
-                // DecodePixelType 必须显式设 Logical：BitmapImage 的默认值是 Physical（官方文档），
-                // 按物理像素解码。100% 缩放下两者等价，但 125% / 150% 缩放下 32 物理像素会被
-                // 拉伸到 40 / 48 物理像素显示——整张图标连同圆形边缘一起发虚。
-                //
-                // 小尺寸再按 2 倍超采样解码（32 → 64），交给 D2D 下采样到目标尺寸：
-                // 圆形边缘因此能拿到更多灰度层次，抗锯齿过渡比 1:1 贴图更平滑。
-                // 大图本身像素充足，不超采样（否则白占 4 倍内存）。
-                // Set 每次重渲染都会重放（§5.12），已设置过解码尺寸就不再写。
-                if (image.Source is not BitmapImage bmp || bmp.DecodePixelWidth > 0)
-                {
-                    return;
-                }
-
-                // 只约束宽度、不设 DecodePixelHeight，非正方形源图可保持纵横比不被拉变形。
-                bmp.DecodePixelType = DecodePixelType.Logical;
-                int sample = Props.Size <= SupersampleMaxSize ? 2 : 1;
-                bmp.DecodePixelWidth = Math.Max(1, (int)Math.Round(Props.Size * sample));
-            });
+            .Set(image => image.Source = source);
 
         if (Props.CornerRadius > 0)
         {
@@ -151,6 +146,42 @@ public sealed class LcuImage : Component<LcuImageProps>
         }
 
         return img;
+    }
+
+    /// <summary>
+    /// 取（或创建）按目标边长预解码的图标源。
+    ///
+    /// LCU 图标源图（英雄头像原生 120px+）远大于显示边长，不限制解码尺寸时由 GPU 按非整数倍
+    /// 双线性缩小，轮廓边缘发虚发糊；按目标逻辑边长预解码、渲染端 1:1 贴图，边缘才干净。
+    /// <c>DecodePixelType</c> 必须显式设 <c>Logical</c>：默认值是 Physical，125% / 150% 缩放下
+    /// 图标会被拉伸发虚。小尺寸再按 2 倍超采样解码（32 → 64）交给 D2D 下采样，圆形边缘过渡更平滑；
+    /// 大图自身像素充足，不超采样（否则白占 4 倍内存）。只约束宽度、不设高度，非正方形不拉变形。
+    /// </summary>
+    private static BitmapImage GetImageSource(string uri, double size)
+    {
+        int sample = size <= SupersampleMaxSize ? 2 : 1;
+        int decodeWidth = Math.Max(1, (int)Math.Round(size * sample));
+        string key = $"{uri}|{decodeWidth}";
+
+        if (ImageSourceCache.TryGetValue(key, out BitmapImage? cached))
+        {
+            return cached;
+        }
+
+        if (ImageSourceCache.Count >= ImageSourceCacheLimit)
+        {
+            ImageSourceCache.Clear();
+        }
+
+        // 解码参数必须在 UriSource 之前设置，否则会先按原图尺寸解一遍再按新尺寸重解。
+        var source = new BitmapImage
+        {
+            DecodePixelType = DecodePixelType.Logical,
+            DecodePixelWidth = decodeWidth,
+        };
+        source.UriSource = new Uri(uri);
+
+        return ImageSourceCache.GetOrAdd(key, source);
     }
 
     private static async Task ResolveAsync(

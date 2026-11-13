@@ -257,6 +257,42 @@ public sealed class CareerPage : Component<CareerPageProps>
         // 连接态必须进入 loadKey：页面在「端口已探活但客户端尚未登录」的时刻挂载时，
         // 取数会拿到 null 召唤师并当场收尾；此后状态翻到 Connected 只会重渲染，
         // effect 不重跑，页面就永久停在空态（现象：切到生涯页没内容，反复点几次才出来）。
+
+        // 战利品操作与「刷新列表 / 刷新库存」只重取战利品：走整页 BumpRefresh 会连带重取排位与战绩、
+        // 清掉战绩缓存并重算资源表，数据回来前界面整体抖一下。这里只换 loot 一份状态，
+        // 加载态与其余分节都不动。代际计数防止先发后到的旧响应盖住新数据。
+        var lootRefreshSeqRef = UseRef(0);
+        async Task RefreshLootOnlyAsync()
+        {
+            int seq = ++lootRefreshSeqRef.Current;
+            try
+            {
+                PlayerLootOverview? res = await careerService
+                    .GetLootOverviewAsync(forceRefresh: true)
+                    .ConfigureAwait(false);
+
+                if (seq != lootRefreshSeqRef.Current)
+                {
+                    return;
+                }
+
+                if (res is null)
+                {
+                    // 保留上一次的战利品，不把界面打回「正在读取…」
+                    toast.Error("刷新战利品失败");
+                    return;
+                }
+
+                setLoot(res);
+            }
+            catch (Exception ex)
+            {
+                careerLogger.LogWarning(ex, "刷新战利品失败");
+            }
+        }
+
+        void RefreshLootOnly() => _ = RefreshLootOnlyAsync();
+
         string loadKey = $"{viewTarget?.Puuid ?? string.Empty}|{refreshToken}|{services.Config.Functions.CareerGamesNumber}|{(int)connState.Status}";
         UseEffect(
             () => CareerLoaders.BeginCareerLoad(
@@ -274,8 +310,8 @@ public sealed class CareerPage : Component<CareerPageProps>
                 setMastery,
                 setLoadingRanked,
                 setLoadingMatches,
-                setLoadingLoot,
-                setLoadingMastery,
+                CareerLoaders.KeepDataWhileLoading(setLoadingLoot, loot is not null),
+                CareerLoaders.KeepDataWhileLoading(setLoadingMastery, mastery is not null),
                 careerLogger),
             loadKey);
 
@@ -483,7 +519,7 @@ public sealed class CareerPage : Component<CareerPageProps>
                         new CareerLootSectionProps(
                             loot,
                             palette,
-                            BumpRefresh,
+                            RefreshLootOnly,
                             // 数量弹窗带初值打开；确认弹窗存储时重包 onConfirm（先关窗再执行，对齐旧版闭包）
                             dialog =>
                             {

@@ -56,11 +56,12 @@ public interface ICareerService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 三合一重铸选中的碎片。按 lootId 分组、每组取 3 的倍数、余数保留；
-    /// 一组都凑不齐时返回失败结果（界面提示"无法重随"）。
+    /// 三合一重铸选中的碎片。入参为调用方按同类切好的 3 的倍数个 lootId，
+    /// 每 3 个一组调用客户端重随配方（同类不同碎片可以混组，与客户端 3合1 一致）；
+    /// 长度不是 3 的倍数时返回失败结果（界面据此提示"无法重随"）。
     /// </summary>
     Task<LootOperationResult> RerollLootsAsync(
-        IReadOnlyList<(string LootId, int Count)> items,
+        IReadOnlyList<string> lootIds,
         IProgress<LootOperationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 

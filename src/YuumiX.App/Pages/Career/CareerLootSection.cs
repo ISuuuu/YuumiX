@@ -92,7 +92,7 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
         // Progress 回调由框架封送回 UI 线程；成功后统一清进度、发提示、踢页面刷新。
         var openMutation = UseMutation<(OpenableLootItem Item, int Quantity), LootOperationResult>(
             mutator: (input, ct) => careerService.OpenLootAsync(
-                input.Item.IsKeyFragment ? "MATERIAL_key_fragment_FORGE" : input.Item.RecipeName,
+                input.Item.RecipeName,
                 !input.Item.IsKeyFragment && input.Item.NeedKey
                     ? new[] { input.Item.LootId, input.Item.KeyLootId ?? "MATERIAL_key" }
                     : new[] { input.Item.LootId },
@@ -134,10 +134,10 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
                     Props.OnRefresh();
                 }));
 
-        var rerollMutation = UseMutation<IReadOnlyList<(string LootId, int Count)>, LootOperationResult>(
-            mutator: (items, ct) => careerService.RerollLootsAsync(
-                items, new Progress<LootOperationProgress>(p => setLootProgress(p)), ct),
-            options: new MutationOptions<IReadOnlyList<(string LootId, int Count)>, LootOperationResult>(
+        var rerollMutation = UseMutation<IReadOnlyList<string>, LootOperationResult>(
+            mutator: (lootIds, ct) => careerService.RerollLootsAsync(
+                lootIds, new Progress<LootOperationProgress>(p => setLootProgress(p)), ct),
+            options: new MutationOptions<IReadOnlyList<string>, LootOperationResult>(
                 OnSuccess: (res, _) =>
                 {
                     setLootProgress(null);
@@ -247,7 +247,7 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
                 return;
             }
 
-            var (items, groups, consumed, remaining) = LootManagerView.PlanReroll(lootData.InventoryItems, selectedLootIds);
+            var (lootIds, groups, consumed, remaining) = LootManagerView.PlanReroll(lootData.InventoryItems, selectedLootIds);
             if (groups == 0)
             {
                 setLootNotice(T("career.lootRerollInsufficient", "所选战利品凑不齐一组重随（每类至少 3 个）"));
@@ -255,7 +255,7 @@ internal sealed class CareerLootSection : Component<CareerLootSectionProps>
             }
 
             Props.OnRequestConfirmDialog(CareerLootDialogs.RerollDialog(
-                groups, consumed, remaining, () => _ = RunGuarded(() => rerollMutation.RunAsync(items))));
+                groups, consumed, remaining, () => _ = RunGuarded(() => rerollMutation.RunAsync(lootIds))));
         }
 
         // 升级/解锁：前置校验（明细在 CareerLootDialogs.PlanUpgrade）不过只发提示
