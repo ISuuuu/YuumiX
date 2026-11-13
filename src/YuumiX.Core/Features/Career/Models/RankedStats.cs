@@ -36,41 +36,16 @@ public sealed record RankedStats
     /// <summary>
     /// 单双排成绩。
     ///
-    /// <b>为什么不是直接 <c>Find("RANKED_SOLO_5x5")</c></b>：国服新赛季把单双排的队列标识改成了
-    /// <c>JADE_RANKED_SOLO_5x5</c>（2026-10-23 实测），而 <c>RANKED_SOLO_5x5</c> 仍然存在、
-    /// 只是恒定未定级（<c>tier: ""</c>、<c>isProvisional: true</c>）。若只认旧标识，
-    /// 排位表在国服永远是「0 场 / --」。
-    ///
-    /// 因此规则改为「精确标识优先，同族兜底」：精确标识有成绩就用它，否则在同族
-    /// （队列名含 <c>SOLO</c>）里找第一个有成绩的。这样对两个区服、以及将来再改前缀都成立，
-    /// 不需要把 <c>JADE</c> 这类临时前缀写死。
+    /// <b>只认精确标识，禁止同族兜底</b>：国服另有 <c>JADE_RANKED_SOLO_5x5</c>，它不是单双排，
+    /// 而是经典模式（客户端 <c>kJade</c> 模式组）「召唤师之旅」的进度——段位是
+    /// 盐 → <b>木头</b> → 白银 → 黄金 → 铂金 → 钻石 → 传奇 那一套。2026-11-13 实测：
+    /// 未打过单双排的账号在该队列有 WOOD III / 20 点 / 1 胜，而 <c>RANKED_SOLO_5x5</c>
+    /// 是 <c>tier: ""</c>、<c>isProvisional: true</c> 的未定级条目。
+    /// 按「队列名含 <c>SOLO</c>」兜底会把经典模式的成绩当成单双排，界面因此凭空多出
+    /// 「1 场 / 木头 III」。经典模式进度没有对应界面，不得混入排位表。
     /// </summary>
-    public RankedQueueEntry? SoloDuo => FindPreferred(RankedQueueTypes.SoloDuo, "SOLO");
+    public RankedQueueEntry? SoloDuo => Find(RankedQueueTypes.SoloDuo);
 
-    /// <summary>灵活排位成绩（规则同 <see cref="SoloDuo"/>）。</summary>
-    public RankedQueueEntry? Flex => FindPreferred(RankedQueueTypes.Flex, "FLEX");
-
-    /// <summary>该条目是否已经承载任何成绩（有段位或有对局）。</summary>
-    private static bool HasRecord(RankedQueueEntry entry) => entry.HasRank || entry.TotalGames > 0;
-
-    private RankedQueueEntry? FindPreferred(string exactQueueType, string familyToken)
-    {
-        RankedQueueEntry? exact = Find(exactQueueType);
-        if (exact is not null && HasRecord(exact))
-        {
-            return exact;
-        }
-
-        foreach (RankedQueueEntry queue in Queues)
-        {
-            if (queue.QueueType.Contains(familyToken, StringComparison.Ordinal) && HasRecord(queue))
-            {
-                return queue;
-            }
-        }
-
-        // 同族都没有成绩时仍返回精确条目（可能是未定级的正式队列），
-        // 让界面显示「0 场 / --」而不是整行消失。
-        return exact;
-    }
+    /// <summary>灵活排位成绩（规则同 <see cref="SoloDuo"/>，只认精确标识）。</summary>
+    public RankedQueueEntry? Flex => Find(RankedQueueTypes.Flex);
 }

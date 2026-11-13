@@ -174,14 +174,15 @@ public sealed class RankedStatsParserTests
     }
 
     /// <summary>
-    /// 国服 2026 赛季的真实形状（2026-10-23 实测）：单双排队列标识是
-    /// <c>JADE_RANKED_SOLO_5x5</c>，分部字段叫 <c>division</c>，未定级队列的 tier 是空串。
+    /// 国服 <c>JADE_RANKED_SOLO_5x5</c> 不是单双排，而是经典模式「召唤师之旅」的进度
+    /// （段位为 盐 → 木头 → … → 传奇 那一套）。2026-11-13 实测：未打过单双排的账号
+    /// 在该队列有 WOOD III / 20 点 / 1 胜，真正的单双排 <c>RANKED_SOLO_5x5</c> 仍是未定级。
     ///
-    /// 这条用例锁定两个曾经的缺陷：只认 <c>rank</c> 会让分部丢失，
-    /// 只认 <c>RANKED_SOLO_5x5</c> 会让整张排位表变成「0 场 / --」。
+    /// 这条用例锁定曾经的缺陷：按「队列名含 SOLO」兜底会把经典模式读成单双排，
+    /// 让没打过排位的账号凭空显示出「1 场 / 木头 III」。
     /// </summary>
     [Fact]
-    public void ParseRankedStats_ReadsCnJadeQueueAndDivisionField()
+    public void ParseRankedStats_IgnoresJadeClassicQueue()
     {
         const string payload =
             """
@@ -225,16 +226,16 @@ public sealed class RankedStatsParserTests
         RankedStats stats = Parse(payload);
         RankedQueueEntry solo = Assert.IsType<RankedQueueEntry>(stats.SoloDuo);
 
-        // 精确标识（RANKED_SOLO_5x5）没有成绩，应回退到同族的 JADE 队列
-        Assert.Equal("JADE_RANKED_SOLO_5x5", solo.QueueType);
-        Assert.Equal(1, solo.TotalGames);
-        Assert.Equal("100%", solo.WinRateText);
-        Assert.Equal(20, solo.LeaguePoints);
+        // 精确标识未定级就如实显示 0 场 / --，不得回退到经典模式的 JADE 队列
+        Assert.Equal("RANKED_SOLO_5x5", solo.QueueType);
+        Assert.Equal(0, solo.TotalGames);
+        Assert.Equal(0, solo.LeaguePoints);
+        Assert.False(solo.HasRank);
+        Assert.Equal("--", solo.TierText);
 
-        // 未知段位（WOOD）原样保留，可诊断优先于猜测中文名
-        Assert.Equal("WOOD III", solo.TierText);
-        Assert.Equal("WOOD III", solo.HighestTierText);
-        Assert.Equal("--", solo.PreviousSeasonTierText);
+        // 经典模式条目仍在集合里，只是不参与单双排（本轮不做展示）
+        RankedQueueEntry jade = Assert.IsType<RankedQueueEntry>(stats.Find("JADE_RANKED_SOLO_5x5"));
+        Assert.Equal("WOOD III", jade.TierText);
 
         // 灵活排位未定级：tier 为空串，按"无段位"渲染
         RankedQueueEntry flex = Assert.IsType<RankedQueueEntry>(stats.Flex);
@@ -242,9 +243,26 @@ public sealed class RankedStatsParserTests
         Assert.Equal("--", flex.TierText);
     }
 
-    /// <summary>正式队列自己有成绩时优先用它，不被同族的其它队列抢占。</summary>
+    /// <summary>
+    /// 国服 2026 赛季分部字段叫 <c>division</c>（Riot 区服仍是 <c>rank</c>），两者都要认。
+    /// 只认 <c>rank</c> 会让国服排位表的分部恒为空。
+    /// </summary>
     [Fact]
-    public void ParseRankedStats_PrefersExactQueueWhenItHasRecord()
+    public void ParseRankedStats_ReadsDivisionField()
+    {
+        const string payload =
+            """
+            { "queues": [ { "queueType": "RANKED_SOLO_5x5", "tier": "GOLD", "division": "III", "wins": 2, "losses": 1 } ] }
+            """;
+
+        RankedQueueEntry solo = Assert.IsType<RankedQueueEntry>(Parse(payload).SoloDuo);
+
+        Assert.Equal("荣耀黄金 III", solo.TierText);
+    }
+
+    /// <summary>两个队列都有成绩时，单双排仍只取精确标识的条目，不被经典模式的 JADE 队列抢占。</summary>
+    [Fact]
+    public void ParseRankedStats_ExactQueueWinsWhenBothHaveRecords()
     {
         const string payload =
             """
