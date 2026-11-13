@@ -6,12 +6,12 @@ using Microsoft.UI.Reactor.Hooks;
 using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Pages.Settings.Sections;
 using YuumiX.App.Theming;
 using YuumiX.Core.Persistence;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Settings;
 
@@ -129,7 +129,7 @@ public sealed class SettingsPage : Component
         cloudTextRef.Current = cloudText;
 
         // ── 软件更新（R7）：检查与下载改走 UseMutation，执行态与异常由 hook 承载
-        // forceRefresh: true —— 这条路径只由用户显式点击「检查更新 / 重新检查」触发，
+        // forceRefresh: true —— 这条路径只由用户显式点击「检查更新」触发，
         // 必须绕过 24h 缓存真正联网。否则缓存刚写完、新版刚发布时点击会得到「已是最新」的假结论
         // （详见 UpdateService.CheckForUpdateAsync 的 forceRefresh 注释）。
         var checkUpdate = UseMutation<object?, YuumiX.Core.Updates.UpdateInfo?>(
@@ -205,7 +205,7 @@ public sealed class SettingsPage : Component
                 },
                 OnError: (ex, info) =>
                 {
-                    // 必须清进度：否则 PrimaryAction 一直停在「进度条」分支，
+                    // 必须清进度：否则 MainAction 一直停在「进度条」分支，
                     // 用户既看不到失败原因也点不到重试，只能重启应用。
                     setUpdateProgress(null);
                     setUpdateCheckError(ex.Message);

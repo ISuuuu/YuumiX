@@ -3,13 +3,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Services;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Realtime;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Settings.Sections;
 
@@ -124,9 +124,9 @@ internal static partial class GeneralSection
                     }
 
                     // 打开时立即补查一次：启动检查在「关闭」状态下已被跳过，
-                // 不补查就要等到下一个复查周期（最长 6 小时）才可能有提示。
-                _ = CheckOnceAsync(ui);
-            }),
+                    // 不补查就要等到下一个复查周期（最长 6 小时）才可能有提示。
+                    _ = CheckOnceAsync(ui);
+                }),
             UpdateCard(ui, update));
     }
     /// <summary>云端服务（对应旧 CloudServiceSection.vue）：LCU 实时开关进页头，URL / userid / 连接状态留在展开区。</summary>
@@ -226,29 +226,18 @@ internal static partial class GeneralSection
 
         // 「尚未检查」必须与「已是最新」区分开：两者 Info 都是 null，
         // 单看 Info 会让刚装好的用户以为已经确认过没有新版本。
+        // 版本号一行写全（新版本 + 当前版本），显示在分组标题右侧，折叠状态下也看得到。
         var updateCardStatus = update.Check.IsPending
             ? i18n.T("settings.checkingUpdate", "检查中")
             : info is { } found
-                ? i18n.T("settings.newVersionFound", "发现新版") + $" v{found.Version}"
+                ? i18n.T("settings.updateVersionLine", "发现新版本 v{version}（当前 v{current}）")
+                    .Replace("{version}", found.Version)
+                    .Replace("{current}", found.CurrentVersion)
                 : update.Checked ? i18n.T("settings.alreadyLatest", "已是最新") : i18n.T("settings.notChecked", "尚未检查");
 
-        // 主操作卡：已知有更新时，第一落点必须是「下载 / 安装」，而不是让用户再点一次「检查更新」——
-        // 版本已经在检查阶段确认过，再检查一次没有任何信息增量。
-        var primaryCard = info is null
-            ? SettingsCardKit.Card(
-                i18n.T("settings.checkUpdateTitle", "检查更新"),
-                i18n.T("settings.checkUpdateDesc", "手动检查并下载新版本"),
-                Button(update.Check.IsPending ? i18n.T("settings.checkingUpdate", "检查中...") : i18n.T("settings.checkUpdateBtn", "检查更新"), () => _ = update.Check.RunAsync(null))
-                    .IsEnabled(!update.Check.IsPending)
-                    .AutomationName("检查更新按钮"))
-            : SettingsCardKit.Card(
-                i18n.T("settings.newVersionFound", "发现新版本") + $" v{info.Version}",
-                i18n.T("settings.updateAvailableDesc", "当前 v{current}，可更新到 v{version}")
-                    .Replace("{current}", info.CurrentVersion)
-                    .Replace("{version}", info.Version),
-                PrimaryAction(ui, update, info));
-
-        var items = new List<Element> { primaryCard };
+        // 所有动作集中在展开区：标题行只承担「当前是哪个版本」，不放假按钮，
+        // 免得同一条更新流程（检查 → 下载 → 安装）被拆到上下两处去找。
+        var items = new List<Element>();
 
         if (update.Error is not null)
         {
@@ -257,49 +246,51 @@ internal static partial class GeneralSection
                     .Foreground(Theme.SystemCritical)));
         }
 
-        if (info is not null)
+        // 展开区只有一块内容：发布说明（有才显示）+ 底部动作行。
+        var contentItems = new List<Element>();
+
+        if (info is not null && !string.IsNullOrEmpty(info.Notes))
         {
-            var contentItems = new List<Element>();
-            if (!string.IsNullOrEmpty(info.Notes))
-            {
-                // 发布说明可能很长（某些版本带整段 changelog）：限高后可滚动，
-                // 否则一两百行的说明会把整页推下去。
-                contentItems.Add(
-                    ScrollViewer(
-                        MarkdownView.Render(info.Notes))
-                        .MaxHeight(160)
-                        .IsTabStop(true));
-            }
-
-            // 只在「想再确认一次」时才需要重新检查：主操作已经上移到标题卡，
-            // 这里放低频动作，避免两个同等重量的按钮抢注意力。
+            // 发布说明可能很长（某些版本带整段 changelog）：限高后纵向滚动，
+            // 否则一两百行的说明会把整页推下去。
+            // 横向必须关掉：一旦可横向滚动，内容按无限宽测量，正文就不折行，
+            // 变成一条超长单行并冒出横向滚动条（换行由 MarkdownView 的 Wrap 负责）。
             contentItems.Add(
-                Button(update.Check.IsPending ? i18n.T("settings.checkingUpdate", "检查中...") : i18n.T("settings.recheckBtn", "重新检查"), () => _ = update.Check.RunAsync(null))
-                    .IsEnabled(!update.Check.IsPending)
-                    .AutomationName("重新检查更新按钮"));
-
-            items.Add(SettingsCardKit.ContentCard(VStack(8, [.. contentItems])));
+                (ScrollViewer(MarkdownView.Render(info.Notes)) with
+                {
+                    HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled,
+                })
+                    .HorizontalScrollMode(Microsoft.UI.Xaml.Controls.ScrollMode.Disabled)
+                    .MaxHeight(160)
+                    .IsTabStop(true));
         }
 
-        items.Add(SettingsCardKit.Card(
-            i18n.T("settings.releasesPage", "开源发布页"),
-            i18n.T("settings.releasesDesc", "在浏览器中打开 GitHub Releases"),
-            Button(i18n.T("settings.goToReleases", "前往 GitHub Releases"), () =>
-            {
-                try
-                {
-                    _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        // 指向发布列表而非 /releases/latest：仓库只有预发布时 latest 会返回 404
-                        FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases",
-                        UseShellExecute = true,
-                    });
-                }
-                catch (Exception ex)
-                {
-                    ui.Logger.LogWarning(ex, "打开 GitHub Releases 失败");
-                }
-            }).AutomationName("前往 GitHub Releases")));
+        var action = MainAction(ui, update, info);
+        if (action is null)
+        {
+            // 没有当前安装形态的资产：动作行右侧没有按钮，用一句话说明。
+            contentItems.Add(
+                Caption(i18n.T("settings.noAssetForPackage", "该版本未提供适用于当前安装形态的更新包，请在下方发布页手动下载。"))
+                    .Foreground(Theme.SecondaryText)
+                    .TextWrapping());
+        }
+
+        // 底部动作行：左边是手动兜底（浏览器打开发布页），右边是主操作（检查 / 下载 / 暂停 / 安装）。
+        var actionRow = new List<Element>
+        {
+            ReleasesButton(ui).HAlign(HorizontalAlignment.Left).VAlign(VerticalAlignment.Center).Grid(column: 0),
+        };
+        if (action is not null)
+        {
+            actionRow.Add(action.VAlign(VerticalAlignment.Center).Grid(column: 1));
+        }
+
+        contentItems.Add(Grid(
+            [GridSize.Star(), GridSize.Auto],
+            [GridSize.Auto],
+            [.. actionRow]));
+
+        items.Add(SettingsCardKit.ContentCard(VStack(12, [.. contentItems])));
 
         var updateDesc = ui.Services.Paths.IsPortable
             ? i18n.T("settings.portableUpdateDesc", "便携版通过 zip 覆盖方式更新；检查到新版后手动下载应用")
@@ -339,16 +330,54 @@ internal static partial class GeneralSection
     }
 
     /// <summary>
-    /// 更新主操作：已下载 → 安装并重启；下载中 → 进度；否则 → 下载 / 继续下载。
+    /// 手动兜底入口：在浏览器打开仓库发布列表（应用内下不到对应资产时自己挑）。
+    /// </summary>
+    private static Element ReleasesButton(SettingsUi ui)
+    {
+        var i18n = ui.Services.I18n;
+        return Button(i18n.T("settings.goToReleases", "前往 GitHub 下载"), () =>
+            {
+                try
+                {
+                    _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        // 指向发布列表而非 /releases/latest：仓库只有预发布时 latest 会返回 404
+                        FileName = $"https://github.com/{YuumiX.Core.Updates.GitHubClient.Repository}/releases",
+                        UseShellExecute = true,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    ui.Logger.LogWarning(ex, "打开 GitHub Releases 失败");
+                }
+            })
+            .AutomationName("前往 GitHub 下载");
+    }
+
+    /// <summary>
+    /// 更新区唯一的动作：尚未检查 → 检查；已下载 → 安装并重启；下载中 → 进度 + 暂停；否则 → 下载 / 继续下载。
     ///
-    /// 几种状态共用一个按钮位的原因：它们互斥且都表达「把这次更新做完」，
-    /// 分散成多张卡会让用户在「下载/安装」之间来回找。
+    /// 这些状态互斥且都表达「把这次更新做完」，所以只留一个按钮位、文案随状态切换：
+    /// 不再单独放「暂停」与「重新检查」，否则同一屏里会出现两三个并列按钮抢注意力。
     /// <c>DownloadUrl</c> 为空表示该版本没有当前安装形态的资产（例如只发了 zip 却用安装版运行），
     /// 此时不渲染下载按钮——点下去必然抛「该版本没有可下载的资产」，只能引导去发布页。
     /// </summary>
-    private static Element PrimaryAction(SettingsUi ui, UpdateUi update, YuumiX.Core.Updates.UpdateInfo info)
+    private static Element? MainAction(SettingsUi ui, UpdateUi update, YuumiX.Core.Updates.UpdateInfo? info)
     {
         var i18n = ui.Services.I18n;
+
+        // 还没有检查结果（尚未检查 / 已是最新）时，唯一的动作就是再查一次。
+        if (info is null)
+        {
+            return Button(
+                    update.Check.IsPending
+                        ? i18n.T("settings.checkingUpdate", "检查中...")
+                        : i18n.T("settings.checkUpdateBtn", "检查更新"),
+                    () => _ = update.Check.RunAsync(null))
+                .IsEnabled(!update.Check.IsPending)
+                .AutomationName("检查更新按钮");
+        }
+
         if (update.DownloadedPath is { } path)
         {
             return Button(
@@ -388,9 +417,8 @@ internal static partial class GeneralSection
                 .AutomationName("下载更新按钮");
         }
 
-        return Caption(i18n.T("settings.noAssetForPackage", "该版本未提供适用于当前安装形态的更新包，请在下方发布页手动下载。"))
-            .Foreground(Theme.SecondaryText)
-            .TextWrapping();
+        // 没有当前安装形态的资产：这里给不出可点的动作，由调用方在动作行上方补一句说明。
+        return null;
     }
 
     private static void ApplyPendingUpdate(SettingsUi ui, UpdateUi update, string path)
