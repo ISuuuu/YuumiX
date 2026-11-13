@@ -8,36 +8,36 @@
   <ItemGroup>
     <!--
       Windows App SDK 必须是 2.x 版本线：
-      Microsoft.UI.Reactor 0.1.0-preview.17 依赖 Microsoft.WindowsAppSDK.WinUI >= 2.2.1，
+      Microsoft.UI.Reactor 0.1.0-preview.18 依赖 Microsoft.WindowsAppSDK.WinUI >= 2.2.1，
       而 Windows App SDK 1.8 携带的是 WinUI 1.8，会触发 NU1107 版本冲突。
     -->
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.4" />
-    <PackageVersion Include="Microsoft.UI.Reactor" Version="0.1.0-preview.17" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.UI.Reactor" Version="0.1.0-preview.18" />
     <!--
       Reactor Devtools 宿主：提供 Element 树检视、截图、点击/输入、hook 状态读取。
       只在 Debug 配置下引用（见 YuumiX.App.csproj），Release 不得携带。
       版本必须与 Microsoft.UI.Reactor 严格一致：devtools 依赖 Reactor.Advanced 的
       内部类型，跨版本会出现类型不匹配。
     -->
-    <PackageVersion Include="Microsoft.UI.Reactor.Devtools" Version="0.1.0-preview.17" />
+    <PackageVersion Include="Microsoft.UI.Reactor.Devtools" Version="0.1.0-preview.18" />
     <!--
-      显式钉住 WinUI 子包版本：WASDK 2.6.4 将所有组件子包统一对齐为 2.6.4。
-      CommunityToolkit 的 SettingsControls 依赖 WinUI >= 1.8.260204000，2.6.4 满足该下限，
+      显式钉住 WinUI 子包版本：WASDK 2.6.5 将所有组件子包统一对齐为 2.6.5。
+      CommunityToolkit 的 SettingsControls 依赖 WinUI >= 1.8.260204000，2.6.5 满足该下限，
       不会触发 NU1107；此处显式声明是为了在 toolkit 将来抬高下限时第一时间暴露冲突，
       而不是被 NuGet 悄悄选一个版本。
     -->
-    <PackageVersion Include="Microsoft.WindowsAppSDK.WinUI" Version="2.6.4" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.WinUI" Version="2.6.5" />
     <!--
       只引子包、不引 Microsoft.WindowsAppSDK 元包（理由见 YuumiX.App.csproj）：
       元包会拉入 AI / ML / Search / Widgets，其中 AI 带 onnxruntime(22.0M) + DirectML(17.8M)。
-      下列子包版本与元包 2.6.4 的传递解析结果一致（2.6.4 起全部组件统一为 2.6.4），
+      下列子包版本与元包 2.6.5 的传递解析结果一致（2.6.4 起全部组件统一为同一版本号），
       显式钉住以对齐 Runtime 的 ComponentReference 版本校验。
     -->
-    <PackageVersion Include="Microsoft.WindowsAppSDK.Base" Version="2.6.4" />
-    <PackageVersion Include="Microsoft.WindowsAppSDK.Foundation" Version="2.6.4" />
-    <PackageVersion Include="Microsoft.WindowsAppSDK.DWrite" Version="2.6.4" />
-    <PackageVersion Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.6.4" />
-    <PackageVersion Include="Microsoft.WindowsAppSDK.Runtime" Version="2.6.4" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Base" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Foundation" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.DWrite" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Runtime" Version="2.6.5" />
     <!-- SettingsCard / SettingsExpander：Windows 11 设置页的原生 Fluent 实现（WinUI 3 Gallery 同款） -->
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.3.260402-preview2" />
   </ItemGroup>

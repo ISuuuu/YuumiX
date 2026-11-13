@@ -75,8 +75,8 @@
 
 | 层级     | 技术选型                                 | 说明                                |
 | -------- | ---------------------------------------- | ----------------------------------- |
-| UI 框架  | Microsoft.UI.Reactor `0.1.0-preview.17`  | 基于 WinUI 3 的声明式组件化 C# 框架 |
-| 平台层   | Windows App SDK `2.6.4`、WinUI 3         | Windows 现代桌面应用基础设施        |
+| UI 框架  | Microsoft.UI.Reactor `0.1.0-preview.18`  | 基于 WinUI 3 的声明式组件化 C# 框架 |
+| 平台层   | Windows App SDK `2.6.5`、WinUI 3         | Windows 现代桌面应用基础设施        |
 | 运行时   | .NET 11（`net11.0-windows10.0.22621.0`） | 由 `global.json` 锁定 SDK 版本      |
 | 领域层   | `YuumiX.Core`（`net11.0`）               | 纯 C# 类库，零 UI 依赖，便于单测    |
 | 打包部署 | 自包含发布 + Inno Setup 6                 | 不发 MSIX 包（`WindowsPackageType=None`），同时出安装版与便携版，两者均免装运行时 |

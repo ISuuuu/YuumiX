@@ -1,7 +1,7 @@
 # AGENTS.md — YuumiX 开发强制约定
 
 > 本文件对本仓库的**所有**代码改动生效，优先级高于个人偏好与"看起来能跑"。
-> 技术栈固定：**WinUI 3（Windows App SDK 2.6.x）+ Microsoft.UI.Reactor 0.1.0-preview.17 + .NET 11**。
+> 技术栈固定：**WinUI 3（Windows App SDK 2.6.x）+ Microsoft.UI.Reactor 0.1.0-preview.18 + .NET 11**。
 > 目标是**原生 Fluent Design**：字号、颜色、圆角、间距、控件一律走框架语义层，不手搓视觉。
 > 详细方案见 `docs/internal/docbak/ui-native-fluent-plan.md`；架构决策见 `docs/internal/docbak/architecture.md` 的 ADR 系列。
 > **注意**：`docs/internal/` 在 `.gitignore` 中，不随仓库分发（`docs/` 用作 GitHub Pages 站点目录），上述及下文引用的文档仅作者本地可见；
@@ -21,7 +21,7 @@
 **唯一真源**（版本与 `Directory.Packages.props` 严格一致，勿用其它版本）：
 
 ```
-~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.17/agentkit/plugins/reactor/skills/
+~/.nuget/packages/microsoft.ui.reactor/0.1.0-preview.18/agentkit/plugins/reactor/skills/
 ```
 
 | 要查什么                                       | 读哪个文件                               |

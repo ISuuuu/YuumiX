@@ -49,7 +49,7 @@
          压缩后白占约 14MB。改为只引真正用到的子包。 -->
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" />
     <PackageReference Include="Microsoft.WindowsAppSDK.Runtime" />
-    <!-- 显式引用 InteractiveExperiences 以在顶层固定组件版本，与 WinUI / Runtime 保持 2.6.4 对齐。 -->
+    <!-- 显式引用 InteractiveExperiences 以在顶层固定组件版本，与 WinUI / Runtime 保持 2.6.5 对齐。 -->
     <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" />
     <PackageReference Include="Microsoft.UI.Reactor" />
     <!-- 设置项容器（SettingsCard/SettingsExpander）。控件模板在包内 .pri 中，
