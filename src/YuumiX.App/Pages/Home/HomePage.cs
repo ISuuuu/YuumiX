@@ -88,6 +88,13 @@ public sealed class HomePage : Component
             },
             0);
 
+        // 页面缓存开启（NavigationHost.CacheMode = Enabled）后组件实例常驻，切走期间
+        // 连接态推送可能收不到（或被推迟），切回来时整页仍停在「客户端未连接」占位。
+        // 进页时按连接层最新快照对账一次：值相等时 setState 不排重渲染，不会多刷一帧。
+        var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
+        navigatedToRef.Current ??= _ => setConnState(lcu.CurrentState);
+        UseNavigationLifecycle(onNavigatedTo: navigatedToRef.Current);
+
         var (gamePhase, setGamePhase) = UseState(automationHost.CurrentPhase, threadSafe: true);
         UseEffect(
             () =>

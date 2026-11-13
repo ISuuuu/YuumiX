@@ -81,6 +81,10 @@ public sealed class SearchPage : Component<SearchPageProps>
 
         var langRef = UseRef(lang);
         langRef.Current = lang;
+
+        // 连接态：声明在导航回调之前——导航回来时要按连接层快照对账（见 navigatedToRef）。
+        var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
+
         var searchSeqRef = UseRef(0);
         var initialPageCancellation = UseMemo(() => new CancellationTokenSource(), 0);
         var pageCancellation = UseRef(initialPageCancellation);
@@ -98,6 +102,11 @@ public sealed class SearchPage : Component<SearchPageProps>
         var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
         navigatedToRef.Current ??= _ =>
         {
+            // 连接态按连接层的最新快照对账一次：CacheMode 下本页实例常驻，切走期间
+            // 连接态推送可能收不到（或被推迟），切回来时整页仍停在「客户端未连接」的
+            // 离线占位——先开助手、后开客户端时必现。值相等时 setState 不排重渲染。
+            setConnState(lcu.CurrentState);
+
             if (pageCancellation.Current.IsCancellationRequested)
             {
                 pageCancellation.Current.Dispose();
@@ -119,7 +128,6 @@ public sealed class SearchPage : Component<SearchPageProps>
         var (filterIndex, setFilterIndex) = UseState(0, threadSafe: true);
         var (requestVersion, setRequestVersion) = UseState(0, threadSafe: true);
         var (uploadOn, setUploadOn) = UseState(services.Config.Functions.UploadEnabled, threadSafe: true);
-        var (connState, setConnState) = UseState(lcu.CurrentState, threadSafe: true);
         bool reduceMotion = UseReducedMotion();
         bool isHighContrast = UseHighContrast();
         bool skipMotion = reduceMotion || isHighContrast;

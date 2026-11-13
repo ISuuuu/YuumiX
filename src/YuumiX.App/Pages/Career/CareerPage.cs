@@ -327,6 +327,12 @@ public sealed class CareerPage : Component<CareerPageProps>
         var navigatedToRef = UseRef<Action<NavigatedToContext>?>(null);
         navigatedToRef.Current ??= _ =>
         {
+            // 连接态按连接层的最新快照对账一次。CacheMode 下页面实例常驻，切走期间
+            // 订阅可能收不到推送（或被推迟），切回来时 offline 占位会停在「客户端未连接」的旧帧：
+            // 现象就是先开助手、后开客户端，再点「生涯」仍看到未连接占位。
+            // 值相等时 setState 不排重渲染，不会造成多余刷新。
+            setConnState(lcu.CurrentState);
+
             var curLang = services.I18n.CurrentLanguage;
             if (langRef.Current != curLang)
             {
