@@ -84,17 +84,6 @@ public sealed class ToolsPage : Component
 
         // 游戏设置锁定状态（null = 未探测）
         var (isSettingsLocked, setIsSettingsLocked) = UseState<bool?>(null, threadSafe: true);
-        if (isSettingsLocked is null)
-        {
-            try
-            {
-                setIsSettingsLocked(toolsService.GetGameSettingsReadonly(config.General.LolPath));
-            }
-            catch
-            {
-                setIsSettingsLocked(false);
-            }
-        }
 
         // 正文列宽度与左边距：跟随滚动区宽度收缩；边距按像素网格量化（原因见 ContentColumn 注释），
         // ComboBox 弹层继承这个锚点位置，落点半像素就会文字发虚。
@@ -115,6 +104,22 @@ public sealed class ToolsPage : Component
 
         var loggerRef = UseRef<ILogger<ToolsPage>>(null!);
         var logger = loggerRef.Current ??= services.LoggerFactory.CreateLogger<ToolsPage>();
+
+        UseEffect(
+            () =>
+            {
+                try
+                {
+                    setIsSettingsLocked(toolsService.GetGameSettingsReadonly(config.General.LolPath));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "探测游戏配置文件只读状态失败，默认视为未锁定");
+                    setIsSettingsLocked(false);
+                }
+                return static () => { };
+            },
+            string.Join("|", config.General.LolPath));
 
         // FriendUi 的最新值镜像：mutation 回调（异步落地后）读它构造 with 更新，
         // 避免闭包里捕获过期渲染的 friend（UseState 的 setter 没有 updater 形态）。
@@ -279,14 +284,6 @@ public sealed class ToolsPage : Component
                 {
                     subscription.Dispose();
                 };
-            },
-            0);
-
-        UseEffect(
-            () =>
-            {
-                var subscription = lcuConnection.States.Subscribe(setConnState);
-                return () => subscription.Dispose();
             },
             0);
 

@@ -2,11 +2,12 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using Windows.Foundation;
 using YuumiX.App.Composition;
+using YuumiX.App.Controls;
 using YuumiX.App.Pages.Opgg;
 using YuumiX.App.Theming;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Windowing;
 
@@ -187,6 +188,7 @@ internal sealed class OpggWindowRoot(int? initialChampionId) : Component
                     // 都走 IToastService，之前只 Provide 了队列却没有宿主，那些提示全部石沉大海。
                     // 宿主压在页面内容之上，与主窗口同一套视觉。
                     Component<ToastHost>(),
+                    Component<DropDownLayer>(),
                 ])
             .RequestedTheme(palette.ElementTheme)
             .Provide(AppHost.Context, AppHost.Services)

@@ -1,6 +1,7 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Features.SavedPlayers.Models;
@@ -51,8 +52,7 @@ internal static class RecentSummaryView
                             .Foreground(Theme.SecondaryText)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(row: 0, column: 0),
-                        ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
-                            .Width(140)
+                        PixelComboBox.Render(queueLabels, currentQueueIndex, onSelectQueue, automationName: "队列筛选", width: 140)
                             .HAlign(HorizontalAlignment.Right)
                             .VAlign(VerticalAlignment.Center)
                             .Grid(row: 0, column: 1),
@@ -141,9 +141,7 @@ internal static class RecentSummaryView
 
         Element rightSection = HStack(8,
             flyoutButton,
-            ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
-                .Width(140)
-                .AutomationName("队列筛选"))
+            PixelComboBox.Render(queueLabels, currentQueueIndex, onSelectQueue, automationName: "队列筛选", width: 140))
             .VAlign(VerticalAlignment.Center)
             .HAlign(HorizontalAlignment.Right);
 
@@ -395,10 +393,7 @@ internal static class RecentSummaryView
 
         Element rightSection = HStack(8,
             teammatesButton,
-            ComboBox(queueLabels, currentQueueIndex, onSelectQueue)
-                .Width(140)
-                .IsEnabled(false)
-                .AutomationName("队列筛选"))
+            PixelComboBox.Render(queueLabels, currentQueueIndex, onSelectQueue, automationName: "队列筛选", width: 140, isEnabled: false))
             .VAlign(VerticalAlignment.Center)
             .HAlign(HorizontalAlignment.Right);
 

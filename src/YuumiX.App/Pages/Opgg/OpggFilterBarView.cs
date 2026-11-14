@@ -1,8 +1,9 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
+using YuumiX.App.Controls;
 using YuumiX.Core.Features.Opgg.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Opgg;
 
@@ -45,52 +46,44 @@ public sealed class OpggFilterBarView : Component<OpggFilterBarProps>
         var items = new List<Element>
         {
             // 1. 大区
-            ComboBox(regionLabels, regionIndex, idx =>
+            PixelComboBox.Render(regionLabels, regionIndex, idx =>
             {
                 if (idx >= 0 && idx < regions.Count && regions[idx].Value != Props.Region)
                 {
                     Props.OnRegionChanged(regions[idx].Value);
                 }
-            })
-            .Width(100)
-            .AutomationName("OPGG大区选择"),
+            }, automationName: "OPGG大区选择", width: 100),
 
             // 2. 模式
-            ComboBox(modeLabels, modeIndex, idx =>
+            PixelComboBox.Render(modeLabels, modeIndex, idx =>
             {
                 if (idx >= 0 && idx < modes.Count && modes[idx].Value != Props.Mode)
                 {
                     Props.OnModeChanged(modes[idx].Value);
                 }
-            })
-            .Width(126)
-            .AutomationName("OPGG模式选择"),
+            }, automationName: "OPGG模式选择", width: 126),
 
             // 3. 段位
-            ComboBox(tierLabels, tierIndex, idx =>
+            PixelComboBox.Render(tierLabels, tierIndex, idx =>
             {
                 if (idx >= 0 && idx < tiers.Count && tiers[idx].Value != Props.Tier)
                 {
                     Props.OnTierChanged(tiers[idx].Value);
                 }
-            })
-            .Width(116)
-            .AutomationName("OPGG段位选择")
+            }, automationName: "OPGG段位选择", width: 116)
         };
 
         // 4. 分路（仅排位模式显示）
         if (string.Equals(Props.Mode, OpggMode.Ranked, StringComparison.OrdinalIgnoreCase))
         {
             items.Add(
-                ComboBox(positionLabels, positionIndex, idx =>
+                PixelComboBox.Render(positionLabels, positionIndex, idx =>
                 {
                     if (idx >= 0 && idx < positions.Count && positions[idx].Value != Props.Position)
                     {
                         Props.OnPositionChanged(positions[idx].Value);
                     }
-                })
-                .Width(116)
-                .AutomationName("OPGG分路选择"));
+                }, automationName: "OPGG分路选择", width: 116));
         }
 
         return Border(

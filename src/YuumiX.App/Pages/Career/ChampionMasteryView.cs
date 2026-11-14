@@ -1,6 +1,7 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
+using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Lcu;
@@ -224,22 +225,13 @@ internal static class ChampionMasteryView
                 .Height(30)
                 .IsEnabled(isEnabled)
                 .AutomationName("搜索英雄名称"),
-            ComboBox(ChestOptions, chestFilterIndex, idx => onChestFilterChanged?.Invoke(idx))
-                .Width(130)
-                .IsEnabled(isEnabled)
-                .AutomationName("宝箱状态"),
-            ComboBox(LevelOptions, levelFilterIndex, idx => onLevelFilterChanged?.Invoke(idx))
-                .Width(110)
-                .IsEnabled(isEnabled)
-                .AutomationName("英雄等级"))
+            PixelComboBox.Render(ChestOptions, chestFilterIndex, idx => onChestFilterChanged?.Invoke(idx), automationName: "宝箱状态", width: 130, isEnabled: isEnabled),
+            PixelComboBox.Render(LevelOptions, levelFilterIndex, idx => onLevelFilterChanged?.Invoke(idx), automationName: "英雄等级", width: 110, isEnabled: isEnabled))
             .VAlign(VerticalAlignment.Center);
 
         Element rightToolbar = HStack(8,
             Caption("排序:").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center),
-            ComboBox(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx))
-                .Width(125)
-                .IsEnabled(isEnabled)
-                .AutomationName("排序方式"),
+            PixelComboBox.Render(SortOptions, sortIndex, idx => onSortChanged?.Invoke(idx), automationName: "排序方式", width: 125, isEnabled: isEnabled),
             Button(Body("刷新"), onRefresh).Height(32).Padding(12, 0).AutomationName("刷新熟练度"))
             .HAlign(HorizontalAlignment.Right)
             .VAlign(VerticalAlignment.Center);

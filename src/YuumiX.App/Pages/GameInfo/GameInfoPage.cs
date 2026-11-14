@@ -322,14 +322,21 @@ public sealed class GameInfoPage : Component
         .BorderBrush(Theme.CardStroke);
 
         // 左侧玩家卡片列表
+        const double StackBreakpoint = 1100;
+        bool stacked = windowWidth > 0 && windowWidth < StackBreakpoint;
+
         var cards = currentTeam.Select((p, idx) =>
         {
             var pData = FindPlayerData(p, state.PlayerData);
             int premadeIdx = PremadeAnalyzer.GetPlayerColorIdx(p, isMyTab ? state.PremadeColorsMy : state.PremadeColorsTheir);
 
-            return Component<PlayerCardView, PlayerCardProps>(
-                new PlayerCardProps(p, pData, premadeIdx, idx, palette, state.CurrentSummonerPuuid, state.SavedPlayerMap, onNavigateCareer, onNavigateSearch, state.IsDemoData))
-                .WithKey(p.Puuid ?? idx.ToString());
+            Element card = Component<PlayerCardView, PlayerCardProps>(
+                new PlayerCardProps(p, pData, premadeIdx, idx, palette, state.CurrentSummonerPuuid, state.SavedPlayerMap, onNavigateCareer, onNavigateSearch, state.IsDemoData));
+            if (!stacked)
+            {
+                card = card.Margin(0, 0, 0, CardGap).Grid(row: idx, column: 0);
+            }
+            return card.WithKey(p.Puuid ?? idx.ToString());
         }).ToArray();
 
         // 旧版 `.player-list` 是 flex column + `gap: 8px`；本版要求 5 张卡**等高铺满**整列
@@ -338,8 +345,6 @@ public sealed class GameInfoPage : Component
         //
         // 窄窗改上下堆叠后左面板只剩 34% 高度，5 等分会把卡片压到 30 出头、内容全部溢出，
         // 这种情形改回内容堆叠 + 滚动（与旧版 `.player-list { overflow-y: auto }` 一致）。
-        const double StackBreakpoint = 1100;
-        bool stacked = windowWidth > 0 && windowWidth < StackBreakpoint;
 
         Element cardsPanel;
         if (cards.Length == 0)
@@ -370,10 +375,7 @@ public sealed class GameInfoPage : Component
             cardsPanel = Grid(
                 [GridSize.Star()],
                 cardRows,
-                cards.Select((c, i) => c
-                    .Margin(0, 0, 0, CardGap)
-                    .Grid(row: i, column: 0)
-                    .WithKey(i.ToString())).ToArray())
+                cards)
                 // 卡片自带下间距形成缝隙，所以外层底部内边距取 0，顶/中/底三处间距才一致。
                 .Padding(CardGap, CardGap, CardGap, 0);
         }

@@ -1,19 +1,19 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
-using YuumiX.Core.Features.Match.Models;
-using YuumiX.Core.Localization;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Automation.Peers;
 using Windows.Foundation;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Match;
+using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Features.Summoner.Models;
+using YuumiX.Core.Localization;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Search;
 
@@ -228,18 +228,18 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                 flyoutRef.Current = f;
                 f.FlyoutPresenterStyle ??= GetOrCreateDropdownFlyoutPresenterStyle();
             }) with
+        {
+            IsOpen = canShowFlyout,
+            ShowMode = FlyoutShowMode.Transient,
+            Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft,
+            OnClosed = () =>
             {
-                IsOpen = canShowFlyout,
-                ShowMode = FlyoutShowMode.Transient,
-                Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft,
-                OnClosed = () =>
+                if (isOpen)
                 {
-                    if (isOpen)
-                    {
-                        setIsOpen(false);
-                    }
-                },
-            });
+                    setIsOpen(false);
+                }
+            },
+        });
 
         Element searchContainer = SearchChrome.SearchInput(flyoutSearchBox, p.Searching)
             .Grid(row: 0, column: 0);
@@ -250,9 +250,7 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
             [
                 searchContainer,
                 Button(careerBtnText, p.OnCareer).IsEnabled(p.HasSummoner).AutomationName("跳转生涯").Grid(row: 0, column: 1),
-                ComboBox(p.FilterLabels, p.FilterIndex, p.OnFilterChanged)
-                    .AutomationName("队列筛选")
-                    .Width(130)
+                PixelComboBox.Render(p.FilterLabels, p.FilterIndex, p.OnFilterChanged, automationName: "队列筛选", width: 130)
                     .Grid(row: 0, column: 2),
                 // 上传开关只在配好服务器地址时出现（旧 Search.vue 的 v-if="General.UploadApiUrl"）
                 p.UploadConfigured
@@ -261,7 +259,8 @@ internal sealed class SearchToolbar : Component<SearchToolbarProps>
                         .Margin(8, 0, 0, 0)
                         .Grid(row: 0, column: 3)
                     : Empty().Grid(row: 0, column: 3),
-            ]) with { ColumnSpacing = 8 });
+            ]) with
+        { ColumnSpacing = 8 });
 
         // 提示行放在搜索框下方而不是列表上方：固定使用两行 Grid 保持视觉树稳定，
         // 避免 Notice 出现/消失时外层容器在 Grid 与 StackPanel 间突变导致子树整体 Unmount+Mount，
@@ -613,7 +612,8 @@ internal static class SearchChrome
             [GridSize.Star(), GridSize.Px(20)],
             [GridSize.Auto],
             [searchBox.Grid(row: 0, column: 0), SearchIndicatorSlot(searching).Grid(row: 0, column: 1)])
-        with { ColumnSpacing = 4 };
+        with
+        { ColumnSpacing = 4 };
 
     private static Element SearchIndicatorSlot(bool searching) =>
         Border(
@@ -642,7 +642,8 @@ internal static class SearchChrome
             [
                 bar.Grid(row: 0, column: 0),
                 noticeElement,
-            ]) with { RowSpacing = notice is not null ? 6 : 0 };
+            ]) with
+        { RowSpacing = notice is not null ? 6 : 0 };
     }
 
     /// <summary>列表区的说明块：与卡片同宽，避免右侧面板被拉宽。</summary>

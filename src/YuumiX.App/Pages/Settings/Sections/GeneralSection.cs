@@ -168,7 +168,8 @@ internal static partial class GeneralSection
             items.Add(SettingsCardKit.Card(
                 i18n.T("settings.signalrStatus", "SignalR 连接状态"),
                 i18n.T("settings.signalrStatusDesc", "LCU 实时远程查询通道状态"),
-                BadgeElement(signalrStatus)));
+                BadgeElement(signalrStatus))
+                .WithKey("cloud_signalr_status"));
         }
 
         items.Add(SettingsCardKit.Card(
@@ -179,7 +180,8 @@ internal static partial class GeneralSection
                 v => requestCloudTextCommit(v, null),
                 "http://example.com")
                 .Width(240)
-                .AutomationName("服务器 API 地址")));
+                .AutomationName("服务器 API 地址"))
+            .WithKey("cloud_upload_url"));
 
         items.Add(SettingsCardKit.Card(
             i18n.T("settings.licenseKeyTitle", "userid"),
@@ -189,13 +191,15 @@ internal static partial class GeneralSection
                 v => requestCloudTextCommit(null, v),
                 i18n.T("settings.useridPlaceholder", "留空默认使用 lcu_user_001"))
                 .Width(240)
-                .AutomationName("SignalR userid")));
+                .AutomationName("SignalR userid"))
+            .WithKey("cloud_userid"));
 
         if (signalrStatus.State == SignalrConnectionState.Error && !string.IsNullOrEmpty(signalrStatus.Error))
         {
             items.Add(SettingsCardKit.ContentCard(
                 Caption($"{i18n.T("settings.connectionError", "连接异常: ")}{signalrStatus.Error}")
-                    .Foreground(Theme.SystemCritical)));
+                    .Foreground(Theme.SystemCritical))
+                .WithKey("cloud_signalr_error"));
         }
 
         return SettingsCardKit.Expander(
@@ -243,7 +247,8 @@ internal static partial class GeneralSection
         {
             items.Add(SettingsCardKit.ContentCard(
                 Body($"{i18n.T("settings.updateCheckFailed", "检查/下载失败: ")}{update.Error}")
-                    .Foreground(Theme.SystemCritical)));
+                    .Foreground(Theme.SystemCritical))
+                .WithKey("update_error"));
         }
 
         // 展开区只有一块内容：发布说明（有才显示）+ 底部动作行。
@@ -290,7 +295,8 @@ internal static partial class GeneralSection
             [GridSize.Auto],
             [.. actionRow]));
 
-        items.Add(SettingsCardKit.ContentCard(VStack(12, [.. contentItems])));
+        items.Add(SettingsCardKit.ContentCard(VStack(12, [.. contentItems]))
+            .WithKey("update_main"));
 
         var updateDesc = ui.Services.Paths.IsPortable
             ? i18n.T("settings.portableUpdateDesc", "便携版通过 zip 覆盖方式更新；检查到新版后手动下载应用")

@@ -2,7 +2,6 @@ using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Pages.Career;
@@ -13,6 +12,7 @@ using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.Match.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.GameInfo;
 
@@ -316,7 +316,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         return Border(cardBody)
             .Background(cardBg)
             .WithBorder(cardBorder, 1)
-            .CornerRadius(8)
+            .CornerRadius(YuumiTheme.OverlayRadius)
             .VAlign(VerticalAlignment.Stretch)
             .Margin(0, 0, 0, isLast ? 0 : MatchCardGap)
             .Padding(isTenCol ? 4 : 7, 4);

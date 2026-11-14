@@ -2,10 +2,10 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.SavedPlayers.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.SavedPlayers;
 
@@ -214,7 +214,7 @@ internal static class SavedPlayersVisuals
             () => onToggleExpand(p),
             () => onSaveTag(p),
             palette
-        )).ToList();
+        ).WithKey(p.Puuid)).ToList();
 
         // 列表底部状态：翻页由页面在滚动到底时自动触发，这里只做提示
         Element? footerSentinel = null;

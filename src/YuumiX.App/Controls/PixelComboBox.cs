@@ -6,8 +6,8 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.System;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Controls;
 
@@ -69,7 +69,9 @@ public static class DropDownServiceHost
     public static void Detach(FrameworkElement host)
     {
         var scopes = Hosts.Where(kv => ReferenceEquals(kv.Value, host)).Select(kv => kv.Key).ToList();
-        if (scopes.Count > 0)
+        bool ownsActive = (_current is not null && scopes.Contains(_current.Scope))
+            || (_pending is not null && (_pending.XamlRoot is null || scopes.Contains(_pending.XamlRoot)));
+        if (ownsActive)
         {
             Close();
         }
@@ -312,6 +314,7 @@ public sealed class DropDownLayer : Component
     public override Element Render()
     {
         var (state, setState) = UseState<DropDownState?>(null, threadSafe: true);
+        var hostRef = UseRef<FrameworkElement?>(null);
         var selectedRef = UseRef(-1);
         var navigatingRef = UseRef(false);
         var committedRef = UseRef(false);
@@ -321,18 +324,28 @@ public sealed class DropDownLayer : Component
             {
                 void OnChanged(DropDownState? snapshot)
                 {
-                    if (snapshot is null || DropDownServiceHost.For(snapshot.Scope) is not null)
+                    if (snapshot is not null
+                        && hostRef.Current is { } host
+                        && ReferenceEquals(DropDownServiceHost.For(snapshot.Scope), host))
                     {
-                        selectedRef.Current = snapshot?.SelectedIndex ?? -1;
-                        if (snapshot is not null) committedRef.Current = false;
+                        selectedRef.Current = snapshot.SelectedIndex;
+                        committedRef.Current = false;
                         setState(snapshot);
+                    }
+                    else
+                    {
+                        selectedRef.Current = -1;
+                        setState(null);
                     }
                 }
                 DropDownServiceHost.Changed += OnChanged;
                 return () =>
                 {
                     DropDownServiceHost.Changed -= OnChanged;
-                    DropDownServiceHost.Close();
+                    if (hostRef.Current is { } host)
+                    {
+                        DropDownServiceHost.Detach(host);
+                    }
                 };
             },
             0);
@@ -382,6 +395,7 @@ public sealed class DropDownLayer : Component
             .OnMountAdd(element =>
             {
                 var fe = (FrameworkElement)element;
+                hostRef.Current = fe;
                 if (fe.XamlRoot is not null)
                 {
                     // 复用池取出的已挂树元素：XamlRoot 已就绪，直接注册。
@@ -398,6 +412,10 @@ public sealed class DropDownLayer : Component
             {
                 var fe = (FrameworkElement)element;
                 DropDownServiceHost.Detach(fe);
+                if (ReferenceEquals(hostRef.Current, fe))
+                {
+                    hostRef.Current = null;
+                }
                 fe.Loaded -= loadedRef.Current!;
                 fe.Unloaded -= unloadedRef.Current!;
             });

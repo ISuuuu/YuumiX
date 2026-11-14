@@ -1,11 +1,11 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Tools.Models;
 using YuumiX.Core.Persistence;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Tools.Sections;
 
@@ -289,12 +289,14 @@ internal static class ChampionSection
             bool isCurrent = idx == currentLane;
             buttons.Add(
                 Button(laneLabels[idx], () => onSelectLane(idx))
-                    .Background(isCurrent ? Theme.Ref("LayerFillColorDefaultBrush") : Theme.Ref("SubtleFillColorTransparentBrush"))
+                    .Background(isCurrent ? Theme.Accent : Theme.Ref("SubtleFillColorTransparentBrush"))
+                    .Foreground(isCurrent ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.PrimaryText)
                     .BorderBrush(isCurrent ? Theme.Accent : Theme.ControlStroke)
-                    .BorderThickness(isCurrent ? 1.5 : 1)
-                    .CornerRadius(YuumiTheme.OverlayRadius)
+                    .BorderThickness(1)
+                    .CornerRadius(YuumiTheme.ControlRadius)
                     .Padding(8, 4)
                     .Margin(new Thickness(0, 0, 6, 0))
+                    .TogglePointerOverStates(isCurrent)
                     .AutomationName($"分路_{laneLabels[idx]}")
             );
         }
