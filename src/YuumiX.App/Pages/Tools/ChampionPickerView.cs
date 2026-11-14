@@ -2,11 +2,11 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Features.Tools.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Tools;
 
@@ -55,8 +55,9 @@ internal static class ChampionPickerView
                             Component<LcuImage, LcuImageProps>(new LcuImageProps(iconPath, Size: 24, CornerRadius: 4)).VAlign(VerticalAlignment.Center),
                             Caption(name).VAlign(VerticalAlignment.Center),
                             Button(Caption(Icons.Cancel).FontFamily(Icons.FontFamily), () => onToggleChampion(id))
+                                .GhostButton()
+                                .CornerRadius(YuumiTheme.ControlRadius)
                                 .Padding(4, 2)
-                                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
                                 .Foreground(Theme.SecondaryText)
                                 .AutomationName($"移除_{name}")
                         )
@@ -78,8 +79,13 @@ internal static class ChampionPickerView
                         .Foreground(Theme.SecondaryText)
                         .VAlign(VerticalAlignment.Center),
                     Button(Caption(i18n?.T("tools.clearBtn", "清空全部") ?? "清空全部"), onClearSelection)
+                        .GhostButton()
+                        .CornerRadius(YuumiTheme.ControlRadius)
                         .Padding(6, 2)
                         .Foreground(Theme.Ref("SystemFillColorCriticalBrush"))
+                        .Resources(static resources => resources
+                            .Set("ButtonForegroundPointerOver", Theme.Ref("SystemFillColorCriticalBrush"))
+                            .Set("ButtonForegroundPressed", Theme.Ref("SystemFillColorCriticalBrush")))
                         .AutomationName("清空已选英雄")
                 ),
                 HStack(6, selectedChips.ToArray())
@@ -169,7 +175,7 @@ internal static class ChampionPickerView
             champ => champ.Id.ToString(),
             (champ, _) => ChampionTile(champ, selectedSet.Contains(champ.Id), onToggleChampion))
             with
-            { Layout = tileLayout };
+        { Layout = tileLayout };
 
         var candidateView = ScrollViewer(grid).Height(180);
 
@@ -204,5 +210,10 @@ internal static class ChampionPickerView
         .BorderBrush(isSelected ? Theme.Accent : Theme.ControlStroke)
         .BorderThickness(isSelected ? 1.5 : 1)
         .CornerRadius(YuumiTheme.OverlayRadius)
+        .Resources(resources => resources
+            .Set("ButtonBackgroundPointerOver", Theme.SubtleFill)
+            .Set("ButtonBackgroundPressed", Theme.Ref("SubtleFillColorTertiaryBrush"))
+            .Set("ButtonBorderBrushPointerOver", isSelected ? Theme.Accent : Theme.ControlStroke)
+            .Set("ButtonBorderBrushPressed", isSelected ? Theme.Accent : Theme.ControlStroke))
         .AutomationName($"选择英雄_{champ.Name}");
 }

@@ -1,9 +1,9 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Match.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Search;
 
@@ -38,6 +38,87 @@ internal static class MatchCardView
         YuumiPalette palette,
         bool isSelected = false,
         Action? onSelect = null)
+    {
+        if (onSelect is not null)
+        {
+            return Component<MatchCardItem, MatchCardItemProps>(
+                new MatchCardItemProps(summary, palette, isSelected, onSelect));
+        }
+
+        return BuildCard(summary, palette, isSelected, isHovered: false, isPressed: false);
+    }
+
+    private sealed record MatchCardItemProps(
+        MatchSummary Summary,
+        YuumiPalette Palette,
+        bool IsSelected,
+        Action OnSelect);
+
+    private sealed class MatchCardItem : Component<MatchCardItemProps>
+    {
+        public override Element Render()
+        {
+            var (isHovered, setIsHovered) = UseState(false);
+            var (isPressed, setIsPressed) = UseState(false);
+            var pressedRef = UseRef(false);
+
+            return BuildCard(Props.Summary, Props.Palette, Props.IsSelected, isHovered, isPressed)
+                .IsTabStop(true)
+                .AutomationName($"查看对局 {Props.Summary.GameId}")
+                .OnPointerEntered((_, _) => setIsHovered(true))
+                .OnPointerExited((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                    setIsHovered(false);
+                })
+                .OnPointerPressed((_, args) =>
+                {
+                    if (args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                        == Microsoft.UI.Input.PointerUpdateKind.LeftButtonPressed)
+                    {
+                        pressedRef.Current = true;
+                        setIsPressed(true);
+                    }
+                })
+                .OnPointerReleased((_, args) =>
+                {
+                    bool wasPressed = pressedRef.Current;
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                    if (wasPressed && args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                        == Microsoft.UI.Input.PointerUpdateKind.LeftButtonReleased)
+                    {
+                        Props.OnSelect();
+                    }
+                })
+                .OnPointerCanceled((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                })
+                .OnPointerCaptureLost((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                })
+                .OnKeyDown((_, args) =>
+                {
+                    if (args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
+                    {
+                        Props.OnSelect();
+                        args.Handled = true;
+                    }
+                });
+        }
+    }
+
+    private static BorderElement BuildCard(
+        MatchSummary summary,
+        YuumiPalette palette,
+        bool isSelected,
+        bool isHovered,
+        bool isPressed)
     {
         // 英雄图标按 Riot 原生方 tile 呈现：圆形裁剪会切进图标自带的暗角晕影，
         // 露出一圈脏边（常用英雄条已有同样问题，见 RecentSummaryView.ChampionCell）。
@@ -79,33 +160,22 @@ internal static class MatchCardView
                 content,
             ]);
 
+        var background = isPressed
+            ? Theme.Ref("SubtleFillColorTertiaryBrush")
+            : isSelected || isHovered
+                ? Theme.SubtleFill
+                : Theme.CardBackground;
+
         var card = Border(cardBody)
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Stretch)
             .Margin(0, 0, 0, CardGap)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Background(isSelected ? Theme.SubtleFill : Theme.CardBackground);
+            .Background(background);
 
-        card = isSelected
+        return isSelected
             ? card.WithBorder(stripColor, 2)
-            : card.WithBorder(Theme.CardStroke, 1);
-
-        if (onSelect is not null)
-        {
-            card = card
-                .IsTabStop(true)
-                .OnKeyDown((_, args) =>
-                {
-                    if (args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
-                    {
-                        onSelect();
-                        args.Handled = true;
-                    }
-                })
-                .OnTapped((_, _) => onSelect());
-        }
-
-        return card;
+            : card.WithBorder(isHovered || isPressed ? Theme.ControlStroke : Theme.CardStroke, 1);
     }
 
     /// <summary>

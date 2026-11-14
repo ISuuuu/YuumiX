@@ -333,6 +333,11 @@ internal sealed class SearchHistoryChip : Component<SearchHistoryChipProps>
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
+            .Resources(static resources => resources
+                .Set("ButtonBackgroundPointerOver", Theme.SubtleFill)
+                .Set("ButtonBackgroundPressed", Theme.Ref("SubtleFillColorTertiaryBrush"))
+                .Set("ButtonBorderBrushPointerOver", Theme.ControlStroke)
+                .Set("ButtonBorderBrushPressed", Theme.ControlStroke))
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Stretch);
 
@@ -342,7 +347,7 @@ internal sealed class SearchHistoryChip : Component<SearchHistoryChipProps>
                     .SafeFontFamily(Icons.FontFamily)
                     .Foreground(Theme.SecondaryText),
                 () => Props.OnRemove(item))
-                .ApplyStyle("SubtleButtonStyle")
+                .GhostButton()
                 .Width(24)
                 .Height(24)
                 .MinWidth(24)

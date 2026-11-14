@@ -3,12 +3,12 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Tools;
 
@@ -131,69 +131,20 @@ internal static class ToolsVisuals
         Element innerContent)
     {
         var isExpanded = ui.IsLcuConnected && ui.ExpandedKeys.Contains(key);
-        var statusColor = isStatusEnabled ? Theme.Accent : Theme.SecondaryText;
-
-        var headerContent = Grid(
-            [GridSize.Star(), GridSize.Auto, GridSize.Auto],
-            [GridSize.Auto],
-            [
-                // 标题与说明
-                VStack(2,
-                    Body(title).Foreground(Theme.PrimaryText),
-                    Caption(description)
-                        .Foreground(Theme.SecondaryText)
-                        .Margin(new Thickness(0, 3, 0, 0))
-                ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
-
-                // 右侧状态摘要
-                Caption(statusText)
-                    .Foreground(statusColor)
-                    .VAlign(VerticalAlignment.Center)
-                    .Margin(new Thickness(12, 0, 8, 0))
-                    .Grid(row: 0, column: 1),
-
-                // 展开指示器（下箭头 / 右箭头）
-                Caption(isExpanded ? Icons.ChevronDown : Icons.ChevronRight)
-                    .FontFamily(Icons.FontFamily)
-                    .Foreground(Theme.SecondaryText)
-                    .VAlign(VerticalAlignment.Center)
-                    .Grid(row: 0, column: 2),
-            ]
-        ).HAlign(HorizontalAlignment.Stretch);
 
         // 头部刻意不用 Button：原生 Button 模板在 PointerOver / Pressed 上会把整块背景换成另一支画刷，
         // 且 ContentPresenter 挂着 83ms 的 BrushTransition —— 卡片有近千像素宽，点一下就是整片可见的
-        // 渐变。改用普通容器承载点击（与 MatchCardView / SummonerPaneCard 同款写法）：
-        // 容器没有视觉状态，所以点击处不会有任何动画；键盘 Tab + Enter/Space 与无障碍名照旧。
-        var header = Border(headerContent)
-            .Padding(new Thickness(16, 12, 16, 12))
-            .CornerRadius(YuumiTheme.OverlayRadius)
-            // Background 为 null 的元素不参与命中测试 —— 不给这支全透明画刷，只有文字字形能点到，
-            // 卡片头部的空白区域会「点了没反应」（原生 Button 自带 Background，所以以前不显）。
-            // 全透明 = 看得见效果为零，命中测试照常。
-            .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-            .IsTabStop(ui.IsLcuConnected)
-            .IsHitTestVisible(ui.IsLcuConnected)
-            .AutomationName(title)
-            // 用 PointerReleased 而不是 OnTapped：Tapped 要等手势识别完成（按下-抬起的消歧），
-            // 在 ScrollViewer 内容里会明显「迟一拍」；释放即切换，手感才跟手。
-            // 只认左键释放，避免右键松手也切换。
-            .OnPointerReleased((_, args) =>
-            {
-                if (args.GetCurrentPoint(null).Properties.PointerUpdateKind
-                    == Microsoft.UI.Input.PointerUpdateKind.LeftButtonReleased)
-                {
-                    ui.ToggleExpanded(key);
-                }
-            })
-            .OnKeyDown((_, args) =>
-            {
-                if (args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
-                {
-                    ui.ToggleExpanded(key);
-                    args.Handled = true;
-                }
-            });
+        // 渐变。抽成独立 Component 只在头部维护悬停/按压态（不重渲染 innerContent），实现跟手的微反馈。
+        var header = Component<ToolCardHeader, ToolCardHeaderProps>(
+            new ToolCardHeaderProps(
+                Title: title,
+                Description: description,
+                StatusText: statusText,
+                IsStatusEnabled: isStatusEnabled,
+                IsExpanded: isExpanded,
+                IsLcuConnected: ui.IsLcuConnected,
+                OnToggle: () => ui.ToggleExpanded(key)))
+            .WithKey($"tool_header_{key}");
 
         Element body;
         if (isExpanded)
@@ -218,6 +169,120 @@ internal static class ToolsVisuals
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
             .HAlign(HorizontalAlignment.Stretch);
+    }
+
+    private sealed record ToolCardHeaderProps(
+        string Title,
+        string Description,
+        string StatusText,
+        bool IsStatusEnabled,
+        bool IsExpanded,
+        bool IsLcuConnected,
+        Action OnToggle);
+
+    private sealed class ToolCardHeader : Component<ToolCardHeaderProps>
+    {
+        public override Element Render()
+        {
+            var (isHovered, setIsHovered) = UseState(false);
+            var (isPressed, setIsPressed) = UseState(false);
+            var pressedRef = UseRef(false);
+
+            bool active = Props.IsLcuConnected;
+            bool hovered = active && isHovered;
+            bool pressed = active && isPressed;
+            var statusColor = Props.IsStatusEnabled ? Theme.Accent : Theme.SecondaryText;
+
+            var headerContent = Grid(
+                [GridSize.Star(), GridSize.Auto, GridSize.Auto],
+                [GridSize.Auto],
+                [
+                    // 标题与说明
+                    VStack(2,
+                        Body(Props.Title).Foreground(Theme.PrimaryText),
+                        Caption(Props.Description)
+                            .Foreground(Theme.SecondaryText)
+                            .Margin(new Thickness(0, 3, 0, 0))
+                    ).VAlign(VerticalAlignment.Center).Grid(row: 0, column: 0),
+
+                    // 右侧状态摘要
+                    Caption(Props.StatusText)
+                        .Foreground(statusColor)
+                        .VAlign(VerticalAlignment.Center)
+                        .Margin(new Thickness(12, 0, 8, 0))
+                        .Grid(row: 0, column: 1),
+
+                    // 展开指示器（下箭头 / 右箭头）
+                    Caption(Props.IsExpanded ? Icons.ChevronDown : Icons.ChevronRight)
+                        .FontFamily(Icons.FontFamily)
+                        .Foreground(hovered || pressed ? Theme.PrimaryText : Theme.SecondaryText)
+                        .VAlign(VerticalAlignment.Center)
+                        .Grid(row: 0, column: 2),
+                ]
+            ).HAlign(HorizontalAlignment.Stretch);
+
+            var bg = pressed
+                ? Theme.Ref("SubtleFillColorTertiaryBrush")
+                : hovered
+                    ? Theme.SubtleFill
+                    : Theme.Ref("SubtleFillColorTransparentBrush");
+
+            return Border(headerContent)
+                .Padding(new Thickness(16, 12, 16, 12))
+                .CornerRadius(YuumiTheme.OverlayRadius)
+                .Background(bg)
+                .IsTabStop(active)
+                .IsHitTestVisible(active)
+                .AutomationName(Props.Title)
+                .OnPointerEntered((_, _) =>
+                {
+                    if (active) setIsHovered(true);
+                })
+                .OnPointerExited((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                    setIsHovered(false);
+                })
+                .OnPointerPressed((_, args) =>
+                {
+                    if (active && args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                        == Microsoft.UI.Input.PointerUpdateKind.LeftButtonPressed)
+                    {
+                        pressedRef.Current = true;
+                        setIsPressed(true);
+                    }
+                })
+                .OnPointerReleased((_, args) =>
+                {
+                    bool wasPressed = pressedRef.Current;
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                    if (active && wasPressed && args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                        == Microsoft.UI.Input.PointerUpdateKind.LeftButtonReleased)
+                    {
+                        Props.OnToggle();
+                    }
+                })
+                .OnPointerCanceled((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                })
+                .OnPointerCaptureLost((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                })
+                .OnKeyDown((_, args) =>
+                {
+                    if (active && args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
+                    {
+                        Props.OnToggle();
+                        args.Handled = true;
+                    }
+                });
+        }
     }
 
     /// <summary>

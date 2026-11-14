@@ -1,10 +1,10 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Opgg.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Opgg;
 
@@ -111,8 +111,29 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
         var bg = OpggVisuals.GetTierCardBackground(item.Tier, Props.IsDark);
         var border = OpggVisuals.GetTierCardBorder(item.Tier, Props.IsDark);
 
-        return Border(
-            Grid(
+        return Component<TierListRow, TierListRowProps>(
+                new TierListRowProps(item, index, champName, bg, border, () => Props.OnSelectChampion(item.Id)))
+            .WithKey($"tier-row-{item.Id}");
+    }
+
+    private sealed record TierListRowProps(
+        TierListItem Item,
+        int Index,
+        string ChampName,
+        string CardBackground,
+        string CardBorder,
+        Action OnSelect);
+
+    private sealed class TierListRow : Component<TierListRowProps>
+    {
+        public override Element Render()
+        {
+            var (isHovered, setIsHovered) = UseState(false);
+            var (isPressed, setIsPressed) = UseState(false);
+            var pressedRef = UseRef(false);
+
+            var item = Props.Item;
+            var grid = Grid(
                 [
                     GridSize.Px(34),   // #
                     GridSize.Star(),   // 英雄
@@ -126,7 +147,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                 [GridSize.Auto],
                 [
                     // 1. 排名序号
-                    Caption((index + 1).ToString())
+                    Caption((Props.Index + 1).ToString())
                         .SemiBold()
                         .Foreground(Theme.SecondaryText)
                         .HAlign(HorizontalAlignment.Center)
@@ -137,7 +158,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                     HStack(8,
                         Component<LcuImage, LcuImageProps>(
                             new LcuImageProps($"/lol-game-data/assets/v1/champion-icons/{item.Id}.png", 34, CornerRadius: 17)),
-                        BodyStrong(champName)
+                        BodyStrong(Props.ChampName)
                             .TextTrimming(TextTrimming.CharacterEllipsis)
                             .VAlign(VerticalAlignment.Center)
                     )
@@ -189,14 +210,76 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                     .VAlign(VerticalAlignment.Center)
                     .Grid(0, 7)
                 ]
-            )
-        )
-        .Padding(new Thickness(12, 6, 12, 6))
-        .CornerRadius(YuumiTheme.OverlayRadius)
-        .Background(bg)
-        .WithBorder(border, 1)
-        .OnPointerPressed((_, _) => Props.OnSelectChampion(item.Id))
-        .WithKey($"tier-row-{item.Id}");
+            );
+
+            var overlayFill = isPressed
+                ? Theme.Ref("SubtleFillColorTertiaryBrush")
+                : isHovered
+                    ? Theme.SubtleFill
+                    : Theme.Ref("SubtleFillColorTransparentBrush");
+
+            var inner = Border(grid)
+                .Padding(new Thickness(12, 6, 12, 6))
+                .CornerRadius(YuumiTheme.OverlayRadius)
+                .Background(overlayFill);
+
+            var outer = Border(inner)
+                .CornerRadius(YuumiTheme.OverlayRadius)
+                .Background(Props.CardBackground);
+
+            outer = isHovered || isPressed
+                ? outer.WithBorder(Theme.ControlStroke, 1)
+                : outer.WithBorder(Props.CardBorder, 1);
+
+            return outer
+                .IsTabStop(true)
+                .AutomationName($"查看 {Props.ChampName} 攻略")
+                .OnPointerEntered((_, _) => setIsHovered(true))
+                .OnPointerExited((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                    setIsHovered(false);
+                })
+                .OnPointerPressed((_, args) =>
+                {
+                    if (args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                        == Microsoft.UI.Input.PointerUpdateKind.LeftButtonPressed)
+                    {
+                        pressedRef.Current = true;
+                        setIsPressed(true);
+                    }
+                })
+                .OnPointerReleased((_, args) =>
+                {
+                    bool wasPressed = pressedRef.Current;
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                    if (wasPressed && args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                        == Microsoft.UI.Input.PointerUpdateKind.LeftButtonReleased)
+                    {
+                        Props.OnSelect();
+                    }
+                })
+                .OnPointerCanceled((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                })
+                .OnPointerCaptureLost((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                })
+                .OnKeyDown((_, args) =>
+                {
+                    if (args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
+                    {
+                        Props.OnSelect();
+                        args.Handled = true;
+                    }
+                });
+        }
     }
 
     private static Element RenderTierBadge(string? tier)

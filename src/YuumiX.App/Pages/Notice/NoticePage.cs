@@ -86,11 +86,29 @@ public sealed class NoticePage : Component
 
         bool skipMotion = reducedMotion || highContrast;
 
-        return view.IsLoading
+        var header = PageHeaders.PageHeader(
+            "公告",
+            description: "内容来自 GitHub 仓库 NOTICE.md，进入页面时自动获取最新",
+            actions: Button(Body("刷新"), Reload)
+                .IsEnabled(!view.IsLoading)
+                .AutomationName("刷新")
+                .Padding(16, 5),
+            includeBottomMargin: false);
+
+        Element body = view.IsLoading
             ? RenderLoading()
             : view.Error is not null
                 ? RenderError(view.Error, Reload)
-                : RenderContent(view, Reload, skipMotion, reloadTick);
+                : RenderContent(view, skipMotion, reloadTick);
+
+        return Grid(
+            [GridSize.Star()],
+            [GridSize.Auto, GridSize.Star()],
+            [
+                header.Grid(row: 0, column: 0),
+                body.Grid(row: 1, column: 0),
+            ])
+            .Padding(24);
     }
 
     /// <summary>加载态：对齐旧 notice-popup-status 的 spinner + 提示。</summary>
@@ -130,17 +148,9 @@ public sealed class NoticePage : Component
         .VAlign(VerticalAlignment.Center);
     }
 
-    /// <summary>内容态：页头（标题 + 刷新）+ 缓存提示（可选）+ 公告卡片。</summary>
-    private static Element RenderContent(NoticeViewState view, Action reload, bool skipMotion, int reloadTick)
+    /// <summary>内容态：缓存提示（可选）+ 公告卡片。</summary>
+    private static Element RenderContent(NoticeViewState view, bool skipMotion, int reloadTick)
     {
-        var header = PageHeaders.PageHeader(
-            "公告",
-            description: "内容来自 GitHub 仓库 NOTICE.md，进入页面时自动获取最新",
-            actions: Button(Body("刷新"), reload)
-                .AutomationName("刷新")
-                .Padding(16, 5),
-            includeBottomMargin: false);
-
         var blocks = new List<Element>();
         if (view.FromCache)
         {
@@ -170,7 +180,7 @@ public sealed class NoticePage : Component
         blocks.Add(NoticeMotion.Content(card, trigger, skipMotion));
 
         return (ScrollViewer(
-            VStack(16, [header, .. blocks]).Padding(28).HAlign(HorizontalAlignment.Stretch)) with
+            VStack(16, blocks.ToArray()).Padding(0, 16, 0, 0).HAlign(HorizontalAlignment.Stretch)) with
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         })

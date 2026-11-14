@@ -151,23 +151,35 @@ internal static class PlayerColumnVisuals
         string displayName = PlayerNameVisuals.GetDisplayName(p, d, 0);
         string searchName = PlayerNameVisuals.GetSearchName(p, d);
 
-        var nameText = (props.ViewColumns == 10 ? Caption(displayName) : Body(displayName))
-            .Foreground(Theme.PrimaryText)
-            .TextTrimming(TextTrimming.CharacterEllipsis)
-            .VAlign(VerticalAlignment.Center);
-
+        Element nameText;
         if (!string.IsNullOrEmpty(searchName))
         {
             // 演示数据的 puuid 是占位值，跳转战绩查询必然查不到，直接不注册点击
-            nameText = props.IsDemoData
-                ? nameText.WithToolTip(TextBlock("演示数据：不支持跳转生涯与战绩查询"))
-                : nameText
-                    .WithToolTip(TextBlock($"搜索 {searchName}"))
-                    .OnTapped((_, _) =>
-                    {
-                        string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
-                        props.OnNavigateSearch?.Invoke(searchName, puuid);
-                    });
+            if (props.IsDemoData)
+            {
+                nameText = (props.ViewColumns == 10 ? Caption(displayName) : Body(displayName))
+                    .Foreground(Theme.PrimaryText)
+                    .TextTrimming(TextTrimming.CharacterEllipsis)
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("演示数据：不支持跳转生涯与战绩查询"));
+            }
+            else
+            {
+                string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
+                nameText = Component<PlayerNameLinkButton, PlayerNameLinkProps>(
+                    new PlayerNameLinkProps(
+                        DisplayName: displayName,
+                        TooltipText: $"搜索 {searchName}",
+                        UseCaption: props.ViewColumns == 10,
+                        OnActivate: () => props.OnNavigateSearch?.Invoke(searchName, puuid)));
+            }
+        }
+        else
+        {
+            nameText = (props.ViewColumns == 10 ? Caption(displayName) : Body(displayName))
+                .Foreground(Theme.PrimaryText)
+                .TextTrimming(TextTrimming.CharacterEllipsis)
+                .VAlign(VerticalAlignment.Center);
         }
 
         var items = new List<Element> { nameText };

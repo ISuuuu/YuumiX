@@ -1,7 +1,6 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Pages.Career;
@@ -11,6 +10,7 @@ using YuumiX.Core;
 using YuumiX.Core.Features.Career.Models;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.Summoner.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.GameInfo;
 
@@ -124,30 +124,45 @@ public sealed class PlayerCardView : Component<PlayerCardProps>
                       (!string.IsNullOrEmpty(p.Puuid) && p.Puuid == Props.SelfPuuid ||
                        d?.Info?.Puuid == Props.SelfPuuid);
 
-        var nameText = BodyStrong(displayName)
-            .Foreground(Theme.PrimaryText)
-            .TextTrimming(TextTrimming.CharacterEllipsis)
-            .VAlign(VerticalAlignment.Center);
-
+        Element nameText;
         if (hasSearchTarget)
         {
             // 演示数据的 puuid 是占位值，跳转生涯/战绩查询必然查不到，直接不注册点击
-            nameText = Props.IsDemoData
-                ? nameText.WithToolTip(TextBlock("演示数据：不支持跳转生涯与战绩查询"))
-                : nameText
-                    .WithToolTip(TextBlock($"生涯 {searchName}"))
-                    .OnTapped((_, _) =>
-                    {
-                        string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
-                        if (!string.IsNullOrEmpty(puuid) && puuid != "00000000-0000-0000-0000-000000000000")
+            if (Props.IsDemoData)
+            {
+                nameText = BodyStrong(displayName)
+                    .Foreground(Theme.PrimaryText)
+                    .TextTrimming(TextTrimming.CharacterEllipsis)
+                    .VAlign(VerticalAlignment.Center)
+                    .WithToolTip(TextBlock("演示数据：不支持跳转生涯与战绩查询"));
+            }
+            else
+            {
+                string puuid = d?.Info?.Puuid ?? p.Puuid ?? string.Empty;
+                nameText = Component<PlayerNameLinkButton, PlayerNameLinkProps>(
+                    new PlayerNameLinkProps(
+                        DisplayName: displayName,
+                        TooltipText: $"生涯 {searchName}",
+                        UseBodyStrong: true,
+                        OnActivate: () =>
                         {
-                            Props.OnNavigateCareer?.Invoke(puuid, d?.Info);
-                        }
-                        else
-                        {
-                            Props.OnNavigateSearch?.Invoke(searchName, null);
-                        }
-                    });
+                            if (!string.IsNullOrEmpty(puuid) && puuid != "00000000-0000-0000-0000-000000000000")
+                            {
+                                Props.OnNavigateCareer?.Invoke(puuid, d?.Info);
+                            }
+                            else
+                            {
+                                Props.OnNavigateSearch?.Invoke(searchName, null);
+                            }
+                        }));
+            }
+        }
+        else
+        {
+            nameText = BodyStrong(displayName)
+                .Foreground(Theme.PrimaryText)
+                .TextTrimming(TextTrimming.CharacterEllipsis)
+                .VAlign(VerticalAlignment.Center);
         }
 
         var nameRowItems = new List<Element> { nameText };

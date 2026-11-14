@@ -1,10 +1,10 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Opgg.Models;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Opgg;
 
@@ -195,47 +195,16 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
                         var styleIconPath = Props.PerkStyles.FirstOrDefault(s => s.Id == rune.PrimaryPageId)?.IconPath
                             ?? $"/lol-game-data/assets/v1/perk-images/Styles/{rune.PrimaryPageId}.png";
 
-                        // 选中行只做轻微提示：实心品牌蓝过于抢眼、白字对比也不足，
-                        // 选中语义由主色描边承担，底色仅 10% 透明主色。
-                        var ratioText = Caption(OpggVisuals.FormatRatio(rune.Win, rune.Play))
-                            .SemiBold()
-                            .Foreground(Theme.PrimaryText);
-
-                        var playCountText = Caption($"{rune.Play} {matchesUnit}")
-                            .Foreground(Theme.SecondaryText);
-
-                        var pickRateText = Caption(OpggVisuals.FormatPercent(rune.PickRate))
-                            .SemiBold()
-                            .Foreground(Theme.SecondaryText)
-                            .VAlign(VerticalAlignment.Center)
-                            .Grid(0, 2);
-
-                        var itemBorder = Border(
-                            Grid(
-                                [GridSize.Auto, GridSize.Star(), GridSize.Auto],
-                                [GridSize.Auto],
-                                [
-                                    Component<LcuImage, LcuImageProps>(new LcuImageProps(styleIconPath, 22))
-                                        .VAlign(VerticalAlignment.Center)
-                                        .Grid(0, 0),
-
-                                    VStack(1, ratioText, playCountText)
-                                        .Margin(new Thickness(6, 0, 0, 0))
-                                        .VAlign(VerticalAlignment.Center)
-                                        .Grid(0, 1),
-
-                                    pickRateText
-                                ]
-                            )
-                        )
-                        .Padding(new Thickness(8, 6, 8, 6))
-                        .CornerRadius(YuumiTheme.OverlayRadius)
-                        .OnPointerPressed((_, _) => onSelect(idx))
-                        .WithKey($"preset-{idx}");
-
-                        return isSelected
-                            ? itemBorder.Background(Theme.SubtleFill).WithBorder(OpggVisuals.OpggBrandColor, 1)
-                            : itemBorder.Background("transparent").WithBorder(Theme.CardStroke, 1);
+                        return Component<RunePresetRow, RunePresetRowProps>(
+                            new RunePresetRowProps(
+                                Index: idx,
+                                StyleIconPath: styleIconPath,
+                                RatioText: OpggVisuals.FormatRatio(rune.Win, rune.Play),
+                                PlayText: $"{rune.Play} {matchesUnit}",
+                                PickRateText: OpggVisuals.FormatPercent(rune.PickRate),
+                                IsSelected: isSelected,
+                                OnSelect: () => onSelect(idx)))
+                            .WithKey($"preset-{idx}");
                     }).ToArray()
                 ),
 
@@ -253,5 +222,118 @@ public sealed class RunesSectionView : Component<RunesSectionProps>
         .Padding(new Thickness(12, 0, 0, 0))
         .BorderThickness(new Thickness(1, 0, 0, 0))
         .WithBorder(Theme.CardStroke, 1);
+    }
+
+    private sealed record RunePresetRowProps(
+        int Index,
+        string StyleIconPath,
+        string RatioText,
+        string PlayText,
+        string PickRateText,
+        bool IsSelected,
+        Action OnSelect);
+
+    private sealed class RunePresetRow : Component<RunePresetRowProps>
+    {
+        public override Element Render()
+        {
+            var (isHovered, setIsHovered) = UseState(false);
+            var (isPressed, setIsPressed) = UseState(false);
+            var pressedRef = UseRef(false);
+
+            var ratioText = Caption(Props.RatioText)
+                .SemiBold()
+                .Foreground(Theme.PrimaryText);
+
+            var playCountText = Caption(Props.PlayText)
+                .Foreground(Theme.SecondaryText);
+
+            var pickRateText = Caption(Props.PickRateText)
+                .SemiBold()
+                .Foreground(Theme.SecondaryText)
+                .VAlign(VerticalAlignment.Center)
+                .Grid(0, 2);
+
+            var bg = isPressed
+                ? Theme.Ref("SubtleFillColorTertiaryBrush")
+                : Props.IsSelected || isHovered
+                    ? Theme.SubtleFill
+                    : Theme.Ref("SubtleFillColorTransparentBrush");
+
+            var itemBorder = Border(
+                Grid(
+                    [GridSize.Auto, GridSize.Star(), GridSize.Auto],
+                    [GridSize.Auto],
+                    [
+                        Component<LcuImage, LcuImageProps>(new LcuImageProps(Props.StyleIconPath, 22))
+                            .VAlign(VerticalAlignment.Center)
+                            .Grid(0, 0),
+
+                        VStack(1, ratioText, playCountText)
+                            .Margin(new Thickness(6, 0, 0, 0))
+                            .VAlign(VerticalAlignment.Center)
+                            .Grid(0, 1),
+
+                        pickRateText
+                    ]
+                )
+            )
+            .Padding(new Thickness(8, 6, 8, 6))
+            .CornerRadius(YuumiTheme.OverlayRadius)
+            .Background(bg);
+
+            itemBorder = Props.IsSelected
+                ? itemBorder.WithBorder(OpggVisuals.OpggBrandColor, 1)
+                : itemBorder.WithBorder(isHovered || isPressed ? Theme.ControlStroke : Theme.CardStroke, 1);
+
+            return itemBorder
+                .IsTabStop(true)
+                .AutomationName($"符文方案 {Props.Index + 1}，胜率 {Props.RatioText}")
+                .OnPointerEntered((_, _) => setIsHovered(true))
+                .OnPointerExited((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                    setIsHovered(false);
+                })
+                .OnPointerPressed((_, args) =>
+                {
+                    if (args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                        == Microsoft.UI.Input.PointerUpdateKind.LeftButtonPressed)
+                    {
+                        pressedRef.Current = true;
+                        setIsPressed(true);
+                    }
+                })
+                .OnPointerReleased((_, args) =>
+                {
+                    bool wasPressed = pressedRef.Current;
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                    if (wasPressed && args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                        == Microsoft.UI.Input.PointerUpdateKind.LeftButtonReleased)
+                    {
+                        Props.OnSelect();
+                    }
+                })
+                .OnPointerCanceled((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                })
+                .OnPointerCaptureLost((_, _) =>
+                {
+                    pressedRef.Current = false;
+                    setIsPressed(false);
+                })
+                .OnKeyDown((_, args) =>
+                {
+                    if (args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
+                    {
+                        Props.OnSelect();
+                        args.Handled = true;
+                    }
+                });
+        }
     }
 }

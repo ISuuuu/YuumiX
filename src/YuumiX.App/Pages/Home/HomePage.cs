@@ -566,9 +566,17 @@ public sealed class HomePage : Component
                     .Foreground(Theme.SecondaryText)
                     .TextWrapping(TextWrapping.Wrap)
                     .HAlign(HorizontalAlignment.Left)
-            ).Padding(16, 12),
+            ),
             onClick
         )
+        .Padding(16, 12)
+        .Background(Theme.CardBackground)
+        .WithBorder(Theme.CardStroke, 1)
+        .Resources(static resources => resources
+            .Set("ButtonBackgroundPointerOver", Theme.SubtleFill)
+            .Set("ButtonBackgroundPressed", Theme.Ref("SubtleFillColorTertiaryBrush"))
+            .Set("ButtonBorderBrushPointerOver", Theme.ControlStroke)
+            .Set("ButtonBorderBrushPressed", Theme.ControlStroke))
         .HAlign(HorizontalAlignment.Stretch)
         .HorizontalContentAlignment(HorizontalAlignment.Stretch)
         .CornerRadius(YuumiTheme.OverlayRadius)

@@ -300,6 +300,11 @@ public sealed class PixelComboTrigger : Component<PixelComboTriggerProps>
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(Theme.Ref("ComboBoxBackground"))
             .WithBorder(Theme.Ref("ComboBoxBorderBrush"), 1)
+            .Resources(static resources => resources
+                .Set("ButtonBackgroundPointerOver", Theme.Ref("ComboBoxBackgroundPointerOver"))
+                .Set("ButtonBackgroundPressed", Theme.Ref("ComboBoxBackgroundPressed"))
+                .Set("ButtonBorderBrushPointerOver", Theme.Ref("ComboBoxBorderBrushPointerOver"))
+                .Set("ButtonBorderBrushPressed", Theme.Ref("ComboBoxBorderBrushPressed")))
             .AutomationName(string.IsNullOrEmpty(automationName) ? current : $"{automationName}，{current}");
     }
 }
@@ -313,7 +318,11 @@ public sealed class DropDownLayer : Component
 {
     public override Element Render()
     {
+        var reducedMotion = UseReducedMotion();
+        var highContrast = UseHighContrast();
         var (state, setState) = UseState<DropDownState?>(null, threadSafe: true);
+        var (openSeq, setOpenSeq) = UseState(0, threadSafe: true);
+        var openSeqRef = UseRef(0);
         var hostRef = UseRef<FrameworkElement?>(null);
         var selectedRef = UseRef(-1);
         var navigatingRef = UseRef(false);
@@ -330,6 +339,7 @@ public sealed class DropDownLayer : Component
                     {
                         selectedRef.Current = snapshot.SelectedIndex;
                         committedRef.Current = false;
+                        setOpenSeq(++openSeqRef.Current);
                         setState(snapshot);
                     }
                     else
@@ -390,7 +400,9 @@ public sealed class DropDownLayer : Component
                             DropDownServiceHost.Close();
                             state.Anchor.Focus(FocusState.Programmatic);
                         }),
-                state is null ? Empty() : RenderList(state, selectedRef, navigatingRef, committedRef).WithKey("dropdown_list"),
+                state is null
+                    ? Empty()
+                    : RenderDropDownPanel(state, selectedRef, navigatingRef, committedRef, openSeq, reducedMotion || highContrast),
             ])
             .OnMountAdd(element =>
             {
@@ -419,6 +431,27 @@ public sealed class DropDownLayer : Component
                 fe.Loaded -= loadedRef.Current!;
                 fe.Unloaded -= unloadedRef.Current!;
             });
+    }
+
+    private static Element RenderDropDownPanel(
+        DropDownState state,
+        Ref<int> selectedRef,
+        Ref<bool> navigatingRef,
+        Ref<bool> committedRef,
+        int openSeq,
+        bool skipMotion)
+    {
+        Element list = RenderList(state, selectedRef, navigatingRef, committedRef).WithKey("dropdown_list");
+        if (skipMotion)
+        {
+            return list;
+        }
+
+        // 纯透明度淡入（100ms）：不做缩放或位移，避免弹层文字离开像素网格发虚。
+        return list.Keyframes("DropDownFadeIn", $"open_{openSeq}", kb =>
+            kb.At(0f, opacity: 0f)
+              .At(1f, opacity: 1f)
+              .Duration(100));
     }
 
     private static Element RenderList(DropDownState state, Ref<int> selectedRef, Ref<bool> navigatingRef, Ref<bool> committedRef)

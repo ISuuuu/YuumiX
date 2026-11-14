@@ -1,11 +1,11 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Parsers;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.SavedPlayers;
 
@@ -109,15 +109,24 @@ internal static class SavedPlayerCard
                 setEditingTag(player.Tag ?? string.Empty);
                 setEditingPuuid(player.Puuid);
             })
+            .GhostButton()
+            .CornerRadius(YuumiTheme.ControlRadius)
             .AutomationName(editTagText)
             .Padding(8, 4),
 
             Button(Body(deleteText), onRequestDelete)
+                .GhostButton()
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .AutomationName(deleteText)
                 .Padding(8, 4)
-                .Foreground(palette.LoseAccent),
+                .Foreground(palette.LoseAccent)
+                .Resources(resources => resources
+                    .Set("ButtonForegroundPointerOver", palette.LoseAccent)
+                    .Set("ButtonForegroundPressed", palette.LoseAccent)),
 
             Button(Body(isExpanded ? "▾" : "▸"), onToggle)
+                .GhostButton()
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .AutomationName("展开或折叠对局历史")
                 .Padding(8, 4)
         )
@@ -132,8 +141,8 @@ internal static class SavedPlayerCard
             .VerticalAlignment(VerticalAlignment.Center),
             onToggle
         )
-        .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-        .BorderThickness(0)
+        .GhostButton()
+        .CornerRadius(YuumiTheme.ControlRadius)
         .Padding(4, 2)
         .HorizontalAlignment(HorizontalAlignment.Stretch)
         .HorizontalContentAlignment(HorizontalAlignment.Left)

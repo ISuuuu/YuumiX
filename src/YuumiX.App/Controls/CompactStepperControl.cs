@@ -3,8 +3,8 @@ using System.Globalization;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Theming;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Controls;
 
@@ -37,11 +37,11 @@ public static class CompactStepperControl
                         onChange(value - step);
                     }
                 })
+                .GhostButton()
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Width(28)
                 .Height(28)
                 .Padding(new Thickness(0))
-                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-                .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "减少" : $"{automationName} 减少"),
 
                 BodyStrong(value.ToString(CultureInfo.InvariantCulture))
@@ -56,11 +56,11 @@ public static class CompactStepperControl
                         onChange(value + step);
                     }
                 })
+                .GhostButton()
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Width(28)
                 .Height(28)
                 .Padding(new Thickness(0))
-                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-                .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "增加" : $"{automationName} 增加")
             )
         )
@@ -89,11 +89,11 @@ public static class CompactStepperControl
                         onChange(Math.Round(value - step, 1));
                     }
                 })
+                .GhostButton()
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Width(28)
                 .Height(28)
                 .Padding(new Thickness(0))
-                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-                .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "减少" : $"{automationName} 减少"),
 
                 BodyStrong(value.ToString("0.#", CultureInfo.InvariantCulture))
@@ -108,11 +108,11 @@ public static class CompactStepperControl
                         onChange(Math.Round(value + step, 1));
                     }
                 })
+                .GhostButton()
+                .CornerRadius(YuumiTheme.ControlRadius)
                 .Width(28)
                 .Height(28)
                 .Padding(new Thickness(0))
-                .Background(Theme.Ref("SubtleFillColorTransparentBrush"))
-                .BorderThickness(new Thickness(0))
                 .AutomationName(automationName is null ? "增加" : $"{automationName} 增加")
             )
         )

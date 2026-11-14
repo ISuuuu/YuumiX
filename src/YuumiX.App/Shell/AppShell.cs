@@ -12,7 +12,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
@@ -34,6 +33,7 @@ using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Features.Summoner.Models;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Shell;
 
@@ -345,6 +345,8 @@ public sealed class AppShell : Component
             },
             0);
 
+        var reducedMotion = UseReducedMotion();
+        var highContrast = UseHighContrast();
         var nav = UseNavigation<AppRoute>(new AppRoute.HomeRoute());
 
         // 标题栏游戏状态：LCU 连接态 + 游戏阶段是本页的重渲染来源。
@@ -787,9 +789,15 @@ public sealed class AppShell : Component
             return static () => { };
         }, RouteCatalog.KeyFor(nav.CurrentRoute));
 
+        // 已连接、开启动效且非高对比度时启用 120ms 纯淡入交叉过渡（无位移无缩放，文字始终像素对齐）；
+        // LCU 未连接时，生涯/查询/对局三个页面共用同一张离线占位，禁用过渡避免切换空占位时闪烁。
+        var pageTransition = isClientConnected && !reducedMotion && !highContrast
+            ? NavigationTransition.Fade(TimeSpan.FromMilliseconds(120))
+            : NavigationTransition.None;
+
         var pageHost = NavigationHost(nav, BuildPage) with
         {
-            Transition = NavigationTransition.None,
+            Transition = pageTransition,
             CacheMode = NavigationCacheMode.Enabled,
             CacheSize = RouteCatalog.All.Count,
         };

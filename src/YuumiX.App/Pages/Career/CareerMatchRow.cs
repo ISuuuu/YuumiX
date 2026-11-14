@@ -1,11 +1,11 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Match.Models;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Career;
 
@@ -77,6 +77,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
 
         var (replayRevealed, setReplayRevealed) = UseState(false, threadSafe: true);
         var (isHovered, setIsHovered) = UseState(false, threadSafe: true);
+        var (isPressed, setIsPressed) = UseState(false, threadSafe: true);
+        var pressedRef = UseRef(false);
 
         var i18n = Composition.AppHost.Services?.I18n;
         var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
@@ -255,6 +257,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .Opacity(replayRevealed ? 1 : 0)
             .IsHitTestVisible(replayRevealed)
             .Background("Transparent")
+            .OnPointerPressed((_, args) => args.Handled = true)
+            .OnPointerReleased((_, args) => args.Handled = true)
             .OnTapped((_, args) => args.Handled = true)
             .VAlign(VerticalAlignment.Center);
 
@@ -304,20 +308,38 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 cardContent.Margin(20, 12, 20, 12),
             ]);
 
+        var rowBg = isPressed
+            ? Theme.Ref("SubtleFillColorTertiaryBrush")
+            : isHovered
+                ? Theme.SubtleFill
+                : Theme.CardBackground;
+
         var row = Border(rowContent)
             .Height(RowHeight)
             .CornerRadius(YuumiTheme.OverlayRadius)
-            .Background(isHovered ? Theme.SubtleFill : Theme.CardBackground)
+            .Background(rowBg)
             .AutomationName($"查看对局 {summary.GameId}");
-        row = isHovered
+        row = isHovered || isPressed
             ? row.WithBorder(Theme.ControlStroke, 1)
             : row.WithBorder(Theme.CardStroke, 1);
         return row
             // D6：悬停（含 focus 落入行内按钮）浮现回放；整行点击跳战绩详情（§4）
             .OnPointerEntered((_, _) => { setReplayRevealed(true); setIsHovered(true); })
-            .OnPointerExited((_, _) => { setReplayRevealed(false); setIsHovered(false); })
+            .OnPointerExited((_, _) =>
+            {
+                pressedRef.Current = false;
+                setIsPressed(false);
+                setReplayRevealed(false);
+                setIsHovered(false);
+            })
             .OnGotFocus((_, _) => { setReplayRevealed(true); setIsHovered(true); })
-            .OnLostFocus((_, _) => { setReplayRevealed(false); setIsHovered(false); })
+            .OnLostFocus((_, _) =>
+            {
+                pressedRef.Current = false;
+                setIsPressed(false);
+                setReplayRevealed(false);
+                setIsHovered(false);
+            })
             // 键盘可达（REACTOR_A11Y_004）：Tab 聚焦后 Enter/Space 等效点击
             .IsTabStop(true)
             .OnKeyDown((sender, args) =>
@@ -333,12 +355,35 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                     args.Handled = true;
                 }
             })
-            .OnTapped((_, args) =>
+            .OnPointerPressed((_, args) =>
             {
-                if (!args.Handled)
+                if (!args.Handled && args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                    == Microsoft.UI.Input.PointerUpdateKind.LeftButtonPressed)
+                {
+                    pressedRef.Current = true;
+                    setIsPressed(true);
+                }
+            })
+            .OnPointerReleased((_, args) =>
+            {
+                bool wasPressed = pressedRef.Current;
+                pressedRef.Current = false;
+                setIsPressed(false);
+                if (!args.Handled && wasPressed && args.GetCurrentPoint(null).Properties.PointerUpdateKind
+                    == Microsoft.UI.Input.PointerUpdateKind.LeftButtonReleased)
                 {
                     Props.OnSelect?.Invoke();
                 }
+            })
+            .OnPointerCanceled((_, _) =>
+            {
+                pressedRef.Current = false;
+                setIsPressed(false);
+            })
+            .OnPointerCaptureLost((_, _) =>
+            {
+                pressedRef.Current = false;
+                setIsPressed(false);
             });
     }
 
