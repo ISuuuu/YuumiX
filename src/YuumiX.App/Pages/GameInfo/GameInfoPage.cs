@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
@@ -52,6 +53,7 @@ public sealed class GameInfoPage : Component
         var theme = UseContext(AppHost.ThemeContext);
         var gameInfoService = services.Services.GetRequiredService<IGameInfoService>();
         var lcu = services.Services.GetRequiredService<LcuConnection>();
+        ILogger logger = UseMemo(() => services.LoggerFactory.CreateLogger<GameInfoPage>(), 0);
 
         var nav = UseNavigation<AppRoute>();
         Action<string, SummonerProfile?> onNavigateCareer = (puuid, profile) =>
@@ -108,16 +110,20 @@ public sealed class GameInfoPage : Component
 
         // 页面缓存开启（NavigationHost.CacheMode = Enabled）后组件实例常驻：
         // 切走再切回来时不重挂载、UseEffect 也不重跑。
-        // 若切走期间服务状态已有演进（如选人进入游戏后敌方数据就绪、或队友锁定英雄），切回时立即同步最新状态；
-        // 若数据已一致则不触发多余刷新，保证切页无任何视觉跳动。
-        var onNavigatedToRef = UseRef<Action?>(null);
-        onNavigatedToRef.Current = () =>
+        // 若切走或窗口在后台期间服务状态已有演进（如选人进入游戏后敌方数据就绪、或队友锁定英雄），
+        // 切回页面或窗口重新激活时立即同步最新状态；
+        // 若数据已一致则不触发多余刷新，保证切页/激活无任何视觉跳动。
+        var syncStateRef = UseRef<Action<string>?>(null);
+        syncStateRef.Current = source =>
         {
             var latest = gameInfoService.CurrentState;
             setConnState(lcu.CurrentState);
 
             if (!ReferenceEquals(state, latest) && state != latest)
             {
+                logger.LogDebug(
+                    "对局信息页面状态同步 ({Source}): 本地={LocalMy}/{LocalTheir}, 服务={LatestMy}/{LatestTheir}, 阶段={Phase}",
+                    source, state.MyTeam.Count, state.TheirTeam.Count, latest.MyTeam.Count, latest.TheirTeam.Count, latest.Phase);
                 setState(latest);
             }
 
@@ -133,7 +139,7 @@ public sealed class GameInfoPage : Component
             }
         };
         var navigatedToCallback = UseRef<Action<Microsoft.UI.Reactor.Navigation.NavigatedToContext>?>(null);
-        navigatedToCallback.Current ??= _ => onNavigatedToRef.Current?.Invoke();
+        navigatedToCallback.Current ??= _ => syncStateRef.Current?.Invoke("onNavigatedTo");
         UseNavigationLifecycle(onNavigatedTo: navigatedToCallback.Current);
 
         // 初次加载拉取一次状态
@@ -169,9 +175,17 @@ public sealed class GameInfoPage : Component
                 void OnWindowSizeChanged(object? sender, WindowDipSizeChangedEventArgs args) =>
                     setWindowWidth(args.Size.Item1);
 
+                void OnWindowActivated(object? sender, EventArgs args) =>
+                    syncStateRef.Current?.Invoke("window.Activated");
+
                 setWindowWidth(window.AppWindow.ClientSize.Width / window.DipScale);
                 window.SizeChanged += OnWindowSizeChanged;
-                return () => window.SizeChanged -= OnWindowSizeChanged;
+                window.Activated += OnWindowActivated;
+                return () =>
+                {
+                    window.SizeChanged -= OnWindowSizeChanged;
+                    window.Activated -= OnWindowActivated;
+                };
             },
             0);
 
@@ -614,7 +628,8 @@ public sealed class GameInfoPage : Component
                     state.SavedPlayerMap,
                     onNavigateSearch,
                     state.IsDemoData))
-                .Grid(row: 0, column: i);
+                .Grid(row: 0, column: i)
+                .WithKey($"my:{p.Puuid ?? i.ToString()}");
 
             colElements.Add(col);
         }
@@ -642,7 +657,8 @@ public sealed class GameInfoPage : Component
                     state.SavedPlayerMap,
                     onNavigateSearch,
                     state.IsDemoData))
-                .Grid(row: 0, column: offset + i);
+                .Grid(row: 0, column: offset + i)
+                .WithKey($"their:{p.Puuid ?? i.ToString()}");
 
             colElements.Add(col);
         }
