@@ -52,7 +52,8 @@ internal static class ChampionMasteryView
         Action<int>? onLevelFilterChanged = null,
         int sortIndex = 0,
         Action<int>? onSortChanged = null,
-        bool isLoaded = true)
+        bool isLoaded = true,
+        Microsoft.UI.Xaml.Controls.UniformGridLayout? gridLayout = null)
     {
         if (!isLoaded || overview is null)
         {
@@ -138,7 +139,7 @@ internal static class ChampionMasteryView
                 onLevelFilterChanged,
                 sortIndex,
                 onSortChanged),
-            RenderChampionGrid(champions, catalog, palette));
+            RenderChampionGrid(champions, catalog, palette, gridLayout));
     }
 
     /// <summary>顶部 4 个指标汇总卡片。</summary>
@@ -313,33 +314,30 @@ internal static class ChampionMasteryView
         return result.ToList();
     }
 
-    /// <summary>全英雄熟练度网格。</summary>
+    internal static Microsoft.UI.Xaml.Controls.UniformGridLayout CreateGridLayout() => new()
+    {
+        Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+        MaximumRowsOrColumns = 4,
+        MinItemWidth = CardWidth,
+        MinColumnSpacing = CareerVisuals.CardGap,
+        MinRowSpacing = 12,
+        ItemsStretch = Microsoft.UI.Xaml.Controls.UniformGridLayoutItemsStretch.None,
+        ItemsJustification = Microsoft.UI.Xaml.Controls.UniformGridLayoutItemsJustification.Start,
+    };
+
+    /// <summary>全英雄熟练度网格（ItemsRepeater + UniformGridLayout 虚拟化）。</summary>
     private static Element RenderChampionGrid(
         IReadOnlyList<ChampionMasteryItem> champions,
         GameDataCatalog catalog,
-        YuumiPalette palette)
+        YuumiPalette palette,
+        Microsoft.UI.Xaml.Controls.UniformGridLayout? gridLayout)
     {
-        const int columns = 4;
-        var rows = new List<Element>();
-
-        for (int i = 0; i < champions.Count; i += columns)
-        {
-            var rowCards = new List<Element>();
-            for (int col = 0; col < columns; col++)
-            {
-                int index = i + col;
-                if (index < champions.Count)
-                {
-                    rowCards.Add(ChampionCard(champions[index], catalog, palette)
-                        .WithKey(champions[index].ChampionId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .Width(CardWidth));
-                }
-            }
-
-            rows.Add(HStack(CareerVisuals.CardGap, rowCards.ToArray()).WithKey($"row_{i}"));
-        }
-
-        return VStack(12, rows.ToArray());
+        return ItemsRepeater(
+                champions,
+                item => item.ChampionId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                (item, _) => ChampionCard(item, catalog, palette).Width(CardWidth))
+            with
+        { Layout = gridLayout ?? CreateGridLayout() };
     }
 
     private static Element ChampionCard(ChampionMasteryItem item, GameDataCatalog catalog, YuumiPalette palette)

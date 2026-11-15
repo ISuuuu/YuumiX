@@ -58,6 +58,9 @@ public sealed record CareerPageProps(string? Puuid = null, SummonerProfile? Prel
 /// </summary>
 public sealed class CareerPage : Component<CareerPageProps>
 {
+    // 复用同一 UniformGridLayout 实例：避免每次 Render() 新建 Layout 触发 ItemsRepeater 重建项容器。
+    private readonly UniformGridLayout _masteryGridLayout = ChampionMasteryView.CreateGridLayout();
+
     public override Element Render()
     {
         var services = UseContext(AppHost.Context);
@@ -551,7 +554,8 @@ public sealed class CareerPage : Component<CareerPageProps>
                         onLevelFilterChanged: setMasteryLevel,
                         sortIndex: masterySort,
                         onSortChanged: setMasterySort,
-                        isLoaded: !loadingMastery),
+                        isLoaded: !loadingMastery,
+                        gridLayout: _masteryGridLayout),
                     masteryMotionTrigger,
                     skipMotion)),
             // 战绩页签已在上方单独取两段，这里只是编译器要求的兜底分支

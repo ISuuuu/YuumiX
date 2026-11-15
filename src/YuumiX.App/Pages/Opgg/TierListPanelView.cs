@@ -21,6 +21,13 @@ public sealed class TierListPanelProps
 /// </summary>
 public sealed class TierListPanelView : Component<TierListPanelProps>
 {
+    // 复用同一 StackLayout 实例：避免每次 Render() 新建 Layout 触发 ItemsRepeater 重建项容器。
+    private readonly Microsoft.UI.Xaml.Controls.StackLayout _rowLayout = new()
+    {
+        Orientation = Microsoft.UI.Xaml.Controls.Orientation.Vertical,
+        Spacing = 3,
+    };
+
     public override Element Render()
     {
         // 根布局必须是 Grid 而非 VStack：StackPanel 会以无限高度测量子级，
@@ -32,8 +39,15 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
             [
                 RenderHeader().Grid(0, 0),
                 ScrollViewer(
-                    VStack(3,
-                        Props.Items.Select((item, index) => RenderRow(item, index).WithKey($"tier-row-{item.Id}")).ToArray()
+                    Border(
+                        ItemsRepeater(
+                            Props.Items,
+                            item => $"tier-row-{item.Id}",
+                            (item, index) => RenderRow(item, index))
+                        with
+                        {
+                            Layout = _rowLayout
+                        }
                     )
                     .Padding(new Thickness(12, 6, 12, 16))
                 )
@@ -124,16 +138,17 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
         string CardBorder,
         Action OnSelect);
 
-    private sealed class TierListRow : Component<TierListRowProps>
+    private sealed record TierListRowContentProps(
+        TierListItem Item,
+        int Index,
+        string ChampName);
+
+    private sealed class TierListRowContent : Component<TierListRowContentProps>
     {
         public override Element Render()
         {
-            var (isHovered, setIsHovered) = UseState(false);
-            var (isPressed, setIsPressed) = UseState(false);
-            var pressedRef = UseRef(false);
-
             var item = Props.Item;
-            var grid = Grid(
+            return Grid(
                 [
                     GridSize.Px(34),   // #
                     GridSize.Star(),   // 英雄
@@ -211,6 +226,19 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                     .Grid(0, 7)
                 ]
             );
+        }
+    }
+
+    private sealed class TierListRow : Component<TierListRowProps>
+    {
+        public override Element Render()
+        {
+            var (isHovered, setIsHovered) = UseState(false);
+            var (isPressed, setIsPressed) = UseState(false);
+            var pressedRef = UseRef(false);
+
+            var content = Component<TierListRowContent, TierListRowContentProps>(
+                new TierListRowContentProps(Props.Item, Props.Index, Props.ChampName));
 
             var overlayFill = isPressed
                 ? Theme.Ref("SubtleFillColorTertiaryBrush")
@@ -218,7 +246,7 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                     ? Theme.SubtleFill
                     : Theme.Ref("SubtleFillColorTransparentBrush");
 
-            var inner = Border(grid)
+            var inner = Border(content)
                 .Padding(new Thickness(12, 6, 12, 6))
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(overlayFill);

@@ -72,7 +72,6 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
     public override Element Render()
     {
         MatchSummary summary = Props.Summary;
-        GameDataCatalog catalog = Props.Catalog;
         YuumiPalette palette = Props.Palette;
 
         var (replayRevealed, setReplayRevealed) = UseState(false, threadSafe: true);
@@ -80,175 +79,7 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
         var (isPressed, setIsPressed) = UseState(false, threadSafe: true);
         var pressedRef = UseRef(false);
 
-        var i18n = Composition.AppHost.Services?.I18n;
-        var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
-
-        // 结果列：TFT 名次（Placement 非空显示「第 N 名」，第 1 金色、≤4 胜利色、>4 失败色）优先于胜负。
-        // 重开局沿用次要文字色（ThemeRef），其余走具体色值——两种形态分别调用 Foreground。
-        string resultText;
-        if (summary.Placement is { } placement)
-        {
-            var template = i18n?.T("career.placement", "第 {placement} 名") ?? "第 {placement} 名";
-            resultText = template.Replace("{placement}", placement.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
-        else
-        {
-            resultText = Search.SearchVisuals.ResultText(summary);
-        }
-
-        string? resultColor = summary.Remake
-            ? null
-            : summary.Placement is { } rank
-                ? rank == 1 ? AssetColors.Amber : rank <= 4 ? CareerVisuals.WinText : CareerVisuals.LoseText
-                : summary.Win ? CareerVisuals.WinText : CareerVisuals.LoseText;
-        Element resultTextBlock = BodyStrong(resultText);
-        resultTextBlock = resultColor is null
-            ? resultTextBlock.Foreground(Theme.SecondaryText)
-            : resultTextBlock.Foreground(resultColor);
-
-        // 头像 + 等级角标 + 召唤师技能 + 基石符文
-        Element avatar = Grid(
-            [GridSize.Auto],
-            [GridSize.Auto],
-            [
-                Search.SearchVisuals.Icon(
-                    Search.SearchVisuals.ChampionIcon(summary.ChampionId),
-                    ChampionSize,
-                    8),
-                Border(Caption(summary.ChampionLevel.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        .SemiBold()
-                        .Foreground(Theme.PrimaryText)
-                        .HAlign(HorizontalAlignment.Center))
-                    .Padding(4, 1)
-                    .CornerRadius(YuumiTheme.ControlRadius)
-                    .Background(Theme.CardBackground)
-                    .WithBorder(Theme.CardStroke, 1)
-                    .HAlign(HorizontalAlignment.Right)
-                    .VAlign(VerticalAlignment.Bottom),
-            ])
-            .Width(ChampionSize)
-            .Height(ChampionSize);
-
-        // 召唤师技能（上下两个小图标）+ 基石符文
-        // 旧版 `.spells-runes` 是 flex row（gap 3）：左列 `.spells-col` 竖排两个技能，
-        // 符文 `.rune-slot` 在**右侧**独立一格。此前把符文接在技能下方（VStack 第三行），
-        // 整块会高出一格、与旧版形状不符。
-        Element spellsCol = VStack(2,
-            Search.SearchVisuals.SpellIcon(catalog, summary.Spell1Id, SpellSize),
-            Search.SearchVisuals.SpellIcon(catalog, summary.Spell2Id, SpellSize));
-
-        // 符文：仅非强化队列显示；RuneId=0 不渲染（SGP 大乱斗恒 0，与无符文等价）。
-        // 无符文的行（大乱斗等模式）保留等宽空占位，保证不同模式混排时后续列（结果/KDA…）横向对齐。
-        string? runePath = null;
-        if (!IsAugmentQueue(summary.QueueId) && summary.RuneId > 0
-            && catalog.Runes.TryGetValue(summary.RuneId, out string? runeIcon))
-        {
-            runePath = runeIcon;
-        }
-
-        // 空占位必须由 Border 承载（裸 Empty 不参与布局测量、量出 0 宽，占不住位）
-        Element runeSlot = runePath is null
-            ? Border(Empty()).Width(SpellSize).Height(SpellSize).AccessibilityHidden()
-            : Search.SearchVisuals.Icon(runePath, SpellSize, 10);
-        Element spells = HStack(3, spellsCol, runeSlot)
-            .VAlign(VerticalAlignment.Center);
-
-        // 结果与模式列
-        var queueName = Search.SearchFilters.TranslateQueueLabel(summary.QueueName, isEn);
-        var posIcon = CareerVisuals.PositionIcon(summary.Position, 14);
-        var posText = Search.SearchVisuals.PositionText(summary.Position);
-
-        var resultHeaderItems = new List<Element> { resultTextBlock };
-        if (summary.Position.HasValue)
-        {
-            resultHeaderItems.Add(posIcon.Margin(2, 0, 0, 0));
-        }
-        if (!string.IsNullOrEmpty(posText))
-        {
-            resultHeaderItems.Add(
-                Body(posText)
-                    .Foreground(Theme.SecondaryText)
-                    .VAlign(VerticalAlignment.Center));
-        }
-
-        Element result = VStack(2,
-                HStack(4, resultHeaderItems.ToArray()),
-                Body(queueName).Foreground(Theme.PrimaryText),
-                Caption(summary.DurationText).Foreground(Theme.SecondaryText))
-            .Width(ResultWidth)
-            .VAlign(VerticalAlignment.Center);
-
-        // KDA 列（D4）：比率按旧版阈值配色——Perfect 橙 / ≥5 玫红 / ≥3 蓝 / 其余次要灰；死亡数走 palette.DeathText
-        string kdaRatioText = summary.Deaths == 0 ? "Perfect KDA" : $"{summary.KdaText} KDA";
-        string? kdaRatioColor = KdaRatioColor(summary);
-        Element kdaTextRow = HStack(2,
-            BodyStrong(summary.Kills.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-            Body(" / ").Foreground(Theme.SecondaryText),
-            BodyStrong(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .Foreground(palette.DeathText),
-            Body(" / ").Foreground(Theme.SecondaryText),
-            BodyStrong(summary.Assists.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-
-        Element kdaRatioBlock = Caption(kdaRatioText).SemiBold();
-        kdaRatioBlock = kdaRatioColor is null
-            ? kdaRatioBlock.Foreground(Theme.SecondaryText)
-            : kdaRatioBlock.Foreground(kdaRatioColor);
-
-        Element kda = VStack(2,
-                kdaTextRow,
-                kdaRatioBlock)
-            .Width(KdaWidth)
-            .VAlign(VerticalAlignment.Center);
-
-        // 补刀列
-        double minutes = Math.Max(summary.DurationSeconds / 60.0, 1.0);
-        double csPerMin = summary.CreepScore / minutes;
-        var csUnit = i18n?.T("career.creepScoreUnit", " 刀") ?? " 刀";
-        var csPerMinFormat = i18n?.T("career.creepScorePerMin", "({cs}/分)") ?? "({cs}/分)";
-        var csPerMinText = csPerMinFormat.Replace("{cs}", csPerMin.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
-        Element cs = VStack(2,
-                HStack(2,
-                    BodyStrong(summary.CreepScore.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                    Caption(csUnit).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom)),
-                Caption(csPerMinText).Foreground(Theme.SecondaryText))
-            .Width(CsWidth)
-            .VAlign(VerticalAlignment.Center);
-
-        // 装备列：海克斯强化（仅 2400/2450，去重保序最多 5 个，悬停显名称）+ 装备（未出装格子不显示）
-        var itemChildren = new List<Element>();
-        if (IsAugmentQueue(summary.QueueId) && summary.AugmentIds.Count > 0)
-        {
-            itemChildren.Add(HStack(2, summary.AugmentIds
-                .Select(augmentId => AugmentIcon(catalog, augmentId)
-                    .WithKey(augmentId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
-                .ToArray()));
-        }
-
-        itemChildren.Add(Search.SearchVisuals.ItemRow(catalog, summary.ItemIds, ItemSize));
-
-        Element itemSlots = HStack(4, itemChildren.ToArray())
-            .VAlign(VerticalAlignment.Center);
-
-        // 金币列：挂在右侧组、紧贴时间列右靠，位置恒定（不随装备数量左右漂移）
-        var goldText = i18n?.T("search.gold", "金币") ?? "金币";
-        Element gold = VStack(2,
-                BodyStrong($"{summary.Gold:N0}"),
-                Caption(goldText).Foreground(Theme.SecondaryText))
-            .Width(GoldWidth)
-            .VAlign(VerticalAlignment.Center);
-
-        // 地图与时间列（自适应靠右，日期格式对齐原系统 yyyy/MM/dd HH:mm）
-        string formattedTime = summary.DetailDateText;
-        Element info = VStack(3,
-                Caption(summary.MapName)
-                    .Foreground(Theme.SecondaryText)
-                    .HAlign(HorizontalAlignment.Right),
-                Caption(formattedTime)
-                    .Foreground(Theme.SecondaryText)
-                    .HAlign(HorizontalAlignment.Right))
-            .Width(116)
-            .HAlign(HorizontalAlignment.Right)
-            .VAlign(VerticalAlignment.Center);
+        var staticProps = new CareerMatchRowStaticProps(summary, Props.Catalog, palette, Props.Language);
 
         // D6：回放按钮默认透明且不参与命中，整行悬停或键盘 focus 落入时浮现；
         // 包裹透明 Border 拦截点击，避免事件冒泡触发整行 OnSelect（防误跳战绩）。
@@ -262,18 +93,10 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             .OnTapped((_, args) => args.Handled = true)
             .VAlign(VerticalAlignment.Center);
 
-        Element rightGroup = HStack(8, gold, info, replayBtn)
+        Element rightGroup = HStack(8,
+                Component<CareerMatchRowMeta, CareerMatchRowStaticProps>(staticProps),
+                replayBtn)
             .HAlign(HorizontalAlignment.Right)
-            .VAlign(VerticalAlignment.Center);
-
-        // 左侧主体组合
-        Element leftGroup = HStack(8,
-            avatar,
-            spells,
-            result,
-            kda,
-            cs,
-            itemSlots)
             .VAlign(VerticalAlignment.Center);
 
         // 自适应 Grid 两列布局：左侧拉伸，右侧自动靠右
@@ -281,7 +104,8 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
             [GridSize.Star(), GridSize.Auto],
             [GridSize.Auto],
             [
-                leftGroup.Grid(row: 0, column: 0),
+                Component<CareerMatchRowLeft, CareerMatchRowStaticProps>(staticProps)
+                    .Grid(row: 0, column: 0),
                 rightGroup.Grid(row: 0, column: 1),
             ]);
 
@@ -385,6 +209,212 @@ public sealed class CareerMatchRow : Component<CareerMatchRowProps>
                 pressedRef.Current = false;
                 setIsPressed(false);
             });
+    }
+
+    private sealed record CareerMatchRowStaticProps(
+        MatchSummary Summary,
+        GameDataCatalog Catalog,
+        YuumiPalette Palette,
+        string? Language);
+
+    private sealed class CareerMatchRowLeft : Component<CareerMatchRowStaticProps>
+    {
+        public override Element Render()
+        {
+            MatchSummary summary = Props.Summary;
+            GameDataCatalog catalog = Props.Catalog;
+            YuumiPalette palette = Props.Palette;
+
+            var i18n = Composition.AppHost.Services?.I18n;
+            var isEn = i18n?.CurrentLanguage == YuumiX.Core.Localization.SupportedLanguages.EnUs;
+
+            // 结果列：TFT 名次（Placement 非空显示「第 N 名」，第 1 金色、≤4 胜利色、>4 失败色）优先于胜负。
+            // 重开局沿用次要文字色（ThemeRef），其余走具体色值——两种形态分别调用 Foreground。
+            string resultText;
+            if (summary.Placement is { } placement)
+            {
+                var template = i18n?.T("career.placement", "第 {placement} 名") ?? "第 {placement} 名";
+                resultText = template.Replace("{placement}", placement.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                resultText = Search.SearchVisuals.ResultText(summary);
+            }
+
+            string? resultColor = summary.Remake
+                ? null
+                : summary.Placement is { } rank
+                    ? rank == 1 ? AssetColors.Amber : rank <= 4 ? CareerVisuals.WinText : CareerVisuals.LoseText
+                    : summary.Win ? CareerVisuals.WinText : CareerVisuals.LoseText;
+            Element resultTextBlock = BodyStrong(resultText);
+            resultTextBlock = resultColor is null
+                ? resultTextBlock.Foreground(Theme.SecondaryText)
+                : resultTextBlock.Foreground(resultColor);
+
+            // 头像 + 等级角标 + 召唤师技能 + 基石符文
+            Element avatar = Grid(
+                [GridSize.Auto],
+                [GridSize.Auto],
+                [
+                    Search.SearchVisuals.Icon(
+                        Search.SearchVisuals.ChampionIcon(summary.ChampionId),
+                        ChampionSize,
+                        8),
+                    Border(Caption(summary.ChampionLevel.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                            .SemiBold()
+                            .Foreground(Theme.PrimaryText)
+                            .HAlign(HorizontalAlignment.Center))
+                        .Padding(4, 1)
+                        .CornerRadius(YuumiTheme.ControlRadius)
+                        .Background(Theme.CardBackground)
+                        .WithBorder(Theme.CardStroke, 1)
+                        .HAlign(HorizontalAlignment.Right)
+                        .VAlign(VerticalAlignment.Bottom),
+                ])
+                .Width(ChampionSize)
+                .Height(ChampionSize);
+
+            // 召唤师技能（上下两个小图标）+ 基石符文
+            // 旧版 `.spells-runes` 是 flex row（gap 3）：左列 `.spells-col` 竖排两个技能，
+            // 符文 `.rune-slot` 在**右侧**独立一格。此前把符文接在技能下方（VStack 第三行），
+            // 整块会高出一格、与旧版形状不符。
+            Element spellsCol = VStack(2,
+                Search.SearchVisuals.SpellIcon(catalog, summary.Spell1Id, SpellSize),
+                Search.SearchVisuals.SpellIcon(catalog, summary.Spell2Id, SpellSize));
+
+            // 符文：仅非强化队列显示；RuneId=0 不渲染（SGP 大乱斗恒 0，与无符文等价）。
+            // 无符文的行（大乱斗等模式）保留等宽空占位，保证不同模式混排时后续列（结果/KDA…）横向对齐。
+            string? runePath = null;
+            if (!IsAugmentQueue(summary.QueueId) && summary.RuneId > 0
+                && catalog.Runes.TryGetValue(summary.RuneId, out string? runeIcon))
+            {
+                runePath = runeIcon;
+            }
+
+            // 空占位必须由 Border 承载（裸 Empty 不参与布局测量、量出 0 宽，占不住位）
+            Element runeSlot = runePath is null
+                ? Border(Empty()).Width(SpellSize).Height(SpellSize).AccessibilityHidden()
+                : Search.SearchVisuals.Icon(runePath, SpellSize, 10);
+            Element spells = HStack(3, spellsCol, runeSlot)
+                .VAlign(VerticalAlignment.Center);
+
+            // 结果与模式列
+            var queueName = Search.SearchFilters.TranslateQueueLabel(summary.QueueName, isEn);
+            var posIcon = CareerVisuals.PositionIcon(summary.Position, 14);
+            var posText = Search.SearchVisuals.PositionText(summary.Position);
+
+            var resultHeaderItems = new List<Element> { resultTextBlock };
+            if (summary.Position.HasValue)
+            {
+                resultHeaderItems.Add(posIcon.Margin(2, 0, 0, 0));
+            }
+            if (!string.IsNullOrEmpty(posText))
+            {
+                resultHeaderItems.Add(
+                    Body(posText)
+                        .Foreground(Theme.SecondaryText)
+                        .VAlign(VerticalAlignment.Center));
+            }
+
+            Element result = VStack(2,
+                    HStack(4, resultHeaderItems.ToArray()),
+                    Body(queueName).Foreground(Theme.PrimaryText),
+                    Caption(summary.DurationText).Foreground(Theme.SecondaryText))
+                .Width(ResultWidth)
+                .VAlign(VerticalAlignment.Center);
+
+            // KDA 列（D4）：比率按旧版阈值配色——Perfect 橙 / ≥5 玫红 / ≥3 蓝 / 其余次要灰；死亡数走 palette.DeathText
+            string kdaRatioText = summary.Deaths == 0 ? "Perfect KDA" : $"{summary.KdaText} KDA";
+            string? kdaRatioColor = KdaRatioColor(summary);
+            Element kdaTextRow = HStack(2,
+                BodyStrong(summary.Kills.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                Body(" / ").Foreground(Theme.SecondaryText),
+                BodyStrong(summary.Deaths.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    .Foreground(palette.DeathText),
+                Body(" / ").Foreground(Theme.SecondaryText),
+                BodyStrong(summary.Assists.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+
+            Element kdaRatioBlock = Caption(kdaRatioText).SemiBold();
+            kdaRatioBlock = kdaRatioColor is null
+                ? kdaRatioBlock.Foreground(Theme.SecondaryText)
+                : kdaRatioBlock.Foreground(kdaRatioColor);
+
+            Element kda = VStack(2,
+                    kdaTextRow,
+                    kdaRatioBlock)
+                .Width(KdaWidth)
+                .VAlign(VerticalAlignment.Center);
+
+            // 补刀列
+            double minutes = Math.Max(summary.DurationSeconds / 60.0, 1.0);
+            double csPerMin = summary.CreepScore / minutes;
+            var csUnit = i18n?.T("career.creepScoreUnit", " 刀") ?? " 刀";
+            var csPerMinFormat = i18n?.T("career.creepScorePerMin", "({cs}/分)") ?? "({cs}/分)";
+            var csPerMinText = csPerMinFormat.Replace("{cs}", csPerMin.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+            Element cs = VStack(2,
+                    HStack(2,
+                        BodyStrong(summary.CreepScore.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                        Caption(csUnit).Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Bottom)),
+                    Caption(csPerMinText).Foreground(Theme.SecondaryText))
+                .Width(CsWidth)
+                .VAlign(VerticalAlignment.Center);
+
+            // 装备列：海克斯强化（仅 2400/2450，去重保序最多 5 个，悬停显名称）+ 装备（未出装格子不显示）
+            var itemChildren = new List<Element>();
+            if (IsAugmentQueue(summary.QueueId) && summary.AugmentIds.Count > 0)
+            {
+                itemChildren.Add(HStack(2, summary.AugmentIds
+                    .Select(augmentId => AugmentIcon(catalog, augmentId)
+                        .WithKey(augmentId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                    .ToArray()));
+            }
+
+            itemChildren.Add(Search.SearchVisuals.ItemRow(catalog, summary.ItemIds, ItemSize));
+
+            Element itemSlots = HStack(4, itemChildren.ToArray())
+                .VAlign(VerticalAlignment.Center);
+
+            return HStack(8,
+                    avatar,
+                    spells,
+                    result,
+                    kda,
+                    cs,
+                    itemSlots)
+                .VAlign(VerticalAlignment.Center);
+        }
+    }
+
+    private sealed class CareerMatchRowMeta : Component<CareerMatchRowStaticProps>
+    {
+        public override Element Render()
+        {
+            MatchSummary summary = Props.Summary;
+            var i18n = Composition.AppHost.Services?.I18n;
+
+            // 金币列：挂在右侧组、紧贴时间列右靠，位置恒定（不随装备数量左右漂移）
+            var goldText = i18n?.T("search.gold", "金币") ?? "金币";
+            Element gold = VStack(2,
+                    BodyStrong($"{summary.Gold:N0}"),
+                    Caption(goldText).Foreground(Theme.SecondaryText))
+                .Width(GoldWidth)
+                .VAlign(VerticalAlignment.Center);
+
+            // 地图与时间列（自适应靠右，日期格式对齐原系统 yyyy/MM/dd HH:mm）
+            string formattedTime = summary.DetailDateText;
+            Element info = VStack(3,
+                    Caption(summary.MapName)
+                        .Foreground(Theme.SecondaryText)
+                        .HAlign(HorizontalAlignment.Right),
+                    Caption(formattedTime)
+                        .Foreground(Theme.SecondaryText)
+                        .HAlign(HorizontalAlignment.Right))
+                .Width(116)
+                .HAlign(HorizontalAlignment.Right)
+                .VAlign(VerticalAlignment.Center);
+
+            return HStack(8, gold, info).VAlign(VerticalAlignment.Center);
+        }
     }
 
     /// <summary>
