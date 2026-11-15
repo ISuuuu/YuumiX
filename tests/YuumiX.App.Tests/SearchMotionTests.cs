@@ -51,6 +51,20 @@ public sealed class SearchMotionTests
     }
 
     [Fact]
+    public void Detail_DropsStaleSnapshotAfterDelay_ButKeepsSameMatchRefresh()
+    {
+        const string key = "player/page";
+        var first = Page(10001L).Games[0];
+        var second = Page(10002L).Games[0];
+        var shown = SearchEffects.CurrentDetail(null, key, first, Detail(first.GameId), false, false);
+        Assert.NotNull(shown);
+
+        Assert.Same(shown, SearchEffects.CurrentDetail(shown, key, second, null, false, false, dropStaleSnapshot: false));
+        Assert.Null(SearchEffects.CurrentDetail(shown, key, second, null, false, false, dropStaleSnapshot: true));
+        Assert.Same(shown, SearchEffects.CurrentDetail(shown, key, first, null, false, false, dropStaleSnapshot: true));
+    }
+
+    [Fact]
     public async Task Detail_RemovesHighFrequencyFade_PreservesContentWithoutAnimation()
     {
         using var scope = new ResourceScope();

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Reactor.Hooks;
 using Microsoft.UI.Xaml;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
@@ -8,11 +10,97 @@ using YuumiX.Core;
 using YuumiX.Core.Features.Opgg;
 using YuumiX.Core.Features.Opgg.Models;
 using YuumiX.Core.Lcu;
+using YuumiX.Core.Persistence;
 using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Opgg;
 
 public sealed record OpggPageProps(int? InitialChampionId = null);
+
+internal sealed record OpggFilterState(
+    string View,
+    string Region,
+    string Mode,
+    string Tier,
+    string Position,
+    int? SelectedChampionId);
+
+internal sealed record OpggTierResult(string Key, IReadOnlyList<TierListItem> Items);
+
+internal sealed record OpggBuildResult(string Key, OpggBuildPayload? Payload);
+
+internal sealed record ApplyItemSetInput(
+    string QueryKey,
+    int ChampionId,
+    string ChampionName,
+    string Position,
+    OpggBuildData BuildData);
+
+internal static class OpggEffects
+{
+    public static string TierKey(OpggFilterState f) =>
+        $"tier|{f.Region}|{f.Mode}|{f.Tier}|{f.Position}";
+
+    public static string BuildKey(OpggFilterState f) =>
+        $"build|{f.Region}|{f.Mode}|{f.Tier}|{f.Position}|{f.SelectedChampionId ?? 0}";
+
+    public static OpggFilterState ResolveInitialFilterState(int? initialChampionId, FunctionsConfig functions)
+    {
+        if (initialChampionId is > 0)
+        {
+            return new OpggFilterState("build", OpggRegion.Kr, OpggMode.Ranked, OpggTier.EmeraldPlus, OpggPosition.Mid, initialChampionId.Value);
+        }
+
+        if (functions.EnableAutoSelectChampion)
+        {
+            var candidate = functions.AutoSelectChampion
+                .Concat(functions.AutoSelectChampionMid)
+                .Concat(functions.AutoSelectChampionTop)
+                .Concat(functions.AutoSelectChampionSup)
+                .Concat(functions.AutoSelectChampionJug)
+                .Concat(functions.AutoSelectChampionBot)
+                .FirstOrDefault(id => id > 0);
+
+            if (candidate > 0)
+            {
+                return new OpggFilterState("build", OpggRegion.Kr, OpggMode.Ranked, OpggTier.EmeraldPlus, OpggPosition.Mid, candidate);
+            }
+        }
+
+        return new OpggFilterState("tier", OpggRegion.Kr, OpggMode.Ranked, OpggTier.EmeraldPlus, OpggPosition.Mid, null);
+    }
+
+    public static OpggFilterState ApplyChampSelectEvent(OpggFilterState current, OpggBuildEvent e) =>
+        current with
+        {
+            View = "build",
+            SelectedChampionId = e.ChampionId,
+            Mode = string.IsNullOrWhiteSpace(e.Mode) ? current.Mode : e.Mode,
+            Position = string.IsNullOrWhiteSpace(e.Position) ? current.Position : e.Position,
+        };
+
+    public static IReadOnlyList<TierListItem> CurrentTierItems(AsyncValue<OpggTierResult?> resource, string key)
+    {
+        var result = resource switch
+        {
+            AsyncValue<OpggTierResult?>.Data data => data.Value,
+            AsyncValue<OpggTierResult?>.Reloading reloading => reloading.Previous,
+            _ => null,
+        };
+        return result?.Key == key ? result.Items : Array.Empty<TierListItem>();
+    }
+
+    public static OpggBuildPayload? CurrentBuildPayload(AsyncValue<OpggBuildResult?> resource, string key)
+    {
+        var result = resource switch
+        {
+            AsyncValue<OpggBuildResult?>.Data data => data.Value,
+            AsyncValue<OpggBuildResult?>.Reloading reloading => reloading.Previous,
+            _ => null,
+        };
+        return result?.Key == key ? result.Payload : null;
+    }
+}
 
 /// <summary>
 /// OP.GG 独立窗口主页面组件（头部 Tab 切换、四维筛选栏、梯队/出装视图联动、Toast 反馈）。
@@ -32,11 +120,11 @@ public sealed class OpggPage : Component<OpggPageProps>
         }, 0);
         bool isDark = palette.IsDark;
 
-        var (currentView, setCurrentView) = UseState("tier"); // "tier" | "build"
-        var (region, setRegion) = UseState(OpggRegion.Kr);
-        var (mode, setMode) = UseState(OpggMode.Ranked);
-        var (tier, setTier) = UseState(OpggTier.EmeraldPlus);
-        var (position, setPosition) = UseState(OpggPosition.Mid);
+        var (filter, setFilter) = UseState(
+            OpggEffects.ResolveInitialFilterState(Props.InitialChampionId, services.Config.Functions),
+            threadSafe: true);
+        var (retryVersion, setRetryVersion) = UseState(0);
+        var (lastMetaVersion, setLastMetaVersion) = UseState<string?>(null);
 
         var (lang, setLang) = UseState(services.I18n.CurrentLanguage, threadSafe: true);
         UseEffect(
@@ -47,122 +135,142 @@ public sealed class OpggPage : Component<OpggPageProps>
             },
             0);
 
-        var (selectedChampId, setSelectedChampId) = UseState<int?>(Props.InitialChampionId);
-        var (tierItems, setTierItems) = UseState<IReadOnlyList<TierListItem>>(Array.Empty<TierListItem>());
-        var (buildData, setBuildData) = UseState<OpggBuildData?>(null);
-        var (metaVersion, setMetaVersion) = UseState<string?>(null);
-
         // 游戏资源映射表必须主动触发加载：只同步读 Current 时，本窗口从未有页面
         // 调用过 GetAsync 的话 catalog 永远是空表，装备图标会全部落到错误兜底路径上。
         var (catalog, setCatalog) = UseState(GameDataCatalog.Empty, threadSafe: true);
 
-        var (loading, setLoading) = UseState(false);
-        var (errorMessage, setErrorMessage) = UseState<string?>(null);
-        var (isApplyingItemSet, setIsApplyingItemSet) = UseState(false);
         var reducedMotion = UseReducedMotion();
         var highContrast = UseHighContrast();
         // 全局 Toast 服务（R5）：由 OpggWindowRoot Provide，队列渲染在其挂载的 ToastHost。
         var toast = UseContext(AppHost.ToastContext)!;
 
-        async Task FetchTierList()
+        string tierKey = OpggEffects.TierKey(filter);
+        string buildKey = OpggEffects.BuildKey(filter);
+        var filterRef = UseRef(filter);
+        filterRef.Current = filter;
+
+        var tierResource = UseResource(
+            async ct =>
+            {
+                if (filter.View != "tier")
+                {
+                    return null;
+                }
+
+                var list = await opggService
+                    .GetTierListAsync(filter.Region, filter.Mode, filter.Tier, filter.Position, ct)
+                    .ConfigureAwait(false);
+                return new OpggTierResult(tierKey, list);
+            },
+            deps: new object[]
+            {
+                filter.View == "tier",
+                filter.Region,
+                filter.Mode,
+                filter.Tier,
+                filter.Position,
+                retryVersion,
+            });
+
+        var buildResource = UseResource(
+            async ct =>
+            {
+                if (filter.View != "build" || !filter.SelectedChampionId.HasValue)
+                {
+                    return null;
+                }
+
+                var payload = await opggService
+                    .GetBuildAsync(filter.Region, filter.Mode, filter.Tier, filter.SelectedChampionId.Value, filter.Position, ct)
+                    .ConfigureAwait(false);
+                return new OpggBuildResult(buildKey, payload);
+            },
+            deps: new object[]
+            {
+                filter.View == "build",
+                filter.Region,
+                filter.Mode,
+                filter.Tier,
+                filter.Position,
+                filter.SelectedChampionId ?? 0,
+                retryVersion,
+            });
+
+        var tierItems = OpggEffects.CurrentTierItems(tierResource, tierKey);
+        var buildPayload = OpggEffects.CurrentBuildPayload(buildResource, buildKey);
+        var buildData = buildPayload?.Data;
+        var activeVersion = !string.IsNullOrWhiteSpace(buildPayload?.Meta?.Version)
+            ? buildPayload!.Meta!.Version
+            : lastMetaVersion;
+
+        if (!string.IsNullOrWhiteSpace(buildPayload?.Meta?.Version) && buildPayload.Meta.Version != lastMetaVersion)
         {
-            setLoading(true);
-            setErrorMessage(null);
-            try
-            {
-                var list = await opggService.GetTierListAsync(region, mode, tier, position).ConfigureAwait(false);
-                setTierItems(list);
-            }
-            catch (Exception ex)
-            {
-                setErrorMessage($"加载梯队排行榜失败: {ex.Message}");
-            }
-            finally
-            {
-                setLoading(false);
-            }
+            setLastMetaVersion(buildPayload.Meta.Version);
         }
 
-        async Task FetchBuild(int champId)
-        {
-            setLoading(true);
-            setErrorMessage(null);
-            try
+        bool loading = filter.View == "tier"
+            ? tierResource is AsyncValue<OpggTierResult?>.Loading or AsyncValue<OpggTierResult?>.Reloading
+            : buildResource is AsyncValue<OpggBuildResult?>.Loading or AsyncValue<OpggBuildResult?>.Reloading;
+
+        string? errorMessage = filter.View == "tier"
+            ? tierResource switch
             {
-                var payload = await opggService.GetBuildAsync(region, mode, tier, champId, position).ConfigureAwait(false);
-                if (payload is not null)
+                AsyncValue<OpggTierResult?>.Error err => $"加载梯队排行榜失败: {err.Exception.Message}",
+                _ => null,
+            }
+            : buildResource switch
+            {
+                AsyncValue<OpggBuildResult?>.Error err => $"加载英雄出装失败: {err.Exception.Message}",
+                AsyncValue<OpggBuildResult?>.Data data when data.Value?.Key == buildKey && data.Value.Payload is null => "未获取到该英雄的出装数据",
+                _ => null,
+            };
+
+        var applyRuneMutation = UseMutation<(string QueryKey, int ChampionId, string ChampionName, OpggRunePreset Rune), bool>(
+            mutator: async (input, ct) =>
+            {
+                await opggService.ApplyRunePageAsync(
+                    $"Yuumi: {input.ChampionName}",
+                    input.Rune.PrimaryPageId,
+                    input.Rune.SecondaryPageId,
+                    (int[])[.. input.Rune.PrimaryRuneIds, .. input.Rune.SecondaryRuneIds, .. input.Rune.StatModIds],
+                    ct).ConfigureAwait(false);
+                return true;
+            },
+            options: new MutationOptions<(string QueryKey, int ChampionId, string ChampionName, OpggRunePreset Rune), bool>(
+                OnSuccess: (_, _) => toast.Success(services.I18n.T("opgg.runes.appliedSuccess", "符文页已应用至客户端")),
+                OnError: (ex, _) => toast.Error(ex.Message.Contains("未连接")
+                    ? "请先连接客户端"
+                    : services.I18n.T("opgg.runes.appliedFailed", "应用符文页失败: ") + ex.Message)));
+
+        var applyItemSetMutation = UseMutation<ApplyItemSetInput, string>(
+            mutator: (input, ct) => opggService.ApplyItemSetAsync(
+                input.ChampionId,
+                input.ChampionName,
+                input.Position,
+                input.BuildData,
+                ct),
+            options: new MutationOptions<ApplyItemSetInput, string>(
+                OnSuccess: (res, _) => toast.Success(res),
+                OnError: (ex, _) => toast.Error(ex.Message.Contains("未连接")
+                    ? "请先连接客户端"
+                    : services.I18n.T("opgg.items.appliedFailed", "应用出装失败: ") + ex.Message)));
+
+        // 选人联动事件订阅：在 UI 线程内一次更新整组筛选，统一由 UseResource 触发请求。
+        UseEffect(() =>
+        {
+            var dispatcher = DispatcherQueue.GetForCurrentThread();
+            var sub = opggService.ChampSelectBuildEvents.Subscribe(new AnonymousObserver<OpggBuildEvent>(e =>
+            {
+                void Apply() => setFilter(OpggEffects.ApplyChampSelectEvent(filterRef.Current, e));
+                if (dispatcher is not null && !dispatcher.HasThreadAccess)
                 {
-                    setBuildData(payload.Data);
-                    if (!string.IsNullOrWhiteSpace(payload.Meta?.Version))
-                    {
-                        setMetaVersion(payload.Meta.Version);
-                    }
+                    dispatcher.TryEnqueue(Apply);
                 }
                 else
                 {
-                    setErrorMessage("未获取到该英雄的出装数据");
+                    Apply();
                 }
-            }
-            catch (Exception ex)
-            {
-                setErrorMessage($"加载英雄出装失败: {ex.Message}");
-            }
-            finally
-            {
-                setLoading(false);
-            }
-        }
-
-        // 选人联动事件订阅与初始英雄出装自动定位
-        UseEffect(() =>
-        {
-            var sub = opggService.ChampSelectBuildEvents.Subscribe(new AnonymousObserver<OpggBuildEvent>(e =>
-            {
-                setSelectedChampId(e.ChampionId);
-                if (!string.IsNullOrWhiteSpace(e.Mode))
-                {
-                    setMode(e.Mode);
-                }
-                if (!string.IsNullOrWhiteSpace(e.Position))
-                {
-                    setPosition(e.Position);
-                }
-                setCurrentView("build");
-                _ = FetchBuild(e.ChampionId);
             }));
-
-            // 首次挂载初始化
-            if (Props.InitialChampionId.HasValue && Props.InitialChampionId.Value > 0)
-            {
-                setSelectedChampId(Props.InitialChampionId.Value);
-                setCurrentView("build");
-                _ = FetchBuild(Props.InitialChampionId.Value);
-            }
-            else
-            {
-                var cfg = services.Config.Functions;
-                if (cfg.EnableAutoSelectChampion)
-                {
-                    // 顺序取第一个 > 0 的英雄 ID
-                    var candidate = cfg.AutoSelectChampion
-                        .Concat(cfg.AutoSelectChampionMid)
-                        .Concat(cfg.AutoSelectChampionTop)
-                        .Concat(cfg.AutoSelectChampionSup)
-                        .Concat(cfg.AutoSelectChampionJug)
-                        .Concat(cfg.AutoSelectChampionBot)
-                        .FirstOrDefault(id => id > 0);
-
-                    if (candidate > 0)
-                    {
-                        setSelectedChampId(candidate);
-                        setCurrentView("build");
-                        _ = FetchBuild(candidate);
-                        return () => sub.Dispose();
-                    }
-                }
-
-                _ = FetchTierList();
-            }
 
             return () => sub.Dispose();
         }, []);
@@ -186,121 +294,72 @@ public sealed class OpggPage : Component<OpggPageProps>
             [GridSize.Auto, GridSize.Auto, GridSize.Star()],
             [
                 // 1. 顶部 Header Tab 栏
-                RenderHeader(currentView, selectedChampId, metaVersion, view =>
+                RenderHeader(filter.View, filter.SelectedChampionId, activeVersion, view =>
                 {
-                    setCurrentView(view);
-                    if (view == "tier")
-                    {
-                        _ = FetchTierList();
-                    }
-                    else if (view == "build" && selectedChampId.HasValue)
-                    {
-                        _ = FetchBuild(selectedChampId.Value);
-                    }
+                    setFilter(filterRef.Current with { View = view });
                 }).Grid(0, 0),
 
                 // 2. 四维筛选栏
                 Component<OpggFilterBarView, OpggFilterBarProps>(new OpggFilterBarProps
                 {
-                    Region = region,
-                    Mode = mode,
-                    Tier = tier,
-                    Position = position,
-                    OnRegionChanged = r =>
-                    {
-                        setRegion(r);
-                        if (currentView == "tier") _ = FetchTierList();
-                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
-                    },
-                    OnModeChanged = m =>
-                    {
-                        setMode(m);
-                        if (currentView == "tier") _ = FetchTierList();
-                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
-                    },
-                    OnTierChanged = t =>
-                    {
-                        setTier(t);
-                        if (currentView == "tier") _ = FetchTierList();
-                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
-                    },
-                    OnPositionChanged = p =>
-                    {
-                        setPosition(p);
-                        if (currentView == "tier") _ = FetchTierList();
-                        else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
-                    }
+                    Region = filter.Region,
+                    Mode = filter.Mode,
+                    Tier = filter.Tier,
+                    Position = filter.Position,
+                    OnRegionChanged = r => setFilter(filterRef.Current with { Region = r }),
+                    OnModeChanged = m => setFilter(filterRef.Current with { Mode = m }),
+                    OnTierChanged = t => setFilter(filterRef.Current with { Tier = t }),
+                    OnPositionChanged = p => setFilter(filterRef.Current with { Position = p }),
                 }).Grid(1, 0),
 
                 // 3. 视图主体区域
                 OpggMotion.View(
                     RenderBody(
-                        currentView,
+                        filter.View,
                         loading,
                         errorMessage,
                         tierItems,
                         buildData,
-                        selectedChampId,
-                        position,
+                        filter.SelectedChampionId,
+                        filter.Position,
                         catalog,
                         isDark,
-                        isApplyingItemSet,
-                        onSelectChamp: champId =>
+                        applyItemSetMutation.IsPending,
+                        onSelectChamp: champId => setFilter(filterRef.Current with { SelectedChampionId = champId, View = "build" }),
+                        onRetry: () => setRetryVersion(retryVersion + 1),
+                        onApplyRune: rune =>
                         {
-                            setSelectedChampId(champId);
-                            setCurrentView("build");
-                            _ = FetchBuild(champId);
+                            var current = filterRef.Current;
+                            if (current.View != "build" || !current.SelectedChampionId.HasValue || OpggEffects.BuildKey(current) != buildKey)
+                            {
+                                return;
+                            }
+
+                            var champName = catalog.Champions.TryGetValue(current.SelectedChampionId.Value, out var cn) ? cn : "Champion";
+                            _ = applyRuneMutation.RunAsync((buildKey, current.SelectedChampionId.Value, champName, rune));
                         },
-                        onRetry: () =>
+                        onApplyItemSet: () =>
                         {
-                            if (currentView == "tier") _ = FetchTierList();
-                            else if (selectedChampId.HasValue) _ = FetchBuild(selectedChampId.Value);
-                        },
-                        onApplyRune: async rune =>
-                        {
-                            var i18n = services.I18n;
-                            try
+                            var current = filterRef.Current;
+                            if (buildData is null || current.View != "build" || !current.SelectedChampionId.HasValue || OpggEffects.BuildKey(current) != buildKey)
                             {
-                                var champName = catalog.Champions.TryGetValue(selectedChampId ?? 0, out var cn) ? cn : "Champion";
-                                await opggService.ApplyRunePageAsync($"Yuumi: {champName}", rune.PrimaryPageId, rune.SecondaryPageId,
-                                    (int[])[.. rune.PrimaryRuneIds, .. rune.SecondaryRuneIds, .. rune.StatModIds]).ConfigureAwait(false);
-                                toast.Success(i18n.T("opgg.runes.appliedSuccess", "符文页已应用至客户端"));
+                                return;
                             }
-                            catch (Exception ex)
-                            {
-                                toast.Error(ex.Message.Contains("未连接")
-                                    ? "请先连接客户端"
-                                    : i18n.T("opgg.runes.appliedFailed", "应用符文页失败: ") + ex.Message);
-                            }
-                        },
-                        onApplyItemSet: async () =>
-                        {
-                            if (buildData is null || !selectedChampId.HasValue) return;
-                            var i18n = services.I18n;
-                            setIsApplyingItemSet(true);
-                            try
-                            {
-                                var champName = catalog.Champions.TryGetValue(selectedChampId.Value, out var cn) ? cn : "Champion";
-                                var res = await opggService.ApplyItemSetAsync(selectedChampId.Value, champName, position, buildData).ConfigureAwait(false);
-                                toast.Success(res);
-                            }
-                            catch (Exception ex)
-                            {
-                                toast.Error(ex.Message.Contains("未连接")
-                                    ? "请先连接客户端"
-                                    : i18n.T("opgg.items.appliedFailed", "应用出装失败: ") + ex.Message);
-                            }
-                            finally
-                            {
-                                setIsApplyingItemSet(false);
-                            }
+
+                            var champName = catalog.Champions.TryGetValue(current.SelectedChampionId.Value, out var cn) ? cn : "Champion";
+                            _ = applyItemSetMutation.RunAsync(new ApplyItemSetInput(
+                                buildKey,
+                                current.SelectedChampionId.Value,
+                                champName,
+                                current.Position,
+                                buildData));
                         }
                     ),
                     OpggMotion.BuildTrigger(
-                        currentView,
-                        selectedChampId,
-                        isReady: (currentView == "build" && buildData is not null && selectedChampId.HasValue) ||
-                                 (currentView == "tier" && tierItems.Count > 0 && errorMessage is null)),
+                        filter.View,
+                        filter.SelectedChampionId,
+                        isReady: (filter.View == "build" && buildData is not null && filter.SelectedChampionId.HasValue) ||
+                                 (filter.View == "tier" && tierItems.Count > 0 && errorMessage is null)),
                     reducedMotion || highContrast).Grid(2, 0)
             ]
             // Toast 宿主不在这里挂：OpggWindowRoot 已统一挂载（同主窗口 AppShell 的模式），

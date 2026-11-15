@@ -124,10 +124,36 @@ public sealed class HomePage : Component
             },
             0);
 
+        var launchCoordinator = services.Services.GetRequiredService<YuumiX.Core.Features.Tools.ClientLaunchCoordinator>();
+        var toast = UseContext(AppHost.ToastContext);
+        var (launchStatus, setLaunchStatus) = UseState(launchCoordinator.CurrentStatus, threadSafe: true);
+        var lastErrorSeqRef = UseRef(launchCoordinator.CurrentStatus.ErrorSequence);
+
+        UseEffect(
+            () =>
+            {
+                void OnStatusChanged(YuumiX.Core.Features.Tools.ClientLaunchStatus status)
+                {
+                    setLaunchStatus(status);
+                }
+
+                launchCoordinator.StatusChanged += OnStatusChanged;
+                // 同步一次当前快照，覆盖订阅前已发生的变更
+                setLaunchStatus(launchCoordinator.CurrentStatus);
+                return () => launchCoordinator.StatusChanged -= OnStatusChanged;
+            },
+            0);
+
+        if (launchStatus.ErrorSequence > lastErrorSeqRef.Current && !string.IsNullOrWhiteSpace(launchStatus.LastError))
+        {
+            lastErrorSeqRef.Current = launchStatus.ErrorSequence;
+            toast?.Error(launchStatus.LastError);
+        }
+
         var isConnected = connState.Status == LcuConnectionStatus.Connected;
         if (!isConnected)
         {
-            return LcuOfflineState.RenderHome(() => LaunchClient(services));
+            return LcuOfflineState.RenderHome(() => LaunchClient(services), launchStatus.Phase);
         }
 
         var homeResource = UseResource(
@@ -584,20 +610,12 @@ public sealed class HomePage : Component
     }
 
     /// <summary>
-    /// 启动客户端：走 Core 的 <see cref="LolClientLauncher"/>。
+    /// 启动客户端：走 Core 的 <see cref="ClientLaunchCoordinator"/>。
     /// </summary>
     private static void LaunchClient(AppServices services)
     {
-        var launcher = services.Services.GetRequiredService<YuumiX.Core.Features.Tools.LolClientLauncher>();
-        var logger = services.LoggerFactory.CreateLogger<YuumiX.Core.Features.Tools.LolClientLauncher>();
+        var coordinator = services.Services.GetRequiredService<YuumiX.Core.Features.Tools.ClientLaunchCoordinator>();
         var config = services.Config;
-        _ = Task.Run(() =>
-        {
-            string? error = launcher.Launch(config.General.LolPath, config.General.WegamePath);
-            if (error is not null)
-            {
-                logger.LogWarning("手动启动客户端失败: {Error}", error);
-            }
-        });
+        _ = coordinator.StartLaunchAsync(config.General.LolPath, config.General.WegamePath);
     }
 }

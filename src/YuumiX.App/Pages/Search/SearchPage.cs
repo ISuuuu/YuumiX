@@ -286,7 +286,7 @@ public sealed class SearchPage : Component<SearchPageProps>
         string historyCacheKey = SearchEffects.HistoryCacheKey(summoner?.Puuid, pageIndex, (int)connState.Status);
         var historyPageResource = UseResource(
             async ct => new SearchHistoryResult(historyCacheKey,
-                await SearchLoaders.GetHistoryAsync(services, matchService, summoner?.Puuid, pageIndex, ct).ConfigureAwait(false)),
+                await SearchLoaders.GetHistoryAsync(matchService, summoner?.Puuid, pageIndex, ct).ConfigureAwait(false)),
             deps: new object[] { summoner?.Puuid ?? "", pageIndex, requestVersion, (int)connState.Status });
         var previousHistory = UseRef<SearchHistoryResult?>(null);
         if (historyPageResource is AsyncValue<SearchHistoryResult>.Data historyData && historyData.Value.Key == historyCacheKey)
@@ -345,9 +345,8 @@ public sealed class SearchPage : Component<SearchPageProps>
         MatchSummary? current = (index >= 0 && index < visible.Count) ? visible[index] : null;
         long currentGameId = current?.GameId ?? 0;
 
-        var assetService = services.Services.GetRequiredService<AssetService>();
         var detailResource = UseResource(
-            ct => SearchLoaders.GetDetailAsync(matchService, assetService, catalog, currentGameId, summoner?.Puuid, ct),
+            ct => SearchLoaders.GetDetailAsync(matchService, currentGameId, summoner?.Puuid, ct),
             deps: new object[] { currentGameId, summoner?.Puuid ?? "", detailVersion });
         var rawDetail = (detailResource is AsyncValue<MatchDetail?>.Data detailData && detailData.Value?.GameId == currentGameId)
             ? detailData.Value
@@ -365,11 +364,65 @@ public sealed class SearchPage : Component<SearchPageProps>
             (enrichmentResource is AsyncValue<SearchEnrichmentResult>.Error ||
              enrichmentResource is AsyncValue<SearchEnrichmentResult>.Data { Value.HasFailures: true });
 
-        // Keep the displayed summary and tables together while the newly selected match loads.
+        // Keep the displayed summary and tables together for a brief grace window (120 ms) while the newly selected match loads,
+        // then drop the stale snapshot to show the target summary and loading skeleton.
+        var (delayedGameId, setDelayedGameId) = UseState(0L, threadSafe: true);
         var previousDetail = UseRef<SearchDetailSnapshot?>(null);
+        bool isWaitingForOtherMatch = currentGameId > 0
+            && detail is null
+            && !isDetailError
+            && previousDetail.Current is not null
+            && previousDetail.Current.HistoryKey == historyCacheKey
+            && previousDetail.Current.Summary.GameId != currentGameId;
+
+        UseEffect(
+            () =>
+            {
+                if (!isWaitingForOtherMatch)
+                {
+                    return static () => { };
+                }
+
+                long targetGameId = currentGameId;
+                var cts = new CancellationTokenSource();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(120, cts.Token).ConfigureAwait(false);
+                        if (!cts.Token.IsCancellationRequested)
+                        {
+                            setDelayedGameId(targetGameId);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Switched again or detail arrived before 120 ms.
+                    }
+                });
+
+                return () =>
+                {
+                    cts.Cancel();
+                    cts.Dispose();
+                };
+            },
+            currentGameId,
+            summoner?.Puuid ?? "",
+            detailVersion,
+            isWaitingForOtherMatch);
+
+        bool dropStaleSnapshot = isWaitingForOtherMatch && delayedGameId == currentGameId;
         var displayedDetail = SearchEffects.CurrentDetail(
-            previousDetail.Current, historyCacheKey, current, detail, isDetailError, hasEnrichmentFailure);
+            previousDetail.Current,
+            historyCacheKey,
+            current,
+            detail,
+            isDetailError,
+            hasEnrichmentFailure,
+            dropStaleSnapshot);
         previousDetail.Current = displayedDetail;
+        bool isStaleSnapshot = displayedDetail is not null && displayedDetail.Summary.GameId != currentGameId;
 
         // 载入一页后补传本页对局（对齐旧 Search.vue：翻页即补传，服务端已有会返回 exists）。
         // 依赖键只取 matches 引用：换页或刷新会拿到新引用，纯筛选不会。勾选开关本身不应触发当前已有对局的上传。
@@ -458,12 +511,13 @@ public sealed class SearchPage : Component<SearchPageProps>
                 catalog,
                 palette,
                 currentSearchPuuid: summoner.Puuid,
-                onCopyGameId: OnCopyGameId,
-                onClickPlayerPuuid: OnClickPlayerPuuid,
-                onClickPlayerSummonerId: OnClickPlayerSummonerId,
+                onCopyGameId: isStaleSnapshot ? null : OnCopyGameId,
+                onClickPlayerPuuid: isStaleSnapshot ? null : OnClickPlayerPuuid,
+                onClickPlayerSummonerId: isStaleSnapshot ? null : OnClickPlayerSummonerId,
                 isDetailError: isDetailError,
                 onRetryDetail: onRetryDetail,
-                onRetryEnrichment: onRetryEnrichment);
+                onRetryEnrichment: onRetryEnrichment,
+                isStaleSnapshot: isStaleSnapshot);
 
             detailPanel = SearchMotion.Detail(detailPanel, skipMotion, currentGameId, detailResource);
 

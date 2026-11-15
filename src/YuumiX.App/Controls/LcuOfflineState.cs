@@ -2,9 +2,10 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
+using YuumiX.Core.Features.Tools;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Controls;
 
@@ -48,16 +49,21 @@ public static class LcuOfflineState
         RenderCore(message ?? EffectiveDefaultMessage, extra, onLaunchClient: null);
 
     /// <summary>主页未连接态：共用排版 + 可用的启动入口与等待指示。</summary>
-    public static Element RenderHome(Action onLaunchClient) =>
-        RenderCore(EffectiveDefaultMessage, null, onLaunchClient);
+    public static Element RenderHome(Action onLaunchClient, ClientLaunchPhase launchPhase = ClientLaunchPhase.Idle) =>
+        RenderCore(EffectiveDefaultMessage, null, onLaunchClient, launchPhase);
 
-    private static Element RenderCore(string message, Element? extra, Action? onLaunchClient)
+    private static Element RenderCore(string message, Element? extra, Action? onLaunchClient, ClientLaunchPhase launchPhase = ClientLaunchPhase.Idle)
     {
         bool interactive = onLaunchClient is not null;
         var i18n = AppHost.Services?.I18n;
 
         var launchBtnText = i18n?.T("home.launchBtn", "启动客户端") ?? "启动客户端";
-        var waitingText = i18n?.T("home.waitingForLol", "等待客户端启动中...") ?? "等待客户端启动中...";
+        var waitingText = launchPhase switch
+        {
+            ClientLaunchPhase.Launching => i18n?.T("home.launchingClient", "正在启动…") ?? "正在启动…",
+            ClientLaunchPhase.WaitingForConnect => i18n?.T("home.waitingForConnect", "等待客户端连接") ?? "等待客户端连接",
+            _ => i18n?.T("home.waitingForLol", "等待客户端启动中...") ?? "等待客户端启动中...",
+        };
         var notConnectedText = i18n?.T("home.notConnected", "客户端未连接") ?? "客户端未连接";
 
         // 动作区：主页是真入口；业务页不重复放入口，但启动按钮必须留在布局里撑出与主页一致的高度。
@@ -67,7 +73,7 @@ public static class LcuOfflineState
         // 业务页 onLaunchClient 为 null，lambda 为空操作，且按钮本就禁用并视觉隐藏。
         Element launchSlot = Button(launchBtnText, () => onLaunchClient?.Invoke())
             .AutomationName(launchBtnText)
-            .IsEnabled(interactive)
+            .IsEnabled(interactive && launchPhase == ClientLaunchPhase.Idle)
             .Padding(24, 8)
             .Margin(0, 0, 0, 8)
             .HAlign(HorizontalAlignment.Center);

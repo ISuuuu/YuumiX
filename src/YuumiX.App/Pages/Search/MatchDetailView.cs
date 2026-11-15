@@ -152,14 +152,15 @@ internal static class MatchDetailView
         Action<long>? onClickPlayerSummonerId = null,
         bool isDetailError = false,
         Action? onRetryDetail = null,
-        Action? onRetryEnrichment = null)
+        Action? onRetryEnrichment = null,
+        bool isStaleSnapshot = false)
     {
         if (summary is null)
         {
             return EmptyPanel(palette);
         }
 
-        var blocks = new List<Element> { Banner(summary, detail, palette, onCopyGameId, onRetryEnrichment) };
+        var blocks = new List<Element> { Banner(summary, detail, palette, onCopyGameId, onRetryEnrichment, isStaleSnapshot) };
 
         if (detail is null)
         {
@@ -199,14 +200,36 @@ internal static class MatchDetailView
             }
         }
 
+        bool isDetailLoading = detail is null && !isDetailError;
+        var gridChildren = new List<Element>
+        {
+            blocks[0].Grid(row: 0, column: 0),
+            blocks[1].Grid(row: 1, column: 0),
+            blocks[2].Grid(row: 2, column: 0),
+        };
+
+        if (isDetailLoading)
+        {
+            var i18n = Composition.AppHost.Services?.I18n;
+            string loadingText = i18n?.T("search.loadingDetail", "正在加载对局详情…") ?? "正在加载对局详情…";
+            gridChildren.Add(
+                Border(
+                    HStack(8,
+                        ProgressRing().Width(14).Height(14).IsActive(true),
+                        Caption(loadingText).Foreground(Theme.SecondaryText)))
+                .Padding(12, 8)
+                .CornerRadius(YuumiTheme.ControlRadius)
+                .Background(Theme.CardBackground)
+                .WithBorder(Theme.CardStroke, 1)
+                .HAlign(HorizontalAlignment.Center)
+                .VAlign(VerticalAlignment.Center)
+                .Grid(row: 1, column: 0, rowSpan: 2));
+        }
+
         var detailGrid = (Grid(
             [GridSize.Star()],
             [GridSize.Auto, GridSize.Star(), GridSize.Star()],
-            [
-                blocks[0].Grid(row: 0, column: 0),
-                blocks[1].Grid(row: 1, column: 0),
-                blocks[2].Grid(row: 2, column: 0),
-            ]) with
+            gridChildren.ToArray()) with
         { RowSpacing = 8 })
             .Padding(12)
             .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
@@ -382,7 +405,8 @@ internal static class MatchDetailView
         MatchDetail? detail,
         YuumiPalette palette,
         Action<long>? onCopyGameId,
-        Action? onRetryEnrichment = null)
+        Action? onRetryEnrichment = null,
+        bool isStaleSnapshot = false)
     {
         string accent = summary.Remake
             ? palette.RemakeText
@@ -440,7 +464,7 @@ internal static class MatchDetailView
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         Element replayBtn = Component<ReplayButton, ReplayButtonProps>(
-            new ReplayButtonProps(summary.GameId, Compact: false))
+            new ReplayButtonProps(summary.GameId, Compact: false, Disabled: isStaleSnapshot))
             .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
 
         Element copyBtn = Button(
@@ -448,6 +472,7 @@ internal static class MatchDetailView
                     .FontFamily(Icons.FontFamily)
                     .Foreground(Theme.SecondaryText),
                 () => onCopyGameId?.Invoke(summary.GameId))
+            .IsEnabled(!isStaleSnapshot && onCopyGameId is not null)
             .Width(28)
             .Height(28)
             .Padding(0)

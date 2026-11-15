@@ -296,6 +296,10 @@ public sealed class AppServices : IAsyncDisposable
             WindowsProcessPathSource.Instance));
         collection.AddSingleton<LolClientLauncher>(provider => new LolClientLauncher(
             WindowsProcessPathSource.Instance));
+        collection.AddSingleton<ClientLaunchCoordinator>(provider => new ClientLaunchCoordinator(
+            provider.GetRequiredService<LolClientLauncher>(),
+            provider.GetRequiredService<LcuConnection>(),
+            logger: provider.GetService<ILogger<ClientLaunchCoordinator>>()));
 
         // ── OP.GG 英雄梯度与出装推荐 ──────────────────────────────
         collection.AddSingleton(provider => new OpggHttpClient(

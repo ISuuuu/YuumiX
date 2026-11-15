@@ -169,7 +169,8 @@ internal static class SearchEffects
         MatchSummary? selected,
         MatchDetail? detail,
         bool failed,
-        bool enrichmentFailed)
+        bool enrichmentFailed,
+        bool dropStaleSnapshot = false)
     {
         if (selected is null || failed)
             return null;
@@ -177,7 +178,13 @@ internal static class SearchEffects
         if (detail is not null && detail.GameId == selected.GameId)
             return new(historyKey, selected, detail, enrichmentFailed);
 
-        return previous?.HistoryKey == historyKey ? previous : null;
+        if (previous?.HistoryKey != historyKey)
+            return null;
+
+        if (dropStaleSnapshot && previous.Summary.GameId != selected.GameId)
+            return null;
+
+        return previous;
     }
 
     internal static async Task ClearNoticeLaterAsync(Action clear, int delayMilliseconds, CancellationToken cancellationToken, ILogger? logger = null)

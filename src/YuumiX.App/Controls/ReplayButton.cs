@@ -2,16 +2,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Pages.Career;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Replay;
 using YuumiX.Core.Interop;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Controls;
 
-public sealed record ReplayButtonProps(long GameId, bool Compact = false);
+public sealed record ReplayButtonProps(long GameId, bool Compact = false, bool Disabled = false);
 
 /// <summary>
 /// 对局 ROFL 回放按钮组件：状态机 (idle / checking / downloading / watch / unsupported / error)
@@ -175,6 +175,11 @@ public sealed class ReplayButton : Component<ReplayButtonProps>
         var element = Props.Compact
             ? RenderCompact(status, notice, HandleClick)
             : RenderNormal(status, notice, HandleClick);
+
+        if (Props.Disabled)
+        {
+            element = element.IsEnabled(false);
+        }
 
         return element.OnTapped((_, args) => args.Handled = true);
     }
