@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
@@ -88,11 +89,25 @@ public sealed class GameInfoPage : Component
             },
             0);
 
-        var (state, setState) = UseState(gameInfoService.CurrentState, threadSafe: true);
+        var (_, setRenderTick) = UseState(0, threadSafe: true);
+        var tickBox = UseRef<StrongBox<int>?>(null);
+        tickBox.Current ??= new StrongBox<int>(0);
+        var lastRenderedStateRef = UseRef<GameInfoState?>(null);
+
+        // 渲染期直接读取服务当前状态作为唯一权威源，避免局部快照分叉
+        var state = gameInfoService.CurrentState;
+        lastRenderedStateRef.Current = state;
+
         UseEffect(
             () =>
             {
-                var subscription = gameInfoService.StateStream.Subscribe(setState);
+                var subscription = gameInfoService.StateStream.Subscribe(pushed =>
+                {
+                    if (!ReferenceEquals(lastRenderedStateRef.Current, pushed))
+                    {
+                        setRenderTick(Interlocked.Increment(ref tickBox.Current!.Value));
+                    }
+                });
                 return () => subscription.Dispose();
             },
             0);
@@ -119,12 +134,13 @@ public sealed class GameInfoPage : Component
             var latest = gameInfoService.CurrentState;
             setConnState(lcu.CurrentState);
 
-            if (!ReferenceEquals(state, latest) && state != latest)
+            var rendered = lastRenderedStateRef.Current;
+            if (!ReferenceEquals(rendered, latest) && rendered != latest)
             {
                 logger.LogDebug(
                     "对局信息页面状态同步 ({Source}): 本地={LocalMy}/{LocalTheir}, 服务={LatestMy}/{LatestTheir}, 阶段={Phase}",
-                    source, state.MyTeam.Count, state.TheirTeam.Count, latest.MyTeam.Count, latest.TheirTeam.Count, latest.Phase);
-                setState(latest);
+                    source, rendered?.MyTeam.Count ?? 0, rendered?.TheirTeam.Count ?? 0, latest.MyTeam.Count, latest.TheirTeam.Count, latest.Phase);
+                setRenderTick(Interlocked.Increment(ref tickBox.Current!.Value));
             }
 
             // 活跃对局中队伍尚未齐备时发起静默对账：
@@ -488,7 +504,8 @@ public sealed class GameInfoPage : Component
                     state.SavedPlayerMap,
                     onNavigateSearch,
                     state.IsDemoData))
-                .Grid(row: 0, column: idx);
+                .Grid(row: 0, column: idx)
+                .WithKey($"{(isMyTab ? "my" : "their")}:{p.Puuid ?? idx.ToString()}");
         }).ToArray();
 
         var colDefs = Enumerable.Range(0, Math.Max(5, currentTeam.Count))

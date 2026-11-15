@@ -64,6 +64,9 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
     /// <summary>当前对局 gameId（InProgress 精简 session 恢复时校验快照归属）。</summary>
     private long? _currentGameId;
 
+    /// <summary>对局上下文代数（每次清内存或切换全新对局递增，用于异步写回守卫）。</summary>
+    private long _gameEpoch;
+
     /// <summary>是否经历过本局选人阶段（未经历时进入对局需清残留防上一局污染）。</summary>
     private bool _champSelectSeenForGame;
 
@@ -507,6 +510,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 isCustomGame = JsonRead.Bool(queueEl, "isCustom", false);
             }
 
+            bool isSameLiveGame = false;
             if (liveGameId is not null)
             {
                 lock (_gate)
@@ -518,6 +522,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                     if (isNewGame)
                     {
                         _logger?.LogDebug("检测到全新对局 gameId={GameId}（上一局 savedId={SavedId}），彻底清空上一局数据", liveGameId, savedGameId);
+                        _gameEpoch++;
                         _reservedSnapshot = null;
                         ScheduleSnapshotFlush();
                         _state = _state with
@@ -531,6 +536,10 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                             IsLoadingTeams = false,
                         };
                         _stateStream.Publish(_state);
+                    }
+                    else
+                    {
+                        isSameLiveGame = _currentGameId == liveGameId;
                     }
 
                     _currentGameId = liveGameId;
@@ -560,6 +569,24 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 {
                     TryRestoreReservedSnapshot();
                 }
+            }
+
+            // 同局完整态短路复用：liveGameId 与 _currentGameId 一致、队伍人数均已齐备（>= 会话队伍人数）
+            // 且所有非 Bot 玩家均已不在 Loading 状态时，跳过冗余全量队伍重建与 LoadAllPlayersAsync，仅对个别缺失项做补填
+            if (isSameLiveGame && TryGetSameGameMissingPlayers(teamOne.Count, teamTwo.Count, out var missingPlayers))
+            {
+                _logger?.LogDebug("同局完整态短路复用 gameId={GameId}, missing={MissingCount}", liveGameId, missingPlayers.Count);
+                foreach (var p in missingPlayers)
+                {
+                    _ = LoadPlayerDataAsync(p.CellId, p.SummonerId, p.Puuid, p, cancellationToken);
+                }
+
+                if (_observedPhase is GamePhase.GameStart or GamePhase.InProgress)
+                {
+                    StartLiveClientPolling();
+                }
+
+                return;
             }
 
             // ── 队伍空/单边空重试（对应旧版 loadFromGameflowSession 的重试分支）──
@@ -1035,6 +1062,8 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
     public async Task LoadAllPlayersAsync(CancellationToken cancellationToken = default)
     {
+        var (capturedGameId, capturedEpoch) = CaptureGameContext();
+
         List<PremadePlayerLike> allPlayers;
         lock (_gate)
         {
@@ -1050,6 +1079,14 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             LoadPlayerDataAsync(p.CellId, p.SummonerId, p.Puuid, p, cancellationToken));
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        lock (_gate)
+        {
+            if (!IsSameGameContextLocked(capturedGameId, capturedEpoch))
+            {
+                return;
+            }
+        }
 
         // 加载全部玩家后，如果在对局中，尝试启动 Live Client 补全（§4.11）
         if (_observedPhase is GamePhase.GameStart or GamePhase.InProgress)
@@ -1103,6 +1140,8 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         PremadePlayerLike? fallback,
         CancellationToken cancellationToken)
     {
+        var (capturedGameId, capturedEpoch) = CaptureGameContext();
+
         // 1. 尝试复用已加载的玩家数据
         GameInfoPlayer? reusedPlayer = null;
         bool reuseNeedsMastery = false;
@@ -1178,7 +1217,11 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 ChampionId = botChamp,
             };
 
-            SavePlayerToDictionary(cellId, summonerId, puuid, botPlayer);
+            if (!TrySavePlayerToDictionary(cellId, summonerId, puuid, botPlayer, capturedGameId, capturedEpoch))
+            {
+                return null;
+            }
+
             return botPlayer;
         }
 
@@ -1247,7 +1290,11 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 MasteryFetched = masteries.Count > 0,
             };
 
-            SavePlayerToDictionary(cellId, summonerId, profile.Puuid, player);
+            if (!TrySavePlayerToDictionary(cellId, summonerId, profile.Puuid, player, capturedGameId, capturedEpoch))
+            {
+                _logger?.LogDebug("玩家数据晚到且对局上下文已切换，丢弃写回 cellId={CellId}, capturedGameId={GameId}", cellId, capturedGameId);
+                return null;
+            }
 
             // 异步触发宿命检测
             _ = TriggerFateDetectionAsync(player, matches, cancellationToken);
@@ -1284,6 +1331,8 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         {
             return;
         }
+
+        var (capturedGameId, capturedEpoch) = CaptureGameContext();
 
         long currentSummonerId = _state.CurrentSummonerId;
         if (currentSummonerId == 0 || player.Info.SummonerId == currentSummonerId)
@@ -1362,8 +1411,14 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                 // 命中局非该玩家战绩第 1 局时置 false（区分「上一局」与「近期」文案）
                 bool isLastGame = !(matches.Count > 0 && fate.GameId is { } gid && gid != matches[0].GameId);
 
+                bool saved = false;
                 lock (_gate)
                 {
+                    if (!IsSameGameContextLocked(capturedGameId, capturedEpoch))
+                    {
+                        return;
+                    }
+
                     if (_state.PlayerData.TryGetValue(player.Info.Puuid, out var latest))
                     {
                         var updated = latest with
@@ -1375,8 +1430,14 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
                             FateEnemyCount = fate.EnemyCount,
                             FateIsLastGame = isLastGame,
                         };
-                        SavePlayerToDictionary(0, player.Info.SummonerId, player.Info.Puuid, updated);
+                        SavePlayerToDictionaryCoreLocked(0, player.Info.SummonerId, player.Info.Puuid, updated);
+                        saved = true;
                     }
+                }
+
+                if (saved)
+                {
+                    WriteReservedSnapshot();
                 }
             }
         }
@@ -1928,6 +1989,7 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
     {
         lock (_gate)
         {
+            _gameEpoch++;
             _state = _state with
             {
                 MyTeam = [],
@@ -2227,6 +2289,11 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
         lock (_gate)
         {
+            if (!_state.Phase.IsGameActive())
+            {
+                _gameEpoch++;
+            }
+
             _state = _state with
             {
                 MyTeam = snapshot.MyTeam,
@@ -2584,10 +2651,14 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
             return;
         }
 
-        // 归属校验：该 puuid 当前条目仍是本次加载的对象，防补填期间被重载后误写
+        var (capturedGameId, capturedEpoch) = CaptureGameContext();
+
+        // 归属校验：该 puuid 当前条目仍是本次加载的对象且未跨局切换，防补填期间被重载后误写
         lock (_gate)
         {
-            if (!_state.PlayerData.TryGetValue(puuid, out var current) || !ReferenceEquals(current, player))
+            if (!IsSameGameContextLocked(capturedGameId, capturedEpoch) ||
+                !_state.PlayerData.TryGetValue(puuid, out var current) ||
+                !ReferenceEquals(current, player))
             {
                 return;
             }
@@ -2672,8 +2743,10 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
 
         lock (_gate)
         {
-            // 写入前归属校验 + 只更新统计字段，不改变 Matches 列表内容（展示仍取前 10）
-            if (!_state.PlayerData.TryGetValue(puuid, out var current) || !ReferenceEquals(current, player))
+            // 写入前归属与局号校验 + 只更新统计字段，不改变 Matches 列表内容（展示仍取前 10）
+            if (!IsSameGameContextLocked(capturedGameId, capturedEpoch) ||
+                !_state.PlayerData.TryGetValue(puuid, out var current) ||
+                !ReferenceEquals(current, player))
             {
                 return;
             }
@@ -2802,31 +2875,155 @@ public sealed class GameInfoService : IGameInfoService, IDisposable
         }
     }
 
-    private void SavePlayerToDictionary(int cellId, long summonerId, string? puuid, GameInfoPlayer player)
+    private (long? GameId, long Epoch) CaptureGameContext()
     {
         lock (_gate)
         {
-            var dict = new Dictionary<string, GameInfoPlayer>(_state.PlayerData)
-            {
-                [cellId.ToString()] = player,
-            };
+            return (_currentGameId, _gameEpoch);
+        }
+    }
 
-            if (summonerId != 0)
+    private bool IsSameGameContextLocked(long? capturedGameId, long capturedEpoch)
+    {
+        if (capturedEpoch != _gameEpoch)
+        {
+            return false;
+        }
+
+        if (capturedGameId is not null && _currentGameId != capturedGameId)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryGetSameGameMissingPlayers(
+        int teamOneCount,
+        int teamTwoCount,
+        out List<PremadePlayerLike> missingPlayers)
+    {
+        missingPlayers = [];
+        lock (_gate)
+        {
+            if (!_state.ShouldShowContent || _state.IsLoadingTeams)
             {
-                dict[summonerId.ToString()] = player;
+                return false;
             }
 
-            if (!string.IsNullOrEmpty(puuid))
+            int myCount = _state.MyTeam.Count;
+            int theirCount = _state.TheirTeam.Count;
+            if (myCount == 0 && theirCount == 0)
             {
-                dict[puuid] = player;
+                return false;
             }
 
-            _state = _state with { PlayerData = dict };
-            _stateStream.Publish(_state);
+            bool teamsComplete =
+                (myCount >= teamOneCount && theirCount >= teamTwoCount) ||
+                (myCount >= teamTwoCount && theirCount >= teamOneCount);
+            if (!teamsComplete)
+            {
+                return false;
+            }
+
+            foreach (var p in _state.MyTeam.Concat(_state.TheirTeam))
+            {
+                bool isBot = p.Bot || p.IsBot || p.BotChampionId > 0 || p.IsHumanoid;
+                GameInfoPlayer? existing = FindPlayerDataLocked(p);
+
+                if (isBot)
+                {
+                    if (existing is null)
+                    {
+                        missingPlayers.Add(p);
+                    }
+                    continue;
+                }
+
+                if (existing is null || existing.Loading)
+                {
+                    missingPlayers.Clear();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    private GameInfoPlayer? FindPlayerDataLocked(PremadePlayerLike p)
+    {
+        if (!string.IsNullOrEmpty(p.Puuid) && _state.PlayerData.TryGetValue(p.Puuid, out var byPuuid))
+        {
+            return byPuuid;
+        }
+
+        if (p.SummonerId != 0 && _state.PlayerData.TryGetValue(p.SummonerId.ToString(), out var bySid))
+        {
+            return bySid;
+        }
+
+        if (_state.PlayerData.TryGetValue(p.CellId.ToString(), out var byCell))
+        {
+            return byCell;
+        }
+
+        return null;
+    }
+
+    private bool TrySavePlayerToDictionary(
+        int cellId,
+        long summonerId,
+        string? puuid,
+        GameInfoPlayer player,
+        long? capturedGameId,
+        long capturedEpoch)
+    {
+        lock (_gate)
+        {
+            if (!IsSameGameContextLocked(capturedGameId, capturedEpoch))
+            {
+                return false;
+            }
+
+            SavePlayerToDictionaryCoreLocked(cellId, summonerId, puuid, player);
         }
 
         // 每次玩家数据落位后更新保留快照（内存态无需防抖，写入规则自带缩水保护）
         WriteReservedSnapshot();
+        return true;
+    }
+
+    private void SavePlayerToDictionary(int cellId, long summonerId, string? puuid, GameInfoPlayer player)
+    {
+        lock (_gate)
+        {
+            SavePlayerToDictionaryCoreLocked(cellId, summonerId, puuid, player);
+        }
+
+        // 每次玩家数据落位后更新保留快照（内存态无需防抖，写入规则自带缩水保护）
+        WriteReservedSnapshot();
+    }
+
+    private void SavePlayerToDictionaryCoreLocked(int cellId, long summonerId, string? puuid, GameInfoPlayer player)
+    {
+        var dict = new Dictionary<string, GameInfoPlayer>(_state.PlayerData)
+        {
+            [cellId.ToString()] = player,
+        };
+
+        if (summonerId != 0)
+        {
+            dict[summonerId.ToString()] = player;
+        }
+
+        if (!string.IsNullOrEmpty(puuid))
+        {
+            dict[puuid] = player;
+        }
+
+        _state = _state with { PlayerData = dict };
+        _stateStream.Publish(_state);
     }
 
     private async Task EnsureCurrentSummonerAsync(CancellationToken cancellationToken)
