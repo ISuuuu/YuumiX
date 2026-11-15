@@ -53,6 +53,21 @@
 
 ---
 
+## B. 符号搜索与重构规则（Roslyn 优先）
+
+- **强类型符号查找与重命名必须使用 Roslyn skill**：
+  - 查找符号引用（含 `var`、目标类型 `new()`、集合表达式、LINQ/Lambda 推导、Reactor 链式扩展方法、重载决议）以及跨文件/跨项目重命名时，**必须使用 Roslyn skill**，禁止仅用 `grep` + 纯文本替换。
+  - 加载工程上下文时以 `YuumiX.slnx`（`-p:Platform=x64`）为准；若当前 Roslyn 工具链不支持 `.slnx`，则按需加载目标 `.csproj`（同样带 `Platform=x64`）。
+- **允许直接用 `grep` 的场景**：
+  - 查阅纯文本索引（如 `§ A` 查 `reactor.api.txt`）或执行 `§ 0` 的模式级兜底自检。
+- **Roslyn 重构后的盲区兜底检查**（需人工或 `grep` 复核）：
+  - `src/YuumiX.App/BannedSymbols.txt`、`tests/YuumiX.SourceScan.Tests/GateWhitelist.json` 与 `GateRules.cs` 中的符号/模式字符串；
+  - 反射或字符串硬编码、JSON/配置/i18n 键名、未激活的条件编译分支（如 Debug/Release 差异）以及 `AGENTS.md` 等文档引用。
+- **修改后门禁**：
+  - 涉及符号重命名、签名调整或序列化类型变更后，必须执行 `§ 0` 门禁（`mur check`、`dotnet build ... --no-incremental`、`SourceScan.Tests`）及对应单元测试。
+
+---
+
 ## 0. 提交前必过的门禁
 
 ```bash
