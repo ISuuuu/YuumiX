@@ -1,10 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor.Hooks;
 using Microsoft.UI.Reactor.Navigation;
 using Microsoft.UI.Xaml;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Theming;
@@ -12,6 +12,7 @@ using YuumiX.Core.Features.SavedPlayers;
 using YuumiX.Core.Features.SavedPlayers.Models;
 using YuumiX.Core.Features.Summoner;
 using YuumiX.Core.Lcu;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.SavedPlayers;
 
@@ -254,8 +255,11 @@ public sealed class SavedPlayersPage : Component
 
         List<SavedPlayerRecord> rawPlayers = [.. playersResource.Items.OfType<SavedPlayerRecord>()];
         long rawTotalCount = playersResource.TotalCount ?? 0;
+        bool isCompletedSuccess = playersResource.LoadState is not LoadState.Loading and not LoadState.Error;
 
-        if (rawPlayers.Count > 0)
+        // 仅在加载中/出错时回退旧缓存防闪烁；成功返回空数组时必须接受 0 条结果，
+        // 避免删除最后一条或清除最后一个标记后仍残留旧数据与旧计数。
+        if (rawPlayers.Count > 0 || isCompletedSuccess)
         {
             lastKnownPlayersRef.Current = rawPlayers;
             lastKnownTotalRef.Current = rawTotalCount;
@@ -349,6 +353,12 @@ public sealed class SavedPlayersPage : Component
                     setEditingPuuid(null);
                     toast.Success("标记已更新");
                     playersResource.Refresh();
+                },
+                OnError: (ex, input) =>
+                {
+                    services.LoggerFactory.CreateLogger(nameof(SavedPlayersPage))
+                        .LogWarning(ex, "保存玩家 {SummonerName} 标记失败", input.Player.SummonerName);
+                    toast.Error($"保存标记失败: {ex.Message}");
                 }));
 
         var deleteMutation = UseMutation<SavedPlayerRecord, object?>(
@@ -367,6 +377,12 @@ public sealed class SavedPlayersPage : Component
 
                     toast.Success($"已删除玩家 {player.SummonerName}");
                     playersResource.Refresh();
+                },
+                OnError: (ex, player) =>
+                {
+                    services.LoggerFactory.CreateLogger(nameof(SavedPlayersPage))
+                        .LogWarning(ex, "删除玩家 {SummonerName} 失败", player.SummonerName);
+                    toast.Error($"删除玩家失败: {ex.Message}");
                 }));
 
         var exportMutation = UseMutation<string?, string>(
@@ -412,8 +428,11 @@ public sealed class SavedPlayersPage : Component
                 : new ExpandedTarget(player.Puuid, player.SelfPuuid, expandNonceRef.Current));
         }
 
-        void HandleSaveTag(SavedPlayerRecord player) =>
+        void HandleSaveTag(SavedPlayerRecord player)
+        {
+            if (saveTagMutation.IsPending) return;
             _ = saveTagMutation.RunAsync((player, editingTag));
+        }
 
         void HandleConfirmDelete(SavedPlayerRecord player)
         {

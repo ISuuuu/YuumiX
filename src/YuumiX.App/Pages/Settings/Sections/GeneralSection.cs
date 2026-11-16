@@ -390,7 +390,7 @@ internal static partial class GeneralSection
                     ui.Services.Paths.IsPortable
                         ? i18n.T("settings.applyAndRestart", "应用更新并重启")
                         : i18n.T("settings.installAndRestart", "安装更新并重启"),
-                    () => ApplyPendingUpdate(ui, update, path))
+                    () => ApplyPendingUpdate(ui, update, path, info.Version))
                 .AutomationName("安装更新按钮");
         }
 
@@ -427,12 +427,12 @@ internal static partial class GeneralSection
         return null;
     }
 
-    private static void ApplyPendingUpdate(SettingsUi ui, UpdateUi update, string path)
+    private static void ApplyPendingUpdate(SettingsUi ui, UpdateUi update, string path, string targetVersion)
     {
         try
         {
             bool willRestart = YuumiX.Core.Updates.UpdateService.ApplyPendingUpdate(
-                path, ui.Services.Paths.IsPortable, ui.Services.Paths.DataDirectory);
+                path, ui.Services.Paths.IsPortable, ui.Services.Paths.DataDirectory, targetVersion);
             if (!willRestart)
             {
                 return;

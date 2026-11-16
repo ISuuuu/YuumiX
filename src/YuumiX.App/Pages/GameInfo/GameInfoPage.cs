@@ -233,7 +233,7 @@ public sealed class GameInfoPage : Component
                     : state.IsLoadingTeams
                         ? GameInfoSkeleton.Render(state.ViewColumns == 10, windowWidth)
                         : (state.ViewColumns == 10
-                            ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch)
+                            ? RenderTenColumnView(state, gameInfoService, palette, services, onNavigateSearch, windowWidth)
                             : RenderFiveColumnView(state, gameInfoService, palette, services, onNavigateCareer, onNavigateSearch, windowWidth));
 
         bool skipMotion = reducedMotion || highContrast;
@@ -565,7 +565,8 @@ public sealed class GameInfoPage : Component
         IGameInfoService service,
         YuumiPalette palette,
         AppServices services,
-        Action<string, string?> onNavigateSearch)
+        Action<string, string?> onNavigateSearch,
+        double windowWidth)
     {
         var myGroups = PremadeAnalyzer.BuildPremadeGroups(state.MyTeam, state.PremadeColorsMy, state.PlayerData);
         var theirGroups = PremadeAnalyzer.BuildPremadeGroups(state.TheirTeam, state.PremadeColorsTheir, state.PlayerData);
@@ -685,7 +686,22 @@ public sealed class GameInfoPage : Component
             .Select(_ => GridSize.Star())
             .ToArray();
 
-        var columnsPanel = Grid(colDefs, [GridSize.Star()], colElements.ToArray());
+        const double minTenColWidth = 108;
+        double minPanelWidth = totalCount * minTenColWidth;
+        double estimatedAvailableWidth = Math.Max(0, windowWidth - 96);
+        bool needsHorizontalScroll = estimatedAvailableWidth > 0 && estimatedAvailableWidth < minPanelWidth;
+
+        Element columnsPanel = Grid(colDefs, [GridSize.Star()], colElements.ToArray());
+        if (needsHorizontalScroll)
+        {
+            columnsPanel = (ScrollViewer(columnsPanel.MinWidth(minPanelWidth)) with
+            {
+                HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+                HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Auto,
+                VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled,
+                VerticalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled,
+            }).IsTabStop(true);
+        }
 
         var fullPanel = Border(
             Grid(

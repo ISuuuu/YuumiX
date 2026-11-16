@@ -994,7 +994,7 @@ public sealed class UpdateService
     /// 为什么必须由脚本写：失败发生在主进程退出之后，那时应用已经没了，没有别的通道能告诉用户。
     /// </para>
     /// </summary>
-    public static bool ApplyPendingUpdate(string downloadedPath, bool isPortable, string dataDirectory)
+    public static bool ApplyPendingUpdate(string downloadedPath, bool isPortable, string dataDirectory, string? targetVersion = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
@@ -1009,6 +1009,10 @@ public sealed class UpdateService
 
         if (!isPortable)
         {
+            string installerTargetVersion = !string.IsNullOrWhiteSpace(targetVersion)
+                ? targetVersion.Trim()
+                : (FileVersionInfo.GetVersionInfo(downloadedPath).FileVersion ?? CurrentVersion);
+
             // 安装版：脚本落在临时目录，避免安装在只读位置时写不进去。
             string scriptRoot = Path.Combine(
                 Path.GetTempPath(),
@@ -1023,7 +1027,7 @@ public sealed class UpdateService
             File.WriteAllText(
                 setupScript,
                 BuildInstallerScript(
-                    downloadedPath, targetDir, currentExe, Environment.ProcessId, dataDirectory, CurrentVersion),
+                    downloadedPath, targetDir, currentExe, Environment.ProcessId, dataDirectory, installerTargetVersion),
                 new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
             LaunchDetached(scriptRoot, setupScript);
@@ -1069,11 +1073,15 @@ public sealed class UpdateService
             }
         }
 
+        string portableTargetVersion = !string.IsNullOrWhiteSpace(targetVersion)
+            ? targetVersion.Trim()
+            : incoming;
+
         string scriptPath = Path.Combine(stagingRoot, "apply-update.cmd");
         File.WriteAllText(
             scriptPath,
             BuildApplyScript(
-                newRoot, targetDir, currentExe, Environment.ProcessId, dataDirectory, CurrentVersion),
+                newRoot, targetDir, currentExe, Environment.ProcessId, dataDirectory, portableTargetVersion),
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
         LaunchDetached(stagingRoot, scriptPath);

@@ -181,10 +181,9 @@ public sealed class SignalrService : IDisposable
             .WithAutomaticReconnect()
             .Build();
 
-        // 连接关闭信号：RetryLoop 驻留等待它。配置自动重连后 Closed 仅在库级重连放弃
-        // （默认 4 次耗尽）时触发，此时由 RetryLoop 5 秒兜底重启，避免客户端永久离线。
-        // 信号按连接实例创建（局部变量闭包），旧连接关闭不会误触发新连接的信号。
-        var closedSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        // 连接关闭信号：RetryLoop 每轮连接各持有一个独立信号，避免首次 Closed 完成后
+        // 后续重连成功时复用已完成信号导致立即唤醒、每 5 秒对已连接实例重复 StartAsync。
+        TaskCompletionSource? activeClosedSignal = null;
 
         connection.Reconnecting += error =>
         {
@@ -211,7 +210,7 @@ public sealed class SignalrService : IDisposable
                 Publish(new SignalrStatus(SignalrConnectionState.Disconnected));
             }
 
-            closedSignal.TrySetResult();
+            Interlocked.Exchange(ref activeClosedSignal, null)?.TrySetResult();
             return Task.CompletedTask;
         };
 
@@ -220,13 +219,19 @@ public sealed class SignalrService : IDisposable
             _ = HandleReceiveCommandAsync(connection, userId, command, queryId));
 
         _connection = connection;
-        _retryLoop = Task.Run(() => RetryLoopAsync(connection, closedSignal, userId, _cts.Token));
+        _retryLoop = Task.Run(() => RetryLoopAsync(
+            connection,
+            signal => Interlocked.Exchange(ref activeClosedSignal, signal),
+            signal => Interlocked.CompareExchange(ref activeClosedSignal, null, signal),
+            userId,
+            _cts.Token));
     }
 
     /// <summary>连接重试循环：建立失败 5 秒后重试（旧 start 循环同款）；连接关闭后同样 5 秒兜底重启。</summary>
     private async Task RetryLoopAsync(
         HubConnection connection,
-        TaskCompletionSource closedSignal,
+        Action<TaskCompletionSource> setActiveClosedSignal,
+        Action<TaskCompletionSource> clearActiveClosedSignal,
         string userId,
         CancellationToken token)
     {
@@ -236,6 +241,9 @@ public sealed class SignalrService : IDisposable
 
         while (!token.IsCancellationRequested)
         {
+            var closedSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            setActiveClosedSignal(closedSignal);
+
             try
             {
                 Publish(new SignalrStatus(SignalrConnectionState.Connecting));
@@ -258,7 +266,7 @@ public sealed class SignalrService : IDisposable
                     _ = HeartbeatLoopAsync(connection, userId, token);
                 }
 
-                // 驻留等待连接最终关闭（Closed 时由 closedSignal 唤醒），随后 5 秒兜底重启
+                // 驻留等待本轮连接最终关闭（Closed 时由 closedSignal 唤醒），随后 5 秒兜底重启
                 await closedSignal.Task.WaitAsync(token).ConfigureAwait(false);
                 if (token.IsCancellationRequested)
                 {
@@ -269,10 +277,12 @@ public sealed class SignalrService : IDisposable
             }
             catch (OperationCanceledException)
             {
+                clearActiveClosedSignal(closedSignal);
                 return;
             }
             catch (Exception ex)
             {
+                clearActiveClosedSignal(closedSignal);
                 Publish(new SignalrStatus(SignalrConnectionState.Error, ex.Message));
                 _logger?.LogError(ex, "[SignalR] 建立连接失败，{Delay} 秒后重试", RetryDelay.TotalSeconds);
             }

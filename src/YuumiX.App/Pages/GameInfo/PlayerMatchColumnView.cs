@@ -50,12 +50,14 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
     /// <summary>战绩列表四周内边距：旧版 <c>.col-matches-list { padding: 6px 6px }</c>。</summary>
     private const double MatchListPadding = 6;
 
-    /// <summary>单卡最小高度：旧版 <c>.col-match { min-height: 44px }</c>。</summary>
-    private const double MinMatchCardHeight = 44;
+    /// <summary>单卡最小高度：10 列需容纳顶部行 + 28px 头像 + 上下内边距与边框（约 54px），5 列 32px 头像需 60px。</summary>
+    private const double MinTenColCardHeight = 56;
+    private const double MinFiveColCardHeight = 60;
 
     public override Element Render()
     {
         var services = UseContext(AppHost.Context) ?? AppHost.Services;
+        var (listHeight, setListHeight) = UseState(0.0);
         var d = Props.PlayerData;
         bool isTenCol = Props.ViewColumns == 10;
         var palette = Props.Palette;
@@ -89,7 +91,7 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         var header = PlayerColumnHeader.Render(Props, services, palette, isTenCol);
 
         // 战绩列表（前 10 局）
-        var matchesList = RenderMatchesList(d, isTenCol, palette, services, encounteredGameIds);
+        var matchesList = RenderMatchesList(d, isTenCol, palette, services, encounteredGameIds, listHeight, setListHeight);
 
         var topBar = Border(Empty())
             .Height(3)
@@ -120,7 +122,9 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         bool isTenCol,
         YuumiPalette palette,
         AppServices services,
-        IReadOnlySet<long>? encounteredGameIds)
+        IReadOnlySet<long>? encounteredGameIds,
+        double listHeight,
+        Action<double> setListHeight)
     {
         if (d?.Loading == true)
         {
@@ -145,18 +149,45 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         }
 
         var matches = d.Matches.Take(10).ToArray();
-        var rows = Enumerable.Range(0, 10).Select(_ => GridSize.Star()).ToArray();
+        double minCardHeight = isTenCol ? MinTenColCardHeight : MinFiveColCardHeight;
+        double minFullTenHeight = MatchListPadding * 2 + 10 * minCardHeight + 9 * MatchCardGap;
+        bool fillViewport = listHeight >= minFullTenHeight;
+
+        var rows = fillViewport
+            ? Enumerable.Range(0, 10).Select(_ => GridSize.Star()).ToArray()
+            : Enumerable.Range(0, matches.Length).Select(_ => GridSize.Auto).ToArray();
 
         var cards = matches
-            .Select((m, i) => RenderMatchCard(m, isTenCol, palette, services, encounteredGameIds, isLast: i == matches.Length - 1)
+            .Select((m, i) => RenderMatchCard(m, isTenCol, palette, services, encounteredGameIds, isLast: i == matches.Length - 1, minCardHeight)
                 .Grid(row: i, column: 0)
                 .WithKey(m.GameId.ToString(CultureInfo.InvariantCulture)))
             .ToArray();
 
-        // 原生 Star 等分 Grid：10 张卡片按剩余高度在首帧排版时直接严格均分，
-        // 彻底消除「首帧按小高度渲染、OnSizeChanged 测出后再放大」的两阶段视觉跳变。
-        return Grid([GridSize.Star()], rows, cards)
+        // 视口足够高时用 10 个 Star 行均分铺满；小窗口下退化为带最小高度卡片的纵向 ScrollViewer，防止头像与 KDA 被裁切。
+        var grid = Grid([GridSize.Star()], rows, cards)
             .Padding(MatchListPadding);
+
+        if (fillViewport)
+        {
+            grid = grid.MinHeight(Math.Floor(listHeight));
+        }
+
+        return (ScrollViewer(grid) with
+        {
+            HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled,
+            HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled,
+            VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+            VerticalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Auto,
+        })
+        .IsTabStop(true)
+        .OnSizeChanged((_, e) =>
+        {
+            double h = Math.Floor(e.NewSize.Height);
+            if (h > 0 && Math.Abs(h - listHeight) >= 1)
+            {
+                setListHeight(h);
+            }
+        });
     }
 
     private static Element RenderMatchCard(
@@ -165,7 +196,8 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
         YuumiPalette palette,
         AppServices services,
         IReadOnlySet<long>? encounteredGameIds,
-        bool isLast)
+        bool isLast,
+        double minCardHeight)
     {
         string cardBg = m.Remake
             ? palette.RemakeBg
@@ -293,12 +325,28 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             statsBox = kdaLine;
         }
 
+        string resultColor = m.Remake
+            ? palette.RemakeText
+            : (m.Win ? palette.WinText : palette.LoseText);
+        string resultShort = m.Remake
+            ? (isEn ? "R" : "重")
+            : (m.Win ? (isEn ? "W" : "胜") : (isEn ? "L" : "负"));
+        string resultFull = m.Remake
+            ? (isEn ? "Remake" : "重开")
+            : (m.Win ? (isEn ? "Victory" : "胜利") : (isEn ? "Defeat" : "失败"));
+
+        var resultLabel = Caption(resultShort)
+            .Foreground(resultColor)
+            .HAlign(HorizontalAlignment.Right)
+            .VAlign(VerticalAlignment.Center);
+
         var mainRow = Grid(
-            [GridSize.Auto, GridSize.Star()],
+            [GridSize.Auto, GridSize.Star(), GridSize.Auto],
             [GridSize.Auto],
             [
                 champIconWithLevel.Grid(row: 0, column: 0).Margin(0, 0, 4, 0).VAlign(VerticalAlignment.Center),
                 statsBox.Grid(row: 0, column: 1).VAlign(VerticalAlignment.Center),
+                resultLabel.Grid(row: 0, column: 2).Margin(4, 0, 0, 0),
             ]
         );
 
@@ -317,9 +365,11 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
             .Background(cardBg)
             .WithBorder(cardBorder, 1)
             .CornerRadius(YuumiTheme.OverlayRadius)
+            .MinHeight(minCardHeight)
             .VAlign(VerticalAlignment.Stretch)
             .Margin(0, 0, 0, isLast ? 0 : MatchCardGap)
-            .Padding(isTenCol ? 4 : 7, 4);
+            .Padding(isTenCol ? 4 : 7, 4)
+            .AutomationName($"{queueName} {resultFull} {m.Kills}/{m.Deaths}/{m.Assists} {m.ShortDateText}");
     }
 
     private static (string text, string? color) FormatKdaRatio(MatchSummary m, YuumiPalette palette)
@@ -349,7 +399,11 @@ public sealed class PlayerMatchColumnView : Component<PlayerMatchColumnProps>
 
     private static string GetMatchTopTooltip(MatchSummary m)
     {
-        var lines = new List<string> { $"游戏模式: {m.QueueName}" };
+        var lines = new List<string>
+        {
+            $"游戏模式: {m.QueueName}",
+            $"结果: {(m.Remake ? "重开" : m.Win ? "胜利" : "失败")}",
+        };
         var inferredPos = m.Position ?? MatchStatsCalculator.InferMatchPosition(m);
         string? pos = SearchVisuals.PositionText(inferredPos);
         if (!string.IsNullOrEmpty(pos))
