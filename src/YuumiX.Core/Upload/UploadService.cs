@@ -129,7 +129,7 @@ public sealed class UploadService
         }
 
         UploadPayload? payload = UploadPayloadBuilder.FromGameDetail(
-            detail, currentSummonerPuuid, championNameResolver);
+            detail, championNameResolver);
         return payload is null ? (null, "对局详情为空") : (payload, null);
     }
 

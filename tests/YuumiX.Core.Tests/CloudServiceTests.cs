@@ -102,12 +102,12 @@ public sealed class CloudServiceTests
         """;
 
     [Fact]
-    public void FromGameDetail_MapsFieldsAndSplitsParticipants()
+    public void FromGameDetail_MapsFieldsAndFlattensParticipants()
     {
         using var doc = JsonDocument.Parse(GameDetailJson);
 
         var payload = UploadPayloadBuilder.FromGameDetail(
-            doc.RootElement, "p-me", championId => championId == 412 ? "Thresh" : "Yasuo");
+            doc.RootElement, championId => championId == 412 ? "Thresh" : "Yasuo");
 
         Assert.NotNull(payload);
 
@@ -117,39 +117,41 @@ public sealed class CloudServiceTests
         Assert.Equal(420, payload.MatchInfo.QueueId);
         Assert.Equal("16.1.1", payload.MatchInfo.GameVersion);
 
-        // 内层 = 当前账号（gameName#tagLine 优先于 summonerName）
-        var inner = Assert.Single(payload.MatchInfo.Participants);
-        Assert.Equal("Me#CN1", inner.SummonerName);
-        Assert.Equal("p-me", inner.Puuid);
-        Assert.Equal(412, inner.ChampionId);
-        Assert.Equal("Thresh", inner.ChampionName);
-        Assert.True(inner.Win);
-        Assert.Equal(14, inner.SummonerSpell1Id);
+        // 服务端要求内层为空，参与者全部平铺在顶层且保持原始顺序
+        Assert.Empty(payload.MatchInfo.Participants);
+        Assert.Equal(2, payload.Participants.Count);
 
-        // 外层 = 其余参与者（保持原始顺序）
-        var outer = Assert.Single(payload.Participants);
-        Assert.Equal("Other#CN2", outer.SummonerName);
-        Assert.Equal(157, outer.ChampionId);
-        Assert.Equal("Yasuo", outer.ChampionName);
-        Assert.False(outer.Win);
-        Assert.Equal(1001, outer.Item0);
+        var other = payload.Participants[0];
+        Assert.Equal("Other#CN2", other.SummonerName);
+        Assert.Equal(157, other.ChampionId);
+        Assert.Equal("Yasuo", other.ChampionName);
+        Assert.False(other.Win);
+        Assert.Equal(1001, other.Item0);
         // stats 层未提供的字段降级为 0（serde 缺省语义）
-        Assert.Equal(0, outer.VisionScore);
+        Assert.Equal(0, other.VisionScore);
+
+        var me = payload.Participants[1];
+        Assert.Equal("Me#CN1", me.SummonerName);
+        Assert.Equal("p-me", me.Puuid);
+        Assert.Equal(412, me.ChampionId);
+        Assert.Equal("Thresh", me.ChampionName);
+        Assert.True(me.Win);
+        Assert.Equal(14, me.SummonerSpell1Id);
     }
 
     [Fact]
-    public void FromGameDetail_WithoutCurrentPuuid_InnerTakesFirst()
+    public void FromGameDetail_KeepsOriginalParticipantOrder()
     {
         using var doc = JsonDocument.Parse(GameDetailJson);
 
-        var payload = UploadPayloadBuilder.FromGameDetail(doc.RootElement, null);
+        var payload = UploadPayloadBuilder.FromGameDetail(doc.RootElement);
 
         Assert.NotNull(payload);
-        Assert.Single(payload.MatchInfo.Participants);
-        // participants 数组的首位是 pid 2（Other）→ 内层取它
-        Assert.Equal("Other#CN2", payload.MatchInfo.Participants[0].SummonerName);
-        Assert.Single(payload.Participants);
-        Assert.Equal("Me#CN1", payload.Participants[0].SummonerName);
+        Assert.Empty(payload.MatchInfo.Participants);
+        Assert.Collection(
+            payload.Participants,
+            p => Assert.Equal("Other#CN2", p.SummonerName),
+            p => Assert.Equal("Me#CN1", p.SummonerName));
     }
 
     [Fact]
@@ -157,10 +159,10 @@ public sealed class CloudServiceTests
     {
         using var doc = JsonDocument.Parse(GameDetailJson);
 
-        var payload = UploadPayloadBuilder.FromGameDetail(doc.RootElement, "p-me");
+        var payload = UploadPayloadBuilder.FromGameDetail(doc.RootElement);
         Assert.NotNull(payload);
 
-        // 外层参与者：stats 层先取（playerAugment2=7002），participant 层后取（augments=[7001]）
+        // 首位参与者：stats 层先取（playerAugment2=7002），participant 层后取（augments=[7001]）
         // → 按出现顺序 HexTech0=7002, HexTech1=7001（对齐旧 extract_hextech_ids 的来源顺序）
         var outer = payload.Participants[0];
         Assert.Equal(7002, outer.HexTech0);
@@ -171,11 +173,33 @@ public sealed class CloudServiceTests
     }
 
     [Fact]
+    public void FlattenParticipants_MovesNestedIntoTopLevelWithoutDuplicates()
+    {
+        using var doc = JsonDocument.Parse(GameDetailJson);
+        var flat = UploadPayloadBuilder.FromGameDetail(doc.RootElement);
+        Assert.NotNull(flat);
+
+        // 模拟旧版暂存记录：当前账号在内层，其余在顶层
+        var legacy = flat with
+        {
+            MatchInfo = flat.MatchInfo with { Participants = [flat.Participants[1]] },
+            Participants = [flat.Participants[0]],
+        };
+
+        var migrated = UploadPayloadBuilder.FlattenParticipants(legacy);
+
+        Assert.Empty(migrated.MatchInfo.Participants);
+        Assert.Equal(2, migrated.Participants.Count);
+        Assert.Equal("Other#CN2", migrated.Participants[0].SummonerName);
+        Assert.Equal("Me#CN1", migrated.Participants[1].SummonerName);
+    }
+
+    [Fact]
     public void FromGameDetail_NonObject_ReturnsNull()
     {
         using var doc = JsonDocument.Parse("[]");
 
-        Assert.Null(UploadPayloadBuilder.FromGameDetail(doc.RootElement, null));
+        Assert.Null(UploadPayloadBuilder.FromGameDetail(doc.RootElement));
     }
 
     // ── 上传服务的开关门控（不触网路径）────────────────────────

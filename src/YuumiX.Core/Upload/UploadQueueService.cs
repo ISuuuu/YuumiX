@@ -139,7 +139,8 @@ public sealed class UploadQueueService : IDisposable
                     continue;
                 }
 
-                if (!_channel.Writer.TryWrite(new UploadQueueItem(item.GameId, item.Payload)))
+                if (!_channel.Writer.TryWrite(new UploadQueueItem(
+                        item.GameId, UploadPayloadBuilder.FlattenParticipants(item.Payload))))
                 {
                     _enqueued.Remove(item.GameId);
                     _logger?.LogWarning("对局 {GameId} 重新入队失败：队列已满", item.GameId);

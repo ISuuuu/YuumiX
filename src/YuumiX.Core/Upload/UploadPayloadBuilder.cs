@@ -95,7 +95,7 @@ public sealed record ParticipantInfo(
 
 /// <summary>
 /// 把 LCU 对局详情原始 JSON（<c>/lol-match-history/v1/games/{id}</c>）转换成上传载荷。
-/// 纯函数：字段映射规则是上传契约里最容易漂移的部分（内层/外层参与者排序、海克斯提取去重），
+/// 纯函数：字段映射规则是上传契约里最容易漂移的部分（参与者字段映射、海克斯提取去重），
 /// 必须可单测。
 /// </summary>
 public static class UploadPayloadBuilder
@@ -104,11 +104,9 @@ public static class UploadPayloadBuilder
     /// 构建上传载荷。
     /// </summary>
     /// <param name="gameDetail">LCU 对局详情 JSON 根元素。</param>
-    /// <param name="currentSummonerPuuid">当前登录账号 puuid（命中的参与者排内层，其余排外层）。</param>
     /// <param name="championNameResolver">英雄 ID → 名称（缺省返回 "Unknown"）。</param>
     public static UploadPayload? FromGameDetail(
         JsonElement gameDetail,
-        string? currentSummonerPuuid,
         Func<int, string>? championNameResolver = null)
     {
         if (gameDetail.ValueKind != JsonValueKind.Object)
@@ -157,41 +155,41 @@ public static class UploadPayloadBuilder
             }
         }
 
-        // 内/外层拆分（对齐旧 build_upload_payload）：当前账号排内层且只有一位，
-        // 找不到当前账号时内层取首位
-        var inner = new List<ParticipantInfo>();
-        var outer = new List<ParticipantInfo>();
-        bool found = false;
-        if (!string.IsNullOrEmpty(currentSummonerPuuid))
-        {
-            foreach (var p in all)
-            {
-                if (!found && p.Puuid == currentSummonerPuuid)
-                {
-                    inner.Add(p);
-                    found = true;
-                }
-                else
-                {
-                    outer.Add(p);
-                }
-            }
+        // 服务端要求 matchInfo.participants 为空，全部参与者放在顶层。
+        return new UploadPayload(matchInfo, all);
+    }
 
-            if (!found && outer.Count > 0)
-            {
-                inner.Add(outer[0]);
-                outer.RemoveAt(0);
-            }
-        }
-        else if (all.Count > 0)
+    /// <summary>
+    /// 旧版暂存记录把当前账号放在 <c>matchInfo.participants</c>，重发前统一展平到顶层，
+    /// 避免升级后老队列被服务端当作非法载荷永久拒绝。
+    /// </summary>
+    public static UploadPayload FlattenParticipants(UploadPayload payload)
+    {
+        if (payload.MatchInfo.Participants.Count == 0)
         {
-            inner.Add(all[0]);
-            outer.AddRange(all.Skip(1));
+            return payload;
         }
 
-        return new UploadPayload(
-            matchInfo with { Participants = inner },
-            outer);
+        var participants = payload.Participants.ToList();
+        var seen = participants
+            .Where(p => !string.IsNullOrEmpty(p.Puuid))
+            .Select(p => p.Puuid)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (ParticipantInfo participant in payload.MatchInfo.Participants)
+        {
+            if (!string.IsNullOrEmpty(participant.Puuid) && !seen.Add(participant.Puuid))
+            {
+                continue;
+            }
+
+            participants.Add(participant);
+        }
+
+        return payload with
+        {
+            MatchInfo = payload.MatchInfo with { Participants = [] },
+            Participants = participants,
+        };
     }
 
     private static ParticipantInfo BuildParticipant(

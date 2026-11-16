@@ -49,7 +49,7 @@ public sealed class UploadBatchService
     /// 按 gameId 列表批量上传。返回成功/失败计数与首个错误原因。
     /// </summary>
     /// <param name="gameIds">待上传的对局 ID。</param>
-    /// <param name="currentSummonerPuuid">当前账号 puuid（决定内层参与者）。</param>
+    /// <param name="currentSummonerPuuid">当前账号 puuid（载荷已平铺，保留以兼容调用方）。</param>
     /// <param name="championNameResolver">英雄 ID → 名称。</param>
     public async Task<BatchUploadResult> UploadAsync(
         IReadOnlyList<long> gameIds,
