@@ -223,7 +223,7 @@ internal static class ChampionMasteryView
         Element leftToolbar = HStack(12,
             TextBox(searchQuery, text => onSearchChanged?.Invoke(text), "搜索英雄名称...")
                 .Width(170)
-                .Height(30)
+                .MinHeight(30)
                 .IsEnabled(isEnabled)
                 .AutomationName("搜索英雄名称"),
             PixelComboBox.Render(ChestOptions, chestFilterIndex, idx => onChestFilterChanged?.Invoke(idx), automationName: "宝箱状态", width: 130, isEnabled: isEnabled),

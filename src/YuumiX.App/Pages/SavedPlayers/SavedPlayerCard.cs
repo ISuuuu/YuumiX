@@ -49,49 +49,81 @@ internal static class SavedPlayerCard
 
         // 2. 玩家名称与徽章
         var modeName = FormatQueue(player.LastQueueType);
-        var infoStack = VStack(
-            4,
-            HStack(
-                6,
-                BodyStrong(player.SummonerName),
+        var nameRow = (Grid(
+            [GridSize.Star(), GridSize.Auto],
+            [GridSize.Auto],
+            [
+                BodyStrong(player.SummonerName)
+                    .TextTrimming(TextTrimming.CharacterEllipsis)
+                    .WithToolTip(TextBlock(player.SummonerName))
+                    .Grid(row: 0, column: 0),
                 Caption(string.IsNullOrEmpty(player.TagLine) ? "#—" : $"#{player.TagLine}")
                     .Foreground(Theme.SecondaryText)
                     .VerticalAlignment(VerticalAlignment.Center)
-            ),
-            HStack(
-                6,
-                !string.IsNullOrEmpty(player.Tag)
-                    ? Border(
-                        Caption(player.Tag)
-                            .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
-                            .Margin(4, 1)
-                      )
-                      .Background(Theme.Accent)
-                      .CornerRadius(YuumiTheme.ControlRadius)
-                    : null,
+                    .Grid(row: 0, column: 1),
+            ]) with
+        { ColumnSpacing = 6 })
+            .HAlign(HorizontalAlignment.Left);
 
-                !string.IsNullOrEmpty(modeName)
-                    ? Border(
-                        Caption(modeName)
-                            .Foreground(Theme.SecondaryText)
-                            .Margin(4, 1)
-                      )
-                      .Background(Theme.CardBackground)
-                      .WithBorder(Theme.CardStroke, 1)
-                      .CornerRadius(YuumiTheme.ControlRadius)
-                    : null,
+        var badgeCols = new List<GridSize>();
+        var badgeNodes = new List<Element>();
+        int badgeColIdx = 0;
 
-                player.EncounterCount >= 2
-                    ? Border(
-                        Caption(encounterText)
-                            .Foreground(Theme.Accent)
-                            .Margin(4, 1)
-                      )
-                      .Background(Theme.CardBackground)
-                      .WithBorder(Theme.Accent, 1)
-                      .CornerRadius(YuumiTheme.ControlRadius)
-                    : null
-            )
+        if (!string.IsNullOrEmpty(player.Tag))
+        {
+            badgeCols.Add(GridSize.Star());
+            badgeNodes.Add(
+                Border(
+                    Caption(player.Tag)
+                        .TextTrimming(TextTrimming.CharacterEllipsis)
+                        .Foreground(Theme.Ref("TextOnAccentFillColorPrimaryBrush"))
+                        .Margin(4, 1)
+                )
+                .Background(Theme.Accent)
+                .CornerRadius(YuumiTheme.ControlRadius)
+                .WithToolTip(TextBlock(player.Tag))
+                .Grid(row: 0, column: badgeColIdx++));
+        }
+
+        if (!string.IsNullOrEmpty(modeName))
+        {
+            badgeCols.Add(GridSize.Auto);
+            badgeNodes.Add(
+                Border(
+                    Caption(modeName)
+                        .Foreground(Theme.SecondaryText)
+                        .Margin(4, 1)
+                )
+                .Background(Theme.CardBackground)
+                .WithBorder(Theme.CardStroke, 1)
+                .CornerRadius(YuumiTheme.ControlRadius)
+                .Grid(row: 0, column: badgeColIdx++));
+        }
+
+        if (player.EncounterCount >= 2)
+        {
+            badgeCols.Add(GridSize.Auto);
+            badgeNodes.Add(
+                Border(
+                    Caption(encounterText)
+                        .Foreground(Theme.Accent)
+                        .Margin(4, 1)
+                )
+                .Background(Theme.CardBackground)
+                .WithBorder(Theme.Accent, 1)
+                .CornerRadius(YuumiTheme.ControlRadius)
+                .Grid(row: 0, column: badgeColIdx++));
+        }
+
+        Element badgeRow = badgeNodes.Count > 0
+            ? (Grid(badgeCols.ToArray(), [GridSize.Auto], badgeNodes.ToArray()) with { ColumnSpacing = 6 })
+                .HAlign(HorizontalAlignment.Left)
+            : Empty();
+
+        var infoStack = VStack(
+            4,
+            nameRow,
+            badgeRow
         )
         .VerticalAlignment(VerticalAlignment.Center);
 
@@ -134,10 +166,13 @@ internal static class SavedPlayerCard
 
         // 可点击主体行（头像 + 名字 + 徽章，点击整块直接展开/折叠对局历史）
         var clickableBody = Button(
-            HStack(
-                avatarRow,
-                infoStack
-            )
+            Grid(
+                [GridSize.Auto, GridSize.Star()],
+                [GridSize.Auto],
+                [
+                    avatarRow.Grid(row: 0, column: 0),
+                    infoStack.Grid(row: 0, column: 1),
+                ])
             .VerticalAlignment(VerticalAlignment.Center),
             onToggle
         )
@@ -145,7 +180,7 @@ internal static class SavedPlayerCard
         .CornerRadius(YuumiTheme.ControlRadius)
         .Padding(4, 2)
         .HorizontalAlignment(HorizontalAlignment.Stretch)
-        .HorizontalContentAlignment(HorizontalAlignment.Left)
+        .HorizontalContentAlignment(HorizontalAlignment.Stretch)
         .AutomationName($"查看 {player.SummonerName} 的相遇对局历史");
 
         // 卡片主行
@@ -171,7 +206,7 @@ internal static class SavedPlayerCard
                 )
                 .AutomationName("编辑玩家标记")
                 .Width(260)
-                .Height(30),
+                .MinHeight(30),
                 Button(i18n?.T("savedPlayersPage.tagSave", "保存") ?? "保存", onSaveTag)
                     .AutomationName("保存")
                     .Padding(12, 4)

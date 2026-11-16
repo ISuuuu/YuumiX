@@ -2,10 +2,10 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Theming;
 using YuumiX.Core.Features.Notice;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Notice;
 
@@ -112,29 +112,36 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
             },
             attempt);
 
-        // ── 标题栏：铃铛 + 标题 + 关闭（旧版 notice-popup-header）──
+        // ── 标题栏：铃铛 + 标题（左）+ 关闭按钮（右）──
         var header = Border(
-                HStack(7,
-                    Body(Icons.Notice)
-                        .FontFamily(Icons.FontFamily)
-                        .Foreground(Theme.Accent)
-                        .VAlign(VerticalAlignment.Center),
-                    BodyStrong("公告")
-                        
-                        .Foreground(Theme.Ref("TextFillColorPrimaryBrush"))
-                        .VAlign(VerticalAlignment.Center),
-                    // 弹性占位：把关闭按钮推到最右（旧版 justify-content: space-between）。
-                    (Element)Empty().HAlign(HorizontalAlignment.Stretch),
-                    Button(
-                        Caption(Icons.Cancel)
-                            .FontFamily(Icons.FontFamily)
-                            .Foreground(Theme.Ref("TextFillColorSecondaryBrush")),
-                        () => Props.OnClose())
-                    .SubtleButton()
-                    .Width(22)
-                    .Height(22)
-                    .CornerRadius(YuumiTheme.OverlayRadius)
-                    .AutomationName("关闭公告")))
+                Grid(
+                    [GridSize.Star(), GridSize.Auto],
+                    [GridSize.Auto],
+                    [
+                        HStack(7,
+                            Body(Icons.Notice)
+                                .FontFamily(Icons.FontFamily)
+                                .Foreground(Theme.Accent)
+                                .VAlign(VerticalAlignment.Center),
+                            BodyStrong("公告")
+                                .Foreground(Theme.Ref("TextFillColorPrimaryBrush"))
+                                .VAlign(VerticalAlignment.Center))
+                            .VAlign(VerticalAlignment.Center)
+                            .Grid(row: 0, column: 0),
+                        Button(
+                            Caption(Icons.Cancel)
+                                .FontFamily(Icons.FontFamily)
+                                .Foreground(Theme.Ref("TextFillColorSecondaryBrush")),
+                            () => Props.OnClose())
+                            .SubtleButton()
+                            .Padding(0)
+                            .Width(24)
+                            .Height(24)
+                            .CornerRadius(YuumiTheme.ControlRadius)
+                            .WithToolTip(TextBlock("关闭公告"))
+                            .AutomationName("关闭公告")
+                            .Grid(row: 0, column: 1),
+                    ]))
             .Padding(new Thickness(12, 8, 8, 8))
             .Background(Theme.SubtleFill)
             .WithBorder(Theme.DividerStroke, 1)
@@ -202,9 +209,9 @@ public sealed class NoticePopupView : Component<NoticePopupProps>
                     VStack(7, NoticeMarkdown.RenderBlocks(content?.Markdown ?? string.Empty))
                         .HAlign(HorizontalAlignment.Stretch)
                         .Padding(new Thickness(12, 12, 12, 12))) with
-                {
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                })
+            {
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            })
                 .HorizontalScrollMode(ScrollMode.Disabled)
                 // 滚动容器焦点约定：阻止点击正文时把焦点下发给第一个可聚焦控件（见项目记忆）。
                 // 用修饰符而非 .Set(...)：ScrollViewer 走池回收，Set 写入会在重渲染时被重置（REACTOR_POOL_001）。

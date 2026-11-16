@@ -15,10 +15,15 @@ internal static class CareerLayout
         CareerMatchesSection.MatchesParts matches,
         Element content,
         CareerTab activeTab,
-        Element? overlay)
+        Element? overlay,
+        double viewportWidth = 0,
+        Action<double>? setViewportWidth = null)
     {
         const double HeaderGap = 24;
         const double TabBarGap = 16;
+        const double HorizontalPadding = 8 + 24;
+        double minViewportWidth = CareerVisuals.ContentWidth + HorizontalPadding;
+        bool needsHorizontalScroll = viewportWidth > 0 && viewportWidth < minViewportWidth;
 
         bool showMatches = activeTab == CareerTab.Matches;
 
@@ -48,13 +53,30 @@ internal static class CareerLayout
             [GridSize.Star()], [GridSize.Star()],
             [body, !showMatches && overlay is not null ? overlay : Empty()]);
 
-        // 战绩由内部滚动区吃剩余高度；其余页签恢复外层整页滚动。
-        return (ScrollViewer(Border(pageBody).Padding(8, 16, 24, 16).HAlign(HorizontalAlignment.Stretch)) with
+        // 战绩由内部滚动区吃剩余高度；其余页签恢复外层整页滚动；窄窗口下启用横向滚动兜底避免裁切固定 1000 宽正文。
+        var scroller = (ScrollViewer(
+            Border(pageBody)
+                .Padding(8, 16, 24, 16)
+                .HAlign(needsHorizontalScroll ? HorizontalAlignment.Left : HorizontalAlignment.Stretch)) with
         {
-            HorizontalScrollMode = ScrollMode.Disabled,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            HorizontalScrollMode = needsHorizontalScroll ? ScrollMode.Auto : ScrollMode.Disabled,
+            HorizontalScrollBarVisibility = needsHorizontalScroll ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled,
             VerticalScrollMode = showMatches ? ScrollMode.Disabled : ScrollMode.Auto,
             VerticalScrollBarVisibility = showMatches ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto,
         }).IsTabStop(true);
+
+        if (setViewportWidth is not null)
+        {
+            scroller = scroller.OnSizeChanged((_, e) =>
+            {
+                double w = Math.Floor(e.NewSize.Width);
+                if (w > 0 && Math.Abs(w - viewportWidth) >= 1)
+                {
+                    setViewportWidth(w);
+                }
+            });
+        }
+
+        return scroller;
     }
 }

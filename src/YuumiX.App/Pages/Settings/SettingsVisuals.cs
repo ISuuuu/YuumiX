@@ -2,12 +2,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml.Automation.Peers;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
 using YuumiX.Core;
 using YuumiX.Core.Persistence;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.Settings;
 
@@ -37,11 +37,16 @@ internal static class SettingsVisuals
             .HeadingLevel(AutomationHeadingLevel.Level2)
             .Margin(top: 16);
 
-    /// <summary>纯信息行（关于页/更新卡），没有「可编辑」语义。</summary>
+    /// <summary>纯信息行（关于页/更新卡），没有「可编辑」语义。值列占 Star 以获得有限宽度并真正换行。</summary>
     public static Element InfoRow(string label, string value) =>
-        HStack(16,
-            TextBlock(label).Width(320),
-            TextBlock(value).Foreground(Theme.SecondaryText).TextWrapping());
+        Grid(
+            [GridSize.Px(320), GridSize.Star()],
+            [GridSize.Auto],
+            [
+                TextBlock(label).Grid(0, 0),
+                TextBlock(value).Foreground(Theme.SecondaryText).TextWrapping().Grid(0, 1),
+            ]) with
+        { ColumnSpacing = 16 };
 
     public static Element ColorSwatch(string color) =>
         Border(Empty())

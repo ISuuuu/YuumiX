@@ -91,6 +91,7 @@ public sealed class SearchPage : Component<SearchPageProps>
         var refreshCancellation = UseRef<CancellationTokenSource?>(null);
         var refreshOnReturnRef = UseRef<Action?>(null);
         var (clearHistoryOpen, setClearHistoryOpen) = UseState(false);
+        var (listHeight, setListHeight) = UseState(0.0);
         var navigatedFromRef = UseRef<Action<NavigatedFromContext>?>(null);
         navigatedFromRef.Current ??= _ =>
         {
@@ -442,14 +443,22 @@ public sealed class SearchPage : Component<SearchPageProps>
         // 彻底消除 ListView 原生控件的蓝色选中矩形和焦点边框干扰。
         // 每项各自重新 Provide 上下文，保证卡片内的 LcuImage 正确获取服务容器。
         // 列表固定以 10 局为基准进行 Star 等分：
-        // 达到 10 局时均匀占满全部垂直可用高度；不足 10 局时依然保持 1/10 等分行高，下方自然留白。
-        int slotCount = Math.Max(10, visible.Count);
-        var matchRows = new GridSize[slotCount];
-        Array.Fill(matchRows, GridSize.Star());
+        // 达到 10 局且视口高度充足时均匀占满全部垂直可用高度；低高度窗口退化为 Auto 行高 + 纵向 ScrollViewer 兜底，保证第 10 条可达。
+        const double MinFullTenHeight = 10 * (MatchCardView.CardHeight + MatchCardView.CardGap);
+        bool fillViewport = listHeight <= 0 || listHeight >= MinFullTenHeight;
 
-        Element list = visible.Count == 0
-            ? SearchChrome.ResourceState(historyPageResource, historyPage is not null, matches.Count > 0, palette, () => { requestSeqRef.Current++; setRequestVersion(requestSeqRef.Current); }, services.I18n)
-            : Grid(
+        int slotCount = fillViewport ? Math.Max(10, visible.Count) : Math.Max(1, visible.Count);
+        var matchRows = new GridSize[slotCount];
+        Array.Fill(matchRows, fillViewport ? GridSize.Star() : GridSize.Auto);
+
+        Element list;
+        if (visible.Count == 0)
+        {
+            list = SearchChrome.ResourceState(historyPageResource, historyPage is not null, matches.Count > 0, palette, () => { requestSeqRef.Current++; setRequestVersion(requestSeqRef.Current); }, services.I18n);
+        }
+        else
+        {
+            var matchGrid = Grid(
                 [GridSize.Star()],
                 matchRows,
                 visible.Select((summary, i) =>
@@ -467,18 +476,47 @@ public sealed class SearchPage : Component<SearchPageProps>
                         .Grid(row: i, column: 0)
                         .Provide(AppHost.Context, services);
                 }).ToArray())
-              .VAlign(VerticalAlignment.Stretch)
+              .VAlign(fillViewport ? VerticalAlignment.Stretch : VerticalAlignment.Top)
               .HAlign(HorizontalAlignment.Stretch);
+
+            if (fillViewport && listHeight > 0)
+            {
+                matchGrid = matchGrid.MinHeight(Math.Floor(listHeight));
+            }
+
+            list = matchGrid;
+        }
 
         list = SearchMotion.List(list, skipMotion, visible.Count, historyCacheKey);
 
-        // 左列：列表吃剩余高度（自身由 10 局网格占满），分页条固定在底部。
+        var listScroller = (ScrollViewer(list) with
+        {
+            HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled,
+            HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled,
+            VerticalScrollBarVisibility = fillViewport
+                ? Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled
+                : Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+            VerticalScrollMode = fillViewport
+                ? Microsoft.UI.Xaml.Controls.ScrollMode.Disabled
+                : Microsoft.UI.Xaml.Controls.ScrollMode.Auto,
+        })
+        .IsTabStop(true)
+        .OnSizeChanged((_, e) =>
+        {
+            double h = Math.Floor(e.NewSize.Height);
+            if (h > 0 && Math.Abs(h - listHeight) >= 1)
+            {
+                setListHeight(h);
+            }
+        });
+
+        // 左列：列表吃剩余高度（自身由 10 局网格占满或低高度时滚动），分页条固定在底部。
         // Grid 的签名是 Grid(columns, rows, children)——第一个数组是**列**，写反会静默错乱（历史踩坑）。
         Element leftColumn = Grid(
                 [GridSize.Star()],
                 [GridSize.Star(), GridSize.Auto],
                 [
-                    list.Grid(row: 0, column: 0),
+                    listScroller.Grid(row: 0, column: 0),
                     SearchChrome.Pager(pageIndex, hasMore, setPageIndex).Grid(row: 1, column: 0),
                 ])
             .VAlign(VerticalAlignment.Stretch)

@@ -79,4 +79,30 @@ public sealed class CareerLayoutTests
             if (isOpen) Assert.Same(overlay, overlayHost.Children[1]);
         }
     }
+
+    [Theory]
+    [InlineData(800, ScrollMode.Auto, ScrollBarVisibility.Auto)]
+    [InlineData(1031, ScrollMode.Auto, ScrollBarVisibility.Auto)]
+    [InlineData(1032, ScrollMode.Disabled, ScrollBarVisibility.Disabled)]
+    [InlineData(1200, ScrollMode.Disabled, ScrollBarVisibility.Disabled)]
+    public void NarrowViewport_EnablesHorizontalScrollWithoutBreakingVerticalMode(
+        double viewportWidth,
+        ScrollMode expectedHorizontalMode,
+        ScrollBarVisibility expectedHorizontalBars)
+    {
+        var root = Assert.IsType<ScrollViewerElement>(CareerLayout.Render(
+            Body("资料卡"),
+            Body("标签栏"),
+            true,
+            new(Body("看板"), Body("战绩")),
+            Body("子页"),
+            CareerTab.Matches,
+            null,
+            viewportWidth));
+
+        Assert.Equal(expectedHorizontalMode, root.HorizontalScrollMode);
+        Assert.Equal(expectedHorizontalBars, root.HorizontalScrollBarVisibility);
+        Assert.Equal(ScrollMode.Disabled, root.VerticalScrollMode);
+        Assert.Equal(ScrollBarVisibility.Disabled, root.VerticalScrollBarVisibility);
+    }
 }

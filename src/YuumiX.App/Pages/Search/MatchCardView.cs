@@ -167,6 +167,7 @@ internal static class MatchCardView
                 : Theme.CardBackground;
 
         var card = Border(cardBody)
+            .MinHeight(CardHeight)
             .HAlign(HorizontalAlignment.Stretch)
             .VAlign(VerticalAlignment.Stretch)
             .Margin(0, 0, 0, CardGap)

@@ -256,6 +256,12 @@ internal static class PlayerColumnHeader
             summaryItems.Add(PlayerColumnVisuals.BuildMasteryChip(masteryDetail));
         }
 
+        if (summaryItems.Count == 0)
+        {
+            // 保留单行 Caption 占位高度，确保文本放大时各列列头同步增长、首条战绩横向对齐。
+            summaryItems.Add(Caption(" ").IsHitTestVisible(false));
+        }
+
         var summaryRow = HStack(0, summaryItems.ToArray());
 
         var headerContent = Grid(
@@ -269,7 +275,7 @@ internal static class PlayerColumnHeader
             ]);
 
         var headerBorder = Border(headerContent)
-            .Height(48)
+            .MinHeight(48)
             .BorderThickness(new Thickness(0, 0, 0, 1))
             .BorderBrush(Theme.CardStroke)
             .Padding(8, 4);

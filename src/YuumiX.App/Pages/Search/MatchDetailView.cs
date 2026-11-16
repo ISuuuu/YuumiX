@@ -40,7 +40,8 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
 
         // 玩家名着色：查询者走胜负面板业务色；其余按可点击/悬停走语义令牌。
         // string 业务色与 ThemeRef 令牌无法共存于同一三元，因此按 CareerMatchRow 的既有做法在元素级分支。
-        var text = p.IsQueriedPlayer ? BodyStrong(p.DisplayName) : Body(p.DisplayName);
+        var text = (p.IsQueriedPlayer ? BodyStrong(p.DisplayName) : Body(p.DisplayName))
+            .TextTrimming(TextTrimming.CharacterEllipsis);
         if (p.IsQueriedPlayer)
         {
             text = text.Foreground(p.TeamWin ? p.Palette.WinText : p.Palette.LoseText);
@@ -107,8 +108,9 @@ internal sealed class PlayerNameLink : Component<PlayerNameLinkProps>
         }
 
         return Body(p.DisplayName)
+            .TextTrimming(TextTrimming.CharacterEllipsis)
             .Foreground(Theme.SecondaryText)
-            .WithToolTip(TextBlock("机器人（不可查看战绩）"));
+            .WithToolTip(TextBlock($"机器人 {p.FullName}（不可查看战绩）"));
     }
 }
 
@@ -127,9 +129,23 @@ internal static class MatchDetailView
     /// <summary>选手行高度（含上下内边距）：48 − 6×2 = 36，正好容纳 36 DIP 的英雄头像。</summary>
     private const double RowHeight = 48;
 
+    /// <summary>详情完整双表 + 横幅在不滚动时的最小可读总高度（横幅 + 2 表头 + 10 行 + 间距与内边距）。</summary>
+    private const double MinDetailHeight = 664;
+
+    private const double MinPlayerColWidth = 200;
+    private const double RowHorizontalPadding = 12 + 24;
+    private const double DetailHorizontalPadding = 12 * 2;
+
     private const double CsColWidth = 60;
     private const double GoldColWidth = 60;
     private const double DamageColWidth = 72;
+
+    private static double GetMinDetailWidth(bool isAugment)
+    {
+        double itemsColWidth = isAugment ? 310 : 204;
+        double fixedColsWidth = itemsColWidth + 84 + CsColWidth + GoldColWidth + DamageColWidth;
+        return MinPlayerColWidth + fixedColsWidth + RowHorizontalPadding + DetailHorizontalPadding;
+    }
 
     private static GridSize[] GetTableColumns(bool isAugment) =>
     [
@@ -140,6 +156,51 @@ internal static class MatchDetailView
         GridSize.Px(GoldColWidth),                          // 4: 金币（右对齐）
         GridSize.Px(DamageColWidth),                        // 5: 输出（右对齐）
     ];
+
+    private sealed record MatchDetailPanelProps(
+        MatchDetail? Detail,
+        MatchSummary? Summary,
+        GameDataCatalog Catalog,
+        YuumiPalette Palette,
+        string? CurrentSearchPuuid,
+        Action<long>? OnCopyGameId,
+        Action<string, SummonerProfile?>? OnClickPlayerPuuid,
+        Action<long>? OnClickPlayerSummonerId,
+        bool IsDetailError,
+        Action? OnRetryDetail,
+        Action? OnRetryEnrichment,
+        bool IsStaleSnapshot);
+
+    private sealed class MatchDetailPanel : Component<MatchDetailPanelProps>
+    {
+        public override Element Render()
+        {
+            var (viewportWidth, setViewportWidth) = UseState(0.0);
+            var (viewportHeight, setViewportHeight) = UseState(0.0);
+
+            var p = Props;
+            return RenderCore(
+                p.Detail,
+                p.Summary,
+                p.Catalog,
+                p.Palette,
+                p.CurrentSearchPuuid,
+                p.OnCopyGameId,
+                p.OnClickPlayerPuuid,
+                p.OnClickPlayerSummonerId,
+                p.IsDetailError,
+                p.OnRetryDetail,
+                p.OnRetryEnrichment,
+                p.IsStaleSnapshot,
+                viewportWidth,
+                viewportHeight,
+                (w, h) =>
+                {
+                    if (w > 0 && Math.Abs(w - viewportWidth) >= 1) setViewportWidth(w);
+                    if (h > 0 && Math.Abs(h - viewportHeight) >= 1) setViewportHeight(h);
+                });
+        }
+    }
 
     public static Element Render(
         MatchDetail? detail,
@@ -153,12 +214,49 @@ internal static class MatchDetailView
         bool isDetailError = false,
         Action? onRetryDetail = null,
         Action? onRetryEnrichment = null,
-        bool isStaleSnapshot = false)
+        bool isStaleSnapshot = false) =>
+        Component<MatchDetailPanel, MatchDetailPanelProps>(
+            new MatchDetailPanelProps(
+                detail,
+                summary,
+                catalog,
+                palette,
+                currentSearchPuuid,
+                onCopyGameId,
+                onClickPlayerPuuid,
+                onClickPlayerSummonerId,
+                isDetailError,
+                onRetryDetail,
+                onRetryEnrichment,
+                isStaleSnapshot));
+
+    private static Element RenderCore(
+        MatchDetail? detail,
+        MatchSummary? summary,
+        GameDataCatalog catalog,
+        YuumiPalette palette,
+        string? currentSearchPuuid,
+        Action<long>? onCopyGameId,
+        Action<string, SummonerProfile?>? onClickPlayerPuuid,
+        Action<long>? onClickPlayerSummonerId,
+        bool isDetailError,
+        Action? onRetryDetail,
+        Action? onRetryEnrichment,
+        bool isStaleSnapshot,
+        double viewportWidth,
+        double viewportHeight,
+        Action<double, double> onViewportSizeChanged)
     {
         if (summary is null)
         {
             return EmptyPanel(palette);
         }
+
+        int effectiveQueueId = detail is { QueueId: not 0 } ? detail.QueueId : summary.QueueId;
+        bool isAugmentQueue = SearchVisuals.IsAugmentQueue(effectiveQueueId);
+        double minDetailWidth = GetMinDetailWidth(isAugmentQueue);
+        bool needsHorizontalScroll = viewportWidth > 0 && viewportWidth < minDetailWidth;
+        bool fillVertical = viewportHeight <= 0 || viewportHeight >= MinDetailHeight;
 
         var blocks = new List<Element> { Banner(summary, detail, palette, onCopyGameId, onRetryEnrichment, isStaleSnapshot) };
 
@@ -173,16 +271,13 @@ internal static class MatchDetailView
             {
                 // 详情加载中：直接铺两张表格骨架（对齐双方队伍），尺寸与终态 1:1 完全对齐，
                 // 消除「小提示卡片 → 两张表」的高度跳变与闪现，数据到达时原地填充。
-                bool isAugment = SearchVisuals.IsAugmentQueue(summary.QueueId);
-                blocks.Add(SkeletonTable(isAugment));
-                blocks.Add(SkeletonTable(isAugment));
+                blocks.Add(SkeletonTable(isAugmentQueue));
+                blocks.Add(SkeletonTable(isAugmentQueue));
             }
         }
         else
         {
-            int queueId = detail.QueueId != 0 ? detail.QueueId : summary.QueueId;
-            bool isAugment = SearchVisuals.IsAugmentQueue(queueId);
-            GridSize[] columns = GetTableColumns(isAugment);
+            GridSize[] columns = GetTableColumns(isAugmentQueue);
 
             // 胜方永远在上：两张表的配色与位置一致，扫一眼就能分辨哪边赢了
             foreach (MatchDetailTeam team in new[] { detail.Blue, detail.Red }.OrderByDescending(t => t.Win))
@@ -192,11 +287,12 @@ internal static class MatchDetailView
                     catalog,
                     palette,
                     columns,
-                    queueId,
-                    isAugment,
+                    effectiveQueueId,
+                    isAugmentQueue,
                     currentSearchPuuid,
                     onClickPlayerPuuid,
-                    onClickPlayerSummonerId));
+                    onClickPlayerSummonerId,
+                    fillVertical));
             }
         }
 
@@ -226,21 +322,56 @@ internal static class MatchDetailView
                 .Grid(row: 1, column: 0, rowSpan: 2));
         }
 
+        var rowDefs = fillVertical
+            ? new[] { GridSize.Auto, GridSize.Star(), GridSize.Star() }
+            : new[] { GridSize.Auto, GridSize.Auto, GridSize.Auto };
+
         var detailGrid = (Grid(
             [GridSize.Star()],
-            [GridSize.Auto, GridSize.Star(), GridSize.Star()],
+            rowDefs,
             gridChildren.ToArray()) with
         { RowSpacing = 8 })
             .Padding(12)
-            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
-            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
+            .HAlign(needsHorizontalScroll ? HorizontalAlignment.Left : HorizontalAlignment.Stretch)
+            .VAlign(fillVertical ? VerticalAlignment.Stretch : VerticalAlignment.Top);
 
-        return Border(detailGrid)
+        if (needsHorizontalScroll)
+        {
+            detailGrid = detailGrid.Width(minDetailWidth);
+        }
+
+        if (fillVertical && viewportHeight > 0)
+        {
+            detailGrid = detailGrid.MinHeight(Math.Floor(viewportHeight));
+        }
+
+        var scroller = (ScrollViewer(detailGrid) with
+        {
+            HorizontalScrollBarVisibility = needsHorizontalScroll
+                ? Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto
+                : Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled,
+            HorizontalScrollMode = needsHorizontalScroll
+                ? Microsoft.UI.Xaml.Controls.ScrollMode.Auto
+                : Microsoft.UI.Xaml.Controls.ScrollMode.Disabled,
+            VerticalScrollBarVisibility = fillVertical
+                ? Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled
+                : Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+            VerticalScrollMode = fillVertical
+                ? Microsoft.UI.Xaml.Controls.ScrollMode.Disabled
+                : Microsoft.UI.Xaml.Controls.ScrollMode.Auto,
+        })
+        .IsTabStop(true)
+        .OnSizeChanged((_, e) =>
+        {
+            onViewportSizeChanged(Math.Floor(e.NewSize.Width), Math.Floor(e.NewSize.Height));
+        });
+
+        return Border(scroller)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1)
-            .HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
-            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Stretch);
+            .HAlign(HorizontalAlignment.Stretch)
+            .VAlign(VerticalAlignment.Stretch);
     }
 
     /// <summary>
@@ -522,7 +653,8 @@ internal static class MatchDetailView
         bool isAugment,
         string? currentSearchPuuid,
         Action<string, SummonerProfile?>? onClickPlayerPuuid,
-        Action<long>? onClickPlayerSummonerId)
+        Action<long>? onClickPlayerSummonerId,
+        bool fillVertical)
     {
         string accent = team.Win ? palette.WinText : palette.LoseText;
         string tint = team.Win ? palette.WinBg : palette.LoseBg;
@@ -559,7 +691,7 @@ internal static class MatchDetailView
 
         int playerCount = Math.Max(1, team.Players.Count);
         var rowDefs = new GridSize[playerCount];
-        Array.Fill(rowDefs, GridSize.Star());
+        Array.Fill(rowDefs, fillVertical ? GridSize.Star() : GridSize.Auto);
 
         var playerRows = new List<Element>(team.Players.Count);
         for (var i = 0; i < team.Players.Count; i++)
@@ -676,8 +808,9 @@ internal static class MatchDetailView
                     .TextAlignment(TextAlignment.Center)
                     .HAlign(HorizontalAlignment.Center)
                     .VAlign(VerticalAlignment.Center))
-            .Width(15)
-            .Height(15)
+            .MinWidth(16)
+            .MinHeight(16)
+            .Padding(2, 0)
             .CornerRadius(YuumiTheme.ControlRadius)
             .Background(AssetColors.BadgeDark)
             .HAlign(HorizontalAlignment.Right)
@@ -717,30 +850,46 @@ internal static class MatchDetailView
                 OnClickPlayerPuuid: onClickPlayerPuuid,
                 OnClickPlayerSummonerId: onClickPlayerSummonerId));
 
-        var identityChildren = new List<Element>
+        var identityCols = new List<GridSize> { GridSize.Star() };
+        var identityNodes = new List<Element>
         {
-            nameElement,
+            nameElement.Grid(row: 0, column: 0),
         };
+        int identityColIdx = 1;
 
         if (player.IsPrivate)
         {
-            identityChildren.Add(
+            identityCols.Add(GridSize.Auto);
+            identityNodes.Add(
                 Caption("🔒")
                     .Foreground(CareerVisuals.GoldColor)
-                    .WithToolTip(TextBlock("战绩已隐藏")));
+                    .WithToolTip(TextBlock("战绩已隐藏"))
+                    .Grid(row: 0, column: identityColIdx++));
         }
 
         if (!string.IsNullOrEmpty(player.Tier))
         {
-            identityChildren.Add(
+            identityCols.Add(GridSize.Auto);
+            identityNodes.Add(
                 CareerVisuals.RankedMedal(player.Tier, 16)
-                    .WithToolTip(TextBlock(player.RankText ?? player.Tier)));
+                    .WithToolTip(TextBlock(player.RankText ?? player.Tier))
+                    .Grid(row: 0, column: identityColIdx++));
         }
 
-        Element identity = HStack(6, identityChildren.ToArray())
-            .VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center);
+        Element identity = (Grid(identityCols.ToArray(), [GridSize.Auto], identityNodes.ToArray()) with { ColumnSpacing = 6 })
+            .HAlign(HorizontalAlignment.Left)
+            .VAlign(VerticalAlignment.Center);
 
-        Element playerCell = HStack(8, portrait, spellsAndRune, identity);
+        Element playerCell = (Grid(
+            [GridSize.Auto, GridSize.Auto, GridSize.Star()],
+            [GridSize.Auto],
+            [
+                portrait.Grid(row: 0, column: 0),
+                spellsAndRune.Grid(row: 0, column: 1),
+                identity.Grid(row: 0, column: 2),
+            ]) with
+        { ColumnSpacing = 8 })
+            .VAlign(VerticalAlignment.Center);
 
         // 装备与强化
         Element itemsCell;

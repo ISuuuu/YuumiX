@@ -114,6 +114,7 @@ public sealed class CareerPage : Component<CareerPageProps>
         var (loot, setLoot) = UseState<PlayerLootOverview?>(null, threadSafe: true);
         var (mastery, setMastery) = UseState<MasteryOverview?>(null, threadSafe: true);
         var (tab, setTab) = UseState(CareerTab.Matches, threadSafe: true);
+        var (viewportWidth, setViewportWidth) = UseState(0.0);
         var (queueFilter, setQueueFilter) = UseState(0, threadSafe: true);
         var (loadingRanked, setLoadingRanked) = UseState(true, threadSafe: true);
         var (loadingMatches, setLoadingMatches) = UseState(true, threadSafe: true);
@@ -579,7 +580,16 @@ public sealed class CareerPage : Component<CareerPageProps>
             return LcuOfflineState.Render();
         }
 
-        return CareerLayout.Render(header, tabBar, tabBarVisible, displayedMatches, content, effectiveTab, overlay);
+        return CareerLayout.Render(
+            header,
+            tabBar,
+            tabBarVisible,
+            displayedMatches,
+            content,
+            effectiveTab,
+            overlay,
+            viewportWidth,
+            setViewportWidth);
     }
 
 }

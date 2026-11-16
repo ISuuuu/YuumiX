@@ -169,14 +169,20 @@ public sealed class TierListPanelView : Component<TierListPanelProps>
                         .VAlign(VerticalAlignment.Center)
                         .Grid(0, 0),
 
-                    // 2. 英雄头像与名称
-                    HStack(8,
-                        Component<LcuImage, LcuImageProps>(
-                            new LcuImageProps($"/lol-game-data/assets/v1/champion-icons/{item.Id}.png", 34, CornerRadius: 17)),
-                        BodyStrong(Props.ChampName)
-                            .TextTrimming(TextTrimming.CharacterEllipsis)
-                            .VAlign(VerticalAlignment.Center)
-                    )
+                    // 2. 英雄头像与名称（Grid Star 列给予有限宽度，避免 HStack 吞掉 TextTrimming）
+                    (Grid(
+                        [GridSize.Auto, GridSize.Star()],
+                        [GridSize.Auto],
+                        [
+                            Component<LcuImage, LcuImageProps>(
+                                new LcuImageProps($"/lol-game-data/assets/v1/champion-icons/{item.Id}.png", 34, CornerRadius: 17))
+                                .Grid(0, 0),
+                            BodyStrong(Props.ChampName)
+                                .TextTrimming(TextTrimming.CharacterEllipsis)
+                                .VAlign(VerticalAlignment.Center)
+                                .WithToolTip(TextBlock(Props.ChampName))
+                                .Grid(0, 1),
+                        ]) with { ColumnSpacing = 8 })
                     .VAlign(VerticalAlignment.Center)
                     .Grid(0, 1),
 
