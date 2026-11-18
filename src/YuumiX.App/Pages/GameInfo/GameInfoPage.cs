@@ -8,6 +8,7 @@ using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
 using YuumiX.App.Theming;
+using YuumiX.App.Windowing;
 using YuumiX.Core;
 using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.GameInfo.Models;
@@ -257,6 +258,16 @@ public sealed class GameInfoPage : Component
     /// 「预览演示对局」：读的是内置假数据，不经过 LCU，因此离线态与等待对局态都能用。
     /// 抽成独立构件是因为离线态改由 <see cref="LcuOfflineState"/> 承载，两处需要同一个按钮。
     /// </summary>
+    private static Element AramDataButton(GameInfoState state)
+    {
+        var myChampId = !string.IsNullOrEmpty(state.CurrentSummonerPuuid)
+            ? state.MyTeam.FirstOrDefault(p => string.Equals(p.Puuid, state.CurrentSummonerPuuid, StringComparison.OrdinalIgnoreCase))?.ChampionId
+            : null;
+        return Button(Caption("海克斯出装"), () => AramDataWindowHost.ShowOrActivate(myChampId is > 0 ? myChampId : null))
+            .AutomationName("海克斯出装")
+            .CornerRadius(YuumiTheme.ControlRadius);
+    }
+
     private static Element DemoButton(Action onDemoClick)
     {
         var i18n = AppHost.Services?.I18n;
@@ -464,7 +475,8 @@ public sealed class GameInfoPage : Component
         )
         .VAlign(VerticalAlignment.Center);
 
-        var toolbarRight = HStack(0,
+        var toolbarRight = HStack(8,
+            AramDataButton(state),
             segmentedControl
         ).VAlign(VerticalAlignment.Center);
 
@@ -608,6 +620,7 @@ public sealed class GameInfoPage : Component
                     HStack(8,
                         theirChips,
                         enemyPill,
+                        AramDataButton(state),
                         segmentedControl
                     )
                     .HAlign(HorizontalAlignment.Right)

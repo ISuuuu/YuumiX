@@ -96,4 +96,10 @@ public static class Icons
 
     /// <summary>列表：「全部战绩」视图切换。</summary>
     public const string AllMatches = "\uE80A";
+
+    /// <summary>图钉（未置顶）：窗口置顶按钮。</summary>
+    public const string Pin = "\uE718";
+
+    /// <summary>图钉（已置顶）：窗口已置顶状态。</summary>
+    public const string Pinned = "\uE840";
 }

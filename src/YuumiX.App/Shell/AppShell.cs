@@ -16,6 +16,7 @@ using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
 using YuumiX.App.Pages;
+using YuumiX.App.Pages.AramTest;
 using YuumiX.App.Pages.Bench;
 using YuumiX.App.Pages.Career;
 using YuumiX.App.Pages.GameInfo;
@@ -1131,6 +1132,7 @@ public sealed class AppShell : Component
                 Component<DropDownLayer>(),
                 // 大乱斗板凳席悬浮窗的显隐协调者：不产生视觉输出，只把 LCU 状态翻译成窗口开关。
                 Component<AramBenchOverlayCoordinator>(),
+                Component<AramDataAutoOpenCoordinator>(),
                 // 公告弹窗：右下角覆盖层（对应旧版 NoticePopup 的 position: fixed）。
                 // 挂在最外层 Grid 上，压在页面内容之上、与 Toast 同层。
                 noticeVisible

@@ -65,6 +65,14 @@ public sealed class AppConfig
         General.SignalrServerUrl ??= string.Empty;
         General.SignalrUserId ??= string.Empty;
         General.UploadApiUrl ??= string.Empty;
+        if (string.IsNullOrWhiteSpace(General.AramDataApiUrl))
+        {
+            General.AramDataApiUrl = "http://192.168.6.133:3456";
+        }
+        if (string.IsNullOrWhiteSpace(General.AramDataHotkey))
+        {
+            General.AramDataHotkey = "Alt+X";
+        }
 
         Personalization.DpiScale ??= "Auto";
         Personalization.Language ??= "Auto";
@@ -181,6 +189,10 @@ public sealed class GeneralConfig
     public string SignalrUserId { get; set; } = string.Empty;
 
     public string UploadApiUrl { get; set; } = string.Empty;
+
+    public string AramDataApiUrl { get; set; } = "http://192.168.6.133:3456";
+
+    public string AramDataHotkey { get; set; } = "Alt+X";
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtraFields { get; set; }

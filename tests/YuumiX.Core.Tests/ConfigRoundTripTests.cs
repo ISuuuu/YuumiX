@@ -55,7 +55,7 @@ public sealed class ConfigRoundTripTests
     /// 唯一例外是 YuumiX 自加的 UI 扩展字段（见 <see cref="AllowedAddedKeyPaths"/>）。
     /// </summary>
     [Theory]
-    [InlineData(typeof(GeneralConfig), 13)]
+    [InlineData(typeof(GeneralConfig), 15)]
     [InlineData(typeof(PersonalizationConfig), 10)]
     [InlineData(typeof(FunctionsConfig), 58)]
     [InlineData(typeof(OtherConfig), 2)]
@@ -83,7 +83,7 @@ public sealed class ConfigRoundTripTests
         Assert.Equal(@"C:\Program Files (x86)\WeGame", config.General.WegamePath);
         Assert.True(config.General.EnableCloseToTray);
         Assert.Equal(1, config.General.LogLevel);
-        Assert.Equal("https://lol.369900.xyz", config.General.UploadApiUrl);
+        Assert.Equal("http://192.168.6.133:3456/", config.General.UploadApiUrl);
         Assert.True(config.General.EnableHttpProxy);
 
         Assert.Equal("#3339b01b", config.Personalization.WinCardColor);

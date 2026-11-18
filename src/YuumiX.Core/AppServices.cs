@@ -399,6 +399,9 @@ public sealed class AppServices : IAsyncDisposable
             provider.GetService<ILogger<GameInfoSnapshotStore>>()));
         collection.AddSingleton<ILiveClientService>(provider => new LiveClientService(
             logger: provider.GetService<ILogger<LiveClientService>>()));
+        collection.AddSingleton(provider => new Features.AramData.AramDataClient(
+            Path.Combine(paths.DataDirectory, "aram-cache"),
+            loggerFactory.CreateLogger<Features.AramData.AramDataClient>()));
         collection.AddSingleton<IMasteryService>(provider => new MasteryService(
             () => provider.GetRequiredService<LcuConnection>().Transport));
         collection.AddSingleton<IFateService>(provider => new FateService(
