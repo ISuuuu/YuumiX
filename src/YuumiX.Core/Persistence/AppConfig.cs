@@ -67,7 +67,7 @@ public sealed class AppConfig
         General.UploadApiUrl ??= string.Empty;
         if (string.IsNullOrWhiteSpace(General.AramDataApiUrl))
         {
-            General.AramDataApiUrl = "http://192.168.6.133:3456";
+            General.AramDataApiUrl = "https://lol.ikim.nyc.mn/";
         }
         if (string.IsNullOrWhiteSpace(General.AramDataHotkey))
         {
@@ -190,7 +190,7 @@ public sealed class GeneralConfig
 
     public string UploadApiUrl { get; set; } = string.Empty;
 
-    public string AramDataApiUrl { get; set; } = "http://192.168.6.133:3456";
+    public string AramDataApiUrl { get; set; } = "https://lol.ikim.nyc.mn/";
 
     public string AramDataHotkey { get; set; } = "Alt+X";
 

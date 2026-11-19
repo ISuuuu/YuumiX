@@ -59,7 +59,7 @@ public sealed class AramDataAutoOpenCoordinator : Component
 
                 var defaultUrl = !string.IsNullOrWhiteSpace(services.Config.General.AramDataApiUrl)
                     ? services.Config.General.AramDataApiUrl.Trim()
-                    : "http://192.168.6.133:3456";
+                    : "https://lol.ikim.nyc.mn/";
 
                 _ = Task.Run(async () =>
                 {

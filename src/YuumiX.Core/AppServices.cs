@@ -401,7 +401,8 @@ public sealed class AppServices : IAsyncDisposable
             logger: provider.GetService<ILogger<LiveClientService>>()));
         collection.AddSingleton(provider => new Features.AramData.AramDataClient(
             Path.Combine(paths.DataDirectory, "aram-cache"),
-            loggerFactory.CreateLogger<Features.AramData.AramDataClient>()));
+            loggerFactory.CreateLogger<Features.AramData.AramDataClient>(),
+            () => provider.GetRequiredService<AppConfig>()));
         collection.AddSingleton<IMasteryService>(provider => new MasteryService(
             () => provider.GetRequiredService<LcuConnection>().Transport));
         collection.AddSingleton<IFateService>(provider => new FateService(

@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Persistence;
 
 namespace YuumiX.Core.Features.AramData;
 
@@ -73,22 +75,26 @@ public sealed class AramDataClient : IDisposable
         "champion-shards/index.json"
     ];
 
-    private readonly HttpClient _httpClient;
     private readonly string _cacheRootDir;
     private readonly ILogger<AramDataClient>? _logger;
+    private readonly Func<AppConfig>? _configProvider;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private readonly ConcurrentDictionary<string, string> _shardJsonCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _clientLock = new();
+    private HttpClient? _httpClient;
+    private bool _cachedEnableProxy;
+    private string _cachedProxyAddr = string.Empty;
 
-    public AramDataClient(string? cacheRootDir = null, ILogger<AramDataClient>? logger = null)
+    public AramDataClient(
+        string? cacheRootDir = null,
+        ILogger<AramDataClient>? logger = null,
+        Func<AppConfig>? configProvider = null)
     {
-        _httpClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
         _cacheRootDir = string.IsNullOrWhiteSpace(cacheRootDir)
             ? Path.Combine(AppContext.BaseDirectory, "Data", "aram-cache")
             : Path.GetFullPath(cacheRootDir);
         _logger = logger;
+        _configProvider = configProvider;
     }
 
     /// <summary>
@@ -389,10 +395,59 @@ public sealed class AramDataClient : IDisposable
         return cleaned;
     }
 
+    private HttpClient GetHttpClient()
+    {
+        var cfg = _configProvider?.Invoke();
+        var enableProxy = cfg?.General.EnableHttpProxy ?? false;
+        var proxyAddr = cfg?.General.HttpProxyAddr ?? string.Empty;
+
+        lock (_clientLock)
+        {
+            if (_httpClient is not null &&
+                _cachedEnableProxy == enableProxy &&
+                string.Equals(_cachedProxyAddr, proxyAddr, StringComparison.OrdinalIgnoreCase))
+            {
+                return _httpClient;
+            }
+
+            _httpClient?.Dispose();
+
+            var handler = new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+            };
+
+            if (enableProxy && !string.IsNullOrWhiteSpace(proxyAddr))
+            {
+                var proxyUrl = proxyAddr.Contains("://", StringComparison.Ordinal)
+                    ? proxyAddr
+                    : $"http://{proxyAddr}";
+
+                try
+                {
+                    handler.Proxy = new WebProxy(proxyUrl);
+                    _logger?.LogInformation("[AramData] 请求已配置代理: {ProxyUrl}", proxyUrl);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "[AramData] 无效的代理地址: {ProxyAddr}", proxyAddr);
+                }
+            }
+
+            _httpClient = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+            _cachedEnableProxy = enableProxy;
+            _cachedProxyAddr = proxyAddr;
+            return _httpClient;
+        }
+    }
+
     private async Task<string> GetStringAsync(string url, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await GetHttpClient().SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
@@ -768,6 +823,10 @@ public sealed class AramDataClient : IDisposable
     public void Dispose()
     {
         _syncLock.Dispose();
-        _httpClient.Dispose();
+        lock (_clientLock)
+        {
+            _httpClient?.Dispose();
+            _httpClient = null;
+        }
     }
 }

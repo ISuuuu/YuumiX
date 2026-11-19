@@ -9,6 +9,7 @@ using YuumiX.App.Controls;
 using YuumiX.App.Theming;
 using YuumiX.App.Windowing;
 using YuumiX.Core.Features.AramData;
+using YuumiX.Core.Features.Tools;
 using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.AramTest;
@@ -107,6 +108,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
         var services = UseContext(AppHost.Context);
         var theme = UseContext(AppHost.ThemeContext);
         var client = services.Services.GetRequiredService<AramDataClient>();
+        var aliasProvider = services.Services.GetService<IChampionAliasProvider>();
         var config = services.Config;
         var configStore = services.ConfigStore;
 
@@ -223,7 +225,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
             {
                 var defaultUrl = !string.IsNullOrWhiteSpace(config.General.AramDataApiUrl)
                     ? config.General.AramDataApiUrl.Trim()
-                    : "http://192.168.6.133:3456";
+                    : "https://lol.ikim.nyc.mn/";
                 UpdateUi(prev => prev with
                 {
                     Url = string.IsNullOrEmpty(prev.Url) ? defaultUrl : prev.Url,
@@ -253,47 +255,74 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
             },
             0);
 
-        var blocks = new List<Element>
-        {
-            BuildConnectionHeaderCard(
-                ui,
-                onOpenUrlSettings: () =>
+        var connectionHeader = BuildConnectionHeaderCard(
+            ui,
+            onOpenUrlSettings: () =>
+            {
+                var (modIdx, keyIdx) = ParseHotkeyIndices(config.General.AramDataHotkey);
+                UpdateUi(prev => prev with
                 {
-                    var (modIdx, keyIdx) = ParseHotkeyIndices(config.General.AramDataHotkey);
-                    UpdateUi(prev => prev with
-                    {
-                        DraftUrl = prev.Url,
-                        DraftModIndex = modIdx,
-                        DraftKeyIndex = keyIdx,
-                        IsUrlDialogOpen = true
-                    });
-                },
-                onRefresh: () => LoadDatasetAsync(forceRefresh: true))
-        };
+                    DraftUrl = prev.Url,
+                    DraftModIndex = modIdx,
+                    DraftKeyIndex = keyIdx,
+                    IsUrlDialogOpen = true
+                });
+            },
+            onRefresh: () => LoadDatasetAsync(forceRefresh: true));
 
-        if (ui.Dataset != null)
+        Element pageContent;
+        if (ui.Dataset != null && ui.ShowDetailView && ui.SelectedChampionId is > 0)
         {
-            if (ui.ShowDetailView && ui.SelectedChampionId is > 0)
-            {
-                blocks.Add(BuildDetailView(
-                    ui,
-                    onBackToList: () => UpdateUi(prev => prev with { ShowDetailView = false }),
-                    onTabChanged: tab => UpdateUi(prev => prev with { ActiveTab = tab }),
-                    onRarityFilterChanged: filter => UpdateUi(prev => prev with { RarityFilter = filter }),
-                    onBuildSelected: idx => UpdateUi(prev => prev with { SelectedBuildIndex = idx })));
-            }
-            else
-            {
-                blocks.Add(BuildChampionRankListCard(
-                    ui,
-                    query => UpdateUi(prev => prev with { SearchQuery = query }),
-                    field => UpdateUi(prev => prev with
-                    {
-                        SortField = field,
-                        SortDescending = prev.SortField == field ? !prev.SortDescending : field != AramSortField.Tier
-                    }),
-                    champId => _ = LoadChampionAsync(ui.Dataset, champId, openDetailView: true)));
-            }
+            var (fixedItems, scrollItems) = BuildDetailView(
+                ui,
+                onBackToList: () => UpdateUi(prev => prev with { ShowDetailView = false }),
+                onTabChanged: tab => UpdateUi(prev => prev with { ActiveTab = tab }),
+                onRarityFilterChanged: filter => UpdateUi(prev => prev with { RarityFilter = filter }),
+                onBuildSelected: idx => UpdateUi(prev => prev with { SelectedBuildIndex = idx }));
+
+            pageContent = Grid(
+                [GridSize.Star()],
+                [GridSize.Auto, GridSize.Star()],
+                [
+                    VStack(12, [connectionHeader, .. fixedItems])
+                        .Padding(16, 16, 16, 0)
+                        .Grid(row: 0),
+                    CreateVerticalScrollViewer(
+                        VStack(12, scrollItems.ToArray())
+                            .Padding(16, 12, 16, 16)
+                            .HAlign(HorizontalAlignment.Stretch))
+                        .Grid(row: 1)
+                ]);
+        }
+        else if (ui.Dataset != null)
+        {
+            pageContent = Grid(
+                [GridSize.Star()],
+                [GridSize.Auto, GridSize.Star()],
+                [
+                    connectionHeader
+                        .Margin(0, 0, 0, 12)
+                        .Grid(row: 0),
+                    BuildChampionRankListCard(
+                        ui,
+                        aliasProvider,
+                        query => UpdateUi(prev => prev with { SearchQuery = query }),
+                        field => UpdateUi(prev => prev with
+                        {
+                            SortField = field,
+                            SortDescending = prev.SortField == field ? !prev.SortDescending : field != AramSortField.Tier
+                        }),
+                        champId => _ = LoadChampionAsync(ui.Dataset, champId, openDetailView: true))
+                        .Grid(row: 1)
+                ])
+                .Padding(16);
+        }
+        else
+        {
+            pageContent = CreateVerticalScrollViewer(
+                VStack(12, connectionHeader)
+                    .Padding(16)
+                    .HAlign(HorizontalAlignment.Stretch));
         }
 
         var urlDialog = ConfirmationDialog.Render(
@@ -306,7 +335,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                     TextBox(
                         ui.DraftUrl,
                         v => UpdateUi(prev => prev with { DraftUrl = v }),
-                        "http://192.168.6.133:3456")
+                        "https://lol.ikim.nyc.mn/")
                         .HAlign(HorizontalAlignment.Stretch)
                         .AutomationName("服务端 API 地址")),
                 VStack(4,
@@ -359,13 +388,17 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
             [GridSize.Star()],
             [GridSize.Star()],
             [
-                ScrollViewer(
-                    VStack(12, blocks.ToArray())
-                        .Padding(16)
-                        .HAlign(HorizontalAlignment.Stretch)),
+                pageContent,
                 urlDialog
             ]);
     }
+
+    private static Element CreateVerticalScrollViewer(Element content) =>
+        (ScrollViewer(content) with
+        {
+            HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled,
+        })
+            .HorizontalScrollMode(Microsoft.UI.Xaml.Controls.ScrollMode.Disabled);
 
     private static Element BuildConnectionHeaderCard(
         AramPageUi ui,
@@ -423,18 +456,15 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
 
     private static Element BuildChampionRankListCard(
         AramPageUi ui,
+        IChampionAliasProvider? aliasProvider,
         Action<string> onSearchChanged,
         Action<AramSortField> onSortClicked,
         Action<int> onChampionClicked)
     {
         var all = ui.Dataset!.Champions;
-        var q = ui.SearchQuery.Trim();
-        var filtered = string.IsNullOrEmpty(q)
+        var filtered = string.IsNullOrWhiteSpace(ui.SearchQuery)
             ? all
-            : all.Where(c =>
-                c.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                c.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                c.Id.ToString().Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+            : all.Where(c => ChampionSearch.Matches(c.Id, c.Name, null, c.Title, ui.SearchQuery, aliasProvider)).ToList();
 
         var sorted = SortChampions(filtered, ui.SortField, ui.SortDescending);
 
@@ -541,39 +571,49 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
         }).ToArray();
 
         return Border(
-                VStack(8,
-                [
-                    TextBox(ui.SearchQuery, onSearchChanged, "搜索英雄名称、称号或 ID...")
-                        .HAlign(HorizontalAlignment.Stretch)
-                        .AutomationName("搜索英雄"),
-                    Caption($"显示 {sorted.Count} / {all.Count} 位英雄（默认按胜率由高到低）")
-                        .Foreground(Theme.SecondaryText),
-                    headerRow,
-                    rows.Length > 0
-                        ? (Element)VStack(4, rows)
-                        : Border(Caption("没有匹配的英雄").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center))
-                            .Padding(20)
-                ]))
+                Grid(
+                    [GridSize.Star()],
+                    [GridSize.Auto, GridSize.Star()],
+                    [
+                        VStack(8,
+                        [
+                            TextBox(ui.SearchQuery, onSearchChanged, "搜索英雄名称、称号、拼音、别称或 ID...")
+                                .HAlign(HorizontalAlignment.Stretch)
+                                .AutomationName("搜索英雄"),
+                            Caption($"显示 {sorted.Count} / {all.Count} 位英雄（默认按胜率由高到低）")
+                                .Foreground(Theme.SecondaryText),
+                            headerRow
+                        ])
+                            .Margin(0, 0, 0, 8)
+                            .Grid(row: 0),
+                        (rows.Length > 0
+                            ? CreateVerticalScrollViewer(
+                                VStack(4, rows)
+                                    .HAlign(HorizontalAlignment.Stretch))
+                            : (Element)Border(Caption("没有匹配的英雄").Foreground(Theme.SecondaryText).HAlign(HorizontalAlignment.Center))
+                                .Padding(20))
+                            .Grid(row: 1)
+                    ]))
             .Padding(12)
             .CornerRadius(YuumiTheme.OverlayRadius)
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1);
     }
 
-    private static Element BuildDetailView(
+    private static (IReadOnlyList<Element> FixedItems, IReadOnlyList<Element> ScrollItems) BuildDetailView(
         AramPageUi ui,
         Action onBackToList,
         Action<AramDetailTab> onTabChanged,
         Action<AramAugmentRarityFilter> onRarityFilterChanged,
         Action<int> onBuildSelected)
     {
-        var items = new List<Element>
+        var fixedItems = new List<Element>
         {
-            HStack(8,
-                Button("← 返回英雄榜", onBackToList)
-                    .CornerRadius(YuumiTheme.ControlRadius),
-                Caption("点击切换其他英雄或返回列表").Foreground(Theme.SecondaryText).VAlign(VerticalAlignment.Center))
+            Button("← 返回英雄榜", onBackToList)
+                .CornerRadius(YuumiTheme.ControlRadius)
+                .HAlign(HorizontalAlignment.Left)
         };
+        var items = new List<Element>();
 
         if (ui.IsLoadingDetail)
         {
@@ -585,18 +625,18 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                 .CornerRadius(YuumiTheme.OverlayRadius)
                 .Background(Theme.CardBackground)
                 .WithBorder(Theme.CardStroke, 1));
-            return VStack(12, items.ToArray());
+            return (fixedItems, items);
         }
 
         if (ui.Detail == null || ui.Dataset == null)
         {
-            return VStack(12, items.ToArray());
+            return (fixedItems, items);
         }
 
         var champ = ui.Detail.Champion;
 
-        // 英雄头部信息卡片 + 梯队/胜率徽章
-        items.Add(Border(
+        // 英雄头部信息卡片 + 梯队/胜率/登场率徽章（固定在滚动区域上方）
+        fixedItems.Add(Border(
                 Grid(
                     [GridSize.Star(), GridSize.Auto],
                     [GridSize.Auto],
@@ -630,6 +670,14 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                                 .Padding(8, 4)
                                 .CornerRadius(YuumiTheme.ControlRadius)
                                 .Background(Theme.SubtleFill)
+                                .HAlign(HorizontalAlignment.Right),
+                            Border(
+                                Caption($"登场率 {FormatPct(champ.PickRate)}")
+                                    .SemiBold()
+                                    .Foreground(Theme.SecondaryText))
+                                .Padding(8, 4)
+                                .CornerRadius(YuumiTheme.ControlRadius)
+                                .Background(Theme.SubtleFill)
                                 .HAlign(HorizontalAlignment.Right))
                             .VAlign(VerticalAlignment.Center)
                             .Grid(row: 0, column: 1)
@@ -639,36 +687,9 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
             .Background(Theme.CardBackground)
             .WithBorder(Theme.CardStroke, 1));
 
-        // 胜率 & 选取率双指标小卡
-        items.Add(Grid(
-            [GridSize.Star(), GridSize.Star()],
-            [GridSize.Auto],
-            [
-                Border(
-                        VStack(4,
-                            Caption("当前胜率").Foreground(Theme.SecondaryText),
-                            Subtitle(FormatPct(champ.WinRate)).Foreground(GetWinRateBrush(champ.WinRate)).SemiBold()))
-                    .Padding(12)
-                    .CornerRadius(YuumiTheme.OverlayRadius)
-                    .Background(Theme.CardBackground)
-                    .WithBorder(Theme.CardStroke, 1)
-                    .Margin(0, 0, 8, 0)
-                    .Grid(row: 0, column: 0),
-
-                Border(
-                        VStack(4,
-                            Caption("登场选取率").Foreground(Theme.SecondaryText),
-                            Subtitle(FormatPct(champ.PickRate)).Foreground(Theme.PrimaryText).SemiBold()))
-                    .Padding(12)
-                    .CornerRadius(YuumiTheme.OverlayRadius)
-                    .Background(Theme.CardBackground)
-                    .WithBorder(Theme.CardStroke, 1)
-                    .Grid(row: 0, column: 1)
-            ]));
-
-        // 「海克斯」/「出装」分段式切换条（默认选中海克斯）
+        // 「海克斯」/「出装」分段式切换条（固定在顶部，默认选中海克斯）
         var isAugmentsTab = ui.ActiveTab == AramDetailTab.Augments;
-        items.Add(Border(
+        fixedItems.Add(Border(
                 Grid(
                     [GridSize.Star(), GridSize.Star()],
                     [GridSize.Auto],
@@ -765,7 +786,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
             }
         }
 
-        return VStack(12, items.ToArray());
+        return (fixedItems, items);
     }
 
     private static Element BuildTabButton(string label, bool isActive, Action onClick) =>
@@ -968,21 +989,31 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                     .VAlign(VerticalAlignment.Center);
 
             return (Element)Border(
-                    HStack(8,
-                        icon,
-                        VStack(4,
-                            HStack(8,
-                                BodyStrong(a.Name),
-                                Border(Caption(a.Rarity).Foreground(GetRarityBrush(a.Rarity)))
-                                    .Padding(8, 2)
-                                    .CornerRadius(YuumiTheme.ControlRadius)
-                                    .Background(Theme.CardBackground)
-                                    .VAlign(VerticalAlignment.Center)),
-                            HStack(8,
-                                Caption($"T{a.Tier?.ToString() ?? "-"}").Foreground(Theme.SecondaryText),
-                                Caption($"胜率 {FormatPct(a.WinRate)}").SemiBold().Foreground(GetWinRateBrush(a.WinRate)),
-                                Caption($"选取 {FormatPct(a.PickRate)} · {a.Games} 场").Foreground(Theme.SecondaryText)))
-                        .VAlign(VerticalAlignment.Center)))
+                    Grid(
+                        [GridSize.Auto, GridSize.Star()],
+                        [GridSize.Auto],
+                        [
+                            icon.Margin(0, 0, 8, 0).Grid(column: 0),
+                            VStack(4,
+                                Grid(
+                                    [GridSize.Star(), GridSize.Auto],
+                                    [GridSize.Auto],
+                                    [
+                                        BodyStrong(a.Name).TextWrapping().Margin(0, 0, 8, 0).Grid(column: 0),
+                                        Border(Caption(a.Rarity).Foreground(GetRarityBrush(a.Rarity)))
+                                            .Padding(8, 2)
+                                            .CornerRadius(YuumiTheme.ControlRadius)
+                                            .Background(Theme.CardBackground)
+                                            .VAlign(VerticalAlignment.Center)
+                                            .Grid(column: 1)
+                                    ]),
+                                HStack(8,
+                                    Caption($"T{a.Tier?.ToString() ?? "-"}").Foreground(Theme.SecondaryText),
+                                    Caption($"胜率 {FormatPct(a.WinRate)}").SemiBold().Foreground(GetWinRateBrush(a.WinRate)),
+                                    Caption($"选取 {FormatPct(a.PickRate)} · {a.Games} 场").Foreground(Theme.SecondaryText)))
+                            .VAlign(VerticalAlignment.Center)
+                            .Grid(column: 1)
+                        ]))
                 .Padding(12, 8)
                 .CornerRadius(YuumiTheme.ControlRadius)
                 .Background(Theme.SubtleFill);
