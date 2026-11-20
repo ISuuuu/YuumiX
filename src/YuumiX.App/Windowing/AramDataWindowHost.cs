@@ -152,6 +152,25 @@ public static class AramDataWindowHost
     }
 
     /// <summary>
+    /// 若独立窗口已打开则静默切换目标英雄，不主动弹出或激活窗口。
+    /// </summary>
+    public static void NotifySelectedChampionIfOpen(int championId)
+    {
+        if (championId <= 0) return;
+
+        bool isOpen;
+        lock (_syncLock)
+        {
+            isOpen = _isOpen && FindWindow(null, Title) != IntPtr.Zero;
+        }
+
+        if (isOpen)
+        {
+            SelectedChampionRequested?.Invoke(championId);
+        }
+    }
+
+    /// <summary>
     /// 热键切换显隐：已显示则隐藏，未显示则置顶呼出（不抢游戏焦点）。
     /// </summary>
     public static void ToggleHoldPreview(int? championId = null)

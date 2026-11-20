@@ -10,6 +10,7 @@ using YuumiX.App.Theming;
 using YuumiX.App.Windowing;
 using YuumiX.Core.Features.AramData;
 using YuumiX.Core.Features.Tools;
+using YuumiX.Core.Persistence;
 using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.AramTest;
@@ -44,29 +45,7 @@ internal enum AramAugmentRarityFilter
 /// </summary>
 public sealed class AramDataTestPage : Component<AramDataTestPageProps>
 {
-    private static readonly string[] HotkeyModifiers =
-    [
-        "Alt",
-        "Ctrl",
-        "Shift",
-        "Ctrl+Shift",
-        "Alt+Shift",
-        "无修饰键"
-    ];
-
-    private static readonly string[] HotkeyKeys =
-    [
-        "X", "H", "Z", "C", "V", "B", "G", "K", "L",
-        "`", "Tab",
-        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
-    ];
-
     private static readonly AramPageUi InitialUi = new(
-        Url: string.Empty,
-        DraftUrl: string.Empty,
-        DraftModIndex: 0,
-        DraftKeyIndex: 0,
-        IsUrlDialogOpen: false,
         SearchQuery: string.Empty,
         SortField: AramSortField.WinRate,
         SortDescending: true,
@@ -83,11 +62,6 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
         Detail: null);
 
     private sealed record AramPageUi(
-        string Url,
-        string DraftUrl,
-        int DraftModIndex,
-        int DraftKeyIndex,
-        bool IsUrlDialogOpen,
         string SearchQuery,
         AramSortField SortField,
         bool SortDescending,
@@ -106,11 +80,9 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
     public override Element Render()
     {
         var services = UseContext(AppHost.Context);
-        var theme = UseContext(AppHost.ThemeContext);
         var client = services.Services.GetRequiredService<AramDataClient>();
         var aliasProvider = services.Services.GetService<IChampionAliasProvider>();
         var config = services.Config;
-        var configStore = services.ConfigStore;
 
         var (ui, setUi) = UseState(InitialUi, threadSafe: true);
         var uiRef = UseRef(InitialUi);
@@ -155,9 +127,14 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
             }
         }
 
-        async Task LoadDatasetAsync(string? targetUrlOverride = null, int? preferredChampionId = null, bool forceRefresh = false)
+        string ResolveApiUrl() =>
+            !string.IsNullOrWhiteSpace(config.General.AramDataApiUrl)
+                ? config.General.AramDataApiUrl.Trim()
+                : GeneralConfig.DefaultAramDataApiUrl;
+
+        async Task LoadDatasetAsync(int? preferredChampionId = null, bool forceRefresh = false)
         {
-            var targetUrl = targetUrlOverride ?? uiRef.Current.Url;
+            var targetUrl = ResolveApiUrl();
 
             if (!forceRefresh && uiRef.Current.Dataset == null)
             {
@@ -223,18 +200,13 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
         UseEffect(
             () =>
             {
-                var defaultUrl = !string.IsNullOrWhiteSpace(config.General.AramDataApiUrl)
-                    ? config.General.AramDataApiUrl.Trim()
-                    : "https://lol.ikim.nyc.mn/";
                 UpdateUi(prev => prev with
                 {
-                    Url = string.IsNullOrEmpty(prev.Url) ? defaultUrl : prev.Url,
-                    DraftUrl = string.IsNullOrEmpty(prev.DraftUrl) ? defaultUrl : prev.DraftUrl,
                     SelectedChampionId = Props.InitialChampionId ?? prev.SelectedChampionId,
                     ShowDetailView = Props.InitialChampionId is > 0
                 });
 
-                _ = LoadDatasetAsync(defaultUrl, Props.InitialChampionId);
+                _ = LoadDatasetAsync(Props.InitialChampionId);
 
                 void OnChampionRequested(int champId)
                 {
@@ -246,7 +218,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                     else
                     {
                         UpdateUi(prev => prev with { SelectedChampionId = champId, ShowDetailView = true });
-                        _ = LoadDatasetAsync(uiRef.Current.Url, champId);
+                        _ = LoadDatasetAsync(champId);
                     }
                 }
 
@@ -257,17 +229,6 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
 
         var connectionHeader = BuildConnectionHeaderCard(
             ui,
-            onOpenUrlSettings: () =>
-            {
-                var (modIdx, keyIdx) = ParseHotkeyIndices(config.General.AramDataHotkey);
-                UpdateUi(prev => prev with
-                {
-                    DraftUrl = prev.Url,
-                    DraftModIndex = modIdx,
-                    DraftKeyIndex = keyIdx,
-                    IsUrlDialogOpen = true
-                });
-            },
             onRefresh: () => LoadDatasetAsync(forceRefresh: true));
 
         Element pageContent;
@@ -325,72 +286,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                     .HAlign(HorizontalAlignment.Stretch));
         }
 
-        var urlDialog = ConfirmationDialog.Render(
-            title: "数据源与热键设置",
-            content: VStack(12,
-                VStack(4,
-                    Caption("服务端 API 地址（保存后点击刷新按钮拉取数据）：")
-                        .Foreground(Theme.SecondaryText)
-                        .TextWrapping(),
-                    TextBox(
-                        ui.DraftUrl,
-                        v => UpdateUi(prev => prev with { DraftUrl = v }),
-                        "https://lol.ikim.nyc.mn/")
-                        .HAlign(HorizontalAlignment.Stretch)
-                        .AutomationName("服务端 API 地址")),
-                VStack(4,
-                    Caption("全局呼出热键（按一次显示，再按一次隐藏）：")
-                        .Foreground(Theme.SecondaryText)
-                        .TextWrapping(),
-                    Grid(
-                        [GridSize.Star(), GridSize.Star()],
-                        [GridSize.Auto],
-                        [
-                            ComboBox(HotkeyModifiers, ui.DraftModIndex, idx => UpdateUi(prev => prev with { DraftModIndex = idx }))
-                                .HAlign(HorizontalAlignment.Stretch)
-                                .AutomationName("热键修饰键")
-                                .Margin(0, 0, 8, 0)
-                                .Grid(row: 0, column: 0),
-                            ComboBox(HotkeyKeys, ui.DraftKeyIndex, idx => UpdateUi(prev => prev with { DraftKeyIndex = idx }))
-                                .HAlign(HorizontalAlignment.Stretch)
-                                .AutomationName("热键主键")
-                                .Grid(row: 0, column: 1),
-                        ]))),
-            primaryText: "保存",
-            closeText: "取消",
-            isOpen: ui.IsUrlDialogOpen,
-            onConfirm: () =>
-            {
-                var cur = uiRef.Current;
-                var nextUrl = cur.DraftUrl.Trim();
-                var nextHotkey = BuildHotkeyString(cur.DraftModIndex, cur.DraftKeyIndex);
-
-                if (!string.IsNullOrWhiteSpace(nextUrl))
-                {
-                    config.General.AramDataApiUrl = nextUrl;
-                }
-                config.General.AramDataHotkey = nextHotkey;
-                configStore.Save(config);
-                AramHotkeyMonitor.UpdateHotkey(nextHotkey);
-
-                UpdateUi(prev => prev with
-                {
-                    Url = string.IsNullOrWhiteSpace(nextUrl) ? prev.Url : nextUrl,
-                    IsUrlDialogOpen = false,
-                    StatusMessage = $"已保存（热键 {nextHotkey}），点击刷新按钮可拉取数据"
-                });
-            },
-            onDismiss: () => UpdateUi(prev => prev with { IsUrlDialogOpen = false }),
-            palette: theme.Current,
-            isPrimaryEnabled: !string.IsNullOrWhiteSpace(ui.DraftUrl));
-
-        return Grid(
-            [GridSize.Star()],
-            [GridSize.Star()],
-            [
-                pageContent,
-                urlDialog
-            ]);
+        return pageContent;
     }
 
     private static Element CreateVerticalScrollViewer(Element content) =>
@@ -402,7 +298,6 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
 
     private static Element BuildConnectionHeaderCard(
         AramPageUi ui,
-        Action onOpenUrlSettings,
         Func<Task> onRefresh)
     {
         var items = new List<Element>
@@ -423,20 +318,13 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                                 : Empty()),
                         Caption(ui.StatusMessage).Foreground(Theme.SecondaryText).TextWrapping())
                         .Grid(row: 0, column: 0),
-                    HStack(4,
-                        Button(
-                            Caption(Icons.Settings).FontFamily(Icons.FontFamily),
-                            onOpenUrlSettings)
-                            .GhostButton()
-                            .AutomationName("数据源设置")
-                            .WithToolTip(TextBlock("数据源设置")),
-                        Button(
-                            Caption(Icons.Refresh).FontFamily(Icons.FontFamily),
-                            () => _ = onRefresh())
-                            .GhostButton()
-                            .IsEnabled(!ui.IsLoadingDataset)
-                            .AutomationName("拉取远端数据")
-                            .WithToolTip(TextBlock("拉取远端数据")))
+                    Button(
+                        Caption(Icons.Refresh).FontFamily(Icons.FontFamily),
+                        () => _ = onRefresh())
+                        .GhostButton()
+                        .IsEnabled(!ui.IsLoadingDataset)
+                        .AutomationName("拉取远端数据")
+                        .WithToolTip(TextBlock("拉取远端数据"))
                         .Grid(row: 0, column: 1)
                         .VAlign(VerticalAlignment.Center)
                 ])
@@ -1061,30 +949,6 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
             .Padding(8, 4)
             .AutomationName($"筛选海克斯：{label}")
             .HAlign(HorizontalAlignment.Stretch);
-
-    private static (int ModIndex, int KeyIndex) ParseHotkeyIndices(string? hotkey)
-    {
-        if (string.IsNullOrWhiteSpace(hotkey)) return (0, 0);
-        var parts = hotkey.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length == 0) return (0, 0);
-
-        var keyToken = parts[^1];
-        var keyIdx = Array.FindIndex(HotkeyKeys, k => string.Equals(k, keyToken, StringComparison.OrdinalIgnoreCase));
-        if (keyIdx < 0) keyIdx = 0;
-
-        var modToken = parts.Length > 1 ? string.Join("+", parts[..^1]) : "无修饰键";
-        var modIdx = Array.FindIndex(HotkeyModifiers, m => string.Equals(m, modToken, StringComparison.OrdinalIgnoreCase));
-        if (modIdx < 0) modIdx = 0;
-
-        return (modIdx, keyIdx);
-    }
-
-    private static string BuildHotkeyString(int modIndex, int keyIndex)
-    {
-        var mod = modIndex >= 0 && modIndex < HotkeyModifiers.Length ? HotkeyModifiers[modIndex] : "Alt";
-        var key = keyIndex >= 0 && keyIndex < HotkeyKeys.Length ? HotkeyKeys[keyIndex] : "X";
-        return mod == "无修饰键" ? key : $"{mod}+{key}";
-    }
 
     private static string ResolveItemName(int itemId, IReadOnlyDictionary<int, AramItemInfo> itemDict) =>
         itemDict.TryGetValue(itemId, out var info) ? info.Name : $"#{itemId}";

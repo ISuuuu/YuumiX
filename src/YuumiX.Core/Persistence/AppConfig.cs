@@ -67,7 +67,7 @@ public sealed class AppConfig
         General.UploadApiUrl ??= string.Empty;
         if (string.IsNullOrWhiteSpace(General.AramDataApiUrl))
         {
-            General.AramDataApiUrl = "https://lol.ikim.nyc.mn/";
+            General.AramDataApiUrl = GeneralConfig.DefaultAramDataApiUrl;
         }
         if (string.IsNullOrWhiteSpace(General.AramDataHotkey))
         {
@@ -190,9 +190,14 @@ public sealed class GeneralConfig
 
     public string UploadApiUrl { get; set; } = string.Empty;
 
-    public string AramDataApiUrl { get; set; } = "https://lol.ikim.nyc.mn/";
+    public const string DefaultAramDataApiUrl = "https://lol.ikim.nyc.mn/";
+
+    public string AramDataApiUrl { get; set; } = DefaultAramDataApiUrl;
 
     public string AramDataHotkey { get; set; } = "Alt+X";
+
+    /// <summary>进入海克斯大乱斗选人/对局时是否自动弹出右侧推荐窗口，默认启用。</summary>
+    public bool AramDataAutoOpen { get; set; } = true;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtraFields { get; set; }

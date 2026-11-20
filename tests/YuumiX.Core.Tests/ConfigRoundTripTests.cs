@@ -55,7 +55,7 @@ public sealed class ConfigRoundTripTests
     /// 唯一例外是 YuumiX 自加的 UI 扩展字段（见 <see cref="AllowedAddedKeyPaths"/>）。
     /// </summary>
     [Theory]
-    [InlineData(typeof(GeneralConfig), 15)]
+    [InlineData(typeof(GeneralConfig), 16)]
     [InlineData(typeof(PersonalizationConfig), 10)]
     [InlineData(typeof(FunctionsConfig), 58)]
     [InlineData(typeof(OtherConfig), 2)]
@@ -118,6 +118,21 @@ public sealed class ConfigRoundTripTests
         var config = NewStore(path).Load();
 
         Assert.Equal(GeneralConfig.DefaultEnableCloseToTray, config.General.EnableCloseToTray);
+    }
+
+    [Fact]
+    public void AramDataAutoOpen_DefaultsToTrue_WhenKeyAbsent()
+    {
+        using var temp = new TempDirectory();
+        var path = temp.File("config.json");
+
+        var root = Fixture.ReadObject();
+        root["General"]!.AsObject().Remove("AramDataAutoOpen");
+        File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), NoBom);
+
+        var config = NewStore(path).Load();
+
+        Assert.True(config.General.AramDataAutoOpen);
     }
 
     /// <summary>

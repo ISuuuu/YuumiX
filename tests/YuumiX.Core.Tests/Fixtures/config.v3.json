@@ -18,7 +18,8 @@
     "SignalrUserId": "fixture-user",
     "UploadApiUrl": "http://192.168.6.133:3456/",
     "AramDataApiUrl": "http://192.168.6.133:3456",
-    "AramDataHotkey": "Alt+X"
+    "AramDataHotkey": "Alt+X",
+    "AramDataAutoOpen": true
   },
   "Personalization": {
     "MicaEnabled": true,

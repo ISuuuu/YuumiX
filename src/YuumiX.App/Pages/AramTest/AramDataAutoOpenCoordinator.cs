@@ -10,6 +10,7 @@ using YuumiX.Core.Features.GameInfo;
 using YuumiX.Core.Features.GameInfo.Models;
 using YuumiX.Core.Features.Opgg;
 using YuumiX.Core.Features.Opgg.Models;
+using YuumiX.Core.Persistence;
 using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Pages.AramTest;
@@ -59,7 +60,7 @@ public sealed class AramDataAutoOpenCoordinator : Component
 
                 var defaultUrl = !string.IsNullOrWhiteSpace(services.Config.General.AramDataApiUrl)
                     ? services.Config.General.AramDataApiUrl.Trim()
-                    : "https://lol.ikim.nyc.mn/";
+                    : GeneralConfig.DefaultAramDataApiUrl;
 
                 _ = Task.Run(async () =>
                 {
@@ -127,6 +128,8 @@ public sealed class AramDataAutoOpenCoordinator : Component
                     return static () => { };
                 }
 
+                var autoOpen = services.Config.General.AramDataAutoOpen;
+
                 if (!openedForMatchRef.Current)
                 {
                     openedForMatchRef.Current = true;
@@ -134,14 +137,28 @@ public sealed class AramDataAutoOpenCoordinator : Component
                     {
                         lastChampRef.Current = myChampId;
                     }
-                    logger.LogInformation("[AramData] 海克斯大乱斗自动弹出窗口 phase={Phase}, champId={ChampId}", state.Phase, myChampId);
-                    AramDataWindowHost.ShowOrActivate(myChampId > 0 ? myChampId : null);
+                    if (autoOpen)
+                    {
+                        logger.LogInformation("[AramData] 海克斯大乱斗自动弹出窗口 phase={Phase}, champId={ChampId}", state.Phase, myChampId);
+                        AramDataWindowHost.ShowOrActivate(myChampId > 0 ? myChampId : null);
+                    }
+                    else if (myChampId > 0)
+                    {
+                        AramDataWindowHost.NotifySelectedChampionIfOpen(myChampId);
+                    }
                 }
                 else if (myChampId > 0 && myChampId != lastChampRef.Current)
                 {
                     lastChampRef.Current = myChampId;
-                    logger.LogInformation("[AramData] 海克斯大乱斗选人联动跳转 champId={ChampId}", myChampId);
-                    AramDataWindowHost.ShowOrActivate(myChampId);
+                    if (autoOpen)
+                    {
+                        logger.LogInformation("[AramData] 海克斯大乱斗选人联动跳转 champId={ChampId}", myChampId);
+                        AramDataWindowHost.ShowOrActivate(myChampId);
+                    }
+                    else
+                    {
+                        AramDataWindowHost.NotifySelectedChampionIfOpen(myChampId);
+                    }
                 }
 
                 return static () => { };

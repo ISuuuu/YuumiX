@@ -450,23 +450,27 @@ public sealed class SettingsPage : Component
                 SettingsVisuals.GroupHeader(services.I18n.T("settings.opggGroup", "OP.GG")),
                 OpggSection.Render(ui),
 
-                // 3. 通用设置
+                // 3. 海克斯大乱斗
+                SettingsVisuals.GroupHeader(services.I18n.T("settings.aramDataGroup", "海克斯大乱斗")),
+                AramDataSection.Render(ui),
+
+                // 4. 通用设置
                 SettingsVisuals.GroupHeader(services.I18n.T("settings.generalGroup", "通用设置")),
                 GeneralSection.Render(ui, pathEdit, RequestPathCommit, cloudText, RequestCloudTextCommit, signalrStatus, update, () => setClearDialogOpen(true)),
 
-                // 4. 高级与隐藏
+                // 5. 高级与隐藏
                 SettingsVisuals.GroupHeader(services.I18n.T("settings.advancedGroup", "高级与隐藏")),
                 AdvancedSection.Render(ui),
 
-                // 5. 日志与网络
+                // 6. 日志与网络
                 SettingsVisuals.GroupHeader(services.I18n.T("settings.logNetworkGroup", "日志与网络")),
                 LogNetworkSection.Render(ui, proxyDraftRef),
 
-                // 6. 外观与个性化
+                // 7. 外观与个性化
                 SettingsVisuals.GroupHeader(services.I18n.T("settings.personalizationGroup", "外观与个性化")),
                 AppearanceSection.Render(ui, RequestColorCommit),
 
-                // 7. 关于
+                // 8. 关于
                 SettingsVisuals.GroupHeader(services.I18n.T("settings.aboutTitle", "关于")),
                 AboutSection.Render(ui)
             )
