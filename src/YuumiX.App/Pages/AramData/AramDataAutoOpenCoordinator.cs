@@ -13,7 +13,7 @@ using YuumiX.Core.Features.Opgg.Models;
 using YuumiX.Core.Persistence;
 using static Microsoft.UI.Reactor.Factories;
 
-namespace YuumiX.App.Pages.AramTest;
+namespace YuumiX.App.Pages.AramData;
 
 /// <summary>
 /// 选人/对局自动弹窗与启动后台版本检测协调器：

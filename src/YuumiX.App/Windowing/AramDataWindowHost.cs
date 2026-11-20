@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Input;
 using Microsoft.UI.Reactor;
@@ -8,7 +7,7 @@ using Windows.Foundation;
 using Windows.Graphics;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
-using YuumiX.App.Pages.AramTest;
+using YuumiX.App.Pages.AramData;
 using YuumiX.App.Theming;
 using static Microsoft.UI.Reactor.Factories;
 
@@ -20,70 +19,15 @@ namespace YuumiX.App.Windowing;
 public static class AramDataWindowHost
 {
     public const string Title = "海克斯与出装推荐";
-    public const string MainWindowTitle = "YuumiX";
     public const double DefaultWidth = 440;
     public const double DefaultHeight = 760;
 
     private static readonly Lock _syncLock = new();
-    private static bool _isOpen;
+    private static ReactorWindow? _window;
     private static bool _isAlwaysOnTop = true;
 
     public static bool IsAlwaysOnTop => _isAlwaysOnTop;
     public static event Action<int>? SelectedChampionRequested;
-
-    private static readonly IntPtr HwndTopmost = new(-1);
-    private static readonly IntPtr HwndNoTopmost = new(-2);
-    private const uint SpiGetWorkArea = 0x0030;
-    private const uint SwpNosize = 0x0001;
-    private const uint SwpNomove = 0x0002;
-    private const uint SwpNozorder = 0x0004;
-    private const uint SwpNoactivate = 0x0010;
-    private const int SwHide = 0;
-    private const int SwShow = 5;
-    private const int SwShowNoActivate = 4;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref Rect pvParam, uint fWinIni);
-
-    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetWindowRect(IntPtr hWnd, out Rect lpRect);
-
-    [DllImport("user32.dll")]
-    private static extern uint GetDpiForWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool IsIconic(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool IsWindowVisible(IntPtr hWnd);
 
     /// <summary>
     /// 打开或聚焦独立窗口，并贴合主窗体右侧且保持同高；可选传入初始/目标英雄 ID。
@@ -93,20 +37,20 @@ public static class AramDataWindowHost
         lock (_syncLock)
         {
             var (posX, posY, widthPx, heightPx, widthDip, heightDip) = ComputeDockedBounds();
-            var existingHwnd = FindWindow(null, Title);
 
-            if (existingHwnd != IntPtr.Zero && _isOpen)
+            if (TryGetExistingHandleLocked(out var existingHwnd))
             {
-                ShowWindow(existingHwnd, SwShow);
-                SetWindowPos(
+                Win32WindowInterop.ShowWindow(existingHwnd);
+                Win32WindowInterop.SetWindowBounds(
                     existingHwnd,
-                    _isAlwaysOnTop ? HwndTopmost : IntPtr.Zero,
                     posX,
                     posY,
                     widthPx,
                     heightPx,
-                    (_isAlwaysOnTop ? 0u : SwpNozorder) | SwpNoactivate);
-                SetForegroundWindow(existingHwnd);
+                    _isAlwaysOnTop,
+                    preserveZOrderWhenNotTopmost: true,
+                    noActivate: true);
+                Win32WindowInterop.BringToFront(existingHwnd);
                 if (championId is > 0)
                 {
                     SelectedChampionRequested?.Invoke(championId.Value);
@@ -130,13 +74,14 @@ public static class AramDataWindowHost
                 Icon = File.Exists(AppAssets.AppIconPath) ? WindowIcon.FromPath(AppAssets.AppIconPath) : null,
             };
 
-            _isOpen = true;
             AppHost.Services?.LoggerFactory
                 .CreateLogger(typeof(AramDataWindowHost))
                 .LogInformation("[AramDataWindowHost] 打开海克斯出装窗口 pos=({X},{Y}) size={W}x{H} champId={ChampId} alwaysOnTop={Top}",
                     posX, posY, widthDip, heightDip, championId, _isAlwaysOnTop);
 
-            ReactorApp.OpenWindow(spec, () => new AramDataWindowRoot(championId));
+            var window = ReactorApp.OpenWindow(spec, () => new AramDataWindowRoot(championId));
+            window.Closing += OnWindowClosing;
+            _window = window;
 
             if (_isAlwaysOnTop)
             {
@@ -161,7 +106,7 @@ public static class AramDataWindowHost
         bool isOpen;
         lock (_syncLock)
         {
-            isOpen = _isOpen && FindWindow(null, Title) != IntPtr.Zero;
+            isOpen = TryGetExistingHandleLocked(out _);
         }
 
         if (isOpen)
@@ -177,10 +122,10 @@ public static class AramDataWindowHost
     {
         lock (_syncLock)
         {
-            var existingHwnd = FindWindow(null, Title);
-            if (existingHwnd != IntPtr.Zero && _isOpen && IsWindowVisible(existingHwnd))
+            if (TryGetExistingHandleLocked(out var existingHwnd) &&
+                Win32WindowInterop.IsWindowVisible(existingHwnd))
             {
-                ShowWindow(existingHwnd, SwHide);
+                Win32WindowInterop.HideWindow(existingHwnd);
                 return;
             }
         }
@@ -196,12 +141,19 @@ public static class AramDataWindowHost
         lock (_syncLock)
         {
             var (posX, posY, widthPx, heightPx, widthDip, heightDip) = ComputeDockedBounds();
-            var existingHwnd = FindWindow(null, Title);
 
-            if (existingHwnd != IntPtr.Zero && _isOpen)
+            if (TryGetExistingHandleLocked(out var existingHwnd))
             {
-                ShowWindow(existingHwnd, SwShowNoActivate);
-                SetWindowPos(existingHwnd, HwndTopmost, posX, posY, widthPx, heightPx, SwpNoactivate);
+                Win32WindowInterop.ShowWindowNoActivate(existingHwnd);
+                Win32WindowInterop.SetWindowBounds(
+                    existingHwnd,
+                    posX,
+                    posY,
+                    widthPx,
+                    heightPx,
+                    alwaysOnTop: true,
+                    preserveZOrderWhenNotTopmost: false,
+                    noActivate: true);
                 if (championId is > 0)
                 {
                     SelectedChampionRequested?.Invoke(championId.Value);
@@ -226,9 +178,10 @@ public static class AramDataWindowHost
                 Icon = File.Exists(AppAssets.AppIconPath) ? WindowIcon.FromPath(AppAssets.AppIconPath) : null,
             };
 
-            _isOpen = true;
             _isAlwaysOnTop = true;
-            ReactorApp.OpenWindow(spec, () => new AramDataWindowRoot(championId));
+            var window = ReactorApp.OpenWindow(spec, () => new AramDataWindowRoot(championId));
+            window.Closing += OnWindowClosing;
+            _window = window;
 
             _ = Task.Run(async () =>
             {
@@ -245,10 +198,9 @@ public static class AramDataWindowHost
     {
         lock (_syncLock)
         {
-            var existingHwnd = FindWindow(null, Title);
-            if (existingHwnd != IntPtr.Zero && _isOpen)
+            if (TryGetExistingHandleLocked(out var existingHwnd))
             {
-                ShowWindow(existingHwnd, SwHide);
+                Win32WindowInterop.HideWindow(existingHwnd);
             }
         }
     }
@@ -262,37 +214,78 @@ public static class AramDataWindowHost
 
     public static void UpdateAlwaysOnTop(bool alwaysOnTop)
     {
-        _isAlwaysOnTop = alwaysOnTop;
-        var hwnd = FindWindow(null, Title);
-        if (hwnd == IntPtr.Zero) return;
+        lock (_syncLock)
+        {
+            _isAlwaysOnTop = alwaysOnTop;
+            if (!TryGetExistingHandleLocked(out var hwnd))
+            {
+                return;
+            }
 
-        SetWindowPos(
-            hwnd,
-            alwaysOnTop ? HwndTopmost : HwndNoTopmost,
-            0, 0, 0, 0,
-            SwpNosize | SwpNomove | SwpNoactivate);
+            Win32WindowInterop.SetAlwaysOnTop(hwnd, alwaysOnTop);
+        }
     }
 
     internal static void NotifyClosed()
     {
         lock (_syncLock)
         {
-            _isOpen = false;
+            DetachWindowLocked();
+        }
+    }
+
+    private static void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        lock (_syncLock)
+        {
+            if (!ReferenceEquals(_window, sender))
+            {
+                return;
+            }
+
+            DetachWindowLocked();
+        }
+    }
+
+    private static bool TryGetExistingHandleLocked(out nint hwnd)
+    {
+        if (_window is null)
+        {
+            hwnd = 0;
+            return false;
+        }
+
+        if (Win32WindowInterop.TryGetHandle(_window, out hwnd))
+        {
+            return true;
+        }
+
+        DetachWindowLocked();
+        return false;
+    }
+
+    private static void DetachWindowLocked()
+    {
+        if (_window is not null)
+        {
+            _window.Closing -= OnWindowClosing;
+            _window = null;
         }
     }
 
     private static (int PosX, int PosY, int WidthPx, int HeightPx, double WidthDip, double HeightDip) ComputeDockedBounds()
     {
-        var workArea = new Rect { Left = 0, Top = 0, Right = 1920, Bottom = 1040 };
-        SystemParametersInfo(SpiGetWorkArea, 0, ref workArea, 0);
-
-        var mainHwnd = FindWindow(null, MainWindowTitle);
-        if (mainHwnd != IntPtr.Zero &&
-            IsWindowVisible(mainHwnd) &&
-            !IsIconic(mainHwnd) &&
-            GetWindowRect(mainHwnd, out var mainRect))
+        if (!Win32WindowInterop.TryGetWorkArea(out var workArea))
         {
-            var dpi = GetDpiForWindow(mainHwnd);
+            workArea = new Win32WindowInterop.Win32Rect { Left = 0, Top = 0, Right = 1920, Bottom = 1040 };
+        }
+
+        if (MainWindowRegistry.TryGetHandle(out var mainHwnd) &&
+            Win32WindowInterop.IsWindowVisible(mainHwnd) &&
+            !Win32WindowInterop.IsMinimized(mainHwnd) &&
+            Win32WindowInterop.TryGetWindowRect(mainHwnd, out var mainRect))
+        {
+            var dpi = Win32WindowInterop.GetDpiForWindow(mainHwnd);
             var scale = dpi > 0 ? dpi / 96.0 : 1.0;
 
             var heightPx = Math.Max(480, mainRect.Bottom - mainRect.Top);
@@ -398,7 +391,7 @@ internal sealed class AramDataWindowRoot(int? initialChampionId = null) : Compon
                 [
                     titleBar.Grid(row: 0),
                     pinButton.Grid(row: 0),
-                    Component<AramDataTestPage, AramDataTestPageProps>(new AramDataTestPageProps(initialChampionId)).Grid(row: 1),
+                    Component<AramDataPage, AramDataPageProps>(new AramDataPageProps(initialChampionId)).Grid(row: 1),
                     Component<DropDownLayer>().Grid(row: 1),
                 ])
             .RequestedTheme(palette.ElementTheme)

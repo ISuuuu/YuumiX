@@ -1,11 +1,10 @@
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using static Microsoft.UI.Reactor.Factories;
 using YuumiX.App.Composition;
 using YuumiX.App.Pages.Bench;
 using YuumiX.Core.Features.AramBench;
+using static Microsoft.UI.Reactor.Factories;
 
 namespace YuumiX.App.Windowing;
 
@@ -38,8 +37,6 @@ public static class AramBenchWindowHost
 
     /// <summary>距屏幕上沿的间距，避免贴边后圆角被切。</summary>
     private const double ScreenTopMargin = 8;
-
-    private const uint SpiGetWorkArea = 0x0030;
 
     private static readonly Lock Gate = new();
 
@@ -207,8 +204,7 @@ public static class AramBenchWindowHost
     /// </summary>
     private static (double X, double Y) TopCenterPosition()
     {
-        var workArea = new Rect();
-        if (!SystemParametersInfo(SpiGetWorkArea, 0, ref workArea, 0))
+        if (!Win32WindowInterop.TryGetWorkArea(out var workArea))
         {
             // 取不到工作区就交给系统默认放置，总比丢到 (0,0) 更可预期
             return (100, 100);
@@ -219,19 +215,6 @@ public static class AramBenchWindowHost
         double y = workArea.Top + ScreenTopMargin;
         return (Math.Round(x), Math.Round(y));
     }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref Rect pvParam, uint fWinIni);
 }
 
 /// <summary>

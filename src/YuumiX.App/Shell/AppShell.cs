@@ -10,7 +10,7 @@ using Windows.Foundation;
 using YuumiX.App.Composition;
 using YuumiX.App.Controls;
 using YuumiX.App.Navigation;
-using YuumiX.App.Pages.AramTest;
+using YuumiX.App.Pages.AramData;
 using YuumiX.App.Pages.Bench;
 using YuumiX.App.Pages.Notice;
 using YuumiX.App.Theming;

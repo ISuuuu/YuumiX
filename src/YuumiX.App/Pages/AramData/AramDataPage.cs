@@ -13,9 +13,9 @@ using YuumiX.Core.Features.Tools;
 using YuumiX.Core.Persistence;
 using static Microsoft.UI.Reactor.Factories;
 
-namespace YuumiX.App.Pages.AramTest;
+namespace YuumiX.App.Pages.AramData;
 
-public sealed record AramDataTestPageProps(int? InitialChampionId = null);
+public sealed record AramDataPageProps(int? InitialChampionId = null);
 
 internal enum AramSortField
 {
@@ -43,7 +43,7 @@ internal enum AramAugmentRarityFilter
 /// 1) 英雄榜视图：默认按胜率由高到低排列，展示头像、名称、梯队（T1/T2...）、胜率、登场率，支持搜索与表头排序；
 /// 2) 英雄详情视图：点击英雄（或选人自动跳转）展示头像、梯队、胜率/选取率双卡，以及「海克斯 / 出装」双页签（默认海克斯）。
 /// </summary>
-public sealed class AramDataTestPage : Component<AramDataTestPageProps>
+public sealed class AramDataPage : Component<AramDataPageProps>
 {
     private static readonly AramPageUi InitialUi = new(
         SearchQuery: string.Empty,

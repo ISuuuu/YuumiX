@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
@@ -21,38 +20,7 @@ public static class OpggWindowHost
     public const double DefaultHeight = 820;
 
     private static readonly Lock _syncLock = new();
-    private static bool _isOpen;
-
-    private static readonly IntPtr HwndTopmost = new(-1);
-    private static readonly IntPtr HwndNoTopmost = new(-2);
-    private const uint SwpNosize = 0x0001;
-    private const uint SwpNomove = 0x0002;
-    private const uint SwpNoactivate = 0x0010;
-    private const uint SpiGetWorkArea = 0x0030;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref Rect pvParam, uint fWinIni);
-
-    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
+    private static ReactorWindow? _window;
 
     /// <summary>
     /// 打开或聚焦已有的 OP.GG 独立窗口。
@@ -61,13 +29,12 @@ public static class OpggWindowHost
     {
         lock (_syncLock)
         {
-            var existingHwnd = FindWindow(null, Title);
-            if (existingHwnd != IntPtr.Zero && _isOpen)
+            if (TryGetExistingHandleLocked(out var existingHwnd))
             {
-                SetForegroundWindow(existingHwnd);
+                Win32WindowInterop.BringToFront(existingHwnd);
                 if (AppHost.Services.Config.Functions.EnableOpggOnTop)
                 {
-                    UpdateAlwaysOnTop(true);
+                    Win32WindowInterop.SetAlwaysOnTop(existingHwnd, true);
                 }
                 return;
             }
@@ -77,8 +44,7 @@ public static class OpggWindowHost
             double posY = 100;
             var startPos = WindowStartPosition.CenterOnCurrent;
 
-            var workArea = new Rect();
-            if (SystemParametersInfo(SpiGetWorkArea, 0, ref workArea, 0))
+            if (Win32WindowInterop.TryGetWorkArea(out var workArea))
             {
                 posX = Math.Max(0, workArea.Right - DefaultWidth - 2);
                 posY = Math.Max(0, workArea.Top + 2);
@@ -98,12 +64,9 @@ public static class OpggWindowHost
                 Icon = File.Exists(AppAssets.AppIconPath) ? WindowIcon.FromPath(AppAssets.AppIconPath) : null,
             };
 
-            _isOpen = true;
-
-            ReactorApp.OpenWindow(spec, () =>
-            {
-                return new OpggWindowRoot(initialChampionId);
-            });
+            var window = ReactorApp.OpenWindow(spec, () => new OpggWindowRoot(initialChampionId));
+            window.Closing += OnWindowClosing;
+            _window = window;
 
             // 窗口打开后延迟微调置顶（如果配置开启）
             if (AppHost.Services.Config.Functions.EnableOpggOnTop)
@@ -122,21 +85,64 @@ public static class OpggWindowHost
     /// </summary>
     public static void UpdateAlwaysOnTop(bool alwaysOnTop)
     {
-        var hwnd = FindWindow(null, Title);
-        if (hwnd == IntPtr.Zero) return;
+        lock (_syncLock)
+        {
+            if (!TryGetExistingHandleLocked(out var hwnd))
+            {
+                return;
+            }
 
-        var insertAfter = alwaysOnTop ? HwndTopmost : HwndNoTopmost;
-        SetWindowPos(hwnd, insertAfter, 0, 0, 0, 0, SwpNomove | SwpNosize | SwpNoactivate);
+            Win32WindowInterop.SetAlwaysOnTop(hwnd, alwaysOnTop);
+        }
     }
 
     /// <summary>
-    /// 窗口关闭时重置单例标记。
+    /// 窗口关闭时重置单例引用（组件卸载兜底）。
     /// </summary>
     internal static void NotifyClosed()
     {
         lock (_syncLock)
         {
-            _isOpen = false;
+            DetachWindowLocked();
+        }
+    }
+
+    private static void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        lock (_syncLock)
+        {
+            if (!ReferenceEquals(_window, sender))
+            {
+                return;
+            }
+
+            DetachWindowLocked();
+        }
+    }
+
+    private static bool TryGetExistingHandleLocked(out nint hwnd)
+    {
+        if (_window is null)
+        {
+            hwnd = 0;
+            return false;
+        }
+
+        if (Win32WindowInterop.TryGetHandle(_window, out hwnd))
+        {
+            return true;
+        }
+
+        DetachWindowLocked();
+        return false;
+    }
+
+    private static void DetachWindowLocked()
+    {
+        if (_window is not null)
+        {
+            _window.Closing -= OnWindowClosing;
+            _window = null;
         }
     }
 }
