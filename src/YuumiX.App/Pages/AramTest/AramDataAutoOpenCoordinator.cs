@@ -85,6 +85,7 @@ public sealed class AramDataAutoOpenCoordinator : Component
                 {
                     sub.Dispose();
                     opggSub.Dispose();
+                    AramHotkeyMonitor.Stop();
                 };
             },
             0);

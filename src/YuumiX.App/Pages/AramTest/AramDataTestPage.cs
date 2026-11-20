@@ -413,7 +413,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                 [
                     VStack(4,
                         HStack(8,
-                            Subtitle("海克斯英雄榜").SemiBold().HeadingLevel(AutomationHeadingLevel.Level1),
+                            Subtitle("海克斯英雄榜").HeadingLevel(AutomationHeadingLevel.Level1),
                             ui.Dataset != null
                                 ? Border(Caption($"v{ui.Dataset.GamePatch ?? ui.Dataset.DataVersion}").Foreground(Theme.AccentText))
                                     .Padding(8, 2)
@@ -546,8 +546,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                 [
                     nameCell,
                     tierBadge,
-                    Body(FormatPct(c.WinRate))
-                        .SemiBold()
+                    BodyStrong(FormatPct(c.WinRate))
                         .Foreground(c.Tier == 1 ? Theme.AccentText : Theme.PrimaryText)
                         .HAlign(HorizontalAlignment.Right)
                         .VAlign(VerticalAlignment.Center)
@@ -657,7 +656,6 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                         VStack(4,
                             Border(
                                 Caption($"梯队 T{champ.Tier?.ToString() ?? "-"}")
-                                    .SemiBold()
                                     .Foreground(champ.Tier == 1 ? Theme.AccentText : Theme.PrimaryText))
                                 .Padding(8, 4)
                                 .CornerRadius(YuumiTheme.ControlRadius)
@@ -665,7 +663,6 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                                 .HAlign(HorizontalAlignment.Right),
                             Border(
                                 Caption($"胜率 {FormatPct(champ.WinRate)}")
-                                    .SemiBold()
                                     .Foreground(GetWinRateBrush(champ.WinRate)))
                                 .Padding(8, 4)
                                 .CornerRadius(YuumiTheme.ControlRadius)
@@ -673,7 +670,6 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                                 .HAlign(HorizontalAlignment.Right),
                             Border(
                                 Caption($"登场率 {FormatPct(champ.PickRate)}")
-                                    .SemiBold()
                                     .Foreground(Theme.SecondaryText))
                                 .Padding(8, 4)
                                 .CornerRadius(YuumiTheme.ControlRadius)
@@ -1009,7 +1005,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
                                     ]),
                                 HStack(8,
                                     Caption($"T{a.Tier?.ToString() ?? "-"}").Foreground(Theme.SecondaryText),
-                                    Caption($"胜率 {FormatPct(a.WinRate)}").SemiBold().Foreground(GetWinRateBrush(a.WinRate)),
+                                    Caption($"胜率 {FormatPct(a.WinRate)}").Foreground(GetWinRateBrush(a.WinRate)),
                                     Caption($"选取 {FormatPct(a.PickRate)} · {a.Games} 场").Foreground(Theme.SecondaryText)))
                             .VAlign(VerticalAlignment.Center)
                             .Grid(column: 1)
@@ -1025,7 +1021,7 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
 
         return Border(
                 VStack(8,
-                    Body($"海克斯强化推荐（共 {filtered.Count} 条）").SemiBold(),
+                    BodyStrong($"海克斯强化推荐（共 {filtered.Count} 条）"),
                     filterBar,
                     bodyContent))
             .Padding(12)
@@ -1038,7 +1034,6 @@ public sealed class AramDataTestPage : Component<AramDataTestPageProps>
         Button(
                 VStack(2,
                     Caption(topText)
-                        .SemiBold()
                         .Foreground(isActive ? Theme.AccentText : Theme.PrimaryText)
                         .TextTrimming(TextTrimming.CharacterEllipsis)
                         .MaxLines(1)

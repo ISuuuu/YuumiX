@@ -6,8 +6,8 @@ using YuumiX.App.Composition;
 namespace YuumiX.App.Windowing;
 
 /// <summary>
-/// 全局按住呼出热键监听（基于 GetAsyncKeyState 物理按键状态轮询）：
-/// 绕过游戏 RawInput / DirectInput 对 WM_HOTKEY 的拦截，在英雄联盟无边框对局中也能稳定按住呼出、松开隐藏。
+/// 全局显隐热键监听（基于 GetAsyncKeyState 物理按键状态轮询）：
+/// 绕过游戏 RawInput / DirectInput 对 WM_HOTKEY 的拦截，在英雄联盟无边框对局中也能稳定按一下切换显隐。
 /// </summary>
 public static class AramHotkeyMonitor
 {
@@ -38,12 +38,12 @@ public static class AramHotkeyMonitor
             _currentChampProvider = currentChampProvider;
             ApplyHotkeyLocked(hotkey);
 
+            _running = true;
             if (_thread is { IsAlive: true })
             {
                 return;
             }
 
-            _running = true;
             _thread = new Thread(PollLoop)
             {
                 Name = "AramHotkeyThread",
@@ -82,7 +82,7 @@ public static class AramHotkeyMonitor
         _vk = vk;
         AppHost.Services?.LoggerFactory
             .CreateLogger(typeof(AramHotkeyMonitor))
-            .LogInformation("[AramHotkey] 全局按住呼出热键已启用：{Hotkey}", _currentHotkey);
+            .LogInformation("[AramHotkey] 全局显隐热键已启用：{Hotkey}", _currentHotkey);
     }
 
     private static void PollLoop()
