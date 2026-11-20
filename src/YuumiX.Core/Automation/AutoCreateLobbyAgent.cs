@@ -15,7 +15,7 @@ namespace YuumiX.Core.Automation;
 /// 语义与原版一致：每个 LCU 进程生命周期内只在进入空闲阶段时建厅一次，
 /// 用户离开空闲阶段后不再自动重建（除非连接重置）。
 /// </summary>
-public sealed class AutoCreateLobbyAgent : IAutomationAgent
+public sealed class AutoCreateLobbyAgent : IAutomationAgent, IPhaseReconcileObserver, IConnectionResetObserver
 {
     /// <summary>建厅重试上限（每轮间隔约 2 秒，覆盖客户端启动初期冲掉大厅的场景）。</summary>
     private const int MaxAttempts = 12;

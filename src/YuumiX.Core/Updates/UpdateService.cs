@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Common;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Runtime;
 using YuumiX.Core.Serialization;
@@ -96,24 +97,11 @@ public static class GitHubClient
 
     private static HttpClient CreateClient(bool enableProxy, string proxyAddr, TimeSpan timeout)
     {
-        var handler = new SocketsHttpHandler();
-        if (enableProxy && !string.IsNullOrWhiteSpace(proxyAddr))
-        {
-            string proxyUrl = proxyAddr.Contains("://", StringComparison.Ordinal)
-                ? proxyAddr
-                : $"http://{proxyAddr}";
-            if (Uri.TryCreate(proxyUrl, UriKind.Absolute, out var proxyUri))
-            {
-                handler.Proxy = new System.Net.WebProxy(proxyUri);
-                handler.UseProxy = true;
-            }
-        }
-        else
-        {
-            handler.UseProxy = false;
-        }
-
-        var client = new HttpClient(handler) { Timeout = timeout };
+        var client = ProxyHttpClientFactory.CreateClient(
+            timeout: timeout,
+            enableProxy: enableProxy,
+            proxyAddr: proxyAddr,
+            disableSystemProxyWhenDisabled: true);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("YuumiX/1.0");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         return client;

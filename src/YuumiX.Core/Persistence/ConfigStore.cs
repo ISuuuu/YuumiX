@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Common;
 using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Persistence;
@@ -37,10 +38,14 @@ public sealed class ConfigStore
 
         FilePath = configFilePath;
         _logger = logger;
+        ConfigChanged = new EventStream<AppConfig>(ex => _logger.LogWarning(ex, "配置变更事件观察者异常"));
     }
 
     /// <summary>配置文件的完整路径。</summary>
     public string FilePath { get; }
+
+    /// <summary>配置成功保存后发布的统一变更事件流。</summary>
+    public EventStream<AppConfig> ConfigChanged { get; }
 
     /// <summary>损坏备份文件路径前缀所对应的错误提示文件。</summary>
     public string ErrorFilePath => FilePath + ".error";
@@ -97,6 +102,7 @@ public sealed class ConfigStore
             File.WriteAllText(tmpPath, json, Utf8NoBom);
             File.Move(tmpPath, FilePath, overwrite: true);
             _logger.LogDebug("配置已保存: {Path}", FilePath);
+            ConfigChanged.Publish(config);
         }
         catch (Exception ex)
         {

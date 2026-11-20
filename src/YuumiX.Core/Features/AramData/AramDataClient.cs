@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Common;
 using YuumiX.Core.Persistence;
 
 namespace YuumiX.Core.Features.AramData;
@@ -412,32 +413,13 @@ public sealed class AramDataClient : IDisposable
 
             _httpClient?.Dispose();
 
-            var handler = new SocketsHttpHandler
-            {
-                PooledConnectionLifetime = TimeSpan.FromMinutes(5)
-            };
-
-            if (enableProxy && !string.IsNullOrWhiteSpace(proxyAddr))
-            {
-                var proxyUrl = proxyAddr.Contains("://", StringComparison.Ordinal)
-                    ? proxyAddr
-                    : $"http://{proxyAddr}";
-
-                try
-                {
-                    handler.Proxy = new WebProxy(proxyUrl);
-                    _logger?.LogInformation("[AramData] 请求已配置代理: {ProxyUrl}", proxyUrl);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogWarning(ex, "[AramData] 无效的代理地址: {ProxyAddr}", proxyAddr);
-                }
-            }
-
-            _httpClient = new HttpClient(handler)
-            {
-                Timeout = TimeSpan.FromSeconds(30)
-            };
+            _httpClient = ProxyHttpClientFactory.CreateClient(
+                timeout: TimeSpan.FromSeconds(30),
+                enableProxy: enableProxy,
+                proxyAddr: proxyAddr,
+                pooledConnectionLifetime: TimeSpan.FromMinutes(5),
+                logger: _logger,
+                logContext: "[AramData]");
             _cachedEnableProxy = enableProxy;
             _cachedProxyAddr = proxyAddr;
             return _httpClient;

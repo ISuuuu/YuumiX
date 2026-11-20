@@ -12,7 +12,7 @@ namespace YuumiX.Core.Automation;
 /// 进入 ChampSelect 阶段后：优先从 pin-drop-notification 读取阵营，回退用选人格子位判定；
 /// 等待聊天室完成入房后向选人聊天会话发送阵营播报消息。
 /// </summary>
-public sealed class AramTeamSideAgent : IAutomationAgent
+public sealed class AramTeamSideAgent : IAutomationAgent, IGamePhaseObserver
 {
     /// <summary>轮询选人会话的最多次数（每 500ms 一次）。</summary>
     private const int SessionPollMaxAttempts = 8;

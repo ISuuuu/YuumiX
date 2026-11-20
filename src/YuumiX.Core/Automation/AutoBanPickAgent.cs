@@ -16,7 +16,7 @@ namespace YuumiX.Core.Automation;
 /// 英雄选择全流程自动化代理（对应旧版 agents/auto_bp.rs）。
 /// 处理选人预选亮起、自动禁用（含防撞车假禁用）、召唤师技能配置、楼层/英雄交换与超时确认锁定。
 /// </summary>
-public sealed class AutoBanPickAgent : IAutomationAgent
+public sealed class AutoBanPickAgent : IAutomationAgent, ILcuEventObserver
 {
     private const ulong LockBufferMs = 5000;
     private const ulong DefaultPhaseLeftMs = 10000;
@@ -105,6 +105,20 @@ public sealed class AutoBanPickAgent : IAutomationAgent
         _lastPresetActionId = null;
         _lastPresetChampionId = 0;
         _lastOpggChampionId = 0;
+    }
+
+    private const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
+
+    public bool CanHandle(string uri) =>
+        uri.StartsWith(ChampSelectSessionPath, StringComparison.OrdinalIgnoreCase);
+
+    public async ValueTask OnLcuEventAsync(LcuEvent evt)
+    {
+        var session = JsonSerializer.Deserialize(evt.Data.GetRawText(), AotJson.Options.GetTypeInfo<ChampSelectSession>());
+        if (session is not null)
+        {
+            await HandleSessionEventAsync(session).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

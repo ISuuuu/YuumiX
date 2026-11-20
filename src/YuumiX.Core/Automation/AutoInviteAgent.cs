@@ -9,7 +9,7 @@ namespace YuumiX.Core.Automation;
 /// 自动接受组队邀请代理（对应旧版 agents/auto_match.rs::spawn_handle_invitations）。
 /// 监听 /lol-lobby/v2/received-invitations 事件，当收到状态为 Pending 且可接受的邀请时自动同意。
 /// </summary>
-public sealed class AutoInviteAgent : IAutomationAgent
+public sealed class AutoInviteAgent : IAutomationAgent, ILcuEventObserver
 {
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly Func<AppConfig> _configProvider;
@@ -59,6 +59,17 @@ public sealed class AutoInviteAgent : IAutomationAgent
         _supervisor.CancelKind(TaskKind.AutoInvite);
         _logger?.LogInformation("自动接受邀请代理已停止");
         return Task.CompletedTask;
+    }
+
+    private const string ReceivedInvitationsPath = "/lol-lobby/v2/received-invitations";
+
+    public bool CanHandle(string uri) =>
+        uri.StartsWith(ReceivedInvitationsPath, StringComparison.OrdinalIgnoreCase);
+
+    public ValueTask OnLcuEventAsync(LcuEvent evt)
+    {
+        OnInvitationsEvent(evt.Data);
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

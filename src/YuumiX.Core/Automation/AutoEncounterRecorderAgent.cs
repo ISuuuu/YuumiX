@@ -9,7 +9,7 @@ namespace YuumiX.Core.Automation;
 /// <summary>
 /// 对局相遇玩家自动记录代理（对应旧版 agents/auto_match.rs::spawn_record_encountered_players）。
 /// </summary>
-public sealed class AutoEncounterRecorderAgent : IAutomationAgent
+public sealed class AutoEncounterRecorderAgent : IAutomationAgent, IPhaseReconcileObserver
 {
     private sealed record CurrentGameCache(
         long GameId,

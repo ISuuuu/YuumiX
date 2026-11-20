@@ -165,7 +165,7 @@ public static class LiveEventMatcher
 ///   <item>截图异步执行，绝不阻塞轮询循环。</item>
 /// </list>
 /// </summary>
-public sealed class MultiKillCaptureAgent : IAutomationAgent
+public sealed class MultiKillCaptureAgent : IAutomationAgent, IPhaseReconcileObserver
 {
     private const string LiveClientDataBase = "https://127.0.0.1:2999";
     private static readonly TimeSpan InGameInterval = TimeSpan.FromSeconds(1);

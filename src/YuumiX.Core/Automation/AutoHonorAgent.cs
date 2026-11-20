@@ -12,7 +12,7 @@ namespace YuumiX.Core.Automation;
 /// 监听 /lol-honor-v2/v1/ballot 事件，收到荣誉投票单后自动给队友点赞（点赞类型 HEART）并提交投票。
 /// 每场对局仅点赞一次，进入 InProgress 阶段时重置标记。
 /// </summary>
-public sealed class AutoHonorAgent : IAutomationAgent
+public sealed class AutoHonorAgent : IAutomationAgent, IGamePhaseObserver, ILcuEventObserver
 {
     private readonly Func<ILcuTransport?> _transportProvider;
     private readonly Func<AppConfig> _configProvider;
@@ -74,6 +74,17 @@ public sealed class AutoHonorAgent : IAutomationAgent
                 _honoredForCurrentMatch = false;
             }
         }
+    }
+
+    private const string HonorBallotPath = "/lol-honor-v2/v1/ballot";
+
+    public bool CanHandle(string uri) =>
+        uri.StartsWith(HonorBallotPath, StringComparison.OrdinalIgnoreCase);
+
+    public ValueTask OnLcuEventAsync(LcuEvent evt)
+    {
+        OnBallotEvent(evt.Data);
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

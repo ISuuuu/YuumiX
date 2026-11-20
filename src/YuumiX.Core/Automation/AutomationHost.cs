@@ -1,30 +1,23 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using YuumiX.Core.Automation.Models;
 using YuumiX.Core.Common;
 using YuumiX.Core.Lcu;
-using YuumiX.Core.Serialization;
 
 namespace YuumiX.Core.Automation;
 
 /// <summary>
-/// 自动化主控宿主。负责挂载 LcuConnection 事件流，驱动生命周期代际更新，并分派事件给各后台代理。
+/// 自动化主控宿主。负责挂载 LcuConnection 事件流，驱动生命周期代际更新，并按观察者接口分派事件给各后台代理。
 /// </summary>
 public sealed class AutomationHost : IDisposable
 {
+    private const string GameflowPhasePath = "/lol-gameflow/v1/gameflow-phase";
+
     private readonly LcuConnection _connection;
     private readonly AgentLifecycle _lifecycle;
-    private readonly AutoAcceptAgent _autoAcceptAgent;
-    private readonly AutoReconnectAgent _autoReconnectAgent;
-    private readonly AutoBanPickAgent _autoBanPickAgent;
-    private readonly AutoCreateLobbyAgent _autoCreateLobbyAgent;
-    private readonly AramTeamSideAgent _aramTeamSideAgent;
-    private readonly AutoEncounterRecorderAgent _autoEncounterRecorderAgent;
-    private readonly AutoTagReminderAgent _autoTagReminderAgent;
-    private readonly MultiKillCaptureAgent _multiKillCaptureAgent;
-    private readonly AutoInviteAgent _autoInviteAgent;
-    private readonly AutoHonorAgent _autoHonorAgent;
-    private readonly AutoPlayAgainAgent _autoPlayAgainAgent;
+    private readonly IReadOnlyList<IAutomationAgent> _agents;
+    private readonly IReadOnlyList<(string Name, IGamePhaseObserver Observer)> _phaseObservers;
+    private readonly IReadOnlyList<(string Name, IPhaseReconcileObserver Observer)> _phaseReconcileObservers;
+    private readonly IReadOnlyList<(string Name, ILcuEventObserver Observer)> _lcuEventObservers;
     private readonly ILogger<AutomationHost>? _logger;
 
     private IDisposable? _eventSubscription;
@@ -46,47 +39,47 @@ public sealed class AutomationHost : IDisposable
     public AutomationHost(
         LcuConnection connection,
         AgentLifecycle lifecycle,
-        AutoAcceptAgent autoAcceptAgent,
-        AutoReconnectAgent autoReconnectAgent,
-        AutoBanPickAgent autoBanPickAgent,
-        AutoCreateLobbyAgent autoCreateLobbyAgent,
-        AramTeamSideAgent aramTeamSideAgent,
-        AutoEncounterRecorderAgent autoEncounterRecorderAgent,
-        AutoTagReminderAgent autoTagReminderAgent,
-        MultiKillCaptureAgent multiKillCaptureAgent,
-        AutoInviteAgent autoInviteAgent,
-        AutoHonorAgent autoHonorAgent,
-        AutoPlayAgainAgent autoPlayAgainAgent,
+        IEnumerable<IAutomationAgent> agents,
         ILogger<AutomationHost>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(lifecycle);
-        ArgumentNullException.ThrowIfNull(autoAcceptAgent);
-        ArgumentNullException.ThrowIfNull(autoReconnectAgent);
-        ArgumentNullException.ThrowIfNull(autoBanPickAgent);
-        ArgumentNullException.ThrowIfNull(autoCreateLobbyAgent);
-        ArgumentNullException.ThrowIfNull(aramTeamSideAgent);
-        ArgumentNullException.ThrowIfNull(autoEncounterRecorderAgent);
-        ArgumentNullException.ThrowIfNull(autoTagReminderAgent);
-        ArgumentNullException.ThrowIfNull(multiKillCaptureAgent);
-        ArgumentNullException.ThrowIfNull(autoInviteAgent);
-        ArgumentNullException.ThrowIfNull(autoHonorAgent);
-        ArgumentNullException.ThrowIfNull(autoPlayAgainAgent);
+        ArgumentNullException.ThrowIfNull(agents);
 
         _connection = connection;
         _lifecycle = lifecycle;
-        _autoAcceptAgent = autoAcceptAgent;
-        _autoReconnectAgent = autoReconnectAgent;
-        _autoBanPickAgent = autoBanPickAgent;
-        _autoCreateLobbyAgent = autoCreateLobbyAgent;
-        _aramTeamSideAgent = aramTeamSideAgent;
-        _autoEncounterRecorderAgent = autoEncounterRecorderAgent;
-        _autoTagReminderAgent = autoTagReminderAgent;
-        _multiKillCaptureAgent = multiKillCaptureAgent;
-        _autoInviteAgent = autoInviteAgent;
-        _autoHonorAgent = autoHonorAgent;
-        _autoPlayAgainAgent = autoPlayAgainAgent;
         _logger = logger;
+
+        var agentList = new List<IAutomationAgent>();
+        var phaseObservers = new List<(string, IGamePhaseObserver)>();
+        var phaseReconcileObservers = new List<(string, IPhaseReconcileObserver)>();
+        var lcuEventObservers = new List<(string, ILcuEventObserver)>();
+
+        foreach (var agent in agents)
+        {
+            ArgumentNullException.ThrowIfNull(agent);
+            agentList.Add(agent);
+
+            if (agent is IGamePhaseObserver phaseObserver)
+            {
+                phaseObservers.Add((agent.Name, phaseObserver));
+            }
+
+            if (agent is IPhaseReconcileObserver reconcileObserver)
+            {
+                phaseReconcileObservers.Add((agent.Name, reconcileObserver));
+            }
+
+            if (agent is ILcuEventObserver lcuEventObserver)
+            {
+                lcuEventObservers.Add((agent.Name, lcuEventObserver));
+            }
+        }
+
+        _agents = agentList;
+        _phaseObservers = phaseObservers;
+        _phaseReconcileObservers = phaseReconcileObservers;
+        _lcuEventObservers = lcuEventObservers;
     }
 
     /// <summary>
@@ -96,17 +89,10 @@ public sealed class AutomationHost : IDisposable
     {
         _startToken = cancellationToken;
 
-        _ = _autoAcceptAgent.StartAsync(cancellationToken);
-        _ = _autoReconnectAgent.StartAsync(cancellationToken);
-        _ = _autoBanPickAgent.StartAsync(cancellationToken);
-        _ = _autoCreateLobbyAgent.StartAsync(cancellationToken);
-        _ = _aramTeamSideAgent.StartAsync(cancellationToken);
-        _ = _autoEncounterRecorderAgent.StartAsync(cancellationToken);
-        _ = _autoTagReminderAgent.StartAsync(cancellationToken);
-        _ = _multiKillCaptureAgent.StartAsync(cancellationToken);
-        _ = _autoInviteAgent.StartAsync(cancellationToken);
-        _ = _autoHonorAgent.StartAsync(cancellationToken);
-        _ = _autoPlayAgainAgent.StartAsync(cancellationToken);
+        foreach (var agent in _agents)
+        {
+            _ = agent.StartAsync(cancellationToken);
+        }
 
         _eventSubscription = _connection.Events.Subscribe(OnLcuEvent);
 
@@ -115,12 +101,19 @@ public sealed class AutomationHost : IDisposable
             if (state.Status == LcuConnectionStatus.Disconnected)
             {
                 _lifecycle.UpdatePhase(GamePhase.None);
-                _autoAcceptAgent.OnPhaseChanged(GamePhase.None);
-                _autoReconnectAgent.OnPhaseChanged(GamePhase.None);
-                _autoCreateLobbyAgent.OnConnectionReset();
-                _multiKillCaptureAgent.OnPhaseChanged(GamePhase.None);
-                _autoPlayAgainAgent.OnPhaseChanged(GamePhase.None);
-                _autoHonorAgent.OnPhaseChanged(GamePhase.None);
+
+                foreach (var agent in _agents)
+                {
+                    if (agent is IConnectionResetObserver resetObserver)
+                    {
+                        Dispatch("disconnect", agent.Name, resetObserver.OnConnectionReset);
+                    }
+                    else if (agent is IGamePhaseObserver phaseObserver)
+                    {
+                        Dispatch("disconnect", agent.Name, () => phaseObserver.OnPhaseChanged(GamePhase.None));
+                    }
+                }
+
                 Phases.Publish(GamePhase.None);
             }
             else if (state.Status == LcuConnectionStatus.Connected)
@@ -131,13 +124,13 @@ public sealed class AutomationHost : IDisposable
             }
         });
 
-        _logger?.LogInformation("自动化主控宿主已启动并监听 LCU 事件");
+        _logger?.LogInformation("自动化主控宿主已启动并监听 LCU 事件（已挂载 {Count} 个代理）", _agents.Count);
     }
 
     /// <summary>
     /// LCU 连接成功后的阶段对账：主动查询 gameflow-phase 并分派。
-    /// 仅更新生命周期、通知自动建厅代理并发布阶段流；其余代理由事件流驱动，避免对
-    /// 助手启动前已推进到一半的对局重复触发（原版即为纯事件驱动语义）。
+    /// 仅更新生命周期、通知实现 <see cref="IPhaseReconcileObserver"/> 的代理并发布阶段流；
+    /// 其余代理由实时事件流驱动，避免对助手启动前已推进到一半的对局重复触发。
     /// </summary>
     private async Task ReconcilePhaseAsync()
     {
@@ -149,15 +142,18 @@ public sealed class AutomationHost : IDisposable
             if (transport is null) return;
 
             var resp = await transport.SendAsync(
-                LcuRequest.Get("/lol-gameflow/v1/gameflow-phase"),
+                LcuRequest.Get(GameflowPhasePath),
                 _startToken).ConfigureAwait(false);
             if (!resp.IsSuccess) return;
 
             var phase = GamePhaseExtensions.ParseGamePhase(resp.Body.Trim().Trim('"'));
             _lifecycle.UpdatePhase(phase);
-            _autoCreateLobbyAgent.OnPhaseChanged(phase);
-            _autoEncounterRecorderAgent.OnPhaseChanged(phase);
-            _multiKillCaptureAgent.OnPhaseChanged(phase);
+
+            foreach (var (name, observer) in _phaseReconcileObservers)
+            {
+                Dispatch(GameflowPhasePath, name, () => observer.OnPhaseChanged(phase));
+            }
+
             Phases.Publish(phase);
 
             _logger?.LogInformation("LCU 连接阶段对账完成: {Phase}", phase);
@@ -174,16 +170,14 @@ public sealed class AutomationHost : IDisposable
     /// <summary>
     /// 事件分发入口。
     ///
-    /// 每个代理单独隔离异常：一次事件会分发给多个代理（phase 事件挂了九个），
-    /// 若共用一个 try/catch，任一代理抛异常，排在它后面的代理以及
-    /// <see cref="Phases"/> 的发布都会被一起跳过——表现成「界面阶段停在上一个值 + 部分自动化
-    /// 静默失效」，日志里只有一条笼统的「处理 LCU 事件失败」，看不出是谁挂的。
+    /// 每个代理单独隔离异常：一次事件会分发给多个代理，若共用一个 try/catch，
+    /// 任一代理抛异常会导致排在后面的代理以及 <see cref="Phases"/> 的发布被跳过。
     /// </summary>
     private void OnLcuEvent(LcuEvent evt)
     {
         try
         {
-            if (evt.Uri.StartsWith("/lol-gameflow/v1/gameflow-phase", StringComparison.OrdinalIgnoreCase))
+            if (evt.Uri.StartsWith(GameflowPhasePath, StringComparison.OrdinalIgnoreCase))
             {
                 string? phaseStr = evt.Data.ValueKind == JsonValueKind.String
                     ? evt.Data.GetString()
@@ -193,40 +187,21 @@ public sealed class AutomationHost : IDisposable
                 var phase = GamePhaseExtensions.ParseGamePhase(phaseStr);
                 _lifecycle.UpdatePhase(phase);
 
-                Dispatch(evt.Uri, nameof(AutoAcceptAgent), () => _autoAcceptAgent.OnPhaseChanged(phase));
-                Dispatch(evt.Uri, nameof(AutoReconnectAgent), () => _autoReconnectAgent.OnPhaseChanged(phase));
-                Dispatch(evt.Uri, nameof(AutoCreateLobbyAgent), () => _autoCreateLobbyAgent.OnPhaseChanged(phase));
-                Dispatch(evt.Uri, nameof(AramTeamSideAgent), () => _aramTeamSideAgent.OnPhaseChanged(phase));
-                Dispatch(evt.Uri, nameof(AutoEncounterRecorderAgent), () => _autoEncounterRecorderAgent.OnPhaseChanged(phase));
-                Dispatch(evt.Uri, nameof(AutoTagReminderAgent), () => _autoTagReminderAgent.OnPhaseChanged(phase));
-                Dispatch(evt.Uri, nameof(MultiKillCaptureAgent), () => _multiKillCaptureAgent.OnPhaseChanged(phase));
-                Dispatch(evt.Uri, nameof(AutoPlayAgainAgent), () => _autoPlayAgainAgent.OnPhaseChanged(phase));
-                Dispatch(evt.Uri, nameof(AutoHonorAgent), () => _autoHonorAgent.OnPhaseChanged(phase));
+                foreach (var (name, observer) in _phaseObservers)
+                {
+                    Dispatch(evt.Uri, name, () => observer.OnPhaseChanged(phase));
+                }
 
                 Phases.Publish(phase);
+                return;
             }
-            else if (evt.Uri.StartsWith("/lol-matchmaking/v1/ready-check", StringComparison.OrdinalIgnoreCase))
+
+            foreach (var (name, observer) in _lcuEventObservers)
             {
-                Dispatch(evt.Uri, nameof(AutoAcceptAgent), () => _autoAcceptAgent.OnReadyCheckEvent(evt.Data));
-            }
-            else if (evt.Uri.StartsWith("/lol-lobby/v2/received-invitations", StringComparison.OrdinalIgnoreCase))
-            {
-                Dispatch(evt.Uri, nameof(AutoInviteAgent), () => _autoInviteAgent.OnInvitationsEvent(evt.Data));
-            }
-            else if (evt.Uri.StartsWith("/lol-honor-v2/v1/ballot", StringComparison.OrdinalIgnoreCase))
-            {
-                Dispatch(evt.Uri, nameof(AutoHonorAgent), () => _autoHonorAgent.OnBallotEvent(evt.Data));
-            }
-            else if (evt.Uri.StartsWith("/lol-champ-select/v1/session", StringComparison.OrdinalIgnoreCase))
-            {
-                Dispatch(evt.Uri, nameof(AutoBanPickAgent), () =>
+                if (observer.CanHandle(evt.Uri))
                 {
-                    var session = JsonSerializer.Deserialize(evt.Data.GetRawText(), AotJson.Options.GetTypeInfo<ChampSelectSession>());
-                    if (session is not null)
-                    {
-                        _ = RunBanPickAsync(evt.Uri, session);
-                    }
-                });
+                    DispatchAsync(evt.Uri, name, () => observer.OnLcuEventAsync(evt));
+                }
             }
         }
         catch (Exception ex)
@@ -235,7 +210,7 @@ public sealed class AutomationHost : IDisposable
         }
     }
 
-    /// <summary>隔离单个代理的异常：失败只记日志，不影响同一事件里的其他代理。</summary>
+    /// <summary>隔离单个代理的同步异常：失败只记日志，不影响同一事件里的其他代理。</summary>
     private void Dispatch(string uri, string agent, Action action)
     {
         try
@@ -248,16 +223,32 @@ public sealed class AutomationHost : IDisposable
         }
     }
 
-    /// <summary>选人会话是异步处理，异常不会回到 <see cref="Dispatch"/> 的 try 里，单独兜住。</summary>
-    private async Task RunBanPickAsync(string uri, ChampSelectSession session)
+    /// <summary>隔离单个代理的同步/异步异常：同步完成不分配额外任务，异步任务挂接异常兜底。</summary>
+    private void DispatchAsync(string uri, string agent, Func<ValueTask> action)
     {
         try
         {
-            await _autoBanPickAgent.HandleSessionEventAsync(session).ConfigureAwait(false);
+            ValueTask task = action();
+            if (!task.IsCompletedSuccessfully)
+            {
+                _ = ObserveAsync(uri, agent, task);
+            }
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "代理 {Agent} 处理事件失败: {Uri}", nameof(AutoBanPickAgent), uri);
+            _logger?.LogError(ex, "代理 {Agent} 处理事件失败: {Uri}", agent, uri);
+        }
+    }
+
+    private async Task ObserveAsync(string uri, string agent, ValueTask task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "代理 {Agent} 处理事件失败: {Uri}", agent, uri);
         }
     }
 
@@ -268,16 +259,10 @@ public sealed class AutomationHost : IDisposable
 
         _eventSubscription?.Dispose();
         _stateSubscription?.Dispose();
-        _ = _autoAcceptAgent.StopAsync();
-        _ = _autoReconnectAgent.StopAsync();
-        _ = _autoBanPickAgent.StopAsync();
-        _ = _autoCreateLobbyAgent.StopAsync();
-        _ = _aramTeamSideAgent.StopAsync();
-        _ = _autoEncounterRecorderAgent.StopAsync();
-        _ = _autoTagReminderAgent.StopAsync();
-        _ = _multiKillCaptureAgent.StopAsync();
-        _ = _autoInviteAgent.StopAsync();
-        _ = _autoHonorAgent.StopAsync();
-        _ = _autoPlayAgainAgent.StopAsync();
+
+        foreach (var agent in _agents)
+        {
+            _ = agent.StopAsync();
+        }
     }
 }

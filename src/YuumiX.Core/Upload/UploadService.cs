@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using YuumiX.Core.Common;
 using YuumiX.Core.Lcu;
 using YuumiX.Core.Persistence;
 using YuumiX.Core.Serialization;
@@ -46,14 +47,9 @@ public sealed class UploadService
     /// <summary>独立 HTTP 客户端（外网 API，走系统代理；旧实现同款 external_http_client 语义）。
     /// 批量上传复用同一个实例：否则每次批量都要重新建连接池。</summary>
     internal static readonly Lazy<HttpClient> ExternalClient = new(() =>
-    {
-        var handler = new SocketsHttpHandler
-        {
-            // 与 LCU 自签证书无关的外网请求，正常校验证书
-            AutomaticDecompression = System.Net.DecompressionMethods.All,
-        };
-        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
-    });
+        ProxyHttpClientFactory.CreateClient(
+            timeout: TimeSpan.FromSeconds(15),
+            automaticDecompression: System.Net.DecompressionMethods.All));
 
     public UploadService(
         Func<ILcuTransport?> transportProvider,

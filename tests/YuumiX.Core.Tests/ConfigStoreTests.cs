@@ -161,5 +161,25 @@ public sealed class ConfigStoreTests
         Assert.Equal("简体中文", NewStore(path).Load().Personalization.Language);
     }
 
+    [Fact]
+    public void Save_PublishesLatestConfigToConfigChangedStream()
+    {
+        using var temp = new TempDirectory();
+        var path = temp.File("config.json");
+        var store = NewStore(path);
+        var config = store.Load();
+
+        var received = new List<string>();
+        using var sub = store.ConfigChanged.Subscribe(cfg => received.Add(cfg.Personalization.Language));
+
+        config.Personalization.Language = "en_US";
+        store.Save(config);
+
+        config.Personalization.Language = "zh_TW";
+        store.SaveWithBackup(config);
+
+        Assert.Equal(["en_US", "zh_TW"], received);
+    }
+
     private static ConfigStore NewStore(string path) => new(path, NullLogger<ConfigStore>.Instance);
 }

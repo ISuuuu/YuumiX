@@ -8,7 +8,7 @@ namespace YuumiX.Core.Automation;
 /// 对局结束后自动再来一局代理（对应旧版 agents/auto_match.rs::spawn_auto_play_again）。
 /// 进入 WaitingForStats (10s) / PreEndOfGame (3.25s) / EndOfGame (1.575s) 后延迟校验并自动点击再来一局。
 /// </summary>
-public sealed class AutoPlayAgainAgent : IAutomationAgent
+public sealed class AutoPlayAgainAgent : IAutomationAgent, IGamePhaseObserver
 {
     private static readonly TimeSpan WaitingForStatsDelay = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan PreEndOfGameDelay = TimeSpan.FromMilliseconds(3250);

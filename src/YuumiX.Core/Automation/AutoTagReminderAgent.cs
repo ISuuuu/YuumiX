@@ -13,7 +13,7 @@ namespace YuumiX.Core.Automation;
 /// 进入 ChampSelect 阶段后：检查己方队伍成员是否在本地已保存的标记字典中，
 /// 若命中则在选人队伍聊天室中发送提醒信息（[Yuumi] 队友 {name} 历史标记: {tag}）。
 /// </summary>
-public sealed class AutoTagReminderAgent : IAutomationAgent
+public sealed class AutoTagReminderAgent : IAutomationAgent, IGamePhaseObserver
 {
     private const int SessionPollMaxAttempts = 8;
     private const int ConversationPollMaxAttempts = 10;

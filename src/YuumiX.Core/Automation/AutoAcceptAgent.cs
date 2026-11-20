@@ -9,7 +9,7 @@ namespace YuumiX.Core.Automation;
 /// 自动接受对局代理（对齐旧版 agents/auto_match.rs）。
 /// 监听 ready-check 事件与 gameflow-phase 事件，在设定的延迟后自动确认对局。
 /// </summary>
-public sealed class AutoAcceptAgent : IAutomationAgent
+public sealed class AutoAcceptAgent : IAutomationAgent, IGamePhaseObserver, ILcuEventObserver
 {
     private const string ReadyCheckPath = "/lol-matchmaking/v1/ready-check";
     private const string ReadyCheckAcceptPath = "/lol-matchmaking/v1/ready-check/accept";
@@ -110,6 +110,15 @@ public sealed class AutoAcceptAgent : IAutomationAgent
         {
             TriggerAutoAccept(cfg.AutoAcceptMatchingDelay);
         }
+    }
+
+    public bool CanHandle(string uri) =>
+        uri.StartsWith(ReadyCheckPath, StringComparison.OrdinalIgnoreCase);
+
+    public ValueTask OnLcuEventAsync(LcuEvent evt)
+    {
+        OnReadyCheckEvent(evt.Data);
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

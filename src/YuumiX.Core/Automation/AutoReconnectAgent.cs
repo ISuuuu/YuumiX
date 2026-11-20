@@ -9,7 +9,7 @@ namespace YuumiX.Core.Automation;
 /// 掉线自动重连代理（对应旧版 agents/auto_match.rs::spawn_auto_reconnect）。
 /// 检测到游戏进程掉线回到 Reconnect 阶段后，自动以指数退避向客户端发起重连请求。
 /// </summary>
-public sealed class AutoReconnectAgent : IAutomationAgent
+public sealed class AutoReconnectAgent : IAutomationAgent, IGamePhaseObserver
 {
     private const int MaxAttempts = 5;
 
