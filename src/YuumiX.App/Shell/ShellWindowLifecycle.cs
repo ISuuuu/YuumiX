@@ -71,9 +71,11 @@ internal static class ShellWindowLifecycle
             window.Hide();
         }
 
+        MainWindowRegistry.Register(window);
         window.Closing += OnClosing;
         return () =>
         {
+            MainWindowRegistry.Unregister(window);
             AppLifetime.UnregisterExitAction();
             SingleInstance.UnregisterActivation();
             window.Closing -= OnClosing;

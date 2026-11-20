@@ -310,27 +310,30 @@ YuumiX/
 ├── src/YuumiX.App/                  # 应用宿主（WinUI 3 + Reactor）
 │   ├── App.cs                       # 应用入口
 │   ├── Assets/                      # 静态资源（图标、Logo、段位与分路图标）
-│   ├── Composition/                 # 服务宿主容器（DI + 日志 + 生命周期）
+│   ├── Composition/                 # 服务宿主容器（DI 入口 + UI 上下文 + 生命周期）
 │   ├── Controls/                    # 通用组件（SettingsCardKit、LcuImage、Toast 等）
-│   ├── Diagnostics/                 # 架构能力验证与诊断实验室
+│   ├── Diagnostics/                 # 崩溃取证日志（CrashLogger）
 │   ├── Navigation/                  # 路由 record 层级（AppRoute）与导航元数据
-│   ├── Pages/                       # 功能页面（Home/Career/Search/GameInfo/SavedPlayers/Tools/Opgg/Notice/Settings）
+│   ├── Pages/                       # 功能页面（Home/Career/Search/GameInfo/SavedPlayers/Tools/Opgg/AramData/Bench/Notice/Settings）
 │   ├── Services/                    # 平台服务（文件选择器等）
-│   ├── Shell/                       # 主外壳（自定义标题栏 + 侧边栏 + Mica）
+│   ├── Shell/                       # 主外壳（AppShell + 生命周期/标题栏/导航/更新红点模块）
 │   ├── Theming/                     # 主题令牌与资源映射
-│   └── Windowing/                   # 独立窗口宿主（OP.GG）
+│   └── Windowing/                   # 独立窗口宿主（OP.GG / 大乱斗板凳席 / 海克斯推荐）与统一 Win32 互操作
 ├── src/YuumiX.Core/                 # 核心领域层（禁止 UI 依赖）
 │   ├── Assets/                      # 游戏资源映射与双级缓存
-│   ├── Automation/                  # 对局自动化代理（接收/重连/选人/点赞等）
-│   ├── Common/                      # 颜色转换、事件流等基础类型
+│   ├── Automation/                  # 对局自动化代理（接口化观察者分派）
+│   ├── Common/                      # 颜色转换、事件流、代理 HttpClient 工厂等基础类型
 │   ├── Diagnostics/                 # 轮转日志与诊断设施
-│   ├── Features/                    # 业务服务（Match/Summoner/Career/GameInfo/Opgg 等）
+│   ├── Features/                    # 业务服务（Match/Summoner/Career/GameInfo/Opgg/AramData/AramBench/Tools 等）
 │   ├── Interop/                     # Win32 互操作
-│   ├── Lcu/                         # LCU 进程发现、凭据解析、HTTP 与 WebSocket
+│   ├── Lcu/                         # LCU 进程发现、凭据解析、传输访问器、HTTP 与 WebSocket
+│   ├── Localization/                # 多语言本地化服务与内置语言包
 │   ├── Parsers/                     # JSON 数据解析器
-│   ├── Persistence/                 # 配置原子读写、备份与迁移
+│   ├── Persistence/                 # 配置原子读写、变更事件流、备份与迁移
 │   ├── Realtime/                    # 云端实时通道（SignalR）
-│   ├── Runtime/                     # 运行环境与存储路径计算
+│   ├── Runtime/                     # 运行环境、存储路径与 Core 后台任务协调器
+│   ├── Serialization/               # Native AOT 源生成 JSON 上下文（AotJson）
+│   ├── ServiceRegistration/         # 按领域拆分的 DI 服务注册扩展
 │   ├── Updates/                     # GitHub Releases 更新检查与就地替换
 │   └── Upload/                      # 对局数据上传队列
 ├── tests/                           # 4 个测试工程（Core / App / SourceScan / Testing.Lcu）
